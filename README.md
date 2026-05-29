@@ -30,7 +30,8 @@ Keyboard mic → RecognitionService → STT (Whisper/etc) → LLM (cleanup/trans
 git clone git@github.com:georgernstgraf/polished-recognition.git
 cd polished-recognition
 ln -sf ../../scripts/pre-push .git/hooks/pre-push   # optional: run tests before push
-./gradlew installDebug                               # build + install to connected device
+./gradlew installDebug                               # debug build + install via ADB
+./gradlew installRelease                             # release build (visible in app drawer)
 ```
 
 ### 2. Set Up Recognition Service on Device

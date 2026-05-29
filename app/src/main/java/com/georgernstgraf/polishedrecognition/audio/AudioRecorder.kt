@@ -3,7 +3,6 @@ package com.georgernstgraf.polishedrecognition.audio
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.util.Log
 import java.io.ByteArrayOutputStream
 
 interface AudioRecorderListener {
@@ -20,11 +19,7 @@ class AudioRecorder {
     private var didReportSpeechBegin = false
 
     fun start(listener: AudioRecorderListener? = null) {
-        if (isRecording) {
-            Log.w(TAG, "start() called but already recording — ignoring")
-            return
-        }
-        Log.d(TAG, "start() — initializing AudioRecord")
+        if (isRecording) return
         this.listener = listener
         this.didReportSpeechBegin = false
 
@@ -41,7 +36,6 @@ class AudioRecorder {
             bufferSize
         )
         if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-            Log.e(TAG, "AudioRecord failed to initialize!")
             isRecording = false
             return
         }
@@ -49,7 +43,6 @@ class AudioRecorder {
         isRecording = true
 
         audioRecord?.startRecording()
-        Log.d(TAG, "start() — AudioRecord started, bufferSize=$bufferSize sampleRate=$sampleRate")
 
         Thread {
             val buffer = ByteArray(bufferSize)
@@ -64,17 +57,14 @@ class AudioRecorder {
                     listener?.onRmsChanged(rms)
                     if (!didReportSpeechBegin && rms > 200f) {
                         didReportSpeechBegin = true
-                        Log.d(TAG, "speechBegin detected (rms=%.0f)".format(rms))
                         listener?.onSpeechBegin()
                     }
                 }
             }
-            Log.d(TAG, "recording thread exiting")
         }.start()
     }
 
     fun stop(): ByteArray {
-        Log.d(TAG, "stop() — stopping recording")
         isRecording = false
         listener = null
         try {
@@ -165,9 +155,5 @@ class AudioRecorder {
     private fun writeShortLE(buf: ByteArray, offset: Int, value: Short) {
         buf[offset] = (value.toInt() and 0xFF).toByte()
         buf[offset + 1] = ((value.toInt() shr 8) and 0xFF).toByte()
-    }
-
-    companion object {
-        private const val TAG = "AudioRecorder"
     }
 }

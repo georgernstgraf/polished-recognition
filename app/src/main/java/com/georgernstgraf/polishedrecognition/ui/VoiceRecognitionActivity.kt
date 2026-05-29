@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.util.Log
 import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
@@ -30,7 +29,6 @@ import java.io.File
 class VoiceRecognitionActivity : Activity() {
 
     companion object {
-        private const val TAG = "VoiceRecognitionAct"
         private const val REQUEST_RECORD_AUDIO = 42
     }
 
@@ -84,7 +82,6 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun startRecording(statusText: TextView, micButton: ImageButton) {
-        Log.d(TAG, "startRecording")
         isRecording = true
         statusText.text = "\u25AA Tap to stop"
         micButton.setImageResource(android.R.drawable.ic_media_pause)
@@ -99,7 +96,6 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun stopRecording(statusText: TextView, micButton: ImageButton) {
-        Log.d(TAG, "stopRecording")
         isRecording = false
         stopBlink(micButton)
         statusText.text = "Processing\u2026"
@@ -107,7 +103,6 @@ class VoiceRecognitionActivity : Activity() {
         micButton.setImageResource(android.R.drawable.ic_btn_speak_now)
 
         val wavData = audioRecorder.stop()
-        Log.d(TAG, "audioRecorder stopped, wav size=${wavData.size}")
 
         scope.launch {
             try {
@@ -120,14 +115,11 @@ class VoiceRecognitionActivity : Activity() {
 
                 if (result.isSuccess) {
                     val text = result.getOrThrow()
-                    Log.d(TAG, "transcription success: `$text`")
                     returnResults(arrayListOf(text))
                 } else {
-                    Log.e(TAG, "transcription failed: ${result.exceptionOrNull()?.message}")
                     returnResults(ArrayList())
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "exception during transcription", e)
                 returnResults(ArrayList())
             }
         }
@@ -151,7 +143,6 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun cancelAndFinish() {
-        Log.d(TAG, "cancelAndFinish")
         stopBlink(findViewById(R.id.mic_button))
         if (isRecording) audioRecorder.cancel()
         returnResults(ArrayList())
