@@ -14,3 +14,8 @@ Read this file carefully before making changes in affected areas.
 - `runCatching { }` is not a coroutine scope — suspend functions cannot be called inside it. Use `withContext(Dispatchers.IO)` instead.
 - `RecognitionService.Callback.readyForSpeech()` requires a `Bundle` parameter (pass `Bundle.EMPTY`) in API 30+.
 - The STT `response_format=verbose_json` returns both `text` and `language` fields in one call — prefer it over separate calls for language detection.
+- Kotlin 1.9.x compiler cannot read Kotlin 2.1.x stdlib metadata. When test dependencies pull newer Kotlin stdlib transitively, upgrade the project Kotlin plugin to match.
+- `PromptStore` must initialize `gson` before `defaults`. Kotlin initializes properties in declaration order. A `loadDefaults()` call that references `gson` after its declaration hits an uninitialized property → NPE → swallowed by catch → fallback defaults used silently.
+- `SttProviderConfig` and `LlmProviderConfig` data classes have 5 constructor params with `id` as the only default. In Kotlin 2.1.x, positional args with default params at the front require named args for the rest.
+- The `ChatResponse` constructor takes `List<ChatChoice>`, not `List<ChatMessage>`. Each `ChatChoice` wraps a `ChatMessage`.
+- `captureNullable<ChatRequest>()` requires an explicit type parameter in the slot approach. Prefer `slot<ChatRequest>()` for capture semantics.

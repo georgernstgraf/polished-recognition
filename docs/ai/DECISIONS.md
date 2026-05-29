@@ -33,6 +33,24 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Jetpack Compose (consistent with aitranscribe-android)
 - **Tradeoff**: Less modern UI. No animation. No recomposition. Perfectly adequate for a configuration screen.
 
+## 2026-05-29: Test Infrastructure — JUnit 4 + MockK + Truth + Robolectric
+- **Choice**: JUnit 4 (not JUnit 5), MockK 1.14.4 for mocking, Google Truth 1.4.4 for assertions, Robolectric 4.14.1 for Android-aware unit tests, coroutines-test for pipeline tests
+- **Reason**: Aligned with zazentimer's proven test stack. JUnit 4 is simpler than JUnit Platform setup in Gradle. MockK handles suspend functions cleanly with `coEvery`. Robolectric enables testing SharedPreferences and assets without a device. Truth produces readable assertion failures.
+- **Considered**: JUnit Jupiter (like aitranscribe-android), Mockito, Kotest
+- **Tradeoff**: No parameterized tests (JUnit 4 limitation). No test fixtures plugin yet. Counter: test set is small (7 files, 57 cases).
+
+## 2026-05-29: Real API Integration Tests with GROQ
+- **Choice**: Separate `GroqApiIntegrationTest` class that calls GROQ Whisper STT and LLM APIs with real credentials from `.env`
+- **Reason**: Token validation, model listing, and end-to-end STT+LLM pipeline are only fully testable against the real API. Tests are skippable when `.env` is missing (CI-safe) via `assumeTrue`.
+- **Considered**: Mock-only testing, WireMock with recorded responses
+- **Tradeoff**: Requires valid GROQ API token to run. Tests are slow (network latency). Counter: only 5 integration tests; all 48 unit tests pass without network.
+
+## 2026-05-29: Kotlin 2.1.20 Upgrade
+- **Choice**: Upgrade from Kotlin 1.9.22 to 2.1.20
+- **Reason**: Test dependencies (Robolectric, MockK) transitively pull kotlin-stdlib 2.1.20 which is incompatible with Kotlin 1.9.x compiler metadata format. Upgrade was required for compilation.
+- **Considered**: Pinning stdlib to 1.9.x (complex, fragile, Gradle resolution conflicts)
+- **Tradeoff**: Kotlin 2.x has stricter parameter handling (named args required when default params at front of constructor).
+
 ## 2026-05-29: AudioRecord + WAV in-memory
 - **Choice**: `AudioRecord` capturing PCM 16-bit 16kHz mono, with manual 44-byte WAV header
 - **Reason**: RecognitionService needs raw audio for the STT API. `MediaRecorder` produces compressed formats (AAC) requiring conversion. In-memory WAV is ~50 lines of header byte manipulation. No temp file I/O during recording.

@@ -3,25 +3,29 @@
 Current status as of 2026-05-29.
 
 ## Current Focus
-Initial project scaffolding — repository setup, Gradle build, all source files, documentation.
+Complete initial project scaffold with full test suite. Commit and push pending.
 
 ## Completed (this cycle)
-- [x] GitHub repository created
-- [x] Gradle build scaffold (wrapper, root, app module)
-- [x] AndroidManifest.xml with RecognitionService
-- [x] Resource files (strings, themes, colors, layout, icons)
-- [x] Asset files (prompts.json, provider_presets.json)
+- [x] GitHub repository created (georgernstgraf/polished-recognition)
+- [x] Gradle build scaffold (Kotlin 2.1.20, AGP 8.2.2)
+- [x] AndroidManifest with RecognitionService + SettingsActivity
 - [x] 14 Kotlin source files (api, audio, config, pipeline, service, ui, Application)
-- [x] README.md, AGENTS.md, LICENSE, .gitignore
-- [x] docs/ai/ knowledge files (7 files)
+- [x] Assets (prompts.json, provider_presets.json)
+- [x] Resource files (strings, themes, colors, layout, icons)
+- [x] README, AGENTS.md, LICENSE (MIT), .gitignore
+- [x] 7 docs/ai/ knowledge files
+- [x] `.env` with GROQ tokens for integration tests
+- [x] `lincoln.mp3` (23.57s German speech) as test fixture
+- [x] 7 test files, 57 test cases, `./gradlew test` passes 100%
+- [x] Real GROQ API integration: STT, LLM cleanup, model listing, token validation all passing
+- [x] Bug fixed: PromptStore gson initialization order
 
 ## Pending
-- [ ] Build verification (`./gradlew assembleDebug`)
-- [ ] Emulator testing
-- [ ] First commit + push + issue closure
+- [ ] Emulator smoke test (install APK, configure, test mic input)
+- [ ] Consider adding ZAI STT provider preset
 
 ## Blockers
 None
 
 ## Next Session Suggestion
-Run `./gradlew assembleDebug` to verify the project compiles. If errors exist, fix them. Then test on emulator by installing the APK, configuring providers in Settings, and selecting "Polished Recognition" as the voice input provider.
+Run on emulator: install the APK, open Settings, configure a GROQ provider, validate token, then select "Polished Recognition" as the Android voice input provider. Test with any keyboard app.

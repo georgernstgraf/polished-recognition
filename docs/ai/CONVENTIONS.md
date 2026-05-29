@@ -39,3 +39,14 @@ The transcription pipeline resolves the following template variables at runtime:
 - `{{source_language}}` — human-readable language name (e.g. "English") from Whisper `language` field
 - `{{target_language}}` — the user's chosen output language
 - `{{translate_prompt}}` — empty string if no translation, otherwise the resolved translate prompt
+
+## Testing
+- Test framework: JUnit 4 (`@Test`, `@Before`, `@After`), no JUnit 5
+- Mocking: MockK 1.14.4 (`mockk(relaxed=true)`, `coEvery { ... } returns ...`, `slot<T>()`)
+- Assertions: Google Truth 1.4.4 (`Truth.assertThat(...)`)
+- Android unit tests: `@RunWith(RobolectricTestRunner::class)`, `RuntimeEnvironment.getApplication()` for Context
+- Coroutine tests: `runBlocking { }` (sync wrapper for suspend fn tests), no `runTest` needed
+- Test classes mirror source directory structure exactly
+- Test methods use backtick descriptive names: `` `STT HTTP error returns failure` ``
+- Integration tests: separate `integration/` package, read `.env` for API keys, `assumeTrue` to skip when keys absent
+- Test resources: `src/test/resources/` for audio fixtures, `src/test/resources/robolectric.properties` for SDK config

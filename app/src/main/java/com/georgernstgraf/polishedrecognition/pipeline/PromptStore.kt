@@ -7,8 +7,8 @@ import com.google.gson.reflect.TypeToken
 class PromptStore(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val defaults: Map<String, String> = loadDefaults(context)
     private val gson = Gson()
+    private val defaults: Map<String, String> = loadDefaults(context)
 
     fun get(key: String): String {
         val stored = prefs.getString(key, null)
