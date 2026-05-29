@@ -11,7 +11,8 @@ import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.common.truth.Truth.assertThat
-import io.mockk.coEvery
+import io.mockk.CapturingSlot
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
@@ -22,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import retrofit2.Call
 import retrofit2.Response
 import java.io.File
 
@@ -81,14 +83,25 @@ class TranscriptionPipelineTest {
         lincolnFile.delete()
     }
 
+    private fun <T> mockCall(response: Response<T>): Call<T> {
+        val call = mockk<Call<T>>()
+        every { call.execute() } returns response
+        return call
+    }
+
     private fun mockSttSuccess() {
-        coEvery { sttApi.transcribeAudio(any(), any(), any(), any()) } returns
-            Response.success(SttResponse(text = lincolnGermanText, language = "de"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "de")))
     }
 
     private fun mockChatSuccess(content: String = "Cleaned text") {
-        coEvery { chatApi.chat(any(), any<ChatRequest>()) } returns
-            Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", content)))))
+        every { chatApi.chatSync(any(), any<ChatRequest>()) } returns
+            mockCall(Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", content))))))
+    }
+
+    private fun mockChatSuccessWithCapture(requestSlot: CapturingSlot<ChatRequest>) {
+        every { chatApi.chatSync(any(), capture(requestSlot)) } returns
+            mockCall(Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", "ok"))))))
     }
 
     @Test
@@ -120,8 +133,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
 
         val requestSlot = slot<ChatRequest>()
-        coEvery { chatApi.chat(any(), capture(requestSlot)) } returns
-            Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", "ok")))))
+        mockChatSuccessWithCapture(requestSlot)
 
         pipeline.transcribe(lincolnFile)
 
@@ -136,8 +148,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
 
         val requestSlot = slot<ChatRequest>()
-        coEvery { chatApi.chat(any(), capture(requestSlot)) } returns
-            Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", "ok")))))
+        mockChatSuccessWithCapture(requestSlot)
 
         pipeline.transcribe(lincolnFile)
 
@@ -152,8 +163,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
 
         val requestSlot = slot<ChatRequest>()
-        coEvery { chatApi.chat(any(), capture(requestSlot)) } returns
-            Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", "ok")))))
+        mockChatSuccessWithCapture(requestSlot)
 
         pipeline.transcribe(lincolnFile)
 
@@ -168,8 +178,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
 
         val requestSlot = slot<ChatRequest>()
-        coEvery { chatApi.chat(any(), capture(requestSlot)) } returns
-            Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", "ok")))))
+        mockChatSuccessWithCapture(requestSlot)
 
         pipeline.transcribe(lincolnFile)
 
@@ -184,8 +193,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
 
         val requestSlot = slot<ChatRequest>()
-        coEvery { chatApi.chat(any(), capture(requestSlot)) } returns
-            Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", "ok")))))
+        mockChatSuccessWithCapture(requestSlot)
 
         pipeline.transcribe(lincolnFile)
 
@@ -196,8 +204,8 @@ class TranscriptionPipelineTest {
 
     @Test
     fun `STT HTTP error returns failure`() = runBlocking {
-        coEvery { sttApi.transcribeAudio(any(), any(), any(), any()) } returns
-            Response.error(500, ResponseBody.create(null, "Server Error"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockCall(Response.error(500, ResponseBody.create(null, "Server Error")))
 
         val result = pipeline.transcribe(lincolnFile)
 
@@ -209,8 +217,8 @@ class TranscriptionPipelineTest {
     fun `LLM HTTP error returns failure`() = runBlocking {
         settingsStore.rawMode = false
         mockSttSuccess()
-        coEvery { chatApi.chat(any(), any<ChatRequest>()) } returns
-            Response.error(503, ResponseBody.create(null, "Unavailable"))
+        every { chatApi.chatSync(any(), any<ChatRequest>()) } returns
+            mockCall(Response.error(503, ResponseBody.create(null, "Unavailable")))
 
         val result = pipeline.transcribe(lincolnFile)
 

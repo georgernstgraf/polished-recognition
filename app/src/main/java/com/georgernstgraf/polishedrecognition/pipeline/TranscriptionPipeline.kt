@@ -70,10 +70,10 @@ class TranscriptionPipeline(
             )
         )
 
-        val response = getChatApi(llmConfig.baseUrl).chat(
+        val response = getChatApi(llmConfig.baseUrl).chatSync(
             authorization = "Bearer ${llmConfig.apiToken}",
             request = request
-        )
+        ).execute()
 
         if (!response.isSuccessful || response.body() == null) {
             return@withContext Result.failure(Exception("LLM post-processing failed: HTTP ${response.code()}"))
@@ -88,12 +88,12 @@ class TranscriptionPipeline(
         val modelPart = config.model.toRequestBody("text/plain".toMediaTypeOrNull())
         val responseFormatPart = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
 
-        val response = getSttApi(config.baseUrl).transcribeAudio(
+        val response = getSttApi(config.baseUrl).transcribeAudioSync(
             authorization = "Bearer ${config.apiToken}",
             file = filePart,
             model = modelPart,
             responseFormat = responseFormatPart
-        )
+        ).execute()
 
         if (!response.isSuccessful || response.body() == null) {
             return Result.failure(Exception("HTTP ${response.code()}"))

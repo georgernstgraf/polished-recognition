@@ -32,4 +32,13 @@ interface OpenAiSttApiService {
         @Part("model") model: RequestBody,
         @Part("response_format") responseFormat: RequestBody
     ): Response<SttResponse>
+
+    @Multipart
+    @POST("audio/transcriptions")
+    fun transcribeAudioSync(
+        @Header("Authorization") authorization: String,
+        @Part file: MultipartBody.Part,
+        @Part("model") model: RequestBody,
+        @Part("response_format") responseFormat: RequestBody
+    ): Call<SttResponse>
 }

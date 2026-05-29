@@ -27,4 +27,10 @@ interface OpenAiChatApiService {
         @Header("Authorization") authorization: String,
         @Body request: ChatRequest
     ): Response<ChatResponse>
+
+    @POST("chat/completions")
+    fun chatSync(
+        @Header("Authorization") authorization: String,
+        @Body request: ChatRequest
+    ): Call<ChatResponse>
 }
