@@ -1,6 +1,9 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.content.ComponentName
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.ArrayAdapter
@@ -8,6 +11,7 @@ import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
@@ -110,6 +114,7 @@ class SettingsActivity : AppCompatActivity() {
             translatePromptField.setText(promptStore.translatePromptTemplate)
         }
 
+        findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openRecognitionServiceSettings() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
     }
 
@@ -313,6 +318,33 @@ class SettingsActivity : AppCompatActivity() {
             dropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, models))
         } else {
             dropdown.setAdapter(null)
+        }
+    }
+
+    private fun openRecognitionServiceSettings() {
+        val cn = ComponentName(packageName, "${packageName}.service.PolishedRecognitionService")
+        try {
+            Settings.Secure.putString(contentResolver, "voice_recognition_service", cn.flattenToString())
+            Toast.makeText(this, "Set as default recognition service!", Toast.LENGTH_LONG).show()
+        } catch (_: SecurityException) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.set_recognition_service)
+                .setMessage(R.string.recognition_service_guide)
+                .setPositiveButton("Keyboard Settings") { _, _ ->
+                    try {
+                        startActivity(Intent().apply {
+                            setClassName("com.android.settings",
+                                "com.android.settings.inputmethod.InputMethodAndSubtypeEnablerActivity")
+                        })
+                    } catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                }
+                .setNegativeButton("System Settings") { _, _ ->
+                    try {
+                        startActivity(Intent(Settings.ACTION_SETTINGS))
+                    } catch (_: Exception) {}
+                }
+                .setNeutralButton(android.R.string.cancel, null)
+                .show()
         }
     }
 

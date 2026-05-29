@@ -3,16 +3,31 @@ package com.georgernstgraf.polishedrecognition.audio
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import java.io.ByteArrayOutputStream
+
+interface AudioRecorderListener {
+    fun onRmsChanged(rms: Float)
+    fun onSpeechBegin() {}
+}
 
 class AudioRecorder {
 
     private var audioRecord: AudioRecord? = null
     private var isRecording = false
     private val bufferStream = ByteArrayOutputStream()
+    private var listener: AudioRecorderListener? = null
+    private var didReportSpeechBegin = false
 
-    fun start() {
-        if (isRecording) return
+    fun start(listener: AudioRecorderListener? = null) {
+        if (isRecording) {
+            Log.w(TAG, "start() called but already recording — ignoring")
+            return
+        }
+        Log.d(TAG, "start() — initializing AudioRecord")
+        this.listener = listener
+        this.didReportSpeechBegin = false
+
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
@@ -25,10 +40,16 @@ class AudioRecorder {
             audioFormat,
             bufferSize
         )
+        if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "AudioRecord failed to initialize!")
+            isRecording = false
+            return
+        }
         bufferStream.reset()
         isRecording = true
 
         audioRecord?.startRecording()
+        Log.d(TAG, "start() — AudioRecord started, bufferSize=$bufferSize sampleRate=$sampleRate")
 
         Thread {
             val buffer = ByteArray(bufferSize)
@@ -39,13 +60,23 @@ class AudioRecorder {
                     synchronized(bufferStream) {
                         bufferStream.write(buffer, 0, bytesRead)
                     }
+                    val rms = computeRms(buffer, bytesRead)
+                    listener?.onRmsChanged(rms)
+                    if (!didReportSpeechBegin && rms > 200f) {
+                        didReportSpeechBegin = true
+                        Log.d(TAG, "speechBegin detected (rms=%.0f)".format(rms))
+                        listener?.onSpeechBegin()
+                    }
                 }
             }
+            Log.d(TAG, "recording thread exiting")
         }.start()
     }
 
     fun stop(): ByteArray {
+        Log.d(TAG, "stop() — stopping recording")
         isRecording = false
+        listener = null
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -64,6 +95,7 @@ class AudioRecorder {
 
     fun cancel() {
         isRecording = false
+        listener = null
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -73,6 +105,16 @@ class AudioRecorder {
         synchronized(bufferStream) {
             bufferStream.reset()
         }
+    }
+
+    private fun computeRms(buffer: ByteArray, bytesRead: Int): Float {
+        var sum = 0L
+        for (i in 0 until bytesRead step 2) {
+            val sample = ((buffer[i + 1].toInt() and 0xFF) shl 8) or (buffer[i].toInt() and 0xFF)
+            sum += (sample * sample).toLong()
+        }
+        val samples = (bytesRead / 2).coerceAtLeast(1)
+        return kotlin.math.sqrt(sum.toDouble() / samples).toFloat()
     }
 
     private fun pcmToWav(pcmData: ByteArray, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
@@ -123,5 +165,9 @@ class AudioRecorder {
     private fun writeShortLE(buf: ByteArray, offset: Int, value: Short) {
         buf[offset] = (value.toInt() and 0xFF).toByte()
         buf[offset + 1] = ((value.toInt() shr 8) and 0xFF).toByte()
+    }
+
+    companion object {
+        private const val TAG = "AudioRecorder"
     }
 }

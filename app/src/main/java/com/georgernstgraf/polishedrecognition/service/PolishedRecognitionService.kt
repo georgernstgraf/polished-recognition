@@ -8,13 +8,19 @@ import android.os.Bundle
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
+import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -23,20 +29,43 @@ class PolishedRecognitionService : RecognitionService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val audioRecorder = com.georgernstgraf.polishedrecognition.audio.AudioRecorder()
     private var callback: Callback? = null
+    private var partialResultsJob: Job? = null
+    private var recordingId = 0
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate")
         createNotificationChannel()
     }
 
     override fun onStartListening(recognizerIntent: Intent, listener: Callback) {
+        recordingId++
+        val rid = recordingId
+        Log.d(TAG, "[$rid] onStartListening")
+
         callback = listener
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.listening_notification)))
-        listener.beginningOfSpeech()
-        audioRecorder.start()
+
+        val recorderListener = object : AudioRecorderListener {
+            override fun onRmsChanged(rms: Float) {
+                Log.v(TAG, "[$rid] rmsChanged rms=%.1f".format(rms))
+                callback?.rmsChanged(rms)
+            }
+
+            override fun onSpeechBegin() {
+                Log.d(TAG, "[$rid] onSpeechBegin callback")
+                callback?.beginningOfSpeech()
+            }
+        }
+        audioRecorder.start(recorderListener)
+        Log.d(TAG, "[$rid] audioRecorder.start() called, starting partial results")
+
+        startPartialResults(rid)
     }
 
     override fun onCancel(listener: Callback) {
+        Log.d(TAG, "[$recordingId] onCancel — caller cancelled, dropping audio")
+        stopPartialResults()
         audioRecorder.cancel()
         stopProcessing(listener, Bundle().apply {
             putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, ArrayList())
@@ -44,7 +73,11 @@ class PolishedRecognitionService : RecognitionService() {
     }
 
     override fun onStopListening(listener: Callback) {
+        val rid = recordingId
+        Log.d(TAG, "[$rid] onStopListening — user released mic")
+        stopPartialResults()
         val wavData = audioRecorder.stop()
+        Log.d(TAG, "[$rid] audioRecorder.stop() = %d bytes WAV".format(wavData.size))
 
         updateNotification(getString(R.string.processing_notification))
 
@@ -54,12 +87,14 @@ class PolishedRecognitionService : RecognitionService() {
                 val file = File(cacheDir, "recording.wav")
                 file.writeBytes(wavData)
 
+                Log.d(TAG, "[$rid] calling transcriptionPipeline.transcribe()")
                 val result = app.transcriptionPipeline.transcribe(file)
 
                 file.delete()
 
                 if (result.isSuccess) {
                     val text = result.getOrThrow()
+                    Log.d(TAG, "[$rid] transcription success: `${text}`")
                     val bundle = Bundle().apply {
                         putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, arrayListOf(text))
                     }
@@ -67,6 +102,7 @@ class PolishedRecognitionService : RecognitionService() {
                 } else {
                     val error = result.exceptionOrNull()
                     val errorMsg = error?.message ?: "Unknown error"
+                    Log.e(TAG, "[$rid] transcription failed: $errorMsg")
                     listener.error(if (errorMsg.contains("network", ignoreCase = true)) {
                         SpeechRecognizer.ERROR_NETWORK
                     } else {
@@ -75,13 +111,40 @@ class PolishedRecognitionService : RecognitionService() {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "[$rid] exception in onStopListening", e)
                 listener.error(SpeechRecognizer.ERROR_CLIENT)
                 stopForeground(STOP_FOREGROUND_REMOVE)
             }
         }
     }
 
+    private fun startPartialResults(rid: Int) {
+        Log.d(TAG, "[$rid] startPartialResults — sending dots every 400ms")
+        partialResultsJob = scope.launch {
+            var dotCount = 0
+            repeat(Int.MAX_VALUE) {
+                if (!isActive) return@launch
+                delay(400)
+                dotCount = (dotCount + 1) % 5
+                val dots = ".".repeat(dotCount.coerceAtLeast(1))
+                val bundle = Bundle().apply {
+                    putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, arrayListOf(dots))
+                }
+                Log.v(TAG, "[$rid] partialResults: `$dots`")
+                callback?.partialResults(bundle)
+            }
+        }
+    }
+
+    private fun stopPartialResults() {
+        Log.d(TAG, "[$recordingId] stopPartialResults")
+        partialResultsJob?.cancel()
+        partialResultsJob = null
+    }
+
     private fun stopProcessing(listener: Callback, bundle: Bundle) {
+        val rid = recordingId
+        Log.d(TAG, "[$rid] stopProcessing — delivering results")
         listener.results(bundle)
         listener.endOfSpeech()
         listener.readyForSpeech(Bundle.EMPTY)
@@ -91,6 +154,8 @@ class PolishedRecognitionService : RecognitionService() {
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy")
+        stopPartialResults()
         scope.launch {
             try { audioRecorder.cancel() } catch (_: Exception) {}
         }
@@ -129,6 +194,7 @@ class PolishedRecognitionService : RecognitionService() {
     }
 
     companion object {
+        private const val TAG = "PolishedRecognition"
         private const val CHANNEL_ID = "voice_recognition"
         private const val NOTIFICATION_ID = 1001
     }

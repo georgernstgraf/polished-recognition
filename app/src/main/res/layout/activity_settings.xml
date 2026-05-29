@@ -11,6 +11,15 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Recognition Service Setup -->
+        <Button
+            android:id="@+id/set_recognition_service"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/set_recognition_service"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_marginBottom="16dp"/>
+
         <!-- STT Section -->
         <TextView
             android:layout_width="match_parent"

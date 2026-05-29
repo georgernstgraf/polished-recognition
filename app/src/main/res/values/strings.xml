@@ -33,4 +33,6 @@
     <string name="error_postprocess_failed">Post-processing failed</string>
     <string name="reset_prompt">Reset</string>
     <string name="prompt_variables">Variables:</string>
+    <string name="set_recognition_service">Set as Voice Input (Recognition Service)</string>
+    <string name="recognition_service_guide">On OnePlus / OxygenOS devices:\n\n1. Settings → System Settings → Language &amp; input\n2. Voice input → Recognition service\n3. Select \"Polished Recognition (debug)\"\n\nIf \"Voice input\" is not in System Settings:\n• Gboard settings → Voice typing → Recognition service\n• Or long-press microphone on keyboard</string>
 </resources>
