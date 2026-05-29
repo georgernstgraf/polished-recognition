@@ -1,7 +1,6 @@
 package com.georgernstgraf.polishedrecognition.ui
 
 import android.Manifest
-import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,7 +9,6 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import android.view.View
-import android.view.animation.DecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -22,7 +20,10 @@ import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -36,7 +37,7 @@ class VoiceRecognitionActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val audioRecorder = AudioRecorder()
     private var isRecording = false
-    private var blinkAnimator: ObjectAnimator? = null
+    private var blinkJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,18 +134,19 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun startBlink(button: ImageButton) {
-        blinkAnimator = ObjectAnimator.ofFloat(button, "alpha", 1.0f, 0.2f, 1.0f).apply {
-            duration = 1800
-            repeatMode = ObjectAnimator.RESTART
-            repeatCount = ObjectAnimator.INFINITE
-            interpolator = DecelerateInterpolator()
-            start()
+        blinkJob = scope.launch {
+            while (isActive) {
+                button.alpha = 0.25f
+                delay(1200)
+                button.alpha = 1.0f
+                delay(1200)
+            }
         }
     }
 
     private fun stopBlink(button: ImageButton) {
-        blinkAnimator?.cancel()
-        blinkAnimator = null
+        blinkJob?.cancel()
+        blinkJob = null
         button.alpha = 1.0f
     }
 
