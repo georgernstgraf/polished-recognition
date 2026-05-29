@@ -4,6 +4,7 @@ import com.georgernstgraf.polishedrecognition.api.dto.ModelsResponse
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import retrofit2.Call
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -17,6 +18,11 @@ interface OpenAiSttApiService {
     suspend fun listModels(
         @Header("Authorization") authorization: String
     ): Response<ModelsResponse>
+
+    @GET("models")
+    fun listModelsSync(
+        @Header("Authorization") authorization: String
+    ): Call<ModelsResponse>
 
     @Multipart
     @POST("audio/transcriptions")

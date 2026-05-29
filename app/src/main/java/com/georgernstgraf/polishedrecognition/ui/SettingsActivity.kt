@@ -16,8 +16,6 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
-import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
-import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.LanguageMapper
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
@@ -27,8 +25,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -285,13 +281,8 @@ class SettingsActivity : AppCompatActivity() {
     private suspend fun fetchSttModels(baseUrl: String, token: String): Result<List<String>> =
         withContext(Dispatchers.IO) {
             try {
-                val retrofit = Retrofit.Builder()
-                    .baseUrl(baseUrl)
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build()
-                    .create(OpenAiSttApiService::class.java)
-
-                val response = retrofit.listModels("Bearer $token")
+                val api = app.getSttApi(baseUrl)
+                val response = api.listModelsSync("Bearer $token").execute()
                 if (response.isSuccessful && response.body() != null) {
                     val audioModels = response.body()!!.data
                         .filter { it.id.contains("whisper", ignoreCase = true) || it.id.contains("asr", ignoreCase = true) }
@@ -311,13 +302,8 @@ class SettingsActivity : AppCompatActivity() {
     private suspend fun fetchLlmModels(baseUrl: String, token: String): Result<List<String>> =
         withContext(Dispatchers.IO) {
             try {
-                val retrofit = Retrofit.Builder()
-                    .baseUrl(baseUrl)
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build()
-                    .create(OpenAiChatApiService::class.java)
-
-                val response = retrofit.listModels("Bearer $token")
+                val api = app.getChatApi(baseUrl)
+                val response = api.listModelsSync("Bearer $token").execute()
                 if (response.isSuccessful && response.body() != null) {
                     val models = response.body()!!.data.map { it.id }
                     Result.success(models)
