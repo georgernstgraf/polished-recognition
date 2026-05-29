@@ -1,0 +1,41 @@
+{
+    "stt_presets": [
+        {
+            "name": "GROQ Whisper",
+            "base_url": "https://api.groq.com/openai/v1/",
+            "models": ["whisper-large-v3-turbo", "whisper-large-v3"]
+        },
+        {
+            "name": "OpenAI Whisper",
+            "base_url": "https://api.openai.com/v1/",
+            "models": ["whisper-1"]
+        }
+    ],
+    "llm_presets": [
+        {
+            "name": "OpenAI",
+            "base_url": "https://api.openai.com/v1/",
+            "models": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
+        },
+        {
+            "name": "OpenRouter",
+            "base_url": "https://openrouter.ai/api/v1/",
+            "models": ["google/gemini-2.5-flash-lite", "anthropic/claude-3-haiku", "meta-llama/llama-3.3-70b-instruct", "google/gemini-2.0-flash-001", "mistralai/mistral-small-3.1-24b-instruct"]
+        },
+        {
+            "name": "GROQ",
+            "base_url": "https://api.groq.com/openai/v1/",
+            "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"]
+        },
+        {
+            "name": "Ollama (local)",
+            "base_url": "http://localhost:11434/v1/",
+            "models": []
+        },
+        {
+            "name": "LM Studio (local)",
+            "base_url": "http://localhost:1234/v1/",
+            "models": []
+        }
+    ]
+}

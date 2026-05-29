@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Polished Recognition</string>
+    <string name="settings_title">Configure Voice Providers</string>
+    <string name="stt_section">STT (Speech-to-Text)</string>
+    <string name="llm_section">LLM Post-Processing</string>
+    <string name="processing_section">Processing</string>
+    <string name="prompts_section">Prompts</string>
+    <string name="provider">Provider</string>
+    <string name="model">Model</string>
+    <string name="api_token">API Token</string>
+    <string name="validate_fetch">Validate &amp; Fetch Models</string>
+    <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
+    <string name="target_language">Target language</string>
+    <string name="system_prompt">System Prompt</string>
+    <string name="user_prompt_template">User Prompt Template</string>
+    <string name="translate_prompt">Translate Prompt</string>
+    <string name="restore_defaults">Restore Default Prompts</string>
+    <string name="save">Save</string>
+    <string name="saved">Settings saved</string>
+    <string name="token_valid">Token valid</string>
+    <string name="token_invalid">Invalid token or no access</string>
+    <string name="no_models_endpoint">Provider does not support model listing — enter model name manually</string>
+    <string name="models_fetched">%1$d models loaded</string>
+    <string name="add_from_preset">Add from preset…</string>
+    <string name="custom_provider">Custom provider…</string>
+    <string name="listening_notification">Listening…</string>
+    <string name="processing_notification">Processing voice input…</string>
+    <string name="error_no_stt_token">STT API token not configured</string>
+    <string name="error_no_llm_token">LLM API token not configured</string>
+    <string name="error_network">Network error — check connection</string>
+    <string name="error_transcription_failed">Transcription failed</string>
+    <string name="error_postprocess_failed">Post-processing failed</string>
+    <string name="reset_prompt">Reset</string>
+    <string name="prompt_variables">Variables:</string>
+</resources>
