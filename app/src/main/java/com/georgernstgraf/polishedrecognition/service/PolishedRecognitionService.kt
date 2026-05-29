@@ -16,10 +16,7 @@ import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -28,7 +25,6 @@ class PolishedRecognitionService : RecognitionService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val audioRecorder = com.georgernstgraf.polishedrecognition.audio.AudioRecorder()
     private var callback: Callback? = null
-    private var partialResultsJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -49,12 +45,9 @@ class PolishedRecognitionService : RecognitionService() {
             }
         }
         audioRecorder.start(recorderListener)
-
-        startPartialResults()
     }
 
     override fun onCancel(listener: Callback) {
-        stopPartialResults()
         audioRecorder.cancel()
         stopProcessing(listener, Bundle().apply {
             putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, ArrayList())
@@ -62,7 +55,6 @@ class PolishedRecognitionService : RecognitionService() {
     }
 
     override fun onStopListening(listener: Callback) {
-        stopPartialResults()
         val wavData = audioRecorder.stop()
 
         updateNotification(getString(R.string.processing_notification))
@@ -81,6 +73,7 @@ class PolishedRecognitionService : RecognitionService() {
                     val text = result.getOrThrow()
                     val bundle = Bundle().apply {
                         putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, arrayListOf(text))
+                        putStringArrayList(RecognizerIntent.EXTRA_RESULTS, arrayListOf(text))
                     }
                     stopProcessing(listener, bundle)
                 } else {
@@ -100,26 +93,6 @@ class PolishedRecognitionService : RecognitionService() {
         }
     }
 
-    private fun startPartialResults() {
-        partialResultsJob = scope.launch {
-            var dotCount = 0
-            while (isActive) {
-                delay(400)
-                dotCount = (dotCount + 1) % 5
-                val dots = ".".repeat(dotCount.coerceAtLeast(1))
-                val bundle = Bundle().apply {
-                    putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, arrayListOf(dots))
-                }
-                callback?.partialResults(bundle)
-            }
-        }
-    }
-
-    private fun stopPartialResults() {
-        partialResultsJob?.cancel()
-        partialResultsJob = null
-    }
-
     private fun stopProcessing(listener: Callback, bundle: Bundle) {
         listener.results(bundle)
         listener.endOfSpeech()
@@ -130,7 +103,6 @@ class PolishedRecognitionService : RecognitionService() {
     }
 
     override fun onDestroy() {
-        stopPartialResults()
         scope.launch {
             try { audioRecorder.cancel() } catch (_: Exception) {}
         }
