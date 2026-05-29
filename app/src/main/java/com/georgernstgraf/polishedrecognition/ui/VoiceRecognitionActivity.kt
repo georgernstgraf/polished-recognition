@@ -133,9 +133,9 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun startBlink(button: ImageButton) {
-        blinkAnimator = ObjectAnimator.ofFloat(button, "alpha", 1.0f, 0.3f).apply {
-            duration = 600
-            repeatMode = ObjectAnimator.REVERSE
+        blinkAnimator = ObjectAnimator.ofFloat(button, "alpha", 1.0f, 0.2f, 1.0f).apply {
+            duration = 1000
+            repeatMode = ObjectAnimator.RESTART
             repeatCount = ObjectAnimator.INFINITE
             interpolator = LinearInterpolator()
             start()
