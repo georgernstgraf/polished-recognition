@@ -10,7 +10,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import android.view.View
-import android.view.animation.LinearInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -134,10 +134,10 @@ class VoiceRecognitionActivity : Activity() {
 
     private fun startBlink(button: ImageButton) {
         blinkAnimator = ObjectAnimator.ofFloat(button, "alpha", 1.0f, 0.2f, 1.0f).apply {
-            duration = 1000
+            duration = 1800
             repeatMode = ObjectAnimator.RESTART
             repeatCount = ObjectAnimator.INFINITE
-            interpolator = LinearInterpolator()
+            interpolator = DecelerateInterpolator()
             start()
         }
     }
