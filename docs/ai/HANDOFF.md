@@ -1,25 +1,21 @@
 # Hand Off
 
 ## Active
-- #2 Voice input overlay UI — blink animation fix pending user verification
-- #3 AGENTS.md + README config — merged, ready to close
+- #6 Fix R8/ProGuard ClassCastException — implemented, needs release build verification
+- #1, #2, #3, #4 — pending closure
 
 ## Completed
-- #1 Initial project scaffolding — closed
-- #5 Token validation error state and HTTP error details — closed
-- VoiceRecognitionActivity intercepts RECOGNIZE_SPEECH intent from AnySoftKeyboard
-- AudioRecorder: RMS feedback, speechBegin detection
-- RecognitionService: live callbacks, partial results
-- Pre-push hook: `./gradlew test` via `scripts/pre-push`
+- #6 R8 fix: added `listModelsSync` to API services, SettingsActivity uses `Call.execute()` and cached Retrofit instances (commit 7f3758a, pushed)
+- #5 Token validation error state — closed
 
 ## Pending
-- #2: verify blink animation with user, then close
-- #3: needs final close via issue-finish
-- #1: needs final close via issue-finish
+- #6: build release APK (`./gradlew assembleRelease`), verify token validation no longer crashes, then close
+- #1, #2, #3, #4: close via issue-finish workflow
+- On-device release smoke test
 
 ## Next Session
-1. Close #3 (docs work)
-2. Verify #2 blink fix, close if confirmed
-3. Close #1 after push verified
+1. Build and verify release APK for #6
+2. Close #6 if verified
+3. Close #3, #2, #1, #4 via issue-finish
 
-Last updated: 2026-05-29
+Last updated: 2026-05-30

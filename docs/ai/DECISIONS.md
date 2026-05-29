@@ -62,3 +62,9 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Users need actionable information when token validation fails. The generic "Invalid token or no access" gives no clue whether the token, provider URL, or network is wrong.
 - **Considered**: Custom error dialog, dedicated error view in layout
 - **Tradeoff**: Error messages from providers vary in format — the `error.message` extraction handles OpenAI/GROQ/OpenRouter. Non-standard providers may still show generic message.
+
+## 2026-05-30: Sync Call for model listing (R8 workaround)
+- **Choice**: Add non-suspend `listModelsSync` returning `Call<ModelsResponse>` to API services, use `Call.execute()` in `fetchSttModels`/`fetchLlmModels` instead of creating new Retrofit instances with suspend functions
+- **Reason**: R8 full mode strips generic type info from the `Continuation<? super Response<ModelsResponse>>` parameter in Kotlin suspend functions. Retrofit's `HttpServiceMethod.parseAnnotations` casts this to `ParameterizedType`, causing `ClassCastException: java.lang.Class cannot be cast to java.lang.reflect.ParameterizedType` in release builds. Using a non-suspend `Call<ModelsResponse>` avoids the `Continuation` type resolution path entirely
+- **Considered**: Adding ProGuard keep rules (`-keep class kotlin.coroutines.Continuation`), OkHttp direct call
+- **Tradeoff**: `Call.execute()` blocks the thread (fine — already on `Dispatchers.IO`). Slightly more verbose than suspend single-line call. Keeps the shared `OkHttpClient` with connection pooling via `PolishedRecognitionApp.getSttApi/getChatApi`

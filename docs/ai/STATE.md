@@ -1,23 +1,26 @@
 # Project State
 
-Current status as of 2026-05-29.
+Current status as of 2026-05-30.
 
 ## Current Focus
-Clean up remaining open issues (#1, #2, #3).
+Fix R8/ProGuard ClassCastException in release builds (#6).
 
 ## Completed (this cycle)
-- [x] #5 — TextWatcher added to STT/LLM token fields, clears error/helperText on text change
-- [x] #5 — HTTP error body extracted and displayed in TextInputLayout.error (e.g. "HTTP 401: Invalid API key")
-- [x] #5 — Dead tautology filter removed from fetchSttModels
-- [x] #5 — Closed, both commits pushed (75fd935, 62d067f)
-- [x] Knowledge files updated: PITFALLS, CONVENTIONS, DECISIONS, STATE, HANDOFF
+- [x] #6 — Added `listModelsSync` (non-suspend, `Call<ModelsResponse>`) to `OpenAiSttApiService` and `OpenAiChatApiService`
+- [x] #6 — Updated `fetchSttModels`/`fetchLlmModels` in `SettingsActivity` to use `Call.execute()` and `PolishedRecognitionApp`'s cached Retrofit instances
+- [x] #6 — Removed unused imports (`Retrofit`, `GsonConverterFactory`) from SettingsActivity
+- [x] #6 — All tests pass (debug + release), pushed to master (7f3758a)
 
 ## Pending
-- [ ] #1, #2, #3 — close remaining issues
-- [ ] On-device smoke test
+- [ ] #1 — close initial scaffolding issue
+- [ ] #2 — verify blink animation, close
+- [ ] #3 — close AGENTS.md/README config issue
+- [ ] #4 — GitHub CI workflow
+- [ ] #6 — close after release build verification
+- [ ] On-device release smoke test (verify R8 fix)
 
 ## Blockers
 None
 
 ## Next Session Suggestion
-Close #3 (docs work), then #2, then #1 via issue-finish workflow. Consider on-device smoke test after all issues closed.
+Verify #6 fix on release APK, close #6. Continue closing #1-#4. Run on-device smoke test.
