@@ -33,6 +33,9 @@ Follow these without question. Do not deviate unless explicitly told.
 - Prompt defaults loaded from `assets/prompts.json`, user edits stored in SharedPreferences
 - Settings keys follow snake_case convention in SharedPreferences
 
+## UI Patterns
+- When setting `TextInputLayout.error` from validation logic, always add a `TextWatcher` to the corresponding `TextInputEditText` that clears both `error = null` and `helperText = null` on text change. This ensures the red error state disappears as the user corrects their input.
+
 ## Prompt Variables
 The transcription pipeline resolves the following template variables at runtime:
 - `{{text}}` — raw Whisper transcription output

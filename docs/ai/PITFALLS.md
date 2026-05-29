@@ -19,3 +19,4 @@ Read this file carefully before making changes in affected areas.
 - `SttProviderConfig` and `LlmProviderConfig` data classes have 5 constructor params with `id` as the only default. In Kotlin 2.1.x, positional args with default params at the front require named args for the rest.
 - The `ChatResponse` constructor takes `List<ChatChoice>`, not `List<ChatMessage>`. Each `ChatChoice` wraps a `ChatMessage`.
 - `captureNullable<ChatRequest>()` requires an explicit type parameter in the slot approach. Prefer `slot<ChatRequest>()` for capture semantics.
+- `TextInputLayout.error` persists indefinitely until explicitly set to `null`. If no `TextWatcher` clears it on text change, the red error state remains even after the user corrects the input. Always pair `textField.addTextChangedListener { layout.error = null }` when setting `layout.error` from validation logic.

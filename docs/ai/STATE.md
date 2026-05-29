@@ -3,29 +3,19 @@
 Current status as of 2026-05-29.
 
 ## Current Focus
-Complete initial project scaffold with full test suite. Commit and push pending.
+Fix token validation UX in SettingsActivity: error state persistence and missing HTTP error details.
 
 ## Completed (this cycle)
-- [x] GitHub repository created (georgernstgraf/polished-recognition)
-- [x] Gradle build scaffold (Kotlin 2.1.20, AGP 8.2.2)
-- [x] AndroidManifest with RecognitionService + SettingsActivity
-- [x] 14 Kotlin source files (api, audio, config, pipeline, service, ui, Application)
-- [x] Assets (prompts.json, provider_presets.json)
-- [x] Resource files (strings, themes, colors, layout, icons)
-- [x] README, AGENTS.md, LICENSE (MIT), .gitignore
-- [x] 7 docs/ai/ knowledge files
-- [x] `.env` with GROQ tokens for integration tests
-- [x] `lincoln.mp3` (23.57s German speech) as test fixture
-- [x] 7 test files, 57 test cases, `./gradlew test` passes 100%
-- [x] Real GROQ API integration: STT, LLM cleanup, model listing, token validation all passing
-- [x] Bug fixed: PromptStore gson initialization order
+- [x] #5 — TextWatcher added to STT/LLM token fields, clears error/helperText on text change
+- [x] #5 — HTTP error body extracted and displayed in TextInputLayout.error (e.g. "HTTP 401: Invalid API key")
+- [x] #5 — Dead tautology filter removed from fetchSttModels
+- [x] All 57 unit tests pass, build successful, commit pushed (75fd935)
 
 ## Pending
-- [ ] Emulator smoke test (install APK, configure, test mic input)
-- [ ] Consider adding ZAI STT provider preset
+- [ ] Verify on device: error clears when typing after failed validation, error details visible
 
 ## Blockers
 None
 
 ## Next Session Suggestion
-Run on emulator: install the APK, open Settings, configure a GROQ provider, validate token, then select "Polished Recognition" as the Android voice input provider. Test with any keyboard app.
+Install debug APK on emulator/device, test token validation with a real GROQ key. Verify error appears with details on 401, clears when editing. If confirmed, close #5.
