@@ -13,6 +13,7 @@ import android.widget.CheckBox
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
@@ -92,6 +93,24 @@ class SettingsActivity : AppCompatActivity() {
 
         validateSttButton.setOnClickListener { validateSttProvider() }
         validateLlmButton.setOnClickListener { validateLlmProvider() }
+
+        sttTokenField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sttTokenLayout.error = null
+                sttTokenLayout.helperText = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        llmTokenField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                llmTokenLayout.error = null
+                llmTokenLayout.helperText = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
 
         findViewById<Button>(R.id.restore_defaults).setOnClickListener {
             promptStore.restoreAllDefaults()
@@ -207,10 +226,11 @@ class SettingsActivity : AppCompatActivity() {
                     sttTokenLayout.helperText = getString(R.string.token_valid)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
                 } else {
-                    sttTokenLayout.error = getString(R.string.token_invalid)
+                    sttTokenLayout.error = result.exceptionOrNull()?.message
+                        ?: getString(R.string.token_invalid)
                 }
             } catch (e: Exception) {
-                sttTokenLayout.error = getString(R.string.token_invalid)
+                sttTokenLayout.error = e.message ?: getString(R.string.token_invalid)
             } finally {
                 validateSttButton.isEnabled = true
             }
@@ -251,10 +271,11 @@ class SettingsActivity : AppCompatActivity() {
                     llmTokenLayout.helperText = getString(R.string.token_valid)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
                 } else {
-                    llmTokenLayout.error = getString(R.string.token_invalid)
+                    llmTokenLayout.error = result.exceptionOrNull()?.message
+                        ?: getString(R.string.token_invalid)
                 }
             } catch (e: Exception) {
-                llmTokenLayout.error = getString(R.string.token_invalid)
+                llmTokenLayout.error = e.message ?: getString(R.string.token_invalid)
             } finally {
                 validateLlmButton.isEnabled = true
             }
@@ -272,15 +293,15 @@ class SettingsActivity : AppCompatActivity() {
 
                 val response = retrofit.listModels("Bearer $token")
                 if (response.isSuccessful && response.body() != null) {
-                    val models = response.body()!!.data
-                        .filter { it.id.contains("whisper", ignoreCase = true) || !it.id.contains("whisper", ignoreCase = true) }
-                        .map { it.id }
                     val audioModels = response.body()!!.data
                         .filter { it.id.contains("whisper", ignoreCase = true) || it.id.contains("asr", ignoreCase = true) }
                         .map { it.id }
-                    Result.success(if (audioModels.isNotEmpty()) audioModels else models)
+                    val allModels = response.body()!!.data.map { it.id }
+                    Result.success(if (audioModels.isNotEmpty()) audioModels else allModels)
                 } else {
-                    Result.failure(Exception("HTTP ${response.code()}"))
+                    val detail = extractErrorDetail(response.errorBody())
+                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
+                    Result.failure(Exception(msg))
                 }
             } catch (e: Exception) {
                 Result.failure(e)
@@ -301,12 +322,23 @@ class SettingsActivity : AppCompatActivity() {
                     val models = response.body()!!.data.map { it.id }
                     Result.success(models)
                 } else {
-                    Result.failure(Exception("HTTP ${response.code()}"))
+                    val detail = extractErrorDetail(response.errorBody())
+                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
+                    Result.failure(Exception(msg))
                 }
             } catch (e: Exception) {
                 Result.failure(e)
             }
         }
+
+    private fun extractErrorDetail(errorBody: okhttp3.ResponseBody?): String {
+        if (errorBody == null) return ""
+        return try {
+            val json = Gson().fromJson(errorBody.string(), Map::class.java)
+            val error = json["error"] as? Map<*, *>
+            error?.get("message") as? String ?: ""
+        } catch (_: Exception) { "" }
+    }
 
     private fun getCustomBaseUrl(name: String): String? {
         val preset = presets.findSttPreset(name) ?: presets.findLlmPreset(name)
