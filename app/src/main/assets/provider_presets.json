@@ -29,7 +29,7 @@
         },
         {
             "name": "DeepSeek",
-            "base_url": "https://api.deepseek.com",
+            "base_url": "https://api.deepseek.com/v1/",
             "models": []
         },
         {
@@ -49,7 +49,7 @@
         },
         {
             "name": "DeepInfra",
-            "base_url": "https://api.deepinfra.com/v1",
+            "base_url": "https://api.deepinfra.com/v1/",
             "models": []
         },
         {
@@ -64,17 +64,17 @@
         },
         {
             "name": "Perplexity",
-            "base_url": "https://api.perplexity.ai",
+            "base_url": "https://api.perplexity.ai/",
             "models": []
         },
         {
             "name": "HuggingFace",
-            "base_url": "https://router.huggingface.co/v1",
+            "base_url": "https://router.huggingface.co/v1/",
             "models": []
         },
         {
             "name": "NVIDIA",
-            "base_url": "https://integrate.api.nvidia.com/v1",
+            "base_url": "https://integrate.api.nvidia.com/v1/",
             "models": []
         },
         {
