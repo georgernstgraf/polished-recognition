@@ -42,6 +42,7 @@ class SettingsActivity : AppCompatActivity() {
     private val sttTokenField: TextInputEditText by lazy { findViewById(R.id.stt_token) }
     private val sttTokenLayout: TextInputLayout by lazy { findViewById(R.id.stt_token_layout) }
     private val sttModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_model) }
+    private val sttModelLayout: TextInputLayout by lazy { findViewById(R.id.stt_model_layout) }
     private val validateSttButton: Button by lazy { findViewById(R.id.validate_stt) }
 
     private val llmProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_provider) }
@@ -49,6 +50,7 @@ class SettingsActivity : AppCompatActivity() {
     private val llmTokenField: TextInputEditText by lazy { findViewById(R.id.llm_token) }
     private val llmTokenLayout: TextInputLayout by lazy { findViewById(R.id.llm_token_layout) }
     private val llmModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_model) }
+    private val llmModelLayout: TextInputLayout by lazy { findViewById(R.id.llm_model_layout) }
     private val fetchLlmModelsButton: Button by lazy { findViewById(R.id.fetch_llm_models) }
     private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
@@ -96,6 +98,22 @@ class SettingsActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
 
+        sttModelDropdown.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sttModelLayout.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        llmModelDropdown.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                llmModelLayout.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
         findViewById<Button>(R.id.restore_defaults).setOnClickListener {
             promptStore.restoreAllDefaults()
             loadPromptDefaults()
@@ -126,7 +144,6 @@ class SettingsActivity : AppCompatActivity() {
             sttProviderDropdown.setText(it.displayName, false)
             sttUrlField.setText(it.baseUrl)
             sttTokenField.setText(it.apiToken)
-            sttModelDropdown.setText(it.model, false)
             updateModelDropdown(sttModelDropdown, settings.getSttModelList())
         }
 
@@ -134,7 +151,6 @@ class SettingsActivity : AppCompatActivity() {
             llmProviderDropdown.setText(it.displayName, false)
             llmUrlField.setText(it.baseUrl)
             llmTokenField.setText(it.apiToken)
-            llmModelDropdown.setText(it.model, false)
             updateModelDropdown(llmModelDropdown, settings.getLlmModelList())
         }
 
@@ -161,25 +177,13 @@ class SettingsActivity : AppCompatActivity() {
         llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames))
         targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages))
 
-        sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
-            val name = sttProviderDropdown.adapter.getItem(position) as String
-            val preset = presets.findSttPreset(name)
-            if (preset != null) {
-                sttUrlField.setText(preset.base_url)
-                if (preset.models.isNotEmpty()) {
-                    sttModelDropdown.setText(preset.models[0], false)
-                }
-            }
-        }
+        sttProviderDropdown.setOnItemClickListener { _, _, _, _ -> }
 
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = llmProviderDropdown.adapter.getItem(position) as String
             val preset = presets.findLlmPreset(name)
             if (preset != null) {
                 llmUrlField.setText(preset.base_url)
-                if (preset.models.isNotEmpty()) {
-                    llmModelDropdown.setText(preset.models[0], false)
-                }
             }
         }
 
@@ -209,9 +213,6 @@ class SettingsActivity : AppCompatActivity() {
                     val models = result.getOrThrow()
                     settings.setSttModelList(models)
                     updateModelDropdown(sttModelDropdown, models)
-                    if (models.isNotEmpty()) {
-                        sttModelDropdown.setText(models[0], false)
-                    }
                     sttTokenLayout.error = null
                     sttTokenLayout.helperText = getString(R.string.token_valid)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
@@ -249,9 +250,6 @@ class SettingsActivity : AppCompatActivity() {
                     val models = result.getOrThrow()
                     settings.setLlmModelList(models)
                     updateModelDropdown(llmModelDropdown, models)
-                    if (models.isNotEmpty()) {
-                        llmModelDropdown.setText(models[0], false)
-                    }
                     llmTokenLayout.error = null
                     llmTokenLayout.helperText = getString(R.string.models_fetched, models.size)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
@@ -448,19 +446,33 @@ class SettingsActivity : AppCompatActivity() {
         val llmName = llmProviderDropdown.text.toString()
         val sttBaseUrl = sttUrlField.text.toString()
         val llmBaseUrl = llmUrlField.text.toString()
+        val sttModel = sttModelDropdown.text.toString()
+        val llmModel = llmModelDropdown.text.toString()
+
+        val sttModels = settings.getSttModelList()
+        if (sttModels.isNotEmpty() && sttModel.isNotEmpty() && sttModel !in sttModels) {
+            sttModelLayout.error = "Select a model from the list"
+            return
+        }
+
+        val llmModels = settings.getLlmModelList()
+        if (llmModels.isNotEmpty() && llmModel.isNotEmpty() && llmModel !in llmModels) {
+            llmModelLayout.error = "Select a model from the list"
+            return
+        }
 
         settings.sttProvider = SttProviderConfig(
             displayName = sttName,
             baseUrl = sttBaseUrl,
             apiToken = sttTokenField.text.toString(),
-            model = sttModelDropdown.text.toString()
+            model = sttModel
         )
 
         settings.llmProvider = LlmProviderConfig(
             displayName = llmName,
             baseUrl = llmBaseUrl,
             apiToken = llmTokenField.text.toString(),
-            model = llmModelDropdown.text.toString()
+            model = llmModel
         )
 
         settings.rawMode = rawModeCheckbox.isChecked

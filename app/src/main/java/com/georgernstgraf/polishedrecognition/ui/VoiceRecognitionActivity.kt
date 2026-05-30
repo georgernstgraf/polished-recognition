@@ -78,8 +78,8 @@ class VoiceRecognitionActivity : Activity() {
 
     private fun startRecording() {
         isRecording = true
-        statusText.text = "\u25AA Tap to stop"
-        micButton.setImageResource(android.R.drawable.ic_media_pause)
+        statusText.text = "Recording\u2026"
+        micButton.setImageResource(R.drawable.ic_stop)
 
         val recorderListener = object : AudioRecorderListener {
             override fun onRmsChanged(rms: Float) {}
