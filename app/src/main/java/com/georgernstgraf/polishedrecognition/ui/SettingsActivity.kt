@@ -10,6 +10,7 @@ import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.Filter
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -378,7 +379,38 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun updateModelDropdown(dropdown: AutoCompleteTextView, models: List<String>) {
         if (models.isNotEmpty()) {
-            dropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, models))
+            val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, models) {
+                private val allItems = models.toList()
+
+                override fun getFilter(): Filter {
+                    return object : Filter() {
+                        override fun performFiltering(constraint: CharSequence?): FilterResults {
+                            val results = FilterResults()
+                            if (constraint.isNullOrBlank()) {
+                                results.values = allItems
+                                results.count = allItems.size
+                            } else {
+                                val query = constraint.toString().lowercase()
+                                val filtered = allItems.filter { it.lowercase().contains(query) }
+                                results.values = filtered
+                                results.count = filtered.size
+                            }
+                            return results
+                        }
+
+                        @Suppress("UNCHECKED_CAST")
+                        override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                            if (results != null && results.values != null) {
+                                val values = results.values as List<String>
+                                clear()
+                                addAll(values)
+                                notifyDataSetChanged()
+                            }
+                        }
+                    }
+                }
+            }
+            dropdown.setAdapter(adapter)
         } else {
             dropdown.setAdapter(null)
         }
