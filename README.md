@@ -54,12 +54,27 @@ Then configure:
 #### Standard Android (Pixel, etc.)
 **Settings → System → Languages & input → Voice input → Recognition service → Polished Recognition**
 
+#### Samsung (Android 11)
+On Samsung devices running Android 11, the "Voice input" option is hidden from
+the settings UI. Set the recognition service via ADB:
+
+```bash
+adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
+```
+
+Verify with:
+
+```bash
+adb shell settings get secure voice_recognition_service
+```
+
 #### OnePlus / OxygenOS (Android 12)
 1. **Settings → Apps → Default apps → Digital assistant app → Voice input**
 2. Select **Polished Recognition**
 
 If "Voice input" is not visible after scrolling, reboot the device — OxygenOS
-rebuilds the menu on boot.
+rebuilds the menu on boot. On any device where the Voice input menu is missing,
+use the ADB command shown in the Samsung section above.
 
 ### 4. Install AnySoftKeyboard
 
