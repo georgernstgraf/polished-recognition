@@ -63,6 +63,12 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Custom error dialog, dedicated error view in layout
 - **Tradeoff**: Error messages from providers vary in format — the `error.message` extraction handles OpenAI/GROQ/OpenRouter. Non-standard providers may still show generic message.
 
+## 2026-05-30: AGP 8.7.3 + Gradle 8.9 upgrade
+- **Choice**: Upgrade AGP from 8.2.2 to 8.7.3 and Gradle wrapper from 8.2 to 8.9
+- **Reason**: Kotlin 2.1.20 generates metadata that R8 bundled with AGP 8.2.2 cannot parse (warning spam in release builds). Per Android docs, Kotlin 2.1 requires AGP ≥ 8.6 and R8 ≥ 8.6.17. AGP 8.7.3 is a stable patch release providing R8 8.7.x compatible with Kotlin 2.1 metadata. Gradle 8.9 is the minimum required by AGP 8.7.x.
+- **Considered**: Downgrading Kotlin to 1.9.24 (simpler, zero side effects), upgrading to AGP 9.x (requires JDK 21, more API changes)
+- **Tradeoff**: Requires Gradle wrapper upgrade and download of new distribution on first build. JDK 17 stays supported (AGP 9.x would require JDK 21).
+
 ## 2026-05-30: Sync Call for model listing (R8 workaround)
 - **Choice**: Add non-suspend `listModelsSync` returning `Call<ModelsResponse>` to API services, use `Call.execute()` in `fetchSttModels`/`fetchLlmModels` instead of creating new Retrofit instances with suspend functions
 - **Reason**: R8 full mode strips generic type info from the `Continuation<? super Response<ModelsResponse>>` parameter in Kotlin suspend functions. Retrofit's `HttpServiceMethod.parseAnnotations` casts this to `ParameterizedType`, causing `ClassCastException: java.lang.Class cannot be cast to java.lang.reflect.ParameterizedType` in release builds. Using a non-suspend `Call<ModelsResponse>` avoids the `Continuation` type resolution path entirely

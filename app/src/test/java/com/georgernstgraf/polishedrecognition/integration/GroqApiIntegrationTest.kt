@@ -85,7 +85,7 @@ class GroqApiIntegrationTest {
     fun `STT transcribes lincoln mp3 to German text`() = runBlocking {
         val api = retrofit.create(SttApi::class.java)
 
-        val mp3Resource = javaClass.classLoader.getResource("lincoln.mp3")
+        val mp3Resource = javaClass.classLoader?.getResource("lincoln.mp3")
         val tempFile = File.createTempFile("lincoln_integration", ".mp3")
         mp3Resource!!.openStream().use { input ->
             tempFile.outputStream().use { output -> input.copyTo(output) }

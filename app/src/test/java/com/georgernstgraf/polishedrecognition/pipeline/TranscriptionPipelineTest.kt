@@ -57,7 +57,7 @@ class TranscriptionPipelineTest {
         promptStore = PromptStore(ctx)
         pipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore)
 
-        val mp3Resource = javaClass.classLoader.getResource("lincoln.mp3")
+        val mp3Resource = javaClass.classLoader?.getResource("lincoln.mp3")
         val tempFile = File.createTempFile("lincoln", ".mp3")
         mp3Resource!!.openStream().use { input ->
             tempFile.outputStream().use { output -> input.copyTo(output) }
@@ -205,6 +205,7 @@ class TranscriptionPipelineTest {
     @Test
     fun `STT HTTP error returns failure`() = runBlocking {
         every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            @Suppress("DEPRECATION")
             mockCall(Response.error(500, ResponseBody.create(null, "Server Error")))
 
         val result = pipeline.transcribe(lincolnFile)
@@ -218,6 +219,7 @@ class TranscriptionPipelineTest {
         settingsStore.rawMode = false
         mockSttSuccess()
         every { chatApi.chatSync(any(), any<ChatRequest>()) } returns
+            @Suppress("DEPRECATION")
             mockCall(Response.error(503, ResponseBody.create(null, "Unavailable")))
 
         val result = pipeline.transcribe(lincolnFile)
