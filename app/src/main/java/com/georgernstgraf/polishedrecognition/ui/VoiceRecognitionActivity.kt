@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.ui
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -8,6 +9,7 @@ import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -19,10 +21,7 @@ import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -35,36 +34,32 @@ class VoiceRecognitionActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val audioRecorder = AudioRecorder()
     private var isRecording = false
-    private var blinkJob: Job? = null
+    private var blinkAnimator: ValueAnimator? = null
+
+    private val micButton: ImageButton by lazy { findViewById(R.id.mic_button) }
+    private val statusText: TextView by lazy { findViewById(R.id.status_text) }
+    private val cancelButton: View by lazy { findViewById(R.id.cancel_button) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_voice_input)
 
-        val micButton = findViewById<ImageButton>(R.id.mic_button)
-        val statusText = findViewById<TextView>(R.id.status_text)
         val partialText = findViewById<TextView>(R.id.partial_text)
-        val cancelButton = findViewById<View>(R.id.cancel_button)
-
         partialText.visibility = View.GONE
 
         micButton.setOnClickListener {
-            if (isRecording) {
-                stopRecording(statusText, micButton)
-            } else if (hasRecordPermission()) {
-                startRecording(statusText, micButton)
-            } else {
-                ActivityCompat.requestPermissions(this,
-                    arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
-            }
+            if (isRecording) stopRecording() else startRecording()
         }
-
-        cancelButton.setOnClickListener {
-            cancelAndFinish()
-        }
-
+        cancelButton.setOnClickListener { cancelAndFinish() }
         findViewById<View>(R.id.settings_button).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        if (hasRecordPermission()) {
+            startRecording()
+        } else {
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
         }
     }
 
@@ -74,14 +69,14 @@ class VoiceRecognitionActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_RECORD_AUDIO && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startRecording(findViewById(R.id.status_text), findViewById(R.id.mic_button))
+            startRecording()
         } else {
             Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
             finish()
         }
     }
 
-    private fun startRecording(statusText: TextView, micButton: ImageButton) {
+    private fun startRecording() {
         isRecording = true
         statusText.text = "\u25AA Tap to stop"
         micButton.setImageResource(android.R.drawable.ic_media_pause)
@@ -92,12 +87,12 @@ class VoiceRecognitionActivity : Activity() {
         }
         audioRecorder.start(recorderListener)
 
-        startBlink(micButton)
+        startBlink()
     }
 
-    private fun stopRecording(statusText: TextView, micButton: ImageButton) {
+    private fun stopRecording() {
         isRecording = false
-        stopBlink(micButton)
+        stopBlink()
         statusText.text = "Processing\u2026"
         micButton.isEnabled = false
         micButton.setImageResource(android.R.drawable.ic_btn_speak_now)
@@ -125,25 +120,26 @@ class VoiceRecognitionActivity : Activity() {
         }
     }
 
-    private fun startBlink(button: ImageButton) {
-        blinkJob = scope.launch {
-            while (isActive) {
-                button.alpha = 0.25f
-                delay(1200)
-                button.alpha = 1.0f
-                delay(1200)
-            }
+    private fun startBlink() {
+        stopBlink()
+        blinkAnimator = ValueAnimator.ofFloat(0.3f, 1.0f).apply {
+            duration = 1500
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { micButton.alpha = animatedValue as Float }
+            start()
         }
     }
 
-    private fun stopBlink(button: ImageButton) {
-        blinkJob?.cancel()
-        blinkJob = null
-        button.alpha = 1.0f
+    private fun stopBlink() {
+        blinkAnimator?.cancel()
+        blinkAnimator = null
+        micButton.alpha = 1.0f
     }
 
     private fun cancelAndFinish() {
-        stopBlink(findViewById(R.id.mic_button))
+        stopBlink()
         if (isRecording) audioRecorder.cancel()
         returnResults(ArrayList())
     }
@@ -158,7 +154,7 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     override fun onDestroy() {
-        stopBlink(findViewById(R.id.mic_button))
+        stopBlink()
         scope.launch { try { audioRecorder.cancel() } catch (_: Exception) {} }
         super.onDestroy()
     }
