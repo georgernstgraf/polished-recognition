@@ -63,4 +63,15 @@
         android:scaleType="centerInside"
         android:tint="@android:color/white"/>
 
+    <TextView
+        android:id="@+id/elapsed_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center"
+        android:text="00:00"
+        android:textColor="#80FFFFFF"
+        android:textSize="18sp"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="16dp"/>
+
 </FrameLayout>

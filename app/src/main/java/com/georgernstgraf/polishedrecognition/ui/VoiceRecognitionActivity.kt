@@ -21,7 +21,10 @@ import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -35,10 +38,13 @@ class VoiceRecognitionActivity : Activity() {
     private val audioRecorder = AudioRecorder()
     private var isRecording = false
     private var blinkAnimator: ValueAnimator? = null
+    private var timerJob: Job? = null
+    private var recordingStartMs: Long = 0
 
     private val micButton: ImageButton by lazy { findViewById(R.id.mic_button) }
     private val statusText: TextView by lazy { findViewById(R.id.status_text) }
     private val cancelButton: View by lazy { findViewById(R.id.cancel_button) }
+    private val elapsedText: TextView by lazy { findViewById(R.id.elapsed_text) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +61,7 @@ class VoiceRecognitionActivity : Activity() {
             if (isRecording) {
                 isRecording = false
                 stopBlink()
+                stopTimer()
                 audioRecorder.cancel()
             }
             setResult(RESULT_CANCELED, Intent().apply {
@@ -88,6 +95,7 @@ class VoiceRecognitionActivity : Activity() {
 
     private fun startRecording() {
         isRecording = true
+        recordingStartMs = System.currentTimeMillis()
         statusText.text = "Recording\u2026"
         micButton.setImageResource(R.drawable.ic_stop)
 
@@ -98,11 +106,13 @@ class VoiceRecognitionActivity : Activity() {
         audioRecorder.start(recorderListener)
 
         startBlink()
+        startTimer()
     }
 
     private fun stopRecording() {
         isRecording = false
         stopBlink()
+        stopTimer()
         statusText.text = "Processing\u2026"
         micButton.isEnabled = false
         micButton.setImageResource(android.R.drawable.ic_btn_speak_now)
@@ -153,6 +163,7 @@ class VoiceRecognitionActivity : Activity() {
 
     private fun cancelAndFinish() {
         stopBlink()
+        stopTimer()
         if (isRecording) audioRecorder.cancel()
         returnResults(ArrayList())
     }
@@ -166,8 +177,28 @@ class VoiceRecognitionActivity : Activity() {
         finish()
     }
 
+    private fun startTimer() {
+        stopTimer()
+        elapsedText.text = "00:00"
+        timerJob = scope.launch {
+            while (isActive) {
+                delay(1000)
+                val elapsed = (System.currentTimeMillis() - recordingStartMs) / 1000
+                val min = elapsed / 60
+                val sec = elapsed % 60
+                elapsedText.text = "%02d:%02d".format(min, sec)
+            }
+        }
+    }
+
+    private fun stopTimer() {
+        timerJob?.cancel()
+        timerJob = null
+    }
+
     override fun onDestroy() {
         stopBlink()
+        stopTimer()
         scope.launch { try { audioRecorder.cancel() } catch (_: Exception) {} }
         super.onDestroy()
     }
