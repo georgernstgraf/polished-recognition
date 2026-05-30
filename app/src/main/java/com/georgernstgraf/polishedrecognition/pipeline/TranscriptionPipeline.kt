@@ -20,7 +20,8 @@ class TranscriptionPipeline(
     private val getSttApi: (String) -> OpenAiSttApiService,
     private val getChatApi: (String) -> OpenAiChatApiService,
     private val promptStore: PromptStore,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
+    private val promptLogger: PromptLogger? = null
 ) {
 
     data class SttResult(
@@ -43,11 +44,6 @@ class TranscriptionPipeline(
         val whisper = sttResult.getOrThrow()
         val sourceLanguageName = LanguageMapper.mapCodeToName(whisper.languageCode)
 
-        if (rawMode) return@withContext Result.success(whisper.text)
-
-        val llmConfig = settingsStore.llmProvider
-            ?: return@withContext Result.failure(Exception("LLM provider not configured"))
-
         val systemPrompt = promptStore.systemPrompt
         val userTemplate = promptStore.userPromptTemplate
 
@@ -61,6 +57,13 @@ class TranscriptionPipeline(
             .replace("{{source_language}}", sourceLanguageName)
             .replace("{{translate_prompt}}", translatePrompt)
             .replace("{{text}}", whisper.text)
+
+        promptLogger?.log(systemPrompt, userPrompt)
+
+        if (rawMode) return@withContext Result.success(whisper.text)
+
+        val llmConfig = settingsStore.llmProvider
+            ?: return@withContext Result.failure(Exception("LLM provider not configured"))
 
         val request = ChatRequest(
             model = llmConfig.model,

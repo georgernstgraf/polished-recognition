@@ -5,6 +5,7 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.pipeline.PromptLogger
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import okhttp3.OkHttpClient
@@ -12,6 +13,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.io.File
 
 class PolishedRecognitionApp : Application() {
 
@@ -25,12 +27,15 @@ class PolishedRecognitionApp : Application() {
     val promptStore by lazy { PromptStore(this) }
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
 
+    val promptLogger by lazy { PromptLogger(File(filesDir, "logs")) }
+
     val transcriptionPipeline by lazy {
         TranscriptionPipeline(
             getSttApi = { baseUrl -> getSttApi(baseUrl) },
             getChatApi = { baseUrl -> getChatApi(baseUrl) },
             promptStore = promptStore,
-            settingsStore = settingsStore
+            settingsStore = settingsStore,
+            promptLogger = promptLogger
         )
     }
 
