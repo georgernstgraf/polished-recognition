@@ -6,11 +6,17 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.Filter
+import android.widget.Filterable
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -385,44 +391,50 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun updateModelDropdown(dropdown: AutoCompleteTextView, models: List<String>) {
         if (models.isNotEmpty()) {
-            val sorted = models.sorted()
-            val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, sorted) {
-                private val allItems = sorted
-
-                override fun getFilter(): Filter {
-                    return object : Filter() {
-                        override fun performFiltering(constraint: CharSequence?): FilterResults {
-                            val results = FilterResults()
-                            if (constraint.isNullOrBlank()) {
-                                results.values = allItems
-                                results.count = allItems.size
-                            } else {
-                                val query = constraint.toString().lowercase()
-                                val filtered = allItems.filter { it.lowercase().contains(query) }
-                                results.values = filtered
-                                results.count = filtered.size
-                            }
-                            return results
-                        }
-
-                        @Suppress("UNCHECKED_CAST")
-                        override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
-                            val filtered = (results?.values as? List<*>)?.filterIsInstance<String>()
-                                ?: return
-                            setNotifyOnChange(false)
-                            try {
-                                clear()
-                                addAll(filtered)
-                            } finally {
-                                notifyDataSetChanged()
-                            }
-                        }
-                    }
-                }
-            }
+            val adapter = ModelFilterAdapter(models.sorted())
             dropdown.setAdapter(adapter)
         } else {
             dropdown.setAdapter(null)
+        }
+    }
+
+    private inner class ModelFilterAdapter(items: List<String>) : BaseAdapter(), Filterable {
+        private val allItems: List<String> = items.toList()
+        private var displayItems: List<String> = items.toList()
+
+        override fun getCount(): Int = displayItems.size
+        override fun getItem(position: Int): Any = displayItems[position]
+        override fun getItemId(position: Int): Long = position.toLong()
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = convertView as? TextView ?: LayoutInflater.from(parent.context)
+                .inflate(android.R.layout.simple_dropdown_item_1line, parent, false) as TextView
+            view.text = displayItems[position]
+            return view
+        }
+
+        override fun getFilter(): Filter {
+            return object : Filter() {
+                override fun performFiltering(constraint: CharSequence?): FilterResults {
+                    val results = FilterResults()
+                    val filtered = if (constraint.isNullOrBlank()) {
+                        allItems
+                    } else {
+                        val query = constraint.toString().lowercase()
+                        allItems.filter { it.lowercase().contains(query) }
+                    }
+                    results.values = filtered
+                    results.count = filtered.size
+                    return results
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                    val filtered = results?.values as? List<String> ?: return
+                    displayItems = filtered.toList()
+                    notifyDataSetChanged()
+                }
+            }
         }
     }
 
