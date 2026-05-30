@@ -36,27 +36,27 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var presets: com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
     private lateinit var app: PolishedRecognitionApp
 
-    private lateinit var sttProviderDropdown: AutoCompleteTextView
-    private lateinit var sttUrlField: TextInputEditText
-    private lateinit var sttTokenField: TextInputEditText
-    private lateinit var sttTokenLayout: TextInputLayout
-    private lateinit var sttModelDropdown: AutoCompleteTextView
-    private lateinit var validateSttButton: Button
+    private val sttProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_provider) }
+    private val sttUrlField: TextInputEditText by lazy { findViewById(R.id.stt_url) }
+    private val sttTokenField: TextInputEditText by lazy { findViewById(R.id.stt_token) }
+    private val sttTokenLayout: TextInputLayout by lazy { findViewById(R.id.stt_token_layout) }
+    private val sttModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_model) }
+    private val validateSttButton: Button by lazy { findViewById(R.id.validate_stt) }
 
-    private lateinit var llmProviderDropdown: AutoCompleteTextView
-    private lateinit var llmUrlField: TextInputEditText
-    private lateinit var llmTokenField: TextInputEditText
-    private lateinit var llmTokenLayout: TextInputLayout
-    private lateinit var llmModelDropdown: AutoCompleteTextView
-    private lateinit var fetchLlmModelsButton: Button
-    private lateinit var testLlmTokenButton: Button
+    private val llmProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_provider) }
+    private val llmUrlField: TextInputEditText by lazy { findViewById(R.id.llm_url) }
+    private val llmTokenField: TextInputEditText by lazy { findViewById(R.id.llm_token) }
+    private val llmTokenLayout: TextInputLayout by lazy { findViewById(R.id.llm_token_layout) }
+    private val llmModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_model) }
+    private val fetchLlmModelsButton: Button by lazy { findViewById(R.id.fetch_llm_models) }
+    private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
-    private lateinit var rawModeCheckbox: CheckBox
-    private lateinit var targetLanguageDropdown: AutoCompleteTextView
+    private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
+    private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
 
-    private lateinit var systemPromptField: TextInputEditText
-    private lateinit var userPromptField: TextInputEditText
-    private lateinit var translatePromptField: TextInputEditText
+    private val systemPromptField: TextInputEditText by lazy { findViewById(R.id.system_prompt) }
+    private val userPromptField: TextInputEditText by lazy { findViewById(R.id.user_prompt) }
+    private val translatePromptField: TextInputEditText by lazy { findViewById(R.id.translate_prompt) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,27 +67,12 @@ class SettingsActivity : AppCompatActivity() {
         promptStore = app.promptStore
         presets = app.providerPresetLoader
 
-        bindViews()
+        setupListeners()
         loadSettings()
         setupDropdowns()
     }
 
-    private fun bindViews() {
-        sttProviderDropdown = findViewById<AutoCompleteTextView>(R.id.stt_provider)
-        sttUrlField = findViewById(R.id.stt_url)
-        sttTokenField = findViewById(R.id.stt_token)
-        sttTokenLayout = findViewById(R.id.stt_token_layout)
-        sttModelDropdown = findViewById<AutoCompleteTextView>(R.id.stt_model)
-        validateSttButton = findViewById(R.id.validate_stt)
-
-        llmProviderDropdown = findViewById<AutoCompleteTextView>(R.id.llm_provider)
-        llmUrlField = findViewById(R.id.llm_url)
-        llmTokenField = findViewById(R.id.llm_token)
-        llmTokenLayout = findViewById(R.id.llm_token_layout)
-        llmModelDropdown = findViewById<AutoCompleteTextView>(R.id.llm_model)
-        fetchLlmModelsButton = findViewById(R.id.fetch_llm_models)
-        testLlmTokenButton = findViewById(R.id.test_llm_token)
-
+    private fun setupListeners() {
         validateSttButton.setOnClickListener { validateSttProvider() }
         fetchLlmModelsButton.setOnClickListener { fetchLlmModels() }
         testLlmTokenButton.setOnClickListener { testLlmToken() }
