@@ -448,13 +448,13 @@ class SettingsActivity : AppCompatActivity() {
         val llmModel = llmModelDropdown.text.toString()
 
         val sttModels = settings.getSttModelList()
-        if (sttModels.isNotEmpty() && sttModel.isNotEmpty() && sttModel !in sttModels) {
+        if (sttModels.isNotEmpty() && sttModel !in sttModels) {
             sttModelLayout.error = "Select a model from the list"
             return
         }
 
         val llmModels = settings.getLlmModelList()
-        if (llmModels.isNotEmpty() && llmModel.isNotEmpty() && llmModel !in llmModels) {
+        if (llmModels.isNotEmpty() && llmModel !in llmModels) {
             llmModelLayout.error = "Select a model from the list"
             return
         }
