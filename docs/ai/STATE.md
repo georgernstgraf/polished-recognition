@@ -3,21 +3,21 @@
 Current status as of 2026-05-30.
 
 ## Current Focus
-Issues #9-#12 completed — model stale-text fixes, target language UX, layout reorder, voice input button + info icon. Issue #13 open (auto-resume recordings, back button behavior).
+Issue #13 in progress — pause/resume recording, three-button layout, noHistory fix applied. Remaining: on-device validation of full pause → change settings → resume → stop flow.
 
 ## Completed (this cycle)
 - [x] #9 — Model dropdown text cleared on provider switch / model fetch
 - [x] #10 — Target language: "None" option, free-text typing, disabled filter, explanation text
-- [x] #11 — Settings layout reorder: Save(top) → Processing → Prompts(reordered) → LLM → STT → Save(bottom). "Set as voice input" moved above bottom save
-- [x] #12 — Voice input button simplified to try-and-toast only. Info icon (i) added to recording screen with setup guide dialog
-- [x] #8 — Model dropdown BaseAdapter fix
-- [x] #1 through #6 — all closed previously
+- [x] #11 — Settings layout reorder
+- [x] #12 — Voice input button try-and-toast, info dialog on recording screen
+- [x] #13 — Pause/resume recording (AudioRecorder), three-button layout, noHistory removed, system back cancels
 
 ## Pending
-- [ ] #13 — Auto-resume recordings, stop recording on info box, back button behavior decision
+- [ ] #13 — On-device test: pause → change settings → resume → stop → verify transcription uses new settings
+- [ ] #13 — Verify cumulative timer across multiple pause/resume cycles
 
 ## Blockers
 None
 
 ## Next Session Suggestion
-Tackle issue #13: implement auto-resume recording (return from Settings/Info → start recording), ensure info box stops active recording, decide on system back button behavior.
+Complete #13 on-device validation, then finish issue. Consider edge case: what happens if system kills activity during Settings navigation (low memory)?

@@ -18,7 +18,7 @@ class AudioRecorder {
     private var listener: AudioRecorderListener? = null
     private var didReportSpeechBegin = false
 
-    fun start(listener: AudioRecorderListener? = null) {
+    fun start(listener: AudioRecorderListener? = null, resetBuffer: Boolean = true) {
         if (isRecording) return
         this.listener = listener
         this.didReportSpeechBegin = false
@@ -39,7 +39,9 @@ class AudioRecorder {
             isRecording = false
             return
         }
-        bufferStream.reset()
+        if (resetBuffer) {
+            synchronized(bufferStream) { bufferStream.reset() }
+        }
         isRecording = true
 
         audioRecord?.startRecording()
@@ -62,6 +64,21 @@ class AudioRecorder {
                 }
             }
         }.start()
+    }
+
+    fun pause() {
+        isRecording = false
+        listener = null
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+        } catch (_: Exception) {
+        }
+        audioRecord = null
+    }
+
+    fun resume(listener: AudioRecorderListener? = null) {
+        start(listener, resetBuffer = false)
     }
 
     fun stop(): ByteArray {

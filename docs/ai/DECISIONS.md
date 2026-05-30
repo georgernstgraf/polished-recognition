@@ -144,3 +144,15 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Separates informational content (setup guide) from actionable intent (setting the service). The recording screen is the natural place for "how do I set this up" help
 - **Considered**: Keeping help text in the Settings button dialog (confusing — settings button now opens Settings), help icon on Settings page (no room, recording screen is the entry point)
 - **Tradeoff**: Two icons in the top-right corner. Info icon uses a custom VectorDrawable (OEMs don't have a standard white info icon)
+
+## 2026-05-30: Pause/resume recording with three-button layout
+- **Choice**: Replaced single mic button with three-button layout (Cancel / Pause-Resume / Stop) and moved blinking animation from mic to status text. Pause stops AudioRecord while keeping PCM buffer; resume appends to the same buffer. Stop extracts the full buffer for STT. `android:noHistory="true"` removed from manifest so activity survives navigation to Settings.
+- **Reason**: Users need to change settings (e.g. target language) mid-session without losing recording. Pause → Settings → Save → Resume → Stop must use the new settings for transcription. `TranscriptionPipeline` reads settings at transcription time, not recording time, so changes apply automatically. `noHistory` was destroying the activity on navigation, losing the buffer — removed.
+- **Considered**: `startActivityForResult` with auto-resume (complex lifecycle, overkill), saving PCM to temp file on pause (additional I/O, fragile)
+- **Tradeoff**: Activity stays in back stack during Settings — if system kills it under memory pressure, buffer is lost. Counter: voice input sessions are short, and system kill in this window is unlikely.
+
+## 2026-05-30: Blink animation on status text instead of mic button
+- **Choice**: `ValueAnimator` on `statusText.alpha` instead of `micButton.alpha`
+- **Reason**: Three-button layout removed the large mic button. Blinking "Recording…" text at 28sp provides the visual feedback that recording is active, matching iOS voice memos UX pattern
+- **Considered**: Adding a separate indicator dot (extra layout element)
+- **Tradeoff**: Status text loses blink during pause — user sees static "Paused" text. Clear enough for the paused state distinction.

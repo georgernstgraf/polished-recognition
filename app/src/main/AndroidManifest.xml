@@ -21,8 +21,7 @@
             android:exported="true"
             android:theme="@style/Theme.PolishedRecognition.Transparent"
             android:launchMode="singleTop"
-            android:excludeFromRecents="true"
-            android:noHistory="true">
+            android:excludeFromRecents="true">
             <intent-filter>
                 <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
                 <category android:name="android.intent.category.DEFAULT" />

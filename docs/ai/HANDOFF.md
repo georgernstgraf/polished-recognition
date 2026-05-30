@@ -1,5 +1,5 @@
 # Hand Off
 
-1. [ ] See #13 — Auto-resume recordings, stop recording on info box, decide back button behavior
+1. [ ] See #13 — On-device validation of pause/resume flow. Verify transcription picks up settings changed during pause.
 
 Last updated: 2026-05-30.
