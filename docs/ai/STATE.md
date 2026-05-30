@@ -3,14 +3,16 @@
 Current status as of 2026-05-30.
 
 ## Current Focus
-Closed #6 — R8/ProGuard ClassCastException fully resolved. Clean issue review/purge remaining.
+Completed #7 — provider settings redesign. Remaining: close #1-#4, on-device smoke test.
 
 ## Completed (this cycle)
-- [x] #6 — Added `listModelsSync` (non-suspend) to API services, SettingsActivity uses `Call.execute()` (7f3758a)
-- [x] #6 — Upgraded AGP 8.2.2→8.7.3 + Gradle 8.2→8.9 — resolves R8 Kotlin 2.1 metadata parsing warnings
-- [x] #6 — Fixed nullable `ClassLoader?` warnings in test files (Kotlin 2.1 strictness)
-- [x] #6 — Suppressed deprecated `ResponseBody.create` with `@Suppress("DEPRECATION")` (OkHttp 4.12.0 lacks `toResponseBody` extension)
-- [x] #6 — All tests pass, no warnings, no R8 errors
+- [x] #7 — Added editable API URL fields for STT and LLM providers in settings
+- [x] #7 — Expanded LLM presets from 5 to 15 (DeepSeek, xAI, Mistral, Together AI, DeepInfra, Fireworks, Cerebras, Perplexity, HuggingFace, NVIDIA)
+- [x] #7 — Split LLM Validate & Fetch into [Fetch Models] + [Test Token] (catches OpenRouter unauthenticated model listing)
+- [x] #7 — Searchable model dropdowns (completionThreshold=1, filters OpenRouter 600+ models)
+- [x] #7 — Added optional maxTokens to ChatRequest DTO for token test call
+- [x] #7 — Removed getCustomBaseUrl() — URL field is source of truth
+- [x] #6 — All R8 fixes, test warning fixes
 
 ## Pending
 - [ ] #1 — close initial scaffolding issue

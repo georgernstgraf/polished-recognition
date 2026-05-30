@@ -19,6 +19,8 @@ import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.LanguageMapper
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
+import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
+import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.CoroutineScope
@@ -35,16 +37,19 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var app: PolishedRecognitionApp
 
     private lateinit var sttProviderDropdown: AutoCompleteTextView
+    private lateinit var sttUrlField: TextInputEditText
     private lateinit var sttTokenField: TextInputEditText
     private lateinit var sttTokenLayout: TextInputLayout
     private lateinit var sttModelDropdown: AutoCompleteTextView
     private lateinit var validateSttButton: Button
 
     private lateinit var llmProviderDropdown: AutoCompleteTextView
+    private lateinit var llmUrlField: TextInputEditText
     private lateinit var llmTokenField: TextInputEditText
     private lateinit var llmTokenLayout: TextInputLayout
     private lateinit var llmModelDropdown: AutoCompleteTextView
-    private lateinit var validateLlmButton: Button
+    private lateinit var fetchLlmModelsButton: Button
+    private lateinit var testLlmTokenButton: Button
 
     private lateinit var rawModeCheckbox: CheckBox
     private lateinit var targetLanguageDropdown: AutoCompleteTextView
@@ -69,26 +74,23 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun bindViews() {
         sttProviderDropdown = findViewById<AutoCompleteTextView>(R.id.stt_provider)
+        sttUrlField = findViewById(R.id.stt_url)
         sttTokenField = findViewById(R.id.stt_token)
         sttTokenLayout = findViewById(R.id.stt_token_layout)
         sttModelDropdown = findViewById<AutoCompleteTextView>(R.id.stt_model)
         validateSttButton = findViewById(R.id.validate_stt)
 
         llmProviderDropdown = findViewById<AutoCompleteTextView>(R.id.llm_provider)
+        llmUrlField = findViewById(R.id.llm_url)
         llmTokenField = findViewById(R.id.llm_token)
         llmTokenLayout = findViewById(R.id.llm_token_layout)
         llmModelDropdown = findViewById<AutoCompleteTextView>(R.id.llm_model)
-        validateLlmButton = findViewById(R.id.validate_llm)
-
-        rawModeCheckbox = findViewById(R.id.raw_mode)
-        targetLanguageDropdown = findViewById<AutoCompleteTextView>(R.id.target_language)
-
-        systemPromptField = findViewById(R.id.system_prompt)
-        userPromptField = findViewById(R.id.user_prompt)
-        translatePromptField = findViewById(R.id.translate_prompt)
+        fetchLlmModelsButton = findViewById(R.id.fetch_llm_models)
+        testLlmTokenButton = findViewById(R.id.test_llm_token)
 
         validateSttButton.setOnClickListener { validateSttProvider() }
-        validateLlmButton.setOnClickListener { validateLlmProvider() }
+        fetchLlmModelsButton.setOnClickListener { fetchLlmModels() }
+        testLlmTokenButton.setOnClickListener { testLlmToken() }
 
         sttTokenField.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -136,6 +138,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun loadSettings() {
         settings.sttProvider?.let {
             sttProviderDropdown.setText(it.displayName, false)
+            sttUrlField.setText(it.baseUrl)
             sttTokenField.setText(it.apiToken)
             sttModelDropdown.setText(it.model, false)
             updateModelDropdown(sttModelDropdown, settings.getSttModelList())
@@ -143,6 +146,7 @@ class SettingsActivity : AppCompatActivity() {
 
         settings.llmProvider?.let {
             llmProviderDropdown.setText(it.displayName, false)
+            llmUrlField.setText(it.baseUrl)
             llmTokenField.setText(it.apiToken)
             llmModelDropdown.setText(it.model, false)
             updateModelDropdown(llmModelDropdown, settings.getLlmModelList())
@@ -174,36 +178,40 @@ class SettingsActivity : AppCompatActivity() {
         sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = sttProviderDropdown.adapter.getItem(position) as String
             val preset = presets.findSttPreset(name)
-            if (preset != null && preset.models.isNotEmpty()) {
-                sttModelDropdown.setText(preset.models[0], false)
+            if (preset != null) {
+                sttUrlField.setText(preset.base_url)
+                if (preset.models.isNotEmpty()) {
+                    sttModelDropdown.setText(preset.models[0], false)
+                }
             }
         }
 
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = llmProviderDropdown.adapter.getItem(position) as String
             val preset = presets.findLlmPreset(name)
-            if (preset != null && preset.models.isNotEmpty()) {
-                llmModelDropdown.setText(preset.models[0], false)
+            if (preset != null) {
+                llmUrlField.setText(preset.base_url)
+                if (preset.models.isNotEmpty()) {
+                    llmModelDropdown.setText(preset.models[0], false)
+                }
             }
         }
+
+        sttModelDropdown.threshold = 1
+        llmModelDropdown.threshold = 1
     }
 
     private fun validateSttProvider() {
-        val providerName = sttProviderDropdown.text.toString()
         val token = sttTokenField.text.toString()
+        val baseUrl = sttUrlField.text.toString()
 
         if (token.isBlank()) {
             Toast.makeText(this, "Enter an API token first", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val preset = presets.findSttPreset(providerName)
-        val baseUrl = if (preset != null) preset.base_url else {
-            getCustomBaseUrl(providerName)
-        }
-
-        if (baseUrl.isNullOrBlank()) {
-            Toast.makeText(this, "No base URL for selected provider", Toast.LENGTH_SHORT).show()
+        if (baseUrl.isBlank()) {
+            Toast.makeText(this, "Enter an API URL first", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -233,26 +241,21 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun validateLlmProvider() {
-        val providerName = llmProviderDropdown.text.toString()
+    private fun fetchLlmModels() {
         val token = llmTokenField.text.toString()
+        val baseUrl = llmUrlField.text.toString()
 
         if (token.isBlank()) {
             Toast.makeText(this, "Enter an API token first", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val preset = presets.findLlmPreset(providerName)
-        val baseUrl = if (preset != null) preset.base_url else {
-            getCustomBaseUrl(providerName)
-        }
-
-        if (baseUrl.isNullOrBlank()) {
-            Toast.makeText(this, "No base URL for selected provider", Toast.LENGTH_SHORT).show()
+        if (baseUrl.isBlank()) {
+            Toast.makeText(this, "Enter an API URL first", Toast.LENGTH_SHORT).show()
             return
         }
 
-        validateLlmButton.isEnabled = false
+        fetchLlmModelsButton.isEnabled = false
         scope.launch {
             try {
                 val result = fetchLlmModels(baseUrl, token)
@@ -264,7 +267,7 @@ class SettingsActivity : AppCompatActivity() {
                         llmModelDropdown.setText(models[0], false)
                     }
                     llmTokenLayout.error = null
-                    llmTokenLayout.helperText = getString(R.string.token_valid)
+                    llmTokenLayout.helperText = getString(R.string.models_fetched, models.size)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
                 } else {
                     llmTokenLayout.error = result.exceptionOrNull()?.message
@@ -273,10 +276,90 @@ class SettingsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 llmTokenLayout.error = e.message ?: getString(R.string.token_invalid)
             } finally {
-                validateLlmButton.isEnabled = true
+                fetchLlmModelsButton.isEnabled = true
             }
         }
     }
+
+    private fun testLlmToken() {
+        val token = llmTokenField.text.toString()
+        val baseUrl = llmUrlField.text.toString()
+        val model = llmModelDropdown.text.toString()
+
+        if (token.isBlank()) {
+            Toast.makeText(this, "Enter an API token first", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (model.isBlank()) {
+            Toast.makeText(this, "Select a model first", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (baseUrl.isBlank()) {
+            Toast.makeText(this, "Enter an API URL first", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        testLlmTokenButton.isEnabled = false
+        scope.launch {
+            try {
+                val result = testLlmTokenCall(baseUrl, token, model)
+                if (result.isSuccess) {
+                    llmTokenLayout.error = null
+                    llmTokenLayout.helperText = getString(R.string.token_valid)
+                    Toast.makeText(this@SettingsActivity, R.string.token_valid, Toast.LENGTH_SHORT).show()
+                } else {
+                    llmTokenLayout.error = result.exceptionOrNull()?.message
+                        ?: getString(R.string.token_invalid)
+                }
+            } catch (e: Exception) {
+                llmTokenLayout.error = e.message ?: getString(R.string.token_invalid)
+            } finally {
+                testLlmTokenButton.isEnabled = true
+            }
+        }
+    }
+
+    private suspend fun fetchLlmModels(baseUrl: String, token: String): Result<List<String>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val api = app.getChatApi(baseUrl)
+                val response = api.listModelsSync("Bearer $token").execute()
+                if (response.isSuccessful && response.body() != null) {
+                    val models = response.body()!!.data.map { it.id }
+                    Result.success(models)
+                } else {
+                    val detail = extractErrorDetail(response.errorBody())
+                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
+                    Result.failure(Exception(msg))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    private suspend fun testLlmTokenCall(baseUrl: String, token: String, model: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val api = app.getChatApi(baseUrl)
+                val request = ChatRequest(
+                    model = model,
+                    messages = listOf(ChatMessage(role = "user", content = "ping")),
+                    maxTokens = 1
+                )
+                val response = api.chatSync("Bearer $token", request).execute()
+                if (response.isSuccessful) {
+                    Result.success(Unit)
+                } else {
+                    val detail = extractErrorDetail(response.errorBody())
+                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
+                    Result.failure(Exception(msg))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
     private suspend fun fetchSttModels(baseUrl: String, token: String): Result<List<String>> =
         withContext(Dispatchers.IO) {
@@ -299,24 +382,6 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-    private suspend fun fetchLlmModels(baseUrl: String, token: String): Result<List<String>> =
-        withContext(Dispatchers.IO) {
-            try {
-                val api = app.getChatApi(baseUrl)
-                val response = api.listModelsSync("Bearer $token").execute()
-                if (response.isSuccessful && response.body() != null) {
-                    val models = response.body()!!.data.map { it.id }
-                    Result.success(models)
-                } else {
-                    val detail = extractErrorDetail(response.errorBody())
-                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
-                    Result.failure(Exception(msg))
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
     private fun extractErrorDetail(errorBody: okhttp3.ResponseBody?): String {
         if (errorBody == null) return ""
         return try {
@@ -324,11 +389,6 @@ class SettingsActivity : AppCompatActivity() {
             val error = json["error"] as? Map<*, *>
             error?.get("message") as? String ?: ""
         } catch (_: Exception) { "" }
-    }
-
-    private fun getCustomBaseUrl(name: String): String? {
-        val preset = presets.findSttPreset(name) ?: presets.findLlmPreset(name)
-        return preset?.base_url
     }
 
     private fun updateModelDropdown(dropdown: AutoCompleteTextView, models: List<String>) {
@@ -369,12 +429,8 @@ class SettingsActivity : AppCompatActivity() {
     private fun saveAndClose() {
         val sttName = sttProviderDropdown.text.toString()
         val llmName = llmProviderDropdown.text.toString()
-
-        val sttPreset = presets.findSttPreset(sttName)
-        val llmPreset = presets.findLlmPreset(llmName)
-
-        val sttBaseUrl = sttPreset?.base_url ?: getCustomBaseUrl(sttName) ?: "https://api.openai.com/v1/"
-        val llmBaseUrl = llmPreset?.base_url ?: getCustomBaseUrl(llmName) ?: "https://api.openai.com/v1/"
+        val sttBaseUrl = sttUrlField.text.toString()
+        val llmBaseUrl = llmUrlField.text.toString()
 
         settings.sttProvider = SttProviderConfig(
             displayName = sttName,

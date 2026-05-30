@@ -63,7 +63,23 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Custom error dialog, dedicated error view in layout
 - **Tradeoff**: Error messages from providers vary in format — the `error.message` extraction handles OpenAI/GROQ/OpenRouter. Non-standard providers may still show generic message.
 
-## 2026-05-30: AGP 8.7.3 + Gradle 8.9 upgrade
+## 2026-05-30: Provider settings redesign — visible URL fields + expanded presets
+- **Choice**: Add editable API URL fields to both STT and LLM sections, auto-fill from preset map on provider selection, expand LLM presets from 5 to 15 providers
+- **Reason**: Users couldn't see what endpoint they connected to. "Custom provider…" silently fell back to OpenAI's URL. OpenRouter and other providers need visible/editable URLs. The preset list was too small.
+- **Considered**: URL field for LLM only (decided STT should match), per-provider modal for URL entry (over-engineered)
+- **Tradeoff**: More scrollable fields in the layout. URL field is always editable even for known providers — could break known-good configs. Mitigated by auto-fill on provider select.
+
+## 2026-05-30: Split LLM validation — Fetch Models vs Test Token
+- **Choice**: Replace single Validate & Fetch with two buttons: [Fetch Models] and [Test Token]. Test Token sends a minimal chat request (max_tokens=1, "ping") with the selected model.
+- **Reason**: OpenRouter's /v1/models endpoint is unauthenticated — returns models for any token, even invalid ones. A separate chat call catches 401/403 after models load. Keeps token validation reliable across providers.
+- **Considered**: Single button doing both calls sequentially (confusing UX — "which failed?"), skipping token verification entirely (unsafe)
+- **Tradeoff**: Two buttons instead of one in LLM section. Test Token requires model selection first. Costs 1 token per test.
+
+## 2026-05-30: Searchable model dropdowns
+- **Choice**: Change model AutoCompleteTextView from inputType=none to inputType=text with completionThreshold=1
+- **Reason**: OpenRouter offers 600+ models — scrolling is impractical. Built-in ArrayAdapter filtering handles this with zero code changes beyond the XML attribute.
+- **Considered**: Custom SearchView + ListView, third-party searchable spinner library
+- **Tradeoff**: Slightly different UX from exposed dropdown behavior. Keyboard shows on tap before the dropdown. Built-in behavior is free and proven.
 - **Choice**: Upgrade AGP from 8.2.2 to 8.7.3 and Gradle wrapper from 8.2 to 8.9
 - **Reason**: Kotlin 2.1.20 generates metadata that R8 bundled with AGP 8.2.2 cannot parse (warning spam in release builds). Per Android docs, Kotlin 2.1 requires AGP ≥ 8.6 and R8 ≥ 8.6.17. AGP 8.7.3 is a stable patch release providing R8 8.7.x compatible with Kotlin 2.1 metadata. Gradle 8.9 is the minimum required by AGP 8.7.x.
 - **Considered**: Downgrading Kotlin to 1.9.24 (simpler, zero side effects), upgrading to AGP 9.x (requires JDK 21, more API changes)

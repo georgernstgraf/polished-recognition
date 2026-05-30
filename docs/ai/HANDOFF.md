@@ -4,9 +4,8 @@
 - #1, #2, #3, #4 — pending closure
 
 ## Completed
-- #6 R8 fix: added `listModelsSync` to API services, SettingsActivity uses `Call.execute()` and cached Retrofit instances (commit 7f3758a, pushed)
-- #6 R8 fix: upgraded AGP 8.2.2→8.7.3, Gradle 8.2→8.9 — resolves R8 Kotlin 2.1 metadata warnings
-- #6 test warnings: fixed nullable ClassLoader calls, suppressed deprecated ResponseBody.create
+- #6 R8 fix: added `listModelsSync` to API services, upgraded AGP 8.2.2→8.7.3 + Gradle 8.2→8.9, fixed test warnings
+- #7 Provider settings redesign: editable URL fields, expanded presets, split LLM validation, searchable models
 - #5 Token validation error state — closed
 
 ## Pending

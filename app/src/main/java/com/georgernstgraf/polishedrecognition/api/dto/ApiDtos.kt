@@ -24,7 +24,8 @@ data class ChatMessage(
 
 data class ChatRequest(
     @SerializedName("model") val model: String,
-    @SerializedName("messages") val messages: List<ChatMessage>
+    @SerializedName("messages") val messages: List<ChatMessage>,
+    @SerializedName("max_tokens") val maxTokens: Int? = null
 )
 
 data class ModelsResponse(

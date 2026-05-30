@@ -28,6 +28,56 @@
             "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"]
         },
         {
+            "name": "DeepSeek",
+            "base_url": "https://api.deepseek.com",
+            "models": []
+        },
+        {
+            "name": "xAI",
+            "base_url": "https://api.x.ai/v1/",
+            "models": []
+        },
+        {
+            "name": "Mistral",
+            "base_url": "https://api.mistral.ai/v1/",
+            "models": []
+        },
+        {
+            "name": "Together AI",
+            "base_url": "https://api.together.xyz/v1/",
+            "models": []
+        },
+        {
+            "name": "DeepInfra",
+            "base_url": "https://api.deepinfra.com/v1",
+            "models": []
+        },
+        {
+            "name": "Fireworks",
+            "base_url": "https://api.fireworks.ai/inference/v1/",
+            "models": []
+        },
+        {
+            "name": "Cerebras",
+            "base_url": "https://api.cerebras.ai/v1/",
+            "models": []
+        },
+        {
+            "name": "Perplexity",
+            "base_url": "https://api.perplexity.ai",
+            "models": []
+        },
+        {
+            "name": "HuggingFace",
+            "base_url": "https://router.huggingface.co/v1",
+            "models": []
+        },
+        {
+            "name": "NVIDIA",
+            "base_url": "https://integrate.api.nvidia.com/v1",
+            "models": []
+        },
+        {
             "name": "Ollama (local)",
             "base_url": "http://localhost:11434/v1/",
             "models": []

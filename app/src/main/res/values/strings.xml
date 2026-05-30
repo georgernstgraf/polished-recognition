@@ -9,7 +9,10 @@
     <string name="provider">Provider</string>
     <string name="model">Model</string>
     <string name="api_token">API Token</string>
+    <string name="api_url">API URL</string>
     <string name="validate_fetch">Validate &amp; Fetch Models</string>
+    <string name="fetch_models">Fetch Models</string>
+    <string name="test_token">Test Token</string>
     <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
     <string name="target_language">Target language</string>
     <string name="system_prompt">System Prompt</string>
