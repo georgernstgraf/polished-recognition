@@ -144,6 +144,7 @@ class SettingsActivity : AppCompatActivity() {
             sttProviderDropdown.setText(it.displayName, false)
             sttUrlField.setText(it.baseUrl)
             sttTokenField.setText(it.apiToken)
+            sttModelDropdown.setText(it.model, false)
             updateModelDropdown(sttModelDropdown, settings.getSttModelList())
         }
 
@@ -151,6 +152,7 @@ class SettingsActivity : AppCompatActivity() {
             llmProviderDropdown.setText(it.displayName, false)
             llmUrlField.setText(it.baseUrl)
             llmTokenField.setText(it.apiToken)
+            llmModelDropdown.setText(it.model, false)
             updateModelDropdown(llmModelDropdown, settings.getLlmModelList())
         }
 

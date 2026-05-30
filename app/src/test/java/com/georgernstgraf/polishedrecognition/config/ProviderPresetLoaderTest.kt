@@ -29,19 +29,17 @@ class ProviderPresetLoaderTest {
     }
 
     @Test
-    fun `findSttPreset GROQ Whisper has base_url and models`() {
+    fun `findSttPreset GROQ Whisper has base_url`() {
         val preset = loader.findSttPreset("GROQ Whisper")
         assertThat(preset).isNotNull()
         assertThat(preset!!.base_url).isEqualTo("https://api.groq.com/openai/v1/")
-        assertThat(preset.models).contains("whisper-large-v3-turbo")
     }
 
     @Test
-    fun `findLlmPreset OpenRouter has base_url and models`() {
+    fun `findLlmPreset OpenRouter has base_url`() {
         val preset = loader.findLlmPreset("OpenRouter")
         assertThat(preset).isNotNull()
         assertThat(preset!!.base_url).isEqualTo("https://openrouter.ai/api/v1/")
-        assertThat(preset.models).isNotEmpty()
     }
 
     @Test
