@@ -18,7 +18,6 @@ import android.widget.Filter
 import android.widget.Filterable
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
@@ -36,6 +35,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SettingsActivity : AppCompatActivity() {
+
+    private companion object {
+        const val NONE_TARGET_LANGUAGE = "None (no translation)"
+    }
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private lateinit var settings: com.georgernstgraf.polishedrecognition.config.SettingsStore
@@ -142,6 +145,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openRecognitionServiceSettings() }
+        findViewById<Button>(R.id.save_button_top).setOnClickListener { saveAndClose() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
     }
 
@@ -163,7 +167,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         rawModeCheckbox.isChecked = settings.rawMode
-        targetLanguageDropdown.setText(settings.targetLanguage ?: "", false)
+        targetLanguageDropdown.setText(settings.targetLanguage ?: NONE_TARGET_LANGUAGE, false)
 
         systemPromptField.setText(promptStore.systemPrompt)
         userPromptField.setText(promptStore.userPromptTemplate)
@@ -179,17 +183,18 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupDropdowns() {
         val sttNames = presets.sttPresetNames() + getString(R.string.custom_provider)
         val llmNames = presets.llmPresetNames() + getString(R.string.custom_provider)
-        val languages = LanguageMapper.supportedLanguages
+        val languages = listOf(NONE_TARGET_LANGUAGE) + LanguageMapper.supportedLanguages
 
         sttProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, sttNames.sorted()))
         llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames.sorted()))
-        targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages.sorted()))
+        targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages))
 
         sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = sttProviderDropdown.adapter.getItem(position) as String
             val preset = presets.findSttPreset(name)
             if (preset != null) {
                 sttUrlField.setText(preset.base_url)
+                sttModelDropdown.text.clear()
             }
         }
 
@@ -198,11 +203,13 @@ class SettingsActivity : AppCompatActivity() {
             val preset = presets.findLlmPreset(name)
             if (preset != null) {
                 llmUrlField.setText(preset.base_url)
+                llmModelDropdown.text.clear()
             }
         }
 
         sttModelDropdown.threshold = 1
         llmModelDropdown.threshold = 1
+        targetLanguageDropdown.threshold = Int.MAX_VALUE
     }
 
     private fun validateSttProvider() {
@@ -227,6 +234,9 @@ class SettingsActivity : AppCompatActivity() {
                     val models = result.getOrThrow()
                     settings.setSttModelList(models)
                     updateModelDropdown(sttModelDropdown, models)
+                    if (sttModelDropdown.text.toString() !in models) {
+                        sttModelDropdown.text.clear()
+                    }
                     sttTokenLayout.error = null
                     sttTokenLayout.helperText = getString(R.string.token_valid)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
@@ -264,6 +274,9 @@ class SettingsActivity : AppCompatActivity() {
                     val models = result.getOrThrow()
                     settings.setLlmModelList(models)
                     updateModelDropdown(llmModelDropdown, models)
+                    if (llmModelDropdown.text.toString() !in models) {
+                        llmModelDropdown.text.clear()
+                    }
                     llmTokenLayout.error = null
                     llmTokenLayout.helperText = getString(R.string.models_fetched, models.size)
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
@@ -440,28 +453,19 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun openRecognitionServiceSettings() {
         val cn = ComponentName(packageName, "${packageName}.service.PolishedRecognitionService")
+        val flattened = cn.flattenToString()
         try {
-            Settings.Secure.putString(contentResolver, "voice_recognition_service", cn.flattenToString())
-            Toast.makeText(this, "Set as default recognition service!", Toast.LENGTH_LONG).show()
-        } catch (_: SecurityException) {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.set_recognition_service)
-                .setMessage(R.string.recognition_service_guide)
-                .setPositiveButton("Keyboard Settings") { _, _ ->
-                    try {
-                        startActivity(Intent().apply {
-                            setClassName("com.android.settings",
-                                "com.android.settings.inputmethod.InputMethodAndSubtypeEnablerActivity")
-                        })
-                    } catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
-                }
-                .setNegativeButton("System Settings") { _, _ ->
-                    try {
-                        startActivity(Intent(Settings.ACTION_SETTINGS))
-                    } catch (_: Exception) {}
-                }
-                .setNeutralButton(android.R.string.cancel, null)
-                .show()
+            Settings.Secure.putString(contentResolver, "voice_recognition_service", flattened)
+            val current = Settings.Secure.getString(contentResolver, "voice_recognition_service")
+            if (current == flattened) {
+                Toast.makeText(this, R.string.voice_input_set_success, Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this,
+                    "Could not set service. Use ADB: adb shell settings put secure voice_recognition_service $flattened",
+                    Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, e.message ?: "Could not set voice input", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -500,7 +504,8 @@ class SettingsActivity : AppCompatActivity() {
         )
 
         settings.rawMode = rawModeCheckbox.isChecked
-        settings.targetLanguage = targetLanguageDropdown.text.toString().ifBlank { null }
+        val tl = targetLanguageDropdown.text.toString()
+        settings.targetLanguage = if (tl.isBlank() || tl == NONE_TARGET_LANGUAGE) null else tl
 
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM, systemPromptField.text.toString())
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_USER, userPromptField.text.toString())

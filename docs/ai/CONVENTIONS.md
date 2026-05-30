@@ -36,6 +36,7 @@ Follow these without question. Do not deviate unless explicitly told.
 ## UI Patterns
 - When setting `TextInputLayout.error` from validation logic, always add a `TextWatcher` to the corresponding `TextInputEditText` that clears both `error = null` and `helperText = null` on text change. This ensures the red error state disappears as the user corrects their input.
 - Transcription errors in `RecognitionService` and `VoiceRecognitionActivity` must show a `Toast` with the error detail — `listener.error()` alone sends an opaque error code to the keyboard that the user cannot see.
+- For custom filtering on `AutoCompleteTextView`, use `BaseAdapter` + `Filterable` with a directly owned `displayItems` list. Never extend `ArrayAdapter` with a custom `Filter` that calls `clear()`/`addAll()` — these modify the internal `mOriginalValues` (not `mObjects`), corrupting state and causing crashes on text input.
 
 ## Prompt Variables
 The transcription pipeline resolves the following template variables at runtime:

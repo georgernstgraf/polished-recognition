@@ -13,6 +13,7 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
@@ -70,6 +71,14 @@ class VoiceRecognitionActivity : Activity() {
             })
             finish()
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        findViewById<View>(R.id.info_button).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.voice_input_info_title)
+                .setMessage(R.string.voice_input_info_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         }
 
         if (hasRecordPermission()) {

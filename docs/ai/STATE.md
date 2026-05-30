@@ -3,30 +3,21 @@
 Current status as of 2026-05-30.
 
 ## Current Focus
-Issue #6 — R8 release build fixes: sync Call conversion, by-lazy views, resource shrinker, blink animation, model filter, save validation, error toasts, provider URLs.
+Issues #9-#12 completed — model stale-text fixes, target language UX, layout reorder, voice input button + info icon. Issue #13 open (auto-resume recordings, back button behavior).
 
 ## Completed (this cycle)
-- [x] #6 — Sync Call for all Retrofit suspend functions (listModels, transcribeAudio, chat)
-- [x] #6 — All view fields converted from `lateinit var` to `val by lazy { findViewById(...) }`
-- [x] #6 — `isShrinkResources = false` to stop R8 from stripping used views
-- [x] #6 — `ValueAnimator` blink with `AccelerateDecelerateInterpolator` (CSS ease-in-out)
-- [x] #6 — Custom `ArrayAdapter` filter: case-insensitive `contains()` for model dropdowns
-- [x] #6 — Auto-start recording in VoiceRecognitionActivity
-- [x] #6 — Stop icon (custom VectorDrawable) replacing pause icon
-- [x] #6 — Classic gear settings icon (layout updated; OxygenOS override noted)
-- [x] #6 — Model text fields start empty; save validates against model list
-- [x] #6 — Error toasts in both Service and Activity error paths
-- [x] #6 — Provider URL fixes (DeepSeek: missing /v1/; DeepInfra/HuggingFace/NVIDIA/Perplexity: missing trailing /)
-- [x] #6 — Partial results removed from RecognitionService
-- [x] #6 — Settings button stops active recording and cancels voice input
-- [x] Knowledge files updated: DECISIONS (7 entries), PITFALLS (5 entries), CONVENTIONS (1 entry), STATE, HANDOFF
+- [x] #9 — Model dropdown text cleared on provider switch / model fetch
+- [x] #10 — Target language: "None" option, free-text typing, disabled filter, explanation text
+- [x] #11 — Settings layout reorder: Save(top) → Processing → Prompts(reordered) → LLM → STT → Save(bottom). "Set as voice input" moved above bottom save
+- [x] #12 — Voice input button simplified to try-and-toast only. Info icon (i) added to recording screen with setup guide dialog
+- [x] #8 — Model dropdown BaseAdapter fix
+- [x] #1 through #6 — all closed previously
 
 ## Pending
-- [ ] #1, #2, #3, #4 — close remaining open issues
-- [ ] On-device release smoke test (verify STT + LLM transcription works end-to-end)
+- [ ] #13 — Auto-resume recordings, stop recording on info box, back button behavior decision
 
 ## Blockers
 None
 
 ## Next Session Suggestion
-Close #6 via issue-finish workflow. Continue closing #1-#4. Run on-device release smoke test.
+Tackle issue #13: implement auto-resume recording (return from Settings/Info → start recording), ensure info box stops active recording, decide on system back button behavior.

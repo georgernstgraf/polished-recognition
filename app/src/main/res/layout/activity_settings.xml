@@ -11,94 +11,198 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Recognition Service Setup -->
+        <!-- Top Save Button -->
         <Button
-            android:id="@+id/set_recognition_service"
+            android:id="@+id/save_button_top"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/set_recognition_service"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:text="@string/save"
+            style="@style/Widget.Material3.Button"
             android:layout_marginBottom="16dp"/>
 
-        <!-- STT Section -->
+        <!-- Processing Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/stt_section"
+            android:text="@string/processing_section"
             android:textAppearance="?attr/textAppearanceHeadline6"
             android:layout_marginBottom="8dp"/>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_provider_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/raw_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/provider"
-            android:layout_marginBottom="8dp">
-
-            <AutoCompleteTextView
-                android:id="@+id/stt_provider"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="none" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_url_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/api_url"
-            android:layout_marginBottom="8dp">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/stt_url"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:imeOptions="actionDone" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_token_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/api_token"
-            android:layout_marginBottom="4dp"
-            app:endIconMode="password_toggle">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/stt_token"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textPassword"
-                android:imeOptions="actionDone" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <Button
-            android:id="@+id/validate_stt"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/validate_fetch"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:text="@string/raw_mode"
             android:layout_marginBottom="8dp"/>
 
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_model_layout"
+            android:id="@+id/target_language_layout"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/model"
+            android:hint="@string/target_language"
             android:layout_marginBottom="16dp">
 
             <AutoCompleteTextView
-                android:id="@+id/stt_model"
+                android:id="@+id/target_language"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
-                android:completionThreshold="1" />
+                android:inputType="text" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:id="@+id/target_language_explanation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/target_language_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginTop="-12dp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Prompts Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/prompts_section"
+            android:textAppearance="?attr/textAppearanceHeadline6"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- User Prompt -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/user_prompt_template"
+                android:textAppearance="?attr/textAppearanceSubtitle1"/>
+            <Button
+                android:id="@+id/reset_user_prompt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/reset_prompt"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/prompt_variables"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:layout_marginBottom="4dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/user_prompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine"
+                android:minLines="5"
+                android:gravity="top" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Translate Prompt -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/translate_prompt"
+                android:textAppearance="?attr/textAppearanceSubtitle1"/>
+            <Button
+                android:id="@+id/reset_translate_prompt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/reset_prompt"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/prompt_variables"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:layout_marginBottom="4dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/translate_prompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine"
+                android:minLines="2"
+                android:gravity="top" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- System Prompt -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/system_prompt"
+                android:textAppearance="?attr/textAppearanceSubtitle1"/>
+            <Button
+                android:id="@+id/reset_system_prompt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/reset_prompt"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/system_prompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine"
+                android:minLines="3"
+                android:gravity="top" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Restore All Prompts Button -->
+        <Button
+            android:id="@+id/restore_defaults"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/restore_defaults"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="16dp"/>
 
         <!-- LLM Section -->
         <TextView
@@ -194,175 +298,96 @@
                 android:completionThreshold="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Processing Section -->
+        <!-- STT Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/processing_section"
+            android:text="@string/stt_section"
             android:textAppearance="?attr/textAppearanceHeadline6"
             android:layout_marginBottom="8dp"/>
 
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/raw_mode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/raw_mode"
-            android:layout_marginBottom="8dp"/>
-
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/target_language_layout"
+            android:id="@+id/stt_provider_layout"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/target_language"
-            android:layout_marginBottom="16dp">
+            android:hint="@string/provider"
+            android:layout_marginBottom="8dp">
 
             <AutoCompleteTextView
-                android:id="@+id/target_language"
+                android:id="@+id/stt_provider"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="none" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Prompts Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/prompts_section"
-            android:textAppearance="?attr/textAppearanceHeadline6"
-            android:layout_marginBottom="8dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/system_prompt"
-                android:textAppearance="?attr/textAppearanceSubtitle1"/>
-            <Button
-                android:id="@+id/reset_system_prompt"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/reset_prompt"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:textSize="12sp"/>
-        </LinearLayout>
-
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/stt_url_layout"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/system_prompt"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="3"
-                android:gravity="top" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/user_prompt_template"
-                android:textAppearance="?attr/textAppearanceSubtitle1"/>
-            <Button
-                android:id="@+id/reset_user_prompt"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/reset_prompt"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:textSize="12sp"/>
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/prompt_variables"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:layout_marginBottom="4dp"/>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/user_prompt"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="5"
-                android:gravity="top" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/translate_prompt"
-                android:textAppearance="?attr/textAppearanceSubtitle1"/>
-            <Button
-                android:id="@+id/reset_translate_prompt"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/reset_prompt"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:textSize="12sp"/>
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/prompt_variables"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:layout_marginBottom="4dp"/>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:hint="@string/api_url"
             android:layout_marginBottom="8dp">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/translate_prompt"
+                android:id="@+id/stt_url"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:gravity="top" />
+                android:inputType="textUri"
+                android:imeOptions="actionDone" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/stt_token_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/api_token"
+            android:layout_marginBottom="4dp"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/stt_token"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:imeOptions="actionDone" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <Button
-            android:id="@+id/restore_defaults"
+            android:id="@+id/validate_stt"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/restore_defaults"
+            android:text="@string/validate_fetch"
             style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="8dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/stt_model_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/model"
+            android:layout_marginBottom="16dp">
+
+            <AutoCompleteTextView
+                android:id="@+id/stt_model"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:completionThreshold="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Recognition Service Setup -->
+        <Button
+            android:id="@+id/set_recognition_service"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/set_recognition_service"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_marginBottom="16dp"/>
 
+        <!-- Bottom Save Button -->
         <Button
             android:id="@+id/save_button"
             android:layout_width="match_parent"

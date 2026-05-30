@@ -115,11 +115,11 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: `ObjectAnimator` (less control over repeat/reverse), keeping coroutine approach with smoother steps (more code)
 - **Tradeoff**: Removed `Job`, `delay`, `isActive` imports. Animator lifecycle tied to manual start/cancel
 
-## 2026-05-30: Custom `ArrayAdapter` filter for model dropdowns
-- **Choice**: Override `getFilter()` in anonymous `ArrayAdapter` subclass with `contains()` case-insensitive matching instead of default `startsWith()`
-- **Reason**: OpenRouter has 600+ models with naming patterns like `google/gemini-2.0-...`. `startsWith` requires typing the exact prefix; `contains` lets the user type any substring (e.g., "gemini" matches `google/gemini-2.0-flash`)
-- **Considered**: Third-party searchable spinner library (overkill)
-- **Tradeoff**: Custom filter is ~20 lines of boilerplate but zero external dependencies
+## 2026-05-30: `BaseAdapter` + `Filterable` for model dropdowns (replaces custom `ArrayAdapter` filter)
+- **Choice**: Replaced anonymous `ArrayAdapter` with custom `Filter` in `updateModelDropdown()` with a `ModelFilterAdapter` that extends `BaseAdapter` and implements `Filterable`, directly owning its display list
+- **Reason**: `ArrayAdapter.clear()` and `addAll()` silently operate on the internal `mOriginalValues` list (not `mObjects`) when `mOriginalValues` is non-null. The custom `publishResults()` never actually updated the displayed data. Additionally, `setNotifyOnChange(false)` (added to prevent `ConcurrentModificationException`) was never reset to `true`, leaving the adapter in a permanently broken state that caused crashes on Backspace. `BaseAdapter` directly owns its display list — filter results are assigned as a new list copy, avoiding all `ArrayAdapter` internal state corruption.
+- **Considered**: Fixing the `ArrayAdapter` approach by directly setting `mObjects` via reflection (fragile), switching back to standard `startsWith` filter (loses `contains` matching)
+- **Tradeoff**: `BaseAdapter` requires manual `getView()`, `getCount()`, `getItem()` implementation (~15 extra lines vs. `ArrayAdapter`). Zero reflection, zero side effects.
 
 ## 2026-05-30: Auto-start recording in VoiceRecognitionActivity
 - **Choice**: `VoiceRecognitionActivity` starts recording immediately in `onCreate()` (or on permission grant) instead of showing "Tap mic to speak" idle state
@@ -132,3 +132,15 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Users get no feedback when transcription fails — the keyboard just shows an error code or nothing. Detailed error messages (HTTP status, exception text) help users diagnose issues (wrong token, network down, bad model)
 - **Considered**: Dialog, snackbar (both require activity context which is unavailable in RecognitionService)
 - **Tradeoff**: Toast might show behind keyboard UI. Counter: it's visible in the notification shade and toasts work from Service context
+
+## 2026-05-30: Try-and-toast for voice recognition service setting
+- **Choice**: The "Set as Voice Input" button in Settings only attempts `Settings.Secure.putString("voice_recognition_service", ...)` and shows a Toast with the result — no dialog, no system settings opener, no cancel button
+- **Reason**: `WRITE_SECURE_SETTINGS` is a `signature|privileged` permission — regular apps cannot obtain it via manifest. The putString call fails with SecurityException on normal devices. On success (rooted/custom ROM), a toast confirms; on failure, the toast shows the error or ADB fallback command
+- **Considered**: Showing a help dialog with manual setup steps (overly complex, buried the simple try), opening system settings (no voice input option on Samsung Android 11)
+- **Tradeoff**: Users who never connect via ADB always see the error toast. Counter: the info dialog on the recording screen and README contain the full setup guide
+
+## 2026-05-30: Info dialog on recording screen (separated from settings action)
+- **Choice**: Added an info icon (i) button left of the settings gear on the recording overlay. Tapping it shows an AlertDialog (OK only) with consolidated setup guide: Gboard warning, AnySoftKeyboard recommendation, ADB commands, manual setup steps, and mention of the Settings "Set as Voice Input" button
+- **Reason**: Separates informational content (setup guide) from actionable intent (setting the service). The recording screen is the natural place for "how do I set this up" help
+- **Considered**: Keeping help text in the Settings button dialog (confusing — settings button now opens Settings), help icon on Settings page (no room, recording screen is the entry point)
+- **Tradeoff**: Two icons in the top-right corner. Info icon uses a custom VectorDrawable (OEMs don't have a standard white info icon)

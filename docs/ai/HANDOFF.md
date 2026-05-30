@@ -1,5 +1,5 @@
 # Hand Off
 
-No pending tasks. All issues closed (#1, #2, #3, #4, #5, #6).
+1. [ ] See #13 — Auto-resume recordings, stop recording on info box, decide back button behavior
 
-Last cleared: 2026-05-30.
+Last updated: 2026-05-30.
