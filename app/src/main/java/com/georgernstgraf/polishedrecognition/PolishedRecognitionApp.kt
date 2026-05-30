@@ -27,7 +27,9 @@ class PolishedRecognitionApp : Application() {
     val promptStore by lazy { PromptStore(this) }
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
 
-    val promptLogger by lazy { PromptLogger(File(filesDir, "logs")) }
+    val promptLogger by lazy {
+        PromptLogger(File(getExternalFilesDir(null) ?: filesDir, "logs"))
+    }
 
     val transcriptionPipeline by lazy {
         TranscriptionPipeline(
