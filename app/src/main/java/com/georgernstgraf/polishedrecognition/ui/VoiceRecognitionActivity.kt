@@ -52,6 +52,16 @@ class VoiceRecognitionActivity : Activity() {
         }
         cancelButton.setOnClickListener { cancelAndFinish() }
         findViewById<View>(R.id.settings_button).setOnClickListener {
+            if (isRecording) {
+                isRecording = false
+                stopBlink()
+                audioRecorder.cancel()
+            }
+            setResult(RESULT_CANCELED, Intent().apply {
+                putStringArrayListExtra(SpeechRecognizer.RESULTS_RECOGNITION, ArrayList())
+                putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, ArrayList())
+            })
+            finish()
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 

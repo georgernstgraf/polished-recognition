@@ -177,8 +177,6 @@ class SettingsActivity : AppCompatActivity() {
         llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames))
         targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages))
 
-        sttProviderDropdown.setOnItemClickListener { _, _, _, _ -> }
-
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = llmProviderDropdown.adapter.getItem(position) as String
             val preset = presets.findLlmPreset(name)

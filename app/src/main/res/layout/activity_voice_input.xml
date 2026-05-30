@@ -57,7 +57,7 @@
         android:layout_height="48dp"
         android:layout_gravity="top|end"
         android:layout_margin="16dp"
-        android:src="@android:drawable/ic_menu_manage"
+        android:src="@android:drawable/ic_menu_preferences"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Settings"
         android:scaleType="centerInside"
