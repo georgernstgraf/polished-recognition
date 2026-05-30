@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
@@ -79,6 +80,7 @@ class PolishedRecognitionService : RecognitionService() {
                 } else {
                     val error = result.exceptionOrNull()
                     val errorMsg = error?.message ?: "Unknown error"
+                    Toast.makeText(this@PolishedRecognitionService, errorMsg, Toast.LENGTH_LONG).show()
                     listener.error(if (errorMsg.contains("network", ignoreCase = true)) {
                         SpeechRecognizer.ERROR_NETWORK
                     } else {
@@ -87,6 +89,7 @@ class PolishedRecognitionService : RecognitionService() {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 }
             } catch (e: Exception) {
+                Toast.makeText(this@PolishedRecognitionService, e.message ?: "Unexpected error", Toast.LENGTH_LONG).show()
                 listener.error(SpeechRecognizer.ERROR_CLIENT)
                 stopForeground(STOP_FOREGROUND_REMOVE)
             }

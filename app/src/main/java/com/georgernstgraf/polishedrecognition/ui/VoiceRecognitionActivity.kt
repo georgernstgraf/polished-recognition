@@ -122,9 +122,12 @@ class VoiceRecognitionActivity : Activity() {
                     val text = result.getOrThrow()
                     returnResults(arrayListOf(text))
                 } else {
+                    val msg = result.exceptionOrNull()?.message ?: "Transcription failed"
+                    Toast.makeText(this@VoiceRecognitionActivity, msg, Toast.LENGTH_LONG).show()
                     returnResults(ArrayList())
                 }
             } catch (e: Exception) {
+                Toast.makeText(this@VoiceRecognitionActivity, e.message ?: "Unexpected error", Toast.LENGTH_LONG).show()
                 returnResults(ArrayList())
             }
         }
