@@ -121,7 +121,7 @@ class VoiceRecognitionActivity : Activity() {
         recordingStartMs = System.currentTimeMillis()
         recordedDurationMs = 0
         statusText.text = "Recording\u2026"
-        pauseResumeButton.text = "Pause"
+        showPauseIcon()
         setButtonsForRecording()
 
         audioRecorder.start(recorderListener)
@@ -136,7 +136,7 @@ class VoiceRecognitionActivity : Activity() {
         audioRecorder.pause()
         stopBlink()
         statusText.text = "Paused"
-        pauseResumeButton.text = "Resume"
+        showResumeIcon()
         setButtonsForPause()
     }
 
@@ -145,10 +145,22 @@ class VoiceRecognitionActivity : Activity() {
         isRecording = true
         isPaused = false
         audioRecorder.resume(recorderListener)
-        pauseResumeButton.text = "Pause"
+        showPauseIcon()
         statusText.text = "Recording\u2026"
         setButtonsForRecording()
         startBlink()
+    }
+
+    private fun showPauseIcon() {
+        pauseResumeButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            R.drawable.ic_pause, 0, 0, 0)
+        pauseResumeButton.contentDescription = "Pause"
+    }
+
+    private fun showResumeIcon() {
+        pauseResumeButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            R.drawable.ic_resume, 0, 0, 0)
+        pauseResumeButton.contentDescription = "Resume"
     }
 
     private fun stopRecording() {

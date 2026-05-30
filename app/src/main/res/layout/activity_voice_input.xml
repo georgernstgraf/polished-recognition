@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#E6000000">
@@ -36,30 +37,40 @@
                 android:id="@+id/cancel_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Cancel"
+                android:contentDescription="Cancel"
+                android:drawableStart="@drawable/ic_close"
                 android:textColor="@android:color/white"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                app:backgroundTint="#E53935"
+                style="@style/Widget.Material3.Button"
                 android:layout_marginEnd="8dp"/>
 
             <Button
                 android:id="@+id/pause_resume_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Pause"
+                android:contentDescription="Pause"
+                android:drawableStart="@drawable/ic_pause"
                 android:textColor="@android:color/white"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                app:backgroundTint="#F9A825"
+                style="@style/Widget.Material3.Button"
                 android:layout_marginEnd="8dp"/>
 
             <Button
                 android:id="@+id/stop_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Stop"
+                android:contentDescription="Send"
+                android:drawableStart="@drawable/ic_send"
                 android:textColor="@android:color/white"
-                style="@style/Widget.Material3.Button"
-                android:backgroundTint="#D32F2F"/>
+                app:backgroundTint="#42A5F5"
+                style="@style/Widget.Material3.Button"/>
 
         </LinearLayout>
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
 
     </LinearLayout>
 
