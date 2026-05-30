@@ -90,3 +90,45 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: R8 full mode strips generic type info from the `Continuation<? super Response<ModelsResponse>>` parameter in Kotlin suspend functions. Retrofit's `HttpServiceMethod.parseAnnotations` casts this to `ParameterizedType`, causing `ClassCastException: java.lang.Class cannot be cast to java.lang.reflect.ParameterizedType` in release builds. Using a non-suspend `Call<ModelsResponse>` avoids the `Continuation` type resolution path entirely
 - **Considered**: Adding ProGuard keep rules (`-keep class kotlin.coroutines.Continuation`), OkHttp direct call
 - **Tradeoff**: `Call.execute()` blocks the thread (fine — already on `Dispatchers.IO`). Slightly more verbose than suspend single-line call. Keeps the shared `OkHttpClient` with connection pooling via `PolishedRecognitionApp.getSttApi/getChatApi`
+
+## 2026-05-30: Sync Call for transcribeAudio/chat (R8 workaround)
+- **Choice**: Same sync `Call<T>` pattern extended to `transcribeAudioSync` and `chatSync` in the pipeline
+- **Reason**: Same R8 `Continuation<? super Response<T>>` issue affects all Retrofit suspend functions, not just listModels. Release build transcription failed silently.
+- **Considered**: ProGuard keep rules (risky, platform-dependent)
+- **Tradeoff**: Pipeline code now blocks IO thread with `Call.execute()` — fine since `Dispatchers.IO` is designed for blocking I/O
+
+## 2026-05-30: `by lazy` for Activity view fields
+- **Choice**: All `lateinit var` view properties in `SettingsActivity` and `VoiceRecognitionActivity` replaced with `val by lazy { findViewById(...) }`
+- **Reason**: R8 full mode inlines private methods (`bindViews`, `loadSettings`) into `onCreate()` and reorders instructions. `findViewById` assignments happen AFTER first property access, causing `lateinit property has not been initialized` crash in release builds. `by lazy` initializes on first access, immune to instruction reordering
+- **Considered**: Disabling R8 optimization entirely, moving `findViewById` into `onCreate` directly (R8 still reorders within the method)
+- **Tradeoff**: `by lazy` has minor thread-safety overhead (`LazyThreadSafetyMode.SYNCHRONIZED`). All view access is on main thread so overhead is negligible
+
+## 2026-05-30: Disable `isShrinkResources`
+- **Choice**: Set `isShrinkResources = false` for release builds
+- **Reason**: Resource shrinker removed views from layouts that R8 couldn't trace as used, causing `findViewById` to return null for seemingly-referenced views. Disabling it adds ~50KB to APK size but eliminates a class of release-only layout bugs
+- **Considered**: `tools:keep` in layout XML, resource keep rules (fragile, per-view)
+- **Tradeoff**: Negligible APK size increase (~50KB)
+
+## 2026-05-30: `ValueAnimator` blink with ease-in-out
+- **Choice**: Replace Coroutine-based blink with `ValueAnimator.ofFloat(0.3f, 1.0f)` using `AccelerateDecelerateInterpolator`, `INFINITE` repeat, `REVERSE` mode
+- **Reason**: CSS-like "ease-in-out" smooth pulse instead of abrupt alpha steps. `ValueAnimator` is Android-native and doesn't need a coroutine scope
+- **Considered**: `ObjectAnimator` (less control over repeat/reverse), keeping coroutine approach with smoother steps (more code)
+- **Tradeoff**: Removed `Job`, `delay`, `isActive` imports. Animator lifecycle tied to manual start/cancel
+
+## 2026-05-30: Custom `ArrayAdapter` filter for model dropdowns
+- **Choice**: Override `getFilter()` in anonymous `ArrayAdapter` subclass with `contains()` case-insensitive matching instead of default `startsWith()`
+- **Reason**: OpenRouter has 600+ models with naming patterns like `google/gemini-2.0-...`. `startsWith` requires typing the exact prefix; `contains` lets the user type any substring (e.g., "gemini" matches `google/gemini-2.0-flash`)
+- **Considered**: Third-party searchable spinner library (overkill)
+- **Tradeoff**: Custom filter is ~20 lines of boilerplate but zero external dependencies
+
+## 2026-05-30: Auto-start recording in VoiceRecognitionActivity
+- **Choice**: `VoiceRecognitionActivity` starts recording immediately in `onCreate()` (or on permission grant) instead of showing "Tap mic to speak" idle state
+- **Reason**: One less tap for the user. When AnySoftKeyboard launches voice input, the user's intent is already "I want to dictate" — no need for a confirmation tap
+- **Considered**: Keeping the explicit tap-to-start flow (safer but slower)
+- **Tradeoff**: User must tap to STOP instead of START. Stop icon (square) replaces old mic/pause icon for clarity
+
+## 2026-05-30: Error toasts for transcription failures
+- **Choice**: Show `Toast.makeText(this, errorMessage, Toast.LENGTH_LONG)` in both `PolishedRecognitionService` and `VoiceRecognitionActivity` error paths (else-branch and catch-branch)
+- **Reason**: Users get no feedback when transcription fails — the keyboard just shows an error code or nothing. Detailed error messages (HTTP status, exception text) help users diagnose issues (wrong token, network down, bad model)
+- **Considered**: Dialog, snackbar (both require activity context which is unavailable in RecognitionService)
+- **Tradeoff**: Toast might show behind keyboard UI. Counter: it's visible in the notification shade and toasts work from Service context
