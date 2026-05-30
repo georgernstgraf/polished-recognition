@@ -179,6 +179,14 @@ class SettingsActivity : AppCompatActivity() {
         llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames.sorted()))
         targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages.sorted()))
 
+        sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
+            val name = sttProviderDropdown.adapter.getItem(position) as String
+            val preset = presets.findSttPreset(name)
+            if (preset != null) {
+                sttUrlField.setText(preset.base_url)
+            }
+        }
+
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = llmProviderDropdown.adapter.getItem(position) as String
             val preset = presets.findLlmPreset(name)
@@ -399,10 +407,13 @@ class SettingsActivity : AppCompatActivity() {
 
                         @Suppress("UNCHECKED_CAST")
                         override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
-                            if (results != null && results.values != null) {
-                                val values = results.values as List<String>
+                            val filtered = (results?.values as? List<*>)?.filterIsInstance<String>()
+                                ?: return
+                            setNotifyOnChange(false)
+                            try {
                                 clear()
-                                addAll(values)
+                                addAll(filtered)
+                            } finally {
                                 notifyDataSetChanged()
                             }
                         }
