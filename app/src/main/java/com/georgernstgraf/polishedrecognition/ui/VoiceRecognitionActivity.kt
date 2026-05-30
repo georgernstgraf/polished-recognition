@@ -2,7 +2,6 @@ package com.georgernstgraf.polishedrecognition.ui
 
 import android.Manifest
 import android.animation.ValueAnimator
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -14,12 +13,14 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
+import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,7 +30,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
-class VoiceRecognitionActivity : Activity() {
+class VoiceRecognitionActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 42
@@ -46,7 +47,7 @@ class VoiceRecognitionActivity : Activity() {
 
     private val statusText: TextView by lazy { findViewById(R.id.status_text) }
     private val cancelButton: Button by lazy { findViewById(R.id.cancel_button) }
-    private val pauseResumeButton: Button by lazy { findViewById(R.id.pause_resume_button) }
+    private val pauseResumeButton: MaterialButton by lazy { findViewById(R.id.pause_resume_button) }
     private val stopButton: Button by lazy { findViewById(R.id.stop_button) }
     private val elapsedText: TextView by lazy { findViewById(R.id.elapsed_text) }
     private val settingsButton: View by lazy { findViewById(R.id.settings_button) }
@@ -152,14 +153,12 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun showPauseIcon() {
-        pauseResumeButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
-            R.drawable.ic_pause, 0, 0, 0)
+        pauseResumeButton.setIconResource(R.drawable.ic_pause)
         pauseResumeButton.contentDescription = "Pause"
     }
 
     private fun showResumeIcon() {
-        pauseResumeButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
-            R.drawable.ic_resume, 0, 0, 0)
+        pauseResumeButton.setIconResource(R.drawable.ic_resume)
         pauseResumeButton.contentDescription = "Resume"
     }
 

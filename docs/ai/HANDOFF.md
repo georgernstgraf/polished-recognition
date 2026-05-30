@@ -1,5 +1,5 @@
 # Hand Off
 
-1. [ ] See #13 — On-device validation of pause/resume flow. Verify transcription picks up settings changed during pause.
+No pending tasks. All issues closed (#1 through #13).
 
-Last updated: 2026-05-30.
+Last cleared: 2026-05-30.

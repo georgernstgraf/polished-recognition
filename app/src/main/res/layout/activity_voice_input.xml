@@ -30,40 +30,72 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
             android:layout_marginBottom="16dp">
 
-            <Button
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"/>
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/cancel_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:text=""
                 android:contentDescription="Cancel"
-                android:drawableStart="@drawable/ic_close"
                 android:textColor="@android:color/white"
-                app:backgroundTint="#E53935"
-                style="@style/Widget.Material3.Button"
-                android:layout_marginEnd="8dp"/>
+                app:icon="@drawable/ic_close"
+                app:iconSize="32dp"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:cornerRadius="28dp"
+                app:backgroundTint="#C62828"/>
 
-            <Button
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"/>
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/pause_resume_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="Pause"
-                android:drawableStart="@drawable/ic_pause"
-                android:textColor="@android:color/white"
-                app:backgroundTint="#F9A825"
                 style="@style/Widget.Material3.Button"
-                android:layout_marginEnd="8dp"/>
-
-            <Button
-                android:id="@+id/stop_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="Send"
-                android:drawableStart="@drawable/ic_send"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:text=""
+                android:contentDescription="Pause"
                 android:textColor="@android:color/white"
-                app:backgroundTint="#42A5F5"
-                style="@style/Widget.Material3.Button"/>
+                app:icon="@drawable/ic_pause"
+                app:iconSize="32dp"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:cornerRadius="28dp"
+                app:backgroundTint="#F57F17"/>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/stop_button"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:text=""
+                android:contentDescription="Send"
+                android:textColor="@android:color/white"
+                app:icon="@drawable/ic_send"
+                app:iconSize="32dp"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:cornerRadius="28dp"
+                app:backgroundTint="#1565C0"/>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"/>
 
         </LinearLayout>
 

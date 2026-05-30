@@ -156,3 +156,15 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Three-button layout removed the large mic button. Blinking "Recording…" text at 28sp provides the visual feedback that recording is active, matching iOS voice memos UX pattern
 - **Considered**: Adding a separate indicator dot (extra layout element)
 - **Tradeoff**: Status text loses blink during pause — user sees static "Paused" text. Clear enough for the paused state distinction.
+
+## 2026-05-30: AppCompatActivity required for MaterialButton backgroundTint
+- **Choice**: `VoiceRecognitionActivity` changed from `Activity` to `AppCompatActivity`
+- **Reason**: Plain `Activity` does not resolve MaterialComponents `<Button>` decorations — `app:backgroundTint` is silently ignored. `AppCompatActivity` enables the MaterialComponents `AppCompatViewInflater` which inflates `<Button>` as `MaterialButton` and respects `app:backgroundTint`, `app:icon`, `app:iconSize`, `app:cornerRadius`
+- **Considered**: Using `android:backgroundTint` instead (also ignored by platform Button), setting background drawables manually (fragile)
+- **Tradeoff**: Slightly larger APK from AppCompat dependency. Already present via SettingsActivity
+
+## 2026-05-30: Circular icon-only MaterialButton with space-around layout
+- **Choice**: Three 56dp circular `MaterialButton` with centered 32dp icons, arranged via four equal-weight spacer Views (CSS `space-around`). `app:iconPadding="0dp"` ensures icons are perfectly centered within the circle
+- **Reason**: Three colored circles with clear icons provide instant visual recognition on a fast-interaction overlay. The space-around layout evenly distributes the buttons across the screen width regardless of device size
+- **Considered**: Text labels, horizontal gravity=center (crowded), OutlinedButton style (low contrast on dark overlay)
+- **Tradeoff**: Icon-only means users must learn the meaning of each icon. Mitigated by consistent Material Design icon language (X=cancel, ‖=pause, ↻=resume, ✈=send)
