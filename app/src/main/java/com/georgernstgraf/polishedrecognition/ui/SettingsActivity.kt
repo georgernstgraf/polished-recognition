@@ -175,9 +175,9 @@ class SettingsActivity : AppCompatActivity() {
         val llmNames = presets.llmPresetNames() + getString(R.string.custom_provider)
         val languages = LanguageMapper.supportedLanguages
 
-        sttProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, sttNames))
-        llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames))
-        targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages))
+        sttProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, sttNames.sorted()))
+        llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames.sorted()))
+        targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages.sorted()))
 
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = llmProviderDropdown.adapter.getItem(position) as String
@@ -377,8 +377,9 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun updateModelDropdown(dropdown: AutoCompleteTextView, models: List<String>) {
         if (models.isNotEmpty()) {
-            val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, models) {
-                private val allItems = models.toList()
+            val sorted = models.sorted()
+            val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, sorted) {
+                private val allItems = sorted
 
                 override fun getFilter(): Filter {
                     return object : Filter() {
