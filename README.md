@@ -14,7 +14,7 @@ Keyboard mic → RecognitionService → STT (Whisper/etc) → LLM (cleanup/trans
 2. Our `VoiceRecognitionActivity` overlay opens and starts recording immediately
 3. Tap the stop button to end recording
 4. Audio is sent to your configured STT provider (Whisper, Groq, etc.)
-5. Optional: the transcription is post-processed by an LLM (translate, cleanup)
+5. Optional: the transcription is post-processed by an LLM (translate, cleanup) — **all prompts (system, user, translate) are fully editable in Settings**
 6. Tap the gear icon during recording to open settings
 7. Text is inserted into the text field
 
@@ -140,9 +140,26 @@ screen.
 - **Separate URL fields** — editable base URLs for each provider
 - **Test Token** — validates LLM tokens with a minimal chat request (avoids unauthenticated `/v1/models` endpoints)
 - **Fetch Models** — pulls available models from any OpenAI-compatible provider
-- **Editable prompts** — system, user, and translate prompts with template variables (`{{text}}`, `{{source_language}}`, `{{target_language}}`)
+- **Fully customizable prompts** — every pipeline stage is editable in Settings: System Prompt (LLM behavior), User Prompt (transcription cleanup with `{{text}}`, `{{source_language}}`, `{{translate_prompt}}`, `{{target_language}}`), and Translate Prompt (translation instruction with `{{target_language}}`). Individual prompts can be restored to defaults, or all at once.
 - **Raw mode** — skip LLM post-processing, return STT text directly
 - **Prompt logging** — resolved prompts written to rotating log files (pull via `adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/`)
+
+### Custom Prompts
+
+Every stage of the transcription pipeline is fully customizable through
+three editable prompts in Settings:
+
+| Prompt | Template Variables | Purpose |
+|--------|-------------------|---------|
+| **System Prompt** | — | Controls the LLM's behavior and output constraints |
+| **User Prompt** | `{{text}}`, `{{source_language}}`, `{{translate_prompt}}`, `{{target_language}}` | Template for transcription cleanup and formatting |
+| **Translate Prompt** | `{{target_language}}` | Translation instruction inserted when a target language is set |
+
+- Prompts are stored in `SharedPreferences` and persisted across sessions
+- Individual prompts can be restored to their defaults via the **Reset** button next to each field
+- All prompts can be restored at once via **Restore all prompts to default**
+- When **Target Language** is set to `None (no translation)`, the translate prompt is omitted entirely
+- Raw mode (skip LLM) bypasses all prompts and returns the STT text directly
 
 ## Build
 
