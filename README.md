@@ -32,10 +32,10 @@ and press the microphone button.
 
 1. You press the microphone button on your keyboard
 2. Our `VoiceRecognitionActivity` overlay opens and starts recording immediately
-3. Tap the stop button to end recording
+3. Tap the **Send** button to forward the audio to the STT pipeline
 4. Audio is sent to your configured STT provider (Whisper, Groq, etc.)
-5. Optional: the transcription is post-processed by an LLM (translate, cleanup) — **all prompts (system, user, translate) are fully editable in Settings**
-6. Tap the gear icon during recording to open settings
+5. The transcribed text is post-processed by an LLM using a **fully configurable prompt** — the core feature that enables cleanup, formatting, and translation. Small flash models (e.g. `gpt-oss-120b` on GROQ) run in under a second, avoiding the latency of larger models while producing excellent results.
+6. Tap **Pause** at any time to suspend recording, change settings or prompts, then tap **Resume** — recording picks up seamlessly where you left off
 7. Text is inserted into the text field
 
 **No custom keyboard required** — works with any keyboard that uses the
@@ -146,8 +146,9 @@ dynamically from each provider's `/v1/models` endpoint.
 
 - **Auto-start recording** — opens directly in recording mode, no extra tap
 - **Elapsed timer** — monospace clock at the bottom showing recording duration
-- **Stop icon** — square button to end recording (not pause)
-- **Settings gear** — tap the gear icon during recording to configure providers without stopping
+- **Send** — forwards audio to the STT pipeline for transcription
+- **Pause / Resume** — suspend dictation at any time and resume later
+- **Settings gear** — tap the gear icon during recording to open settings
 
 ### Settings
 
@@ -223,47 +224,10 @@ The voice overlay requests it on first use.
 **STT model not working?** If the model dropdown is empty, press **Validate & Fetch Models**
 after entering a valid API token. The model list is fetched dynamically from the provider.
 
-## Tech Stack
+## Developer Documentation
 
-| Component    | Choice                     | Reason                                   |
-|--------------|----------------------------|------------------------------------------|
-| Language     | Kotlin                     | Standard Android                         |
-| HTTP         | Retrofit + OkHttp          | Proven, flexible                         |
-| JSON         | Gson                       | Lightweight                              |
-| UI           | AppCompat + Material       | XML-based, no Compose overhead           |
-| Storage      | SharedPreferences          | Simple, no Room for config-only app      |
-| DI           | Manual (Application class) | RecognitionService conflicts with Hilt   |
-| Async        | Kotlin Coroutines          | Structured concurrency                   |
-| Animation    | ValueAnimator              | Smooth CSS-like ease-in-out blink        |
-| Logging      | File-based (rotating)      | Prompt logs writable to external storage |
-
-**No Hilt, no Room, no WorkManager, no Compose.** Deliberately minimal.
-
-## Project Structure
-
-```
-app/src/main/java/com/georgernstgraf/polishedrecognition/
-├── PolishedRecognitionApp.kt        # Application — manual DI wiring
-├── api/
-│   ├── OpenAiSttApiService.kt       # Generic STT interface
-│   ├── OpenAiChatApiService.kt      # Generic LLM interface
-│   └── dto/ApiDtos.kt               # Request/response DTOs
-├── audio/
-│   └── AudioRecorder.kt             # AudioRecord → WAV, RMS feedback
-├── config/
-│   ├── ProviderPresets.kt           # Loads provider_presets.json
-│   ├── SettingsStore.kt             # SharedPreferences wrapper
-│   └── LanguageMapper.kt            # ISO 639-1 → human-readable names
-├── pipeline/
-│   ├── TranscriptionPipeline.kt     # STT → LLM orchestrator
-│   ├── PromptStore.kt               # Editable prompt storage
-│   └── PromptLogger.kt              # Rotating prompt log files
-├── service/
-│   └── PolishedRecognitionService.kt # RecognitionService (system default)
-└── ui/
-    ├── SettingsActivity.kt          # Provider config + prompt editor
-    └── VoiceRecognitionActivity.kt  # RECOGNIZE_SPEECH overlay
-```
+Technical details (architecture, decisions, conventions, pitfalls) are
+maintained in [`docs/ai/`](docs/ai/). Start with `HANDOFF.md`.
 
 ## License
 
