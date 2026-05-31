@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,8 +30,21 @@ jobs:
       - name: Build release APK
         run: ./gradlew assembleRelease
 
-      - name: Upload release APK
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 7
+
+      - name: Publish release APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/master'
+        with:
+          tag_name: latest
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: app/build/outputs/apk/release/app-release.apk
+          body: |
+            Automated build from commit ${{ github.sha }}.
+            Download the APK and install via ADB.

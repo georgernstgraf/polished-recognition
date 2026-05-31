@@ -1,12 +1,32 @@
 # Polished Recognition
 
-OpenAI-compatible voice input for Android keyboards. A `RecognitionService` that
-captures voice from the keyboard microphone and routes it through configurable
-STT and LLM providers for transcription and post-processing.
+Voice typing for any Android keyboard. Press the microphone, speak,
+and your words appear — cleaned up and translated if you want.
+Works with your preferred AI provider (OpenAI, GROQ, Google, local models…).
+No account, no registration, just an API key.
 
+## Download
+
+[Download app-release.apk](https://github.com/georgernstgraf/polished-recognition/releases/latest/download/app-release.apk)
+
+### Install via ADB
+
+```bash
+adb install app-release.apk
 ```
-Keyboard mic → RecognitionService → STT (Whisper/etc) → LLM (cleanup/translate) → Text inserted
+
+### Set as Voice Input
+
+```bash
+adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
+
+adb shell settings get secure voice_recognition_service   # Verify
 ```
+
+Then install [AnySoftKeyboard](https://play.google.com/store/apps/details?id=com.menny.android.anysoftkeyboard)
+and press the microphone button.
+
+---
 
 ## How It Works
 
