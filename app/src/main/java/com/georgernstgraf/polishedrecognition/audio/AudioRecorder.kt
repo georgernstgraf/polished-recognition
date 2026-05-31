@@ -13,7 +13,7 @@ interface AudioRecorderListener {
 class AudioRecorder {
 
     private var audioRecord: AudioRecord? = null
-    private var isRecording = false
+    @Volatile private var isRecording = false
     private val bufferStream = ByteArrayOutputStream()
     private var listener: AudioRecorderListener? = null
     private var didReportSpeechBegin = false
