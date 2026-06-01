@@ -47,6 +47,7 @@ jobs:
           files: app/build/outputs/apk/release/app-release.apk
           body: |
             Automated build #${{ github.run_number }} from commit ${{ github.sha }}.
+            Download the APK and install via ADB.
 
       - name: Cleanup old releases (keep newest 7)
         if: github.ref == 'refs/heads/master'
