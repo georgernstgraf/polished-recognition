@@ -3,6 +3,7 @@ package com.georgernstgraf.polishedrecognition.ui
 import android.Manifest
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.text.Html
 import android.text.method.LinkMovementMethod
 import android.content.pm.PackageManager
@@ -158,11 +159,13 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     private fun showPauseIcon() {
         pauseResumeButton.setIconResource(R.drawable.ic_pause)
         pauseResumeButton.contentDescription = "Pause"
+        pauseResumeButton.backgroundTintList = ColorStateList.valueOf(0xFFF57F17.toInt())
     }
 
     private fun showResumeIcon() {
         pauseResumeButton.setIconResource(R.drawable.ic_resume)
         pauseResumeButton.contentDescription = "Resume"
+        pauseResumeButton.backgroundTintList = ColorStateList.valueOf(0xFF2E7D32.toInt())
     }
 
     private fun stopRecording() {

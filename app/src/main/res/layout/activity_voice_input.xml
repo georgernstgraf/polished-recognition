@@ -69,8 +69,7 @@
                 app:iconSize="32dp"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:cornerRadius="28dp"
-                app:backgroundTint="#F57F17"/>
+                app:cornerRadius="28dp"/>
 
             <View
                 android:layout_width="0dp"
