@@ -59,6 +59,19 @@
             android:textColor="?android:attr/textColorTertiary"
             android:layout_marginStart="4dp"
             android:layout_marginTop="-12dp"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/manage_custom_languages"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/manage_custom_languages"
+            android:textColor="?attr/colorPrimary"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="4dp"
+            android:layout_marginStart="4dp"
             android:layout_marginBottom="16dp" />
 
         <!-- Prompts Section -->

@@ -121,4 +121,22 @@ class SettingsStoreTest {
         val fresh = SettingsStore(RuntimeEnvironment.getApplication())
         assertThat(fresh.sttProvider!!.displayName).isEqualTo("X")
     }
+
+    @Test
+    fun `customLanguages defaults to empty`() {
+        assertThat(store.customLanguages).isEmpty()
+    }
+
+    @Test
+    fun `customLanguages save and load`() {
+        val languages = listOf("German", "French", "Italian")
+        store.customLanguages = languages
+        assertThat(store.customLanguages).containsExactly("German", "French", "Italian").inOrder()
+    }
+
+    @Test
+    fun `customLanguages round-trips empty list`() {
+        store.customLanguages = emptyList()
+        assertThat(store.customLanguages).isEmpty()
+    }
 }

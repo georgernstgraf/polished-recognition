@@ -16,13 +16,14 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.Filter
 import android.widget.Filterable
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
-import com.georgernstgraf.polishedrecognition.config.LanguageMapper
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
@@ -147,6 +148,8 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openRecognitionServiceSettings() }
         findViewById<Button>(R.id.save_button_top).setOnClickListener { saveAndClose() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
+
+        findViewById<TextView>(R.id.manage_custom_languages).setOnClickListener { showManageLanguagesDialog() }
     }
 
     private fun loadSettings() {
@@ -168,6 +171,11 @@ class SettingsActivity : AppCompatActivity() {
 
         rawModeCheckbox.isChecked = settings.rawMode
         targetLanguageDropdown.setText(settings.targetLanguage ?: NONE_TARGET_LANGUAGE, false)
+        settings.targetLanguage?.let { tl ->
+            if (tl.isNotBlank() && tl != NONE_TARGET_LANGUAGE && tl != "English" && tl !in settings.customLanguages) {
+                settings.customLanguages = settings.customLanguages + tl
+            }
+        }
 
         systemPromptField.setText(promptStore.systemPrompt)
         userPromptField.setText(promptStore.userPromptTemplate)
@@ -183,11 +191,12 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupDropdowns() {
         val sttNames = presets.sttPresetNames() + getString(R.string.custom_provider)
         val llmNames = presets.llmPresetNames() + getString(R.string.custom_provider)
-        val languages = listOf(NONE_TARGET_LANGUAGE) + LanguageMapper.supportedLanguages
 
         sttProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, sttNames.sorted()))
         llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames.sorted()))
-        targetLanguageDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages))
+
+        val langAdapter = LanguageDropdownAdapter()
+        targetLanguageDropdown.setAdapter(langAdapter)
 
         sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = sttProviderDropdown.adapter.getItem(position) as String
@@ -209,7 +218,7 @@ class SettingsActivity : AppCompatActivity() {
 
         sttModelDropdown.threshold = 1
         llmModelDropdown.threshold = 1
-        targetLanguageDropdown.threshold = Int.MAX_VALUE
+        targetLanguageDropdown.threshold = 1
     }
 
     private fun validateSttProvider() {
@@ -451,6 +460,51 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private inner class LanguageDropdownAdapter : BaseAdapter(), Filterable {
+        private var displayItems: List<String> = listOf(NONE_TARGET_LANGUAGE, "English") + settings.customLanguages.sorted()
+
+        fun rebuild() {
+            displayItems = listOf(NONE_TARGET_LANGUAGE, "English") + settings.customLanguages.sorted()
+            notifyDataSetChanged()
+        }
+
+        override fun getCount(): Int = displayItems.size
+        override fun getItem(position: Int): Any = displayItems[position]
+        override fun getItemId(position: Int): Long = position.toLong()
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val item = displayItems[position]
+            val view = convertView as? TextView ?: LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_language_dropdown, parent, false) as TextView
+            view.text = item
+            return view
+        }
+
+        override fun getFilter(): Filter {
+            return object : Filter() {
+                override fun performFiltering(constraint: CharSequence?): FilterResults {
+                    val results = FilterResults()
+                    val all = listOf(NONE_TARGET_LANGUAGE, "English") + settings.customLanguages.sorted()
+                    val filtered = if (constraint.isNullOrBlank()) {
+                        all
+                    } else {
+                        val query = constraint.toString().lowercase()
+                        listOf(NONE_TARGET_LANGUAGE) + all.drop(1).filter { it.lowercase().contains(query) }
+                    }
+                    results.values = ArrayList(filtered)
+                    results.count = filtered.size
+                    return results
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                    displayItems = (results?.values as? List<*>)?.filterIsInstance<String>() ?: return
+                    notifyDataSetChanged()
+                }
+            }
+        }
+    }
+
     private fun openRecognitionServiceSettings() {
         val cn = ComponentName(packageName, "${packageName}.service.PolishedRecognitionService")
         val flattened = cn.flattenToString()
@@ -467,6 +521,51 @@ class SettingsActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, e.message ?: "Could not set voice input", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun showManageLanguagesDialog() {
+        val customs = settings.customLanguages.toList()
+        if (customs.isEmpty()) {
+            Toast.makeText(this, "No saved languages yet — type one and tap Save to add it.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        var dialog: AlertDialog? = null
+
+        val adapter = object : BaseAdapter() {
+            override fun getCount() = customs.size
+            override fun getItem(pos: Int) = customs[pos]
+            override fun getItemId(pos: Int) = pos.toLong()
+            override fun getView(pos: Int, convertView: View?, parent: ViewGroup): View {
+                val lang = customs[pos]
+                val view = convertView ?: LayoutInflater.from(this@SettingsActivity)
+                    .inflate(R.layout.item_manage_language, parent, false)
+                view.findViewById<TextView>(R.id.language_name).also {
+                    it.text = lang
+                    it.setOnClickListener {
+                        targetLanguageDropdown.setText(lang, false)
+                        dialog?.dismiss()
+                    }
+                }
+                view.findViewById<ImageButton>(R.id.delete_button).setOnClickListener {
+                    settings.customLanguages = settings.customLanguages - lang
+                    if (settings.targetLanguage == lang) {
+                        settings.targetLanguage = null
+                        targetLanguageDropdown.setText(NONE_TARGET_LANGUAGE, false)
+                    }
+                    (targetLanguageDropdown.adapter as LanguageDropdownAdapter).rebuild()
+                    dialog?.dismiss()
+                    showManageLanguagesDialog()
+                }
+                return view
+            }
+        }
+
+        dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.saved_languages_title)
+            .setAdapter(adapter as android.widget.ListAdapter, null)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun saveAndClose() {
@@ -505,7 +604,11 @@ class SettingsActivity : AppCompatActivity() {
 
         settings.rawMode = rawModeCheckbox.isChecked
         val tl = targetLanguageDropdown.text.toString()
-        settings.targetLanguage = if (tl.isBlank() || tl == NONE_TARGET_LANGUAGE) null else tl
+        val tlToSave = if (tl.isBlank() || tl == NONE_TARGET_LANGUAGE) null else tl
+        settings.targetLanguage = tlToSave
+        if (tlToSave != null && tlToSave != "English" && tlToSave !in settings.customLanguages) {
+            settings.customLanguages = settings.customLanguages + tlToSave
+        }
 
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM, systemPromptField.text.toString())
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_USER, userPromptField.text.toString())

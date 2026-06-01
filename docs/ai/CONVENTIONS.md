@@ -45,7 +45,10 @@ The transcription pipeline resolves the following template variables at runtime:
 - `{{target_language}}` — the user's chosen output language
 - `{{translate_prompt}}` — empty string if no translation, otherwise the resolved translate prompt
 
-## Testing
+## Build & Installation
+
+- Always install via `./gradlew installRelease`. The release build type uses `signingConfigs.debug` for the signing key, so it installs without extra setup. `installDebug` installs a separate `.debug` suffix APK that bypasses the RecognitionService — never use it for testing voice input.
+- The debug build type sets `applicationIdSuffix = ".debug"`, creating a different application ID. The system's `voice_recognition_service` setting points to the release application ID, so the debug APK will never work as a voice input provider.
 - Test framework: JUnit 4 (`@Test`, `@Before`, `@After`), no JUnit 5
 - Mocking: MockK 1.14.4 (`mockk(relaxed=true)`, `coEvery { ... } returns ...`, `slot<T>()`)
 - Assertions: Google Truth 1.4.4 (`Truth.assertThat(...)`)

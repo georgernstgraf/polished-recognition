@@ -168,3 +168,21 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Three colored circles with clear icons provide instant visual recognition on a fast-interaction overlay. The space-around layout evenly distributes the buttons across the screen width regardless of device size
 - **Considered**: Text labels, horizontal gravity=center (crowded), OutlinedButton style (low contrast on dark overlay)
 - **Tradeoff**: Icon-only means users must learn the meaning of each icon. Mitigated by consistent Material Design icon language (X=cancel, ‖=pause, ↻=resume, ✈=send)
+
+## 2026-06-01: Dynamic language dropdown with persistent custom languages
+- **Choice**: Replace fixed language list from `LanguageMapper.supportedLanguages` with a dynamic `LanguageDropdownAdapter` combining "None (no translation)" + "English" (always present) + `settings.customLanguages` (user-entered, persisted as JSON array in SharedPreferences). Delete via "Manage saved languages" dialog with trash icon per row
+- **Reason**: Users want to type any language name and have it persist across sessions. A static list of 29 languages forces users to type the same language every time. AutoCompleteTextView dropdown items cannot contain focusable children (ImageButton steals touch → row not selectable), so deletion is handled in a separate dialog, not inline in the dropdown
+- **Considered**: Swipe-to-delete in dropdown (conflicts with ListView scrolling), long-press popup via reflection (fragile), trash icon in dropdown (not selectable), long-press via OnTouchListener (unreliable with ListView touch dispatch)
+- **Tradeoff**: Two-step delete (Manage dialog → tap trash). Delete happens immediately without confirmation. A Toast confirms removal.
+
+## 2026-06-01: Shortened info dialog with clickable README link
+- **Choice**: Replaced verbose setup guide (Gboard warning, AnySoftKeyboard recommendation, ADB commands) with a ~200‑character message stating that prompts are in English, the target language should be typed in English, plus a clickable README link. The link uses `Html.fromHtml()` + `LinkMovementMethod` on the AlertDialog's message TextView
+- **Reason**: Users found the original dialog too verbose. The setup steps belong in the README, not in an in-app dialog. The English‑language note is directly relevant to issue #14's target language feature
+- **Considered**: Keeping full text (too long), removing the dialog entirely (loses helpful context)
+- **Tradeoff**: Users who don't visit the README miss the setup guide. Mitigated by the README link being prominently displayed
+
+## 2026-06-01: Always install release builds
+- **Choice**: Always use `./gradlew installRelease` for deployment. Debug build uses `applicationIdSuffix = ".debug"` → separate app ID that won't match the `voice_recognition_service` system setting
+- **Reason**: The debug APK has a different application ID and cannot function as the voice input provider. Release build signs with `signingConfigs.debug` so it installs without extra setup
+- **Considered**: Debug build for development (breaks voice input testing)
+- **Tradeoff**: Slower install due to R8 minification. Adding extra install target just for testing voice input

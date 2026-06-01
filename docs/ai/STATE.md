@@ -1,16 +1,17 @@
 # Project State
 
-Current status as of 2026-05-30.
+Current status as of 2026-06-01.
 
 ## Current Focus
-Issue #13 completed — pause/resume workflow with circular icon-only buttons, space-around layout, AppCompatActivity fix. All features working.
+Issue #14 completed — dynamic language dropdown with persistent custom languages, delete via Manage dialog, info dialog shortened.
 
 ## Completed (this cycle)
-- [x] #9 — Model dropdown text cleared on provider switch / model fetch
-- [x] #10 — Target language: "None" option, free-text typing, disabled filter, explanation text
-- [x] #11 — Settings layout reorder
-- [x] #12 — Voice input button try-and-toast, info dialog on recording screen
-- [x] #13 — Pause/resume recording, three-button layout (Cancel/Pause/Send), circular MaterialButton, AppCompatActivity fix
+- [x] #14 — Dynamic language selection dropdown with "No Translation" + "English" built-in, user‑typed custom languages persisted in SharedPreferences, `LanguageDropdownAdapter` (BaseAdapter+Filterable), delete via "Manage saved languages" dialog, `threshold=1` for filtering
+- [x] #15 — Info dialog shortened to English‑language note + clickable README link (done as part of #14)
+- [x] Custom languages property in `SettingsStore` (JSON array)
+- [x] `ic_delete.xml` trash can vector drawable
+- [x] `item_language_dropdown.xml` (plain TextView) and `item_manage_language.xml` (text + delete button) layouts
+- [x] Convention: always install via `installRelease` (debug APK uses `.debug` suffix → wrong app ID for voice recognition)
 
 ## Pending
 - [ ] None
@@ -19,4 +20,4 @@ Issue #13 completed — pause/resume workflow with circular icon-only buttons, s
 None
 
 ## Next Session Suggestion
-New features or bugfixes in future issues.
+Issue #14 closed. Next: issue #15 (resume button green in paused state) or new features.

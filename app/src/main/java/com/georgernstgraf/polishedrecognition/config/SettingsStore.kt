@@ -41,6 +41,12 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(TARGET_LANGUAGE_KEY, null)
         set(value) = prefs.edit().putString(TARGET_LANGUAGE_KEY, value).apply()
 
+    var customLanguages: List<String>
+        get() = prefs.getString(CUSTOM_LANGUAGES_KEY, null)?.let {
+            gson.fromJson(it, object : TypeToken<List<String>>() {}.type)
+        } ?: emptyList()
+        set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
+
     var systemPrompt: String?
         get() = prefs.getString(SYSTEM_PROMPT_KEY, null)
         set(value) = prefs.edit().putString(SYSTEM_PROMPT_KEY, value).apply()
@@ -92,6 +98,7 @@ class SettingsStore(context: Context) {
         private const val LLM_MODEL_LIST_KEY = "llm_model_list"
         private const val RAW_MODE_KEY = "raw_mode"
         private const val TARGET_LANGUAGE_KEY = "target_language"
+        private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
         private const val SYSTEM_PROMPT_KEY = "system_prompt"
         private const val USER_PROMPT_KEY = "user_prompt"
         private const val TRANSLATE_PROMPT_KEY = "translate_prompt"

@@ -3,6 +3,8 @@ package com.georgernstgraf.polishedrecognition.ui
 import android.Manifest
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.text.Html
+import android.text.method.LinkMovementMethod
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
@@ -76,9 +78,9 @@ class VoiceRecognitionActivity : AppCompatActivity() {
                 isRecording = false
                 stopBlink()
             }
-            AlertDialog.Builder(this)
+            val dialog = AlertDialog.Builder(this)
                 .setTitle(R.string.voice_input_info_title)
-                .setMessage(R.string.voice_input_info_message)
+                .setMessage(Html.fromHtml(getString(R.string.voice_input_info_message), Html.FROM_HTML_MODE_LEGACY))
                 .setPositiveButton(android.R.string.ok, null)
                 .setOnDismissListener {
                     if (wasRecording) {
@@ -88,6 +90,7 @@ class VoiceRecognitionActivity : AppCompatActivity() {
                     }
                 }
                 .show()
+            dialog.findViewById<android.widget.TextView>(android.R.id.message)?.movementMethod = LinkMovementMethod.getInstance()
         }
 
         if (hasRecordPermission()) {

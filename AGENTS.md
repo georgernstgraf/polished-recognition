@@ -94,9 +94,8 @@ the issue workflow.
 ## Build
 
 ```bash
-./gradlew assembleDebug     # Debug APK
-./gradlew assembleRelease   # Release APK (minified)
-./gradlew installDebug      # Install on connected device via ADB
+./gradlew assembleRelease   # Release APK (minified, signed with debug key)
+./gradlew installRelease    # Install on connected device (always use release)
 ./gradlew test              # Run all unit tests
 ./gradlew clean             # Clean
 ```
