@@ -192,3 +192,9 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Default Activity rotation destroys and recreates the Activity, which calls `onDestroy()` → `audioRecorder.cancel()` → discards the entire PCM buffer. The user loses their recording and only gets the last fragment. `configChanges` prevents recreation; the AudioRecord thread continues uninterrupted.
 - **Considered**: `android:screenOrientation="portrait"` (simpler but blocks landscape), ViewModel/AAC binding for recording state (overkill for a ~10s overlay)
 - **Tradeoff**: Layout is reused as-is — no landscape-specific variant exists, but the centered layout works in both orientations.
+
+## 2026-06-02: CI debug keystore synchronization via GitHub Secrets
+- **Choice**: Export local `~/.android/debug.keystore` as base64 and store it (plus storePassword, keyAlias, keyPassword) in GitHub repository secrets. CI workflow decodes the keystore into `~/.android/debug.keystore` before running `assembleRelease`.
+- **Reason**: Local and CI builds had different debug keystores, causing `INSTALL_FAILED_UPDATE_INCOMPATIBLE` when installing CI-built APKs over locally-installed ones. No changes to `build.gradle.kts` required — `signingConfigs.getByName("debug")` on CI finds the same keystore as locally.
+- **Considered**: Creating a proper release keystore with signingConfigs.create("release") (cleaner but requires build.gradle.kts change), standard Android debug keystore on CI (different key → signature mismatch)
+- **Tradeoff**: Debug keystore passwords are public (`android`/`androiddebugkey`) — no real signature security. Acceptable for development builds. For production signing, a proper release keystore should be created.

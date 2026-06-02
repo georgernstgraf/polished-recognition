@@ -27,6 +27,11 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
+      - name: Setup debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ~/.android/debug.keystore
+
       - name: Build release APK
         run: ./gradlew assembleRelease
 
