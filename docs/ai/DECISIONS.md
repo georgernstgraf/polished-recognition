@@ -186,3 +186,9 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: The debug APK has a different application ID and cannot function as the voice input provider. Release build signs with `signingConfigs.debug` so it installs without extra setup
 - **Considered**: Debug build for development (breaks voice input testing)
 - **Tradeoff**: Slower install due to R8 minification. Adding extra install target just for testing voice input
+
+## 2026-06-02: configChanges for rotation safety
+- **Choice**: Add `android:configChanges="orientation|screenSize"` to `VoiceRecognitionActivity` in the manifest
+- **Reason**: Default Activity rotation destroys and recreates the Activity, which calls `onDestroy()` → `audioRecorder.cancel()` → discards the entire PCM buffer. The user loses their recording and only gets the last fragment. `configChanges` prevents recreation; the AudioRecord thread continues uninterrupted.
+- **Considered**: `android:screenOrientation="portrait"` (simpler but blocks landscape), ViewModel/AAC binding for recording state (overkill for a ~10s overlay)
+- **Tradeoff**: Layout is reused as-is — no landscape-specific variant exists, but the centered layout works in both orientations.

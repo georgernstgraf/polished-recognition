@@ -1,17 +1,13 @@
 # Project State
 
-Current status as of 2026-06-01.
+Current status as of 2026-06-02.
 
 ## Current Focus
-Issue #14 completed — dynamic language dropdown with persistent custom languages, delete via Manage dialog, info dialog shortened.
+All open issues closed. Ready for new features.
 
 ## Completed (this cycle)
-- [x] #14 — Dynamic language selection dropdown with "No Translation" + "English" built-in, user‑typed custom languages persisted in SharedPreferences, `LanguageDropdownAdapter` (BaseAdapter+Filterable), delete via "Manage saved languages" dialog, `threshold=1` for filtering
-- [x] #15 — Info dialog shortened to English‑language note + clickable README link (done as part of #14)
-- [x] Custom languages property in `SettingsStore` (JSON array)
-- [x] `ic_delete.xml` trash can vector drawable
-- [x] `item_language_dropdown.xml` (plain TextView) and `item_manage_language.xml` (text + delete button) layouts
-- [x] Convention: always install via `installRelease` (debug APK uses `.debug` suffix → wrong app ID for voice recognition)
+- [x] #5 — Token validation fix: TextWatcher clears error on text change, HTTP error body details displayed, dead tautology filter removed
+- [x] #16 — VoiceRecognitionActivity rotation fix: added `android:configChanges="orientation|screenSize"` to prevent Activity restart and recording data loss
 
 ## Pending
 - [ ] None
@@ -20,4 +16,4 @@ Issue #14 completed — dynamic language dropdown with persistent custom languag
 None
 
 ## Next Session Suggestion
-Issue #14 closed. Next: issue #15 (resume button green in paused state) or new features.
+On-device smoke test of voice recording + token validation. Consider new feature or improvement.
