@@ -23,13 +23,13 @@ android {
             val pf = file("keystore.properties")
             if (pf.exists()) p.load(pf.inputStream())
 
-            storeFile = file("release.keystore")
+            storeFile = file("../upload.keystore")
             storePassword = p.getProperty("storePassword")
                 ?: System.getenv("RELEASE_STORE_PASSWORD")
                 ?: "android"
             keyAlias = p.getProperty("keyAlias")
                 ?: System.getenv("RELEASE_KEY_ALIAS")
-                ?: "androiddebugkey"
+                ?: "upload"
             keyPassword = p.getProperty("keyPassword")
                 ?: System.getenv("RELEASE_KEY_PASSWORD")
                 ?: "android"

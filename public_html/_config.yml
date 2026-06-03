@@ -1,0 +1,5 @@
+theme: jekyll-theme-cayman
+title: Polished Recognition
+description: Voice input for any keyboard — transcribe and translate with your own API endpoints.
+url: "https://georgernstgraf.github.io"
+baseurl: "/polished-recognition"
