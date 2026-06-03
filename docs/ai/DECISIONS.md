@@ -211,10 +211,17 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Creating a proper release keystore with signingConfigs.create("release") (cleaner but requires build.gradle.kts change), standard Android debug keystore on CI (different key → signature mismatch)
 - **Tradeoff**: Debug keystore passwords are public (`android`/`androiddebugkey`) — no real signature security. Acceptable for development builds. For production signing, a proper release keystore should be created.
 
-## 2026-06-03: CI-only signing (no Gradle signing config)
+## 2026-06-03: CI-only signing (no Gradle signing config) [SUPERSEDED]
 - **Choice**: Remove `signingConfigs { release { ... } }` and `signingConfig` from `build.gradle.kts`. All signing done via `-Pandroid.injected.signing.*` in CI workflows.
 - **Reason**: `build.yml` builds APK signed with `~/.android/debug.keystore` for GitHub distribution. `release.yml` builds AAB signed with upload keystore from secrets for Play Store. Keeping signing config in Gradle caused mismatch — `upload.keystore` didn't exist on CI runner. Matches zazentimer's approach.
 - **Considered**: Environment-variable-based fallback in build.gradle.kts (complex, fragile), keeping debug keystore in Gradle (`signingConfigs.getByName("debug")`)
 - **Tradeoff**: Local `./gradlew assembleRelease` produces unsigned APK. Signed APK/AAB only from CI. Local testing should use `assembleDebug` (unsigned, `.debug` suffix).
+- **Superseded by**: 2026-06-03: Restore signing config with RELEASE_KEYSTORE
+
+## 2026-06-03: Restore signing config with RELEASE_KEYSTORE
+- **Choice**: Add `signingConfigs.release` back to `app/build.gradle.kts` reading `app/release.keystore` with `RELEASE_*` env var fallback. Restore CI to decode `RELEASE_KEYSTORE` secret and build with `RELEASE_*` env vars.
+- **Reason**: Removing the signing config broke `installRelease` (task doesn't exist without signing config on release type). CI was also generating a fresh keytool keystore per run, producing different signatures than local builds. The old approach (decode secret + env vars) worked and produced consistent signatures.
+- **Considered**: Keeping CI-only signing and adding `signingConfig = signingConfigs.debug` for local use only (inconsistent approach)
+- **Tradeoff**: `app/release.keystore` must exist locally and as `RELEASE_KEYSTORE` secret in GitHub. Both are copies of `~/.android/debug.keystore`.
 
 

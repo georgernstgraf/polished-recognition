@@ -47,9 +47,9 @@ The transcription pipeline resolves the following template variables at runtime:
 
 ## Build & Installation
 
-- Always install via `./gradlew installRelease`. The release build type uses `signingConfigs.debug` for the signing key, so it installs without extra setup. `installDebug` installs a separate `.debug` suffix APK that bypasses the RecognitionService — never use it for testing voice input.
+- Always install via `./gradlew installRelease`. The release build type uses `signingConfigs.release` pointing to `app/release.keystore` (copy of `~/.android/debug.keystore`) for the signing key, so it installs without extra setup. `installDebug` installs a separate `.debug` suffix APK that bypasses the RecognitionService — never use it for testing voice input.
 - The debug build type sets `applicationIdSuffix = ".debug"`, creating a different application ID. The system's `voice_recognition_service` setting points to the release application ID, so the debug APK will never work as a voice input provider.
-- To ensure CI builds produce APKs with the same signature as local builds, store `~/.android/debug.keystore` (base64-encoded) plus storePassword/keyAlias/keyPassword as GitHub Secrets. The CI workflow decodes the keystore into `~/.android/debug.keystore` before `assembleRelease`. No `build.gradle.kts` changes needed.
+- To ensure CI builds produce APKs with the same signature as local builds, store `~/.android/debug.keystore` (base64-encoded) plus storePassword/keyAlias/keyPassword as GitHub Secrets (`RELEASE_KEYSTORE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`). The CI workflow decodes the keystore into `app/release.keystore` and passes passwords via env vars to `assembleRelease`. The `signingConfigs.release` block in `app/build.gradle.kts` reads env vars, falling back to `android`/`androiddebugkey`.
 - Test framework: JUnit 4 (`@Test`, `@Before`, `@After`), no JUnit 5
 - Mocking: MockK 1.14.4 (`mockk(relaxed=true)`, `coEvery { ... } returns ...`, `slot<T>()`)
 - Assertions: Google Truth 1.4.4 (`Truth.assertThat(...)`)
