@@ -34,6 +34,24 @@ Android speech recognition callback.
 - Pipeline: WAV file → `OpenAiSttApiService.transcribeAudio()` → STT text → (raw mode: return text) → resolve prompts → `OpenAiChatApiService.chat()` → LLM text
 - Result → `callback.results()` → System → Keyboard → `InputConnection.commitText()`
 
+## GitHub Pages (`public_html/`)
+
+Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Play requirements:
+
+| File | Purpose |
+|------|---------|
+| `_config.yml` | Jekyll theme (cayman) and site metadata |
+| `index.md` | Minimal landing page |
+| `privacy-policy.md` | English-language privacy policy (RECORD_AUDIO, INTERNET, no third-party sharing, user-configured endpoints) |
+| `assets/screenshots/` | Play Store screenshots (user-provided) |
+
+## Build Artifacts
+
+- **Debug APK**: `./gradlew assembleDebug` — app ID `.debug` suffix, no minification (install via ADB)
+- **Release APK**: `./gradlew assembleRelease` — minified, signed with upload keystore
+- **Release AAB**: `./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab` — for Google Play upload
+- **Signing**: Upload keystore at `upload.keystore` (git-ignored), credentials in `keystore.properties` (git-ignored), fallback to env vars
+
 ## Knowledge Files (`docs/ai/`)
 
 | File | Purpose | Update mode |

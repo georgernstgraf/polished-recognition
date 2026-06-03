@@ -187,6 +187,18 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Debug build for development (breaks voice input testing)
 - **Tradeoff**: Slower install due to R8 minification. Adding extra install target just for testing voice input
 
+## 2026-06-02: GitHub Pages for Privacy Policy hosting
+- **Choice**: Host Privacy Policy at `public_html/` on GitHub Pages (`georgernstgraf.github.io/polished-recognition`)
+- **Reason**: Google Play requires a publicly accessible Privacy Policy URL for apps with sensitive permissions (RECORD_AUDIO, INTERNET). GitHub Pages is free, version-controlled alongside the code, and requires no external hosting.
+- **Considered**: Separate privacy policy service (cost), raw.github.com link (plain text, no formatting)
+- **Tradeoff**: Policy is tied to the repo — if the repo is made private or deleted, the policy URL breaks. Jekyll renders markdown to HTML automatically.
+
+## 2026-06-02: Upload keystore for Google Play App Signing
+- **Choice**: Generate a dedicated `upload.keystore` (alias: `upload`) for local signing before upload. Google Play manages the production signing key.
+- **Reason**: Google Play App Signing is the recommended approach — Google holds the production key, the developer only uses an upload key. If the upload key is lost, it can be replaced via the Play Console (unlike a self-managed production key).
+- **Considered**: Self-managed production keystore (irrecoverable if lost)
+- **Tradeoff**: Requires internet to sign on Google's servers during distribution. Upload key must still be backed up.
+
 ## 2026-06-02: configChanges for rotation safety
 - **Choice**: Add `android:configChanges="orientation|screenSize"` to `VoiceRecognitionActivity` in the manifest
 - **Reason**: Default Activity rotation destroys and recreates the Activity, which calls `onDestroy()` → `audioRecorder.cancel()` → discards the entire PCM buffer. The user loses their recording and only gets the last fragment. `configChanges` prevents recreation; the AudioRecord thread continues uninterrupted.
