@@ -24,19 +24,24 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Setup release keystore
-        run: |
-          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > app/release.keystore
-
       - name: Run tests
         run: ./gradlew test
 
+      - name: Ensure debug keystore
+        run: |
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Android Debug,O=Android,C=US" \
+              -storepass android -keypass android
+          fi
+
       - name: Build release APK
-        run: ./gradlew assembleRelease
-        env:
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease \
+          -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
+          -Pandroid.injected.signing.store.password=android \
+          -Pandroid.injected.signing.key.alias=androiddebugkey \
+          -Pandroid.injected.signing.key.password=android
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

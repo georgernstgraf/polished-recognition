@@ -1,0 +1,1 @@
+Initial release of Polished Recognition — voice input for any Android keyboard. Transcribe audio using your own OpenAI-compatible STT endpoint, optionally post-process with an LLM.
