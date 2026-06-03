@@ -210,3 +210,11 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Local and CI builds had different debug keystores, causing `INSTALL_FAILED_UPDATE_INCOMPATIBLE` when installing CI-built APKs over locally-installed ones. No changes to `build.gradle.kts` required — `signingConfigs.getByName("debug")` on CI finds the same keystore as locally.
 - **Considered**: Creating a proper release keystore with signingConfigs.create("release") (cleaner but requires build.gradle.kts change), standard Android debug keystore on CI (different key → signature mismatch)
 - **Tradeoff**: Debug keystore passwords are public (`android`/`androiddebugkey`) — no real signature security. Acceptable for development builds. For production signing, a proper release keystore should be created.
+
+## 2026-06-03: CI-only signing (no Gradle signing config)
+- **Choice**: Remove `signingConfigs { release { ... } }` and `signingConfig` from `build.gradle.kts`. All signing done via `-Pandroid.injected.signing.*` in CI workflows.
+- **Reason**: `build.yml` builds APK signed with `~/.android/debug.keystore` for GitHub distribution. `release.yml` builds AAB signed with upload keystore from secrets for Play Store. Keeping signing config in Gradle caused mismatch — `upload.keystore` didn't exist on CI runner. Matches zazentimer's approach.
+- **Considered**: Environment-variable-based fallback in build.gradle.kts (complex, fragile), keeping debug keystore in Gradle (`signingConfigs.getByName("debug")`)
+- **Tradeoff**: Local `./gradlew assembleRelease` produces unsigned APK. Signed APK/AAB only from CI. Local testing should use `assembleDebug` (unsigned, `.debug` suffix).
+
+

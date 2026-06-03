@@ -34,6 +34,52 @@ Android speech recognition callback.
 - Pipeline: WAV file → `OpenAiSttApiService.transcribeAudio()` → STT text → (raw mode: return text) → resolve prompts → `OpenAiChatApiService.chat()` → LLM text
 - Result → `callback.results()` → System → Keyboard → `InputConnection.commitText()`
 
+## CI/CD Workflows
+
+### `build.yml` — CI (push/PR to master)
+
+Builds release APK signed with `~/.android/debug.keystore` for GitHub distribution.
+
+```yaml
+./gradlew assembleRelease \
+  -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
+  -Pandroid.injected.signing.store.password=android \
+  -Pandroid.injected.signing.key.alias=androiddebugkey \
+  -Pandroid.injected.signing.key.password=android
+```
+
+- Publishes APK as GitHub Release (`build-N`)
+- Keeps newest 7 releases, cleans up older ones
+- Debug keystore created via `keytool` if missing
+
+### `release.yml` — Play Store Release (tag `v*`)
+
+Builds AAB signed with upload keystore from secrets, uploads to Play Console.
+
+```yaml
+./gradlew bundleRelease --no-daemon \
+  -PversionCode=$VERSION_CODE \
+  -PversionName=$VERSION_NAME \
+  -Pandroid.injected.signing.store.file=$RUNNER_TEMP/upload.keystore \
+  -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+  -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+  -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+```
+
+- `r0adkll/upload-google-play@v1` → production track
+- `softprops/action-gh-release@v2` → AAB artifact on GitHub Release
+- Secrets: `UPLOAD_KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON`
+
+### Signing Strategy
+
+| Build | Signing | Where |
+|-------|---------|-------|
+| `assembleDebug` local | Debug keystore (`~/.android/debug.keystore`) | On your machine |
+| `build.yml` APK | Debug keystore via injected properties | CI |
+| `release.yml` AAB | Upload keystore via injected properties | CI |
+
+No `signingConfigs` block in `build.gradle.kts` — all signing is CI-injected (like zazentimer).
+
 ## GitHub Pages (`docs/` public)
 
 Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Play requirements:
@@ -45,12 +91,7 @@ Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Pl
 | `privacy-policy.md` | English-language privacy policy (RECORD_AUDIO, INTERNET, no third-party sharing, user-configured endpoints) |
 | `assets/screenshots/` | Play Store screenshots (user-provided) |
 
-## Build Artifacts
-
-- **Debug APK**: `./gradlew assembleDebug` — app ID `.debug` suffix, no minification (install via ADB)
-- **Release APK**: `./gradlew assembleRelease` — minified, signed with upload keystore
-- **Release AAB**: `./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab` — for Google Play upload
-- **Signing**: Upload keystore at `upload.keystore` (git-ignored), credentials in `keystore.properties` (git-ignored), fallback to env vars
+## Knowledge Files (`docs/ai/`)
 
 ## Knowledge Files (`docs/ai/`)
 

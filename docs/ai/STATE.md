@@ -1,21 +1,23 @@
 # Project State
 
-Current status as of 2026-06-02.
+Current status as of 2026-06-03.
 
 ## Current Focus
-All open issues closed. Ready for new features.
+CI/CD workflows (Issue #19 closed). Ready for features.
 
 ## Completed (this cycle)
-- [x] #5 — Token validation fix
-- [x] #16 — Rotation crash fix
-- [x] #17 — CI debug keystore
-- [x] #18 — Google Play release preparation
+- [x] #19 — Removed `signingConfigs` from `build.gradle.kts` (signing via CI injection)
+- [x] #19 — `build.yml` updated: APK signed with `~/.android/debug.keystore` via `-Pandroid.injected.signing.*`
+- [x] #19 — `release.yml` created: on tag `v*` → Build AAB with upload keystore → Play Console → GitHub Release
+- [x] #19 — `versionCode`/`versionName` injected via Gradle property (like zazentimer)
+- [x] #19 — Tests pass (57/57), release APK builds unsigned locally
 
 ## Pending
-- [ ] Play Console setup (manual): App erstellen, Upload-Zertifikat eintragen, Store-Eintrag, AAB hochladen
+- [ ] Set GitHub Secrets for release.yml: `UPLOAD_KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+- [ ] Complete Play Console: App Signing, Content Rating, Data Safety
 
-## Blockers
-None — waiting for user to complete Play Console steps.
+## Blocker
+None
 
 ## Next Session Suggestion
-Complete Play Console steps when ready.
+Set release.yml secrets in GitHub, complete Play Console setup, then `git tag v1.0.0 && git push --tags`.
