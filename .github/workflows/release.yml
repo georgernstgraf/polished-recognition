@@ -33,7 +33,7 @@ jobs:
       run: |
         TAG=${GITHUB_REF#refs/tags/v}
         VERSION_NAME="$TAG"
-        VERSION_CODE=$(echo "$TAG" | awk -F. '{printf "%d%02d%02d00", $1, $2, $3+0}')
+        VERSION_CODE=$(echo "$TAG" | awk -F. '{printf "%d%02d%02d01", $1, $2, $3+0}')
         echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
         echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
         echo "Version: $VERSION_NAME (code: $VERSION_CODE)"
