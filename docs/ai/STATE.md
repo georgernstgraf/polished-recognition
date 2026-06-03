@@ -16,6 +16,7 @@ Issue #20 — Play Store listing and first release.
 - [x] #20 — Added `scripts/query-play-console.py` tool to check Play Console state via Developer API
 - [x] #20 — Pushed `v0.0.0` tag → built signed AAB and uploaded to Play Store draft production track
 - [x] #20 — Designed new app icon with gold Gemini-style sparkle (updated `ic_launcher_foreground.xml`)
+- [x] #20 — Generated 512×512 PNG Play Store icon (`distribution/play-store-icon.png`) and SVG source
 - [x] #20 — Updated README with compelling Play Store-ready listing text
 
 ## Pending
