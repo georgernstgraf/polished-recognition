@@ -9,7 +9,7 @@ Google Play release preparation — Issue #18.
 - [x] #5 — Token validation fix: TextWatcher clears error on text change, HTTP error body details displayed, dead tautology filter removed
 - [x] #16 — VoiceRecognitionActivity rotation fix: added `android:configChanges="orientation|screenSize"` to prevent Activity restart and recording data loss
 - [x] #17 — CI: use local debug keystore for consistent APK signatures
-- [x] #18 — Created `public_html/` with Privacy Policy (English), landing page, Jekyll config
+- [x] #18 — Created GitHub Pages site (`docs/`) with Privacy Policy (English), landing page, Jekyll config
 - [x] #18 — Generated `upload.keystore` (alias: `upload`) for Google Play upload signing
 - [x] #18 — Updated `build.gradle.kts` to sign release builds with upload keystore
 - [x] #18 — Verified `./gradlew bundleRelease` produces signed AAB (3.9 MB)

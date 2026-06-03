@@ -34,7 +34,7 @@ Android speech recognition callback.
 - Pipeline: WAV file → `OpenAiSttApiService.transcribeAudio()` → STT text → (raw mode: return text) → resolve prompts → `OpenAiChatApiService.chat()` → LLM text
 - Result → `callback.results()` → System → Keyboard → `InputConnection.commitText()`
 
-## GitHub Pages (`public_html/`)
+## GitHub Pages (`docs/` public)
 
 Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Play requirements:
 
