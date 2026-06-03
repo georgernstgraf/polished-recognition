@@ -1,9 +1,48 @@
 # Polished Recognition
 
-Voice typing for any Android keyboard. Press the microphone, speak,
-and your words appear — cleaned up and translated if you want.
-Works with your preferred AI provider (OpenAI, GROQ, Google, local models…).
-No account, no registration, just an API key.
+Your keyboard already has a microphone button.  
+This is what happens when you press it.
+
+Most voice typing apps send audio to a single cloud provider.  
+**Polished Recognition** is different. It gives you a **two-stage AI pipeline** —  
+speech-to-text + optional LLM clean-up — connected to **any OpenAI-compatible provider**  
+you choose. Bring your own API key (or run a local model) and take full control.
+
+### How it works
+
+1. Press the mic on your keyboard → recording starts instantly — no extra tap
+2. Speak naturally — pause/resume anytime mid-sentence
+3. Tap Send → audio goes to your STT provider (Whisper, GROQ, etc.)
+4. The text gets polished by an LLM using your own custom prompt — clean up filler words, fix punctuation, translate to another language
+5. Flawless text appears in your text field — as if you typed it perfectly
+
+### What makes it different
+
+- **Not a keyboard.** Works with AnySoftKeyboard, OpenBoard, Samsung Keyboard —  
+  any keyboard that respects the system voice input setting. No need to learn a new typing UI.
+- **BYO provider — or use a free one.** 15+ presets (OpenAI, GROQ, OpenRouter, Google AI,  
+  DeepSeek, xAI, Mistral, local Ollama/LM Studio…). GROQ gives you free Whisper STT  
+  and the excellent `gpt-oss-120b` LLM — a full STT+polish pipeline at zero cost.
+- **Custom prompts.** Every stage of the pipeline is editable — system prompt,  
+  user prompt with `{{text}}` templates, and a separate translate prompt.  
+  Make the LLM format as markdown, translate to French, or just fix punctuation.
+- **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume  
+  exactly where you left off — the entire recording buffers, nothing is lost.
+- **Raw mode.** Skip the LLM entirely and get plain STT output. Zero latency overhead.
+- **Privacy by design.** No account, no registration, no central server.  
+  Your audio goes only to the provider you configured. Run Ollama locally for full offline use.
+- **Searchable model picker.** Type to filter 600+ OpenRouter models by substring.  
+  No infinite scrolling through dropdowns.
+
+### The problem it solves
+
+Gboard's voice typing is fast — until you need it in a language it doesn't support,  
+or you want the text formatted before insertion, or you don't want Google touching  
+your audio. Polished Recognition hands the pipeline **to you**: pick the STT model,  
+pick the LLM, write the prompt, control the data.
+
+*No budget? GROQ's free tier runs Whisper STT + gpt-oss-120b for a complete pipeline —  
+transcribe, clean up, translate — all at zero cost. Just add your API key.*
 
 ## Download
 
