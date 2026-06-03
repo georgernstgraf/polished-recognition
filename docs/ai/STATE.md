@@ -3,22 +3,19 @@
 Current status as of 2026-06-02.
 
 ## Current Focus
-Google Play release preparation — Issue #18.
+All open issues closed. Ready for new features.
 
 ## Completed (this cycle)
-- [x] #5 — Token validation fix: TextWatcher clears error on text change, HTTP error body details displayed, dead tautology filter removed
-- [x] #16 — VoiceRecognitionActivity rotation fix: added `android:configChanges="orientation|screenSize"` to prevent Activity restart and recording data loss
-- [x] #17 — CI: use local debug keystore for consistent APK signatures
-- [x] #18 — Created GitHub Pages site (`docs/`) with Privacy Policy (English), landing page, Jekyll config
-- [x] #18 — Generated `upload.keystore` (alias: `upload`) for Google Play upload signing
-- [x] #18 — Updated `build.gradle.kts` to sign release builds with upload keystore
-- [x] #18 — Verified `./gradlew bundleRelease` produces signed AAB (3.9 MB)
+- [x] #5 — Token validation fix
+- [x] #16 — Rotation crash fix
+- [x] #17 — CI debug keystore
+- [x] #18 — Google Play release preparation
 
 ## Pending
-- [ ] #18 — Phase 2 (manual): Play Console setup, upload key cert, store listing, screenshots from user
+- [ ] Play Console setup (manual): App erstellen, Upload-Zertifikat eintragen, Store-Eintrag, AAB hochladen
 
 ## Blockers
-None — Phase 2 is manual via Google Play Console.
+None — waiting for user to complete Play Console steps.
 
 ## Next Session Suggestion
-Complete Play Console setup: developer account, upload key certificate (SHA1: E2:34:27:0A:50:9D:54:57:97:A6:4F:1D:53:83:3D:95:3B:DC:86:54), store listing with screenshots.
+Complete Play Console steps when ready.
