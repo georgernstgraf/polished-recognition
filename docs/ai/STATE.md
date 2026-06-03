@@ -4,7 +4,7 @@ Current status as of 2026-06-03.
 
 ## Current Focus
 
-Issue #21 — Restore `installRelease` and fix CI signing config.
+Issue #20 — Play Store listing and first release.
 
 ## Completed (this cycle)
 
@@ -13,16 +13,20 @@ Issue #21 — Restore `installRelease` and fix CI signing config.
 - [x] #21 — Reverted `build.yml` from `keytool -genkey` + `-Pandroid.injected.signing.*` to decode `RELEASE_KEYSTORE` + `RELEASE_*` env vars
 - [x] #21 — `installRelease` task confirmed present, APK installed on device (HD1903, Android 12)
 - [x] #21 — All 57 tests pass
+- [x] #20 — Added `scripts/query-play-console.py` tool to check Play Console state via Developer API
+- [x] #20 — Pushed `v0.0.0` tag → built signed AAB and uploaded to Play Store draft production track
+- [x] #20 — Designed new app icon with gold Gemini-style sparkle (updated `ic_launcher_foreground.xml`)
+- [x] #20 — Updated README with compelling Play Store-ready listing text
 
 ## Pending
 
-- [ ] Set GitHub Secrets for release.yml: `UPLOAD_KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
-- [ ] Complete Play Console: App Signing, Content Rating, Data Safety
+- [ ] Complete Play Console setup web UI (Content Rating, Data Safety, App Signing) to satisfy production release preconditions
+- [ ] Push first live release (e.g., `v1.0.0` or update draft production release to live)
 
 ## Blocker
 
-None
+None — draft AAB is uploaded, awaiting manual Play Console setup completion.
 
 ## Next Session Suggestion
 
-Complete Play Console setup (issue #20), then `git tag v1.0.0 && git push --tags`.
+Resolve draft preconditions in Play Console web UI, then promote the draft production release to live.
