@@ -4,10 +4,11 @@ Current status as of 2026-06-04.
 
 ## Current Focus
 
-Issue #23 — Update README: Emphasize GROQ Golden Path.
+Issue #24 — Update Prompts: Add Whisper Hallucination Guardrails.
 
 ## Completed (this cycle)
 
+- [x] #24 — Added guardrails against Whisper silence hallucinations to `prompts.json` and `PromptStore.kt`.
 - [x] #23 — Updated README to add "Recommended Setup (GROQ)" emphasizing speed and free tier.
 - [x] #22 — Added `default_model` to `ProviderPreset` data class and updated `provider_presets.json` with optimal defaults (e.g., `openai/gpt-oss-120b`, `whisper-large-v3-turbo` for Groq).
 - [x] #22 — Updated `SettingsActivity.kt` auto-select logic on fetch.
