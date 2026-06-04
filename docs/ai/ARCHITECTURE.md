@@ -38,27 +38,29 @@ Android speech recognition callback.
 
 ### `build.yml` — CI (push/PR to master)
 
-Builds release APK signed with the same keystore as local builds for GitHub distribution.
+Builds release APK and AAB signed with the same keystore as local builds for GitHub distribution.
 
 ```yaml
 - name: Setup release keystore
   run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > app/release.keystore
 
-- name: Build release APK
-  run: ./gradlew assembleRelease
+- name: Build release APK & AAB
+  run: |
+    ./gradlew assembleRelease
+    ./gradlew bundleRelease
   env:
     RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
     RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
     RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
 ```
 
-- Publishes APK as GitHub Release (`build-N`)
+- Publishes APK and AAB as GitHub Release (`build-N`)
 - Keeps newest 7 releases, cleans up older ones
 - Keystore decoded from `RELEASE_KEYSTORE` secret (same as local `~/.android/debug.keystore`)
 
 ### `release.yml` — Play Store Release (tag `v*`)
 
-Builds AAB signed with upload keystore from secrets, uploads to Play Console.
+Builds AAB signed with upload keystore from secrets, uploads to Play Console internal track.
 
 ```yaml
 ./gradlew bundleRelease --no-daemon \
@@ -70,17 +72,18 @@ Builds AAB signed with upload keystore from secrets, uploads to Play Console.
   -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 ```
 
-- `r0adkll/upload-google-play@v1` → production track
+- `r0adkll/upload-google-play@v1` → **internal** track with `status: completed` (directly live)
 - `softprops/action-gh-release@v2` → AAB artifact on GitHub Release
 - Secrets: `UPLOAD_KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON`
+- Production track is blocked by Play Console preconditions — switch `tracks` value when resolved
 
 ### Signing Strategy
 
 | Build | Signing | Where |
 |-------|---------|-------|
 | `installRelease` / `assembleRelease` local | `signingConfigs.release` → `app/release.keystore` (copy of `~/.android/debug.keystore`) | On your machine |
-| `build.yml` APK | `RELEASE_KEYSTORE` secret decoded to `app/release.keystore` + `RELEASE_*` env vars | CI |
-| `release.yml` AAB | Upload keystore via injected properties | CI |
+| `build.yml` APK & AAB | `RELEASE_KEYSTORE` secret decoded to `app/release.keystore` + `RELEASE_*` env vars | CI |
+| `release.yml` AAB | Upload keystore via injected properties (CI) | CI |
 
 `app/build.gradle.kts` has `signingConfigs.release` that reads `app/release.keystore` with env var fallback to `android`/`androiddebugkey`.
 

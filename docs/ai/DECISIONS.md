@@ -224,4 +224,28 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Keeping CI-only signing and adding `signingConfig = signingConfigs.debug` for local use only (inconsistent approach)
 - **Tradeoff**: `app/release.keystore` must exist locally and as `RELEASE_KEYSTORE` secret in GitHub. Both are copies of `~/.android/debug.keystore`.
 
+## 2026-06-04: Upgrade to AGP 9.1.1, Java 21, API 36
+- **Choice**: Upgrade AGP from 8.7.3 to 9.1.1, Gradle from 8.9 to 9.5.1, compileSdk/targetSdk from 34 to 36, Java from 17 to 21. Remove Kotlin plugin (AGP 9.x has built-in Kotlin support).
+- **Reason**: Play Store requires targetSdk ≥ 35 for new submissions. Zazentimer already uses AGP 9.1.1 + API 36 + Java 21 successfully.
+- **Considered**: Targeting only API 35 (AGP 8.7.3 supports it, smaller change)
+- **Tradeoff**: AGP 9.x drops the `org.jetbrains.kotlin.android` plugin — `kotlinOptions {}` block no longer available. JVM target derived from `compileOptions`.
+
+## 2026-06-04: Internal track for CI releases (production blocked)
+- **Choice**: Change `release.yml` from `tracks: production` to `tracks: internal` with `status: completed`.
+- **Reason**: Production track has precondition checks (Content Rating, Data Safety, App Signing) that block commits. Internal track accepts `completed` releases without precondition validation.
+- **Considered**: Keeping `status: draft` on production (still fails precondition checks)
+- **Tradeoff**: Releases go live on internal testing immediately. Must manually switch back to production when preconditions are resolved.
+
+## 2026-06-04: Direct Play Console API for debugging, GitHub Action for releases
+- **Choice**: Use `scripts/upload-aab.py` for testing and debugging uploads locally. Keep `r0adkll/upload-google-play` for CI release automation.
+- **Reason**: The GitHub Action returns opaque "Precondition check failed" with no details. The direct API gives exact error messages. Local API calls confirmed internal track works.
+- **Considered**: Replacing the GitHub Action entirely with the Python script in CI
+- **Tradeoff**: Two code paths for upload (one local, one CI). The Python script exists only for debugging; CI still uses the action.
+
+## 2026-06-04: PNG-based launcher icon (VectorDrawable limitations)
+- **Choice**: Replace the flat white-gold VectorDrawable launcher foreground with a `<bitmap>` drawable referencing a high-resolution PNG rendered from `distribution/play-store-icon.svg`.
+- **Reason**: Android VectorDrawable (`<vector>`) does not support `<filter>`, `<pattern>`, `<clipPath>`, or `<feDropShadow>`. The high-quality SVG uses all of these for chrome gradients, mesh grille, and gold glow effects.
+- **Considered**: Simplifying the SVG to remove filters/patterns (loses visual quality), keeping the flat vector (user rejected as "rudimentary")
+- **Tradeoff**: PNGs are resolution-dependent. The source SVG in `distribution/` is the editable source if resolution changes are needed.
+
 
