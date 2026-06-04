@@ -3,14 +3,15 @@
 No pending tasks.
 
 ## Active
-- #20 — Play Store preconditions: Content Rating, Data Safety, App Signing not yet completed in Play Console web UI
+- Waiting on Google review of v0.0.6 (601) on closed testing (alpha) track.
+- Once approved, create release manually in Play Console using the bundle from the artifact library.
 
 ## Completed
-- #21 — Restored installRelease and fixed signing config
-- #20 — AGP 9.1.1, Java 21, API 36 upgrade
-- #20 — Internal track releases working (v0.0.5 live)
-- #20 — High-quality PNG launcher icon in APK
-- #20 — Play Store listing copy, icon, and prompts
+- #24 — Whisper hallucination guardrails
+- #23 — README GROQ golden path
+- #22 — Smart defaults for STT/LLM presets
+- #21 — Restored installRelease
+- #20 — VectorDrawable launcher icon, Play Store listing icon, CI cleanup, alpha track cleared
 
 Issues #19, #18, #17, #16, #15, #14, #5, #1 closed.
 

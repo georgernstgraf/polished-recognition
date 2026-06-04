@@ -4,39 +4,33 @@ Current status as of 2026-06-04.
 
 ## Current Focus
 
-Issue #24 — Update Prompts: Add Whisper Hallucination Guardrails.
+Waiting for Google review of v0.0.6 (601) on closed testing (alpha) track.
 
 ## Completed (this cycle)
 
 - [x] #24 — Added guardrails against Whisper silence hallucinations to `prompts.json` and `PromptStore.kt`.
 - [x] #23 — Updated README to add "Recommended Setup (GROQ)" emphasizing speed and free tier.
-- [x] #22 — Added `default_model` to `ProviderPreset` data class and updated `provider_presets.json` with optimal defaults (e.g., `openai/gpt-oss-120b`, `whisper-large-v3-turbo` for Groq).
-- [x] #22 — Updated `SettingsActivity.kt` auto-select logic on fetch.
-- [x] #21 — Restored `installRelease` (added `signingConfigs.release` back)
-- [x] #20 — Fixed `versionCode` awk formula (`00` → `01`) to prevent zero
-- [x] #20 — Upgraded: AGP 9.1.1, Gradle 9.5.1, Java 21, compileSdk/targetSdk 36
-- [x] #20 — Removed Kotlin plugin (AGP 9.x has built-in Kotlin support)
-- [x] #20 — CI `build.yml` now produces both APK and AAB (both signed with debug key)
-- [x] #20 — CI `release.yml` now targets internal track with status=completed (live)
-- [x] #20 — Replaced `track` with `tracks` (deprecation fix)
-- [x] #20 — Replaced flat vector launcher icon with high-quality PNG (downscaled from 512×512 source)
-- [x] #20 — Restored high-quality SVG to `distribution/play-store-icon.svg`
-- [x] #20 — Added `scripts/query-play-console.py` for API-based Play Console queries
-- [x] #20 — Added `scripts/upload-aab.py` for local upload debugging (not CI)
-- [x] #20 — Internal track has completed release v0.0.5 (versionCode 501)
-- [x] #20 — Direct API upload confirmed works for internal track
-- [x] #20 — README updated with Play Store listing text, 512×512 icon, feature graphic prompts
+- [x] #22 — Added `default_model` to `ProviderPreset` data class and updated `provider_presets.json` with optimal defaults.
+- [x] #21 — Restored `installRelease` (added `signingConfigs.release` back).
+- [x] #20 — Pure VectorDrawable launcher icon (replaced broken PNG/bitmap approach). Conversion script at `scripts/svg-to-vd.py`.
+- [x] #20 — Play Store listing icon uploaded via API (SHA1 verified matching `distribution/play-store-icon.png`).
+- [x] #20 — Removed CI Play Console upload from `release.yml` — CI now only builds + signs + attaches to GitHub Release. User creates releases manually.
+- [x] #20 — Cleared corrupted alpha track release via API (the CI-created draft that locked the UI).
+- [x] #20 — AGP 9.1.1, Gradle 9.5.1, Java 21, compileSdk/targetSdk 36 upgrade.
+- [x] #20 — CI `build.yml` produces both APK and AAB.
+- [x] #20 — Internal track live with v0.0.6 (601).
+- [x] #20 — Scripts: `query-play-console.py`, `svg-to-vd.py`, `upload-store-icon.py`.
 
 ## Pending
 
-- [ ] Complete Play Console preconditions (Content Rating, Data Safety, App Signing) to unblock production track
-- [ ] Switch `release.yml` from `tracks: internal` back to `tracks: production` when preconditions resolved
-- [ ] Push first production release (e.g. `v1.0.0`)
+- [ ] Google review of v0.0.6 (601) on closed testing (alpha) track — currently "under review".
+- [ ] Once approved, user creates new releases manually in Play Console using the library-uploaded bundles.
+- [ ] Eventually resolve production preconditions and push first production release.
 
 ## Blocker
 
-None — internal track is live for testing. Production track needs Play Console web UI setup.
+Waiting on Google's review of the closed testing release.
 
 ## Next Session Suggestion
 
-Complete Content Rating, Data Safety, and App Signing enrollment in Play Console web UI, then switch release.yml to production track and push first production release.
+Check Play Console for review result. If approved, create a new release with the bundle from the artifact library and promote to open testing or production when ready.
