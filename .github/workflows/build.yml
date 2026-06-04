@@ -31,8 +31,10 @@ jobs:
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > app/release.keystore
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease
+      - name: Build release APK & AAB
+        run: |
+          ./gradlew assembleRelease
+          ./gradlew bundleRelease
         env:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
@@ -42,7 +44,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
           retention-days: 7
 
       - name: Publish release APK
@@ -52,7 +56,9 @@ jobs:
           tag_name: build-${{ github.run_number }}
           make_latest: true
           fail_on_unmatched_files: true
-          files: app/build/outputs/apk/release/app-release.apk
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
           body: |
             Automated build #${{ github.run_number }} from commit ${{ github.sha }}.
             Download the APK and install via ADB.
