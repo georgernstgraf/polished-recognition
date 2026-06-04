@@ -1,16 +1,15 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 android {
     namespace = "com.georgernstgraf.polishedrecognition"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.georgernstgraf.polishedrecognition"
         minSdk = 30
-        targetSdk = 34
+        targetSdk = 36
         versionCode = providers.gradleProperty("versionCode")
             .map(String::toInt).orElse(1).get()
         versionName = providers.gradleProperty("versionName")
@@ -43,12 +42,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     buildFeatures {
