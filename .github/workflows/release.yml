@@ -67,7 +67,7 @@ jobs:
         serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         packageName: com.georgernstgraf.polishedrecognition
         releaseFiles: app/build/outputs/bundle/release/app-release.aab
-        track: production
+        tracks: production
         status: draft
         whatsNewDirectory: distribution/whatsnew
       continue-on-error: true
