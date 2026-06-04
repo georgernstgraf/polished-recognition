@@ -3,19 +3,22 @@
         {
             "name": "GROQ Whisper",
             "base_url": "https://api.groq.com/openai/v1/",
-            "models": []
+            "models": [],
+            "default_model": "whisper-large-v3-turbo"
         },
         {
             "name": "OpenAI Whisper",
             "base_url": "https://api.openai.com/v1/",
-            "models": []
+            "models": [],
+            "default_model": "whisper-1"
         }
     ],
     "llm_presets": [
         {
             "name": "OpenAI",
             "base_url": "https://api.openai.com/v1/",
-            "models": []
+            "models": [],
+            "default_model": "gpt-4o-mini"
         },
         {
             "name": "OpenRouter",
@@ -25,7 +28,8 @@
         {
             "name": "GROQ",
             "base_url": "https://api.groq.com/openai/v1/",
-            "models": []
+            "models": [],
+            "default_model": "openai/gpt-oss-120b"
         },
         {
             "name": "Google AI Studio",

@@ -244,7 +244,13 @@ class SettingsActivity : AppCompatActivity() {
                     settings.setSttModelList(models)
                     updateModelDropdown(sttModelDropdown, models)
                     if (sttModelDropdown.text.toString() !in models) {
-                        sttModelDropdown.text.clear()
+                        val currentPresetName = sttProviderDropdown.text.toString()
+                        val defaultModel = presets.findSttPreset(currentPresetName)?.default_model
+                        if (defaultModel != null && defaultModel in models) {
+                            sttModelDropdown.setText(defaultModel, false)
+                        } else {
+                            sttModelDropdown.text.clear()
+                        }
                     }
                     sttTokenLayout.error = null
                     sttTokenLayout.helperText = getString(R.string.token_valid)
@@ -284,7 +290,13 @@ class SettingsActivity : AppCompatActivity() {
                     settings.setLlmModelList(models)
                     updateModelDropdown(llmModelDropdown, models)
                     if (llmModelDropdown.text.toString() !in models) {
-                        llmModelDropdown.text.clear()
+                        val currentPresetName = llmProviderDropdown.text.toString()
+                        val defaultModel = presets.findLlmPreset(currentPresetName)?.default_model
+                        if (defaultModel != null && defaultModel in models) {
+                            llmModelDropdown.setText(defaultModel, false)
+                        } else {
+                            llmModelDropdown.text.clear()
+                        }
                     }
                     llmTokenLayout.error = null
                     llmTokenLayout.helperText = getString(R.string.models_fetched, models.size)

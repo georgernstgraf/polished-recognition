@@ -7,7 +7,8 @@ import com.google.gson.reflect.TypeToken
 data class ProviderPreset(
     val name: String,
     val base_url: String,
-    val models: List<String>
+    val models: List<String>,
+    val default_model: String? = null
 )
 
 data class ProviderPresets(

@@ -4,10 +4,12 @@ Current status as of 2026-06-04.
 
 ## Current Focus
 
-Issue #20 — Play Store release pipeline working for internal track; production blocked by preconditions.
+Issue #22 — Implementation of Smart Defaults for STT/LLM Presets.
 
 ## Completed (this cycle)
 
+- [x] #22 — Added `default_model` to `ProviderPreset` data class and updated `provider_presets.json` with optimal defaults (e.g., `openai/gpt-oss-120b`, `whisper-large-v3-turbo` for Groq).
+- [x] #22 — Updated `SettingsActivity.kt` auto-select logic on fetch.
 - [x] #21 — Restored `installRelease` (added `signingConfigs.release` back)
 - [x] #20 — Fixed `versionCode` awk formula (`00` → `01`) to prevent zero
 - [x] #20 — Upgraded: AGP 9.1.1, Gradle 9.5.1, Java 21, compileSdk/targetSdk 36

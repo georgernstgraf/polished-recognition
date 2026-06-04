@@ -248,4 +248,8 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Simplifying the SVG to remove filters/patterns (loses visual quality), keeping the flat vector (user rejected as "rudimentary")
 - **Tradeoff**: PNGs are resolution-dependent. The source SVG in `distribution/` is the editable source if resolution changes are needed.
 
-
+## 2026-06-04: Auto-select default models on fetch
+- **Choice**: Add `default_model` to `ProviderPreset` and auto-select it during `SettingsActivity` model fetching if the dropdown is currently empty and the default is in the fetched list.
+- **Reason**: Ensures the fastest models (e.g. `whisper-large-v3-turbo` for Groq) are automatically picked.
+- **Considered**: Hard-coded UI defaults
+- **Tradeoff**: JSON preset config requires one extra property mapping.
