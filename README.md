@@ -94,7 +94,15 @@ ln -sf ../../scripts/pre-push .git/hooks/pre-push   # optional: run tests before
 ./gradlew installRelease                             # build + install via ADB
 ```
 
-### 2. Set Up Recognition Service on Device
+### 2. Recommended Setup (GROQ)
+
+For the best experience, we strongly recommend using **Groq** as your API provider. Groq utilizes custom LPU hardware that runs AI models blazingly fast.
+
+1. **Sign up for free** at [console.groq.com](https://console.groq.com) and create an API key
+2. **Speed:** Groq runs OpenAI's Whisper model at up to 300x real-time speed, guaranteeing sub-second voice typing.
+3. **Cost:** Groq provides a highly generous free tier (roughly 30 requests per minute) that makes typical daily personal keyboard usage **completely free**.
+
+### 3. Set Up Recognition Service on Device
 
 The app does not appear in the app drawer on all launchers (e.g. OnePlus/OxygenOS
 hides it). Launch the settings activity via ADB:
