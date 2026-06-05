@@ -1,0 +1,4 @@
+translation_votes.sqlite
+translation_votes.sqlite-journal
+generatedprismaclient/
+.env

@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+  },
+  "tasks": {
+    "db:migrate": "deno run -A npm:prisma migrate dev",
+    "db:generate": "deno -A npm:prisma generate",
+    "db:seed": "deno run --env-file=.env -A seed.ts",
+    "db:dump": "echo .dump | sqlite3 translation_votes.sqlite > translation_votes.sql",
+    "translate": "deno run --env-file=.env -A translate.ts --",
+    "export": "deno run --env-file=.env -A export.ts --target=../app/src/main/res",
+    "dashboard": "deno run --env-file=.env -A voting_api.tsx",
+    "check": "deno check --config=deno.json translate.ts export.ts voting_api.tsx lib/verify.ts lib/db.ts lib/opencode_client.ts lib/prisma.ts seed.ts",
+    "lint": "deno lint"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "hono": "npm:hono@^4.12.22",
+    "prisma": "npm:prisma@^6.19.3",
+    "@prisma/client": "npm:@prisma/client@^6.19.3",
+    "prismaclient": "./generatedprismaclient/client.ts"
+  },
+  "fmt": {
+    "indentWidth": 4
+  }
+}

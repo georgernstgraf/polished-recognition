@@ -1,0 +1,14 @@
+[
+  { "name": "glm-5.1" },
+  { "name": "deepseek-v4-pro" },
+  { "name": "kimi-k2.6" },
+  { "name": "qwen3.6-plus" },
+  { "name": "minimax-m2.7" },
+  { "name": "gpt-5.4" },
+  { "name": "gpt-5.5" },
+  { "name": "grok-4.3" },
+  { "name": "claude-opus-4.7" },
+  { "name": "gemini-3.1-pro" },
+  { "name": "gemini-3.1-pro-preview" },
+  { "name": "gemini-3.5-flash" }
+]
