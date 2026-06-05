@@ -61,6 +61,16 @@ jobs:
         files: app/build/outputs/bundle/release/app-release.aab
         generate_release_notes: true
 
+    - name: Upload to Play Console
+      uses: r0adkll/upload-google-play@v1
+      with:
+        serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        packageName: com.georgernstgraf.polishedrecognition
+        releaseFiles: app/build/outputs/bundle/release/app-release.aab
+        tracks: alpha
+        status: completed
+        whatsNewDirectory: distribution/whatsnew
+
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
       with:
