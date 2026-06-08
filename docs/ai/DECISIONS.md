@@ -253,3 +253,9 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Ensures the fastest models (e.g. `whisper-large-v3-turbo` for Groq) are automatically picked.
 - **Considered**: Hard-coded UI defaults
 - **Tradeoff**: JSON preset config requires one extra property mapping.
+
+## 2026-06-06: Global UncaughtExceptionHandler with pop-up dialog
+- **Choice**: Register `Thread.setDefaultUncaughtExceptionHandler` in `PolishedRecognitionApp.onCreate()` that extracts `exceptionType`, `exceptionMessage`, and full stack trace, then launches `CrashDialogActivity` (in separate `:crash` process) displaying an `AlertDialog` with these details. Process is killed via `Process.killProcess()` after the intent is sent.
+- **Reason**: Unknown fatal crashes (e.g. free-text model search on Android 11, issue #8) leave the user with no feedback. A pop-up showing the exception type and stack trace helps users report actionable bug reports.
+- **Considered**: Toast-only (cleared too fast, not inspectable), log-only (invisible to users), wrapping individual call sites (misses unexpected crashes elsewhere)
+- **Tradeoff**: The `:crash` process adds ~1MB to the process count. Stack traces can be long — the dialog is scrollable. `System.exit(2)` ensures clean termination after the dialog is shown.

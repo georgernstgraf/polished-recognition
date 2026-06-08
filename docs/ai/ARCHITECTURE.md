@@ -15,7 +15,7 @@ Android speech recognition callback.
 
 | Component | Package | Role |
 |-----------|---------|------|
-| `PolishedRecognitionApp` | root | Application class — manual DI, OkHttpClient singleton, Retrofit cache per baseUrl |
+| `PolishedRecognitionApp` | root | Application class — manual DI, OkHttpClient singleton, Retrofit cache per baseUrl, global `UncaughtExceptionHandler` |
 | `PolishedRecognitionService` | service | Extends `RecognitionService` — foreground notification, audio capture, pipeline call, callback.results() |
 | `TranscriptionPipeline` | pipeline | Orchestrates STT → (optional) LLM flow. Resolves prompt templates at runtime |
 | `PromptStore` | pipeline | Loads prompt defaults from `assets/prompts.json`, persists edits in SharedPreferences |
@@ -26,6 +26,7 @@ Android speech recognition callback.
 | `ProviderPresetLoader` | config | Loads and queries `assets/provider_presets.json` |
 | `LanguageMapper` | config | Maps ISO 639-1 codes to human-readable names |
 | `SettingsActivity` | ui | XML-based: provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults |
+| `CrashDialogActivity` | ui | Transparent dialog Activity in separate `:crash` process — shows `AlertDialog` with exception details from global crash handler |
 
 ## Data Flows
 

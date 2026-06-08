@@ -38,6 +38,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.CrashDialogActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:theme="@style/Theme.PolishedRecognition.Transparent" />
+
         <service
             android:name=".service.PolishedRecognitionService"
             android:exported="true"
