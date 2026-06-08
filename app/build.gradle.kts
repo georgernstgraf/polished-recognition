@@ -10,10 +10,8 @@ android {
         applicationId = "com.georgernstgraf.polishedrecognition"
         minSdk = 30
         targetSdk = 36
-        versionCode = providers.gradleProperty("versionCode")
-            .map(String::toInt).orElse(1).get()
-        versionName = providers.gradleProperty("versionName")
-            .orElse("1.0.0").get()
+        versionCode = 100
+        versionName = "1.0.0"
     }
 
     signingConfigs {

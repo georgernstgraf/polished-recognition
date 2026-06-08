@@ -28,24 +28,12 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Extract version from tag
-      id: version
-      run: |
-        TAG=${GITHUB_REF#refs/tags/v}
-        VERSION_NAME="$TAG"
-        VERSION_CODE=$(echo "$TAG" | awk -F. '{printf "%d%02d%02d01", $1, $2, $3+0}')
-        echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
-        echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION_NAME (code: $VERSION_CODE)"
-
     - name: Decode keystore
       run: echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/upload.keystore
 
     - name: Build Release AAB
       run: |
         ./gradlew bundleRelease --no-daemon \
-          -PversionCode=${{ steps.version.outputs.version_code }} \
-          -PversionName=${{ steps.version.outputs.version_name }} \
           -Pandroid.injected.signing.store.file=$RUNNER_TEMP/upload.keystore \
           -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
@@ -67,7 +55,7 @@ jobs:
         serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         packageName: com.georgernstgraf.polishedrecognition
         releaseFiles: app/build/outputs/bundle/release/app-release.aab
-        tracks: alpha
+        track: production
         status: completed
         whatsNewDirectory: distribution/whatsnew
 

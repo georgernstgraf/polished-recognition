@@ -1,0 +1,39 @@
+Categories:
+  - System
+License: MIT
+AuthorName: Georg Graf
+AuthorEmail: georg.ernst.graf@gmail.com
+SourceCode: https://github.com/georgernstgraf/polished-recognition
+IssueTracker: https://github.com/georgernstgraf/polished-recognition/issues
+Changelog: https://github.com/georgernstgraf/polished-recognition/releases
+
+Name: Polished Recognition
+AutoName: Polished Recognition
+Description: Voice input for any Android keyboard. Captures microphone audio
+  and sends it to your own OpenAI-compatible STT endpoint for transcription,
+  optionally post-processed via a configurable LLM. No proprietary services,
+  no tracking, fully user-controlled.
+
+RepoType: git
+Repo: https://github.com/georgernstgraf/polished-recognition.git
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 100
+    commit: 4b7072118abf2195c0d0745d6eddc9954cb78c49
+    gradle:
+      - yes
+    prebuild: |
+      if [ ! -f app/release.keystore ]; then
+        keytool -genkey -v -keystore app/release.keystore \
+          -alias androiddebugkey -keyalg RSA -keysize 2048 \
+          -validity 10000 \
+          -dname "CN=F-Droid,O=Unknown,C=US" \
+          -storepass android -keypass android
+      fi
+
+AutoUpdateMode: VersionTag
+UpdateCheckMode: Tags
+UpdateCheckData: app/build.gradle.kts|versionCode\s*=\s*(\d+)|.|versionName\s*=\s*"(.+)"|.
+CurrentVersion: 1.0.0
+CurrentVersionCode: 100
