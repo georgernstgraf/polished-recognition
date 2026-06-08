@@ -32,8 +32,8 @@ Builds:
           -storepass android -keypass android
       fi
 
-AutoUpdateMode: VersionTag
+AutoUpdateMode: Version
 UpdateCheckMode: Tags
-UpdateCheckData: app/build.gradle.kts|versionCode\s*=\s*(\d+)|.|versionName\s*=\s*"(.+)"|.
+UpdateCheckData: app/build.gradle.kts|versionCode\s*=\s*(\d+)|.|versionName\s*=\s*"(.+)"
 CurrentVersion: 1.0.0
 CurrentVersionCode: 100
