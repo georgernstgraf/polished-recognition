@@ -108,7 +108,7 @@ Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Pl
 | `fastlane/metadata/android/en-US/short_description.txt` | ~80 char summary |
 | `fastlane/metadata/android/en-US/full_description.txt` | Full app description (pulled by F-Droid from upstream repo) |
 
-F-Droid MR: `fdroid/fdroiddata!40029`
+F-Droid MR: [!40029](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/40029)
 Worktree: `~/repos/schurlix/fdroiddata-mr-polished-recognition`
 
 ## Knowledge Files (`docs/ai/`)

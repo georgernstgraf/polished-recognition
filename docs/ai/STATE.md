@@ -3,7 +3,7 @@
 Current status as of 2026-06-09.
 
 ## Current Focus
-F-Droid MR #40029 waiting for review by maintainers.
+F-Droid MR !40029 waiting for review by maintainers.
 
 ## Completed (this cycle)
 - [x] #27 — F-Droid metadata file created with `AutoUpdateMode: Version`, `UpdateCheckMode: Tags`
