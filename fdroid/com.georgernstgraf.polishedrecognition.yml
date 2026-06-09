@@ -19,6 +19,7 @@ Builds:
     commit: fa819a0fe399b2ddf075bcf62deb63a571da5f15
     gradle:
       - yes
+    output: app/build/outputs/apk/release/app-release-unsigned.apk
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
