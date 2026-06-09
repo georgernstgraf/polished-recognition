@@ -3,20 +3,18 @@
 Current status as of 2026-06-09.
 
 ## Current Focus
-F-Droid MR !40029 waiting for review by maintainers.
+F-Droid MR !40029 — all pipeline checks green, waiting for maintainer review.
 
 ## Completed (this cycle)
-- [x] #27 — F-Droid metadata file created with `AutoUpdateMode: Version`, `UpdateCheckMode: Tags`
-- [x] #27 — Static versionCode/versionName in build.gradle.kts for F-Droid regex extraction
-- [x] #27 — `release.yml` updated (no more -Pversion injection)
 - [x] F-Droid MR submitted: `fdroid/fdroiddata!40029`
-- [x] `fastlane/metadata/android/en-US/` added (title, short_description, full_description)
-- [x] `glab` configured as `schurlix` for GitLab CLI access
-- [x] `~/repos/schurlix/fdroiddata` + worktrees set up (polished-recognition + zazentimer)
+- [x] All 9 pipeline checks pass (build, lint, rewritemeta, schema, checkupdates, ...)
+- [x] `signingConfigs.release` removed from `app/build.gradle.kts` (F-Droid signs itself)
+- [x] `fastlane/metadata/android/en-US/` added
+- [x] `glab` configured as `schurlix`
+- [x] `~/repos/schurlix/fdroiddata` + worktrees set up
 
 ## Pending
-- [ ] F-Droid maintainers review MR !40029
-- [ ] Complete Play Console setup: App Signing, Content Rating, Data Safety
+- [ ] F-Droid maintainers review MR !40029 (currently labeled `waiting-on-response`)
 
 ## Blocker
 None

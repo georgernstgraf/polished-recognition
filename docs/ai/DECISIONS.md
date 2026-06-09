@@ -277,3 +277,9 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: GitLab API via curl is verbose and error-prone. `glab` handles authentication and API calls consistently.
 - **Considered**: Direct API calls via curl (used for MR description update), plain Git
 - **Tradeoff**: Requires binary installation (downloaded from GitLab releases). The CLI's default MR creation creates intra-fork MRs; cross-project MRs need explicit API call with `source_project_id`.
+
+## 2026-06-09: Remove signingConfigs.release for F-Droid
+- **Choice**: Remove the entire `signingConfigs { release { ... } }` block and `signingConfig` from `release` build type in `app/build.gradle.kts`
+- **Reason**: F-Droid's `fdroid build` could not find the signed APK output — `assembleRelease` produced no APK when a signing config with a keystore was active. Removing the signing config lets the build produce `app-release-unsigned.apk` which F-Droid finds and signs itself.
+- **Considered**: Keeping signing config with `output:` directive (wrong path, APK naming mismatch), creating dummy keystore via `prebuild` (worked locally but F-Droid's Gradle setup changed output behavior)
+- **Tradeoff**: Local `./gradlew assembleRelease` now produces unsigned APK. GitHub CI workflows (`build.yml`, `release.yml`) inject signing via `-Pandroid.injected.signing.*` properties, so releases remain signed.
