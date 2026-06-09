@@ -16,18 +16,9 @@ Repo: https://github.com/georgernstgraf/polished-recognition.git
 Builds:
   - versionName: 1.0.0
     versionCode: 100
-    commit: 4b7072118abf2195c0d0745d6eddc9954cb78c49
+    commit: fa819a0fe399b2ddf075bcf62deb63a571da5f15
     gradle:
       - yes
-    output: build/outputs/apk/release/app-release.apk
-    prebuild: |
-      if [ ! -f app/release.keystore ]; then
-        keytool -genkey -v -keystore app/release.keystore \
-          -alias androiddebugkey -keyalg RSA -keysize 2048 \
-          -validity 10000 \
-          -dname "CN=F-Droid,O=Unknown,C=US" \
-          -storepass android -keypass android
-      fi
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
