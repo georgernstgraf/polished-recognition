@@ -19,6 +19,7 @@ Builds:
     commit: 4b7072118abf2195c0d0745d6eddc9954cb78c49
     gradle:
       - yes
+    output: build/outputs/apk/release/app-release.apk
     prebuild: |
       if [ ! -f app/release.keystore ]; then
         keytool -genkey -v -keystore app/release.keystore \
