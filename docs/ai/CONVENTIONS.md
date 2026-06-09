@@ -61,3 +61,11 @@ The transcription pipeline resolves the following template variables at runtime:
 - Test methods use backtick descriptive names: `` `STT HTTP error returns failure` ``
 - Integration tests: separate `integration/` package, read `.env` for API keys, `assumeTrue` to skip when keys absent
 - Test resources: `src/test/resources/` for audio fixtures, `src/test/resources/robolectric.properties` for SDK config
+
+## F-Droid
+- F-Droid metadata YAML (`fdroid/*.yml`) must NOT contain `Description:` — store text goes in `fastlane/metadata/android/<locale>/`
+- `AutoUpdateMode` uses `Version` (not `VersionTag`) with `UpdateCheckMode: Tags`
+- `UpdateCheckData` format: `file|versionCode_regex|.|versionName_regex` — exactly 4 pipe-separated parts, backslashes must be preserved (use Python/heredoc, not sed)
+- `versionCode` and `versionName` must be static in `build.gradle.kts` for F-Droid regex extraction
+- New MRs must use the "App Inclusion" template with all checkboxes
+- Only one app per MR (don't include other metadata changes in the same branch)

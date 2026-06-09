@@ -259,3 +259,21 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Unknown fatal crashes (e.g. free-text model search on Android 11, issue #8) leave the user with no feedback. A pop-up showing the exception type and stack trace helps users report actionable bug reports.
 - **Considered**: Toast-only (cleared too fast, not inspectable), log-only (invisible to users), wrapping individual call sites (misses unexpected crashes elsewhere)
 - **Tradeoff**: The `:crash` process adds ~1MB to the process count. Stack traces can be long — the dialog is scrollable. `System.exit(2)` ensures clean termination after the dialog is shown.
+
+## 2026-06-09: F-Droid metadata in fastlane/ structure
+- **Choice**: Store app description (title, short_description, full_description) in `fastlane/metadata/android/en-US/` in the main repo, and keep only build configuration in `fdroid/com.georgernstgraf.polishedrecognition.yml`
+- **Reason**: F-Droid now requires upstream repos to contain fastlane metadata. The metadata YAML in `fdroiddata` should not contain Description — it's pulled from the upstream repo.
+- **Considered**: Triple-T structure (same result, fastlane is more common)
+- **Tradeoff**: Two files for store listing (fastlane) vs one YAML field. Updates require changes in our repo, not just the MR.
+
+## 2026-06-09: fdroiddata worktrees in ~/repos/schurlix/
+- **Choice**: Store the fdroiddata fork at `~/repos/schurlix/fdroiddata/` (GitLab user namespace) with git worktrees for each active MR under `~/repos/schurlix/fdroiddata-mr-<name>/`
+- **Reason**: Avoids re-cloning the 76k-file repo for each MR operation. Worktrees share the `.git` object database. Fork is under `schurlix` (GitLab user) not `georgernstgraf` (GitHub user).
+- **Considered**: /tmp clones (slow, ephemeral), single worktree in project directory
+- **Tradeoff**: Worktrees must be manually cleaned up after MR merge. The fork is shallow (`--depth 1`) — full history requires separate `git fetch` for CI.
+
+## 2026-06-09: glab for GitLab CLI access
+- **Choice**: Use `glab` (GitLab CLI) for all GitLab operations (fork, branch, MR creation). Token stored in `~/.config/glab-cli/config.yml`.
+- **Reason**: GitLab API via curl is verbose and error-prone. `glab` handles authentication and API calls consistently.
+- **Considered**: Direct API calls via curl (used for MR description update), plain Git
+- **Tradeoff**: Requires binary installation (downloaded from GitLab releases). The CLI's default MR creation creates intra-fork MRs; cross-project MRs need explicit API call with `source_project_id`.

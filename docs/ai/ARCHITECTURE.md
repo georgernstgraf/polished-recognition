@@ -99,7 +99,17 @@ Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Pl
 | `privacy-policy.md` | English-language privacy policy (RECORD_AUDIO, INTERNET, no third-party sharing, user-configured endpoints) |
 | `assets/screenshots/` | Play Store screenshots (user-provided) |
 
-## Knowledge Files (`docs/ai/`)
+## F-Droid (`fdroid/` + `fastlane/`)
+
+| File | Purpose |
+|------|---------|
+| `fdroid/com.georgernstgraf.polishedrecognition.yml` | F-Droid metadata (build config, license, links — NO Description) |
+| `fastlane/metadata/android/en-US/title.txt` | App title for F-Droid / Play Store |
+| `fastlane/metadata/android/en-US/short_description.txt` | ~80 char summary |
+| `fastlane/metadata/android/en-US/full_description.txt` | Full app description (pulled by F-Droid from upstream repo) |
+
+F-Droid MR: `fdroid/fdroiddata!40029`
+Worktree: `~/repos/schurlix/fdroiddata-mr-polished-recognition`
 
 ## Knowledge Files (`docs/ai/`)
 
