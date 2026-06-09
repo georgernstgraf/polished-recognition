@@ -9,10 +9,6 @@ Changelog: https://github.com/georgernstgraf/polished-recognition/releases
 
 Name: Polished Recognition
 AutoName: Polished Recognition
-Description: Voice input for any Android keyboard. Captures microphone audio
-  and sends it to your own OpenAI-compatible STT endpoint for transcription,
-  optionally post-processed via a configurable LLM. No proprietary services,
-  no tracking, fully user-controlled.
 
 RepoType: git
 Repo: https://github.com/georgernstgraf/polished-recognition.git
