@@ -1,14 +1,1 @@
-Polished Recognition is an Android voice input service that works with any keyboard — Gboard, AnySoftKeyboard, Samsung Keyboard, and more.
-
-Instead of relying on a fixed speech provider, you configure your own OpenAI-compatible endpoints:
-
-• **STT (Speech-to-Text):** Point to any Whisper-compatible API (Groq, OpenAI, self-hosted, etc.)
-• **LLM (Language Model):** Optionally post-process transcriptions through any chat-compatible model
-• **Custom prompts:** Edit system, user, and translation prompts directly in Settings
-• **Privacy-first:** No analytics, no tracking, no proprietary SDKs. All data flows directly between your device and your chosen endpoints.
-
-Simply select "Polished Recognition" as your system's voice input provider, tap the microphone on any keyboard, and start speaking.
-
-Permissions:
-• RECORD_AUDIO — required to capture microphone input
-• INTERNET — required to send audio to your configured STT/LLM endpoints
+Polished Recognition is an Android voice input service that works with any keyboard — Gboard, AnySoftKeyboard, Samsung Keyboard, and more.<br /><br />Instead of relying on a fixed speech provider, you configure your own OpenAI-compatible endpoints:<br /><br />• <b>STT (Speech-to-Text):</b> Point to any Whisper-compatible API (Groq, OpenAI, self-hosted, etc.)<br />• <b>LLM (Language Model):</b> Optionally post-process transcriptions through any chat-compatible model<br />• <b>Custom prompts:</b> Edit system, user, and translation prompts directly in Settings<br />• <b>Privacy-first:</b> No analytics, no tracking, no proprietary SDKs. All data flows directly between your device and your chosen endpoints.<br /><br />Simply select &quot;Polished Recognition&quot; as your system's voice input provider, tap the microphone on any keyboard, and start speaking.<br /><br />Permissions:<br />• RECORD_AUDIO — required to capture microphone input<br />• INTERNET — required to send audio to your configured STT/LLM endpoints
