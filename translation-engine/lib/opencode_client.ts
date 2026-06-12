@@ -117,14 +117,36 @@ export class OpencodeClient {
     return await res.json();
   }
 
+  async abortSession(sessionId: string): Promise<void> {
+    try {
+      const res = await fetch(`${BASE_URL}/session/${sessionId}/abort`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (!res.ok && res.status !== 404) {
+        console.error(`abortSession ${sessionId}: ${res.status} ${await res.text()}`);
+      }
+    } catch (e) {
+      console.error(`abortSession ${sessionId}: ${e}`);
+    }
+  }
+
   async closeSession(sessionId: string): Promise<void> {
     try {
-      await fetch(`${BASE_URL}/session/${sessionId}`, {
+      const res = await fetch(`${BASE_URL}/session/${sessionId}`, {
         method: "DELETE",
         headers: authHeaders(),
       });
-    } catch {
-      // Ignore close errors — session may already be gone
+      if (!res.ok && res.status !== 404) {
+        console.error(`closeSession ${sessionId}: ${res.status} ${await res.text()}`);
+      }
+    } catch (e) {
+      console.error(`closeSession ${sessionId}: ${e}`);
     }
+  }
+
+  async terminateSession(sessionId: string): Promise<void> {
+    await this.abortSession(sessionId);
+    await this.closeSession(sessionId);
   }
 }

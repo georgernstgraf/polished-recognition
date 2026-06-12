@@ -11,43 +11,34 @@ import {
 } from "./lib/verify.ts";
 import { getPrisma } from "./lib/prisma.ts";
 import {
+    checkLanguageConsistency,
+    checkMasterStringConsistency,
+    checkModelConsistency,
     getAllLanguages,
     getAllMasterStrings,
     getAllModels,
     getExistingVotes,
-    getModelByName,
     getNullExistingVotes,
     getOrCreateLanguage,
     getOrCreateModel,
     getProficiencyLevel,
     getSettledStrings,
     hasProficiency,
+    MIN_VOTE_PROFICIENCY,
+    parseMasterStringsXml,
+    SETTLED_SCORE_THRESHOLD,
     upsertProficiency,
     upsertVote,
 } from "./lib/db.ts";
+import masterModels from "./resources/llmmodels_master.json" with { type: "json" };
+import supportedLanguages from "./resources/supported_languages.json" with { type: "json" };
 
-// ── Model → Provider mapping (ordered by preference) ─────────────────────────
-const MODEL_PROVIDERS_RAW: Record<string, string | string[]> = {
-    "claude-opus-4.7": "openrouter",
-    "deepseek-v4-pro": "opencode-go",
-    "gemini-3.1-pro-preview": ["google", "github-copilot"],
-    "gemini-3.1-pro": ["opencode"],
-    "gemini-3.5-flash": ["opencode", "github-copilot", "google", "openrouter"],
-    "glm-5.1": ["zai-coding-plan", "opencode-go"],
-    "gpt-5.4": ["openrouter", "github-copilot"],
-    "gpt-5.5": "opencode",
-    "grok-4.3": "openrouter",
-    "kimi-k2.6": "opencode-go",
-    "minimax-m2.7": "opencode-go",
-    "mistral-large": "opencode-go",
-    "qwen3.6-plus": "opencode-go",
-};
+function normalizeModelName(name: string): string {
+    return name.replace(/[.-]/g, "").toLowerCase();
+}
 
 const MODEL_PROVIDERS: Map<string, string[]> = new Map(
-    Object.entries(MODEL_PROVIDERS_RAW).map(([key, val]) => [
-        normalizeModelName(key),
-        typeof val === "string" ? [val] : val,
-    ]),
+    masterModels.map((m) => [normalizeModelName(m.name), m.providers]),
 );
 
 function getModelRank(modelName: string, providerID: string): number {
@@ -55,10 +46,6 @@ function getModelRank(modelName: string, providerID: string): number {
     if (!providers) return 99;
     const idx = providers.indexOf(providerID);
     return idx === -1 ? 99 : idx + 1;
-}
-
-function normalizeModelName(name: string): string {
-    return name.replace(/[.-]/g, "").toLowerCase();
 }
 
 interface ModelEntry {
@@ -183,7 +170,7 @@ const PROFICIENCY_OUTPUT_FILE = `${PROJECT_DIR}/proficiency-output.json`;
 const START_TIME = Date.now();
 const MAX_RETRIES = 3;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes max per (model, locale) attempt
-const DEFAULT_MIN_PROFICIENCY = 2;
+
 const DEFAULT_MAX_DURATION_MIN = 210;
 
 function isTimeUp(maxDurationMs: number): boolean {
@@ -226,7 +213,7 @@ async function pollForCompletion(
     while (Date.now() - start < timeoutMs) {
         await sleep(10000);
 
-        // Session-Status für Quota-Detection (fast-fail)
+        // Session-Status f黵 Quota-Detection (fast-fail)
         try {
             const statusMap = await opencode.getSessionStatus();
             const s = statusMap[sessionId] as
@@ -243,7 +230,7 @@ async function pollForCompletion(
             // ignore poll errors
         }
 
-        // Output-File als primäres Completion-Signal
+        // Output-File als prim舐es Completion-Signal
         try {
             const stat = await Deno.stat(outputFile);
             const mtime = stat.mtime?.getTime() || 0;
@@ -265,6 +252,7 @@ interface CliArgs {
     all: boolean;
     minProficiency: number;
     maxDuration: number;
+    settledThreshold: number;
     model?: string;
     locale?: string;
 }
@@ -275,8 +263,9 @@ function parseArgs(): CliArgs {
             a.startsWith("--") && a.includes("=") ? a.split("=", 2) : [a]
         );
     let all = false;
-    let minProficiency = DEFAULT_MIN_PROFICIENCY;
+    let minProficiency = MIN_VOTE_PROFICIENCY;
     let maxDuration = DEFAULT_MAX_DURATION_MIN;
+    let settledThreshold = SETTLED_SCORE_THRESHOLD;
     let model: string | undefined;
     let locale: string | undefined;
 
@@ -297,6 +286,9 @@ function parseArgs(): CliArgs {
             case "--max-duration":
                 maxDuration = parseInt(args[++i], 10);
                 break;
+            case "--settled-threshold":
+                settledThreshold = parseInt(args[++i], 10);
+                break;
             case "--help":
                 log(
                     `Usage: deno task translate -- [OPTIONS]
@@ -305,9 +297,13 @@ Options:
   --model <name> --locale <bcp47>    Single (model, locale) pair
   --model <name> --all                Single model over all locales
   --all                               Full matrix over all models x locales
-  --min-proficiency <N>               Skip locales below this proficiency (default: ${DEFAULT_MIN_PROFICIENCY})
+  --min-proficiency <N>               Skip locales below this proficiency (default: ${MIN_VOTE_PROFICIENCY})
+  --settled-threshold <N>             Score threshold for settled strings (default: ${SETTLED_SCORE_THRESHOLD})
   --max-duration <minutes>            Max runtime before graceful stop (default: ${DEFAULT_MAX_DURATION_MIN})
-  --help                              Show this help`,
+  --help                              Show this help
+
+Models:
+${masterModels.map((m) => `  ${m.name.padEnd(28)}(${m.providers.join(", ")})`).join("\n")}`,
                 );
                 Deno.exit(0);
         }
@@ -320,6 +316,7 @@ Options:
             locale: undefined,
             minProficiency,
             maxDuration,
+            settledThreshold,
         };
     }
     if (model && all) {
@@ -329,10 +326,11 @@ Options:
             locale: undefined,
             minProficiency,
             maxDuration,
+            settledThreshold,
         };
     }
     if (model && locale) {
-        return { all: false, model, locale, minProficiency, maxDuration };
+        return { all: false, model, locale, minProficiency, maxDuration, settledThreshold };
     }
     logError(
         "Specify --model <name> --locale <bcp47>, --model <name> --all, or --all",
@@ -355,7 +353,7 @@ async function dispatchProficiency(
 ): Promise<number> {
     const input = {
         locale: { bcp_47: langBcp47, english_name: langEnglishName },
-        app_name: "ZazenTimer",
+        app_name: "Polished Recognition",
     };
     await writeInput(input);
 
@@ -368,76 +366,79 @@ async function dispatchProficiency(
         let lastError: string | undefined;
         let sessionId = await opencode.createSession(PROJECT_DIR);
 
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            try {
-                const opts: SendOptions = {
-                    system: SKILL_PROFICIENCY,
-                    model: attempt === 0 ? modelRef : undefined,
-                };
+        try {
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                try {
+                    const opts: SendOptions = {
+                        system: SKILL_PROFICIENCY,
+                        model: attempt === 0 ? modelRef : undefined,
+                    };
 
-                const text = attempt === 0
-                    ? `Write the proficiency assessment to ${PROFICIENCY_OUTPUT_FILE}. Read the input data from ${INPUT_FILE}.`
-                    : `Verification failed: ${lastError}. Please fix ${PROFICIENCY_OUTPUT_FILE}. You may read '${PROFICIENCY_OUTPUT_FILE}' and '${INPUT_FILE}' to inspect.`;
+                    const text = attempt === 0
+                        ? `Write the proficiency assessment to ${PROFICIENCY_OUTPUT_FILE}. Read the input data from ${INPUT_FILE}.`
+                        : `Verification failed: ${lastError}. Please fix ${PROFICIENCY_OUTPUT_FILE}. You may read '${PROFICIENCY_OUTPUT_FILE}' and '${INPUT_FILE}' to inspect.`;
 
-                const context =
-                    `${langEnglishName} to ${modelRef.providerID}(rank ${
-                        getModelRank(modelName, modelRef.providerID)
-                    })/${modelRef.modelID}`;
+                    const context =
+                        `${langEnglishName} to ${modelRef.providerID}(rank ${
+                            getModelRank(modelName, modelRef.providerID)
+                        })/${modelRef.modelID}`;
 
-                log(`submitting proficiency request for ${context}`);
+                    log(`submitting proficiency request for ${context}`);
 
-                await opencode.sendMessageAsync(sessionId, text, opts);
+                    await opencode.sendMessageAsync(sessionId, text, opts);
 
-                const pollResult = await pollForCompletion(
-                    opencode,
-                    sessionId,
-                    PROFICIENCY_OUTPUT_FILE,
-                    POLL_TIMEOUT_MS,
-                );
-
-                if (pollResult.type === "quota") {
-                    lastError = `Quota exceeded: ${pollResult.message}`;
-                    logError(`${context}: ${lastError}, falling back`);
-                    await opencode.closeSession(sessionId);
-                    break;
-                }
-
-                if (pollResult.type === "timeout") {
-                    logError(
-                        `proficiency session timeout after ${
-                            POLL_TIMEOUT_MS / 60000
-                        } min for ${context}, creating new session`,
+                    const pollResult = await pollForCompletion(
+                        opencode,
+                        sessionId,
+                        PROFICIENCY_OUTPUT_FILE,
+                        POLL_TIMEOUT_MS,
                     );
-                    await opencode.closeSession(sessionId);
-                    sessionId = await opencode.createSession(PROJECT_DIR);
-                    continue;
+
+                    if (pollResult.type === "quota") {
+                        lastError = `Quota exceeded: ${pollResult.message}`;
+                        logError(`${context}: ${lastError}, falling back`);
+                        break;
+                    }
+
+                    if (pollResult.type === "timeout") {
+                        logError(
+                            `proficiency session timeout after ${
+                                POLL_TIMEOUT_MS / 60000
+                            } min for ${context}, creating new session`,
+                        );
+                        await opencode.terminateSession(sessionId);
+                        sessionId = await opencode.createSession(PROJECT_DIR);
+                        continue;
+                    }
+
+                    const result = await verifyProficiencyFile(
+                        PROFICIENCY_OUTPUT_FILE,
+                        langBcp47,
+                    );
+                    const language = await getOrCreateLanguage(langBcp47);
+                    const modelDb = await getOrCreateModel(modelName);
+                    await upsertProficiency(
+                        language.id,
+                        modelDb.id,
+                        result.proficiency,
+                    );
+
+                    const rank = getModelRank(modelName, modelRef.providerID);
+                    log(
+                        `proficiency ${modelName} ${langBcp47} ${modelRef.providerID} rank=${rank} → ${result.proficiency}`,
+                    );
+                    return result.proficiency;
+                } catch (e) {
+                    lastError = e instanceof VerifyError ? e.message : String(e);
+                    logError(
+                        `${modelRef.providerID}/${modelRef.modelID} attempt ${
+                            attempt + 1
+                        }/${MAX_RETRIES}: ${lastError}`,
+                    );
                 }
-
-                const result = await verifyProficiencyFile(
-                    PROFICIENCY_OUTPUT_FILE,
-                    langBcp47,
-                );
-                const language = await getOrCreateLanguage(langBcp47);
-                const modelDb = await getOrCreateModel(modelName);
-                await upsertProficiency(
-                    language.id,
-                    modelDb.id,
-                    result.proficiency,
-                );
-
-                const rank = getModelRank(modelName, modelRef.providerID);
-                log(
-                    `proficiency ${modelName} ${langBcp47} ${modelRef.providerID} rank=${rank} → ${result.proficiency}`,
-                );
-                return result.proficiency;
-            } catch (e) {
-                lastError = e instanceof VerifyError ? e.message : String(e);
-                logError(
-                    `${modelRef.providerID}/${modelRef.modelID} attempt ${
-                        attempt + 1
-                    }/${MAX_RETRIES}: ${lastError}`,
-                );
             }
+        } finally {
+            await opencode.terminateSession(sessionId);
         }
     }
 
@@ -458,7 +459,7 @@ async function dispatchTranslate(
 ): Promise<void> {
     const input = {
         locale: { bcp_47: langBcp47, english_name: langEnglishName },
-        app_name: "ZazenTimer",
+        app_name: "Polished Recognition",
         strings,
     };
     await writeInput(input);
@@ -472,112 +473,115 @@ async function dispatchTranslate(
         let lastError: string | undefined;
         let sessionId = await opencode.createSession(PROJECT_DIR);
 
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            try {
-                const opts: SendOptions = {
-                    system: SKILL_TRANSLATE,
-                    model: attempt === 0 ? modelRef : undefined,
-                };
+        try {
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                try {
+                    const opts: SendOptions = {
+                        system: SKILL_TRANSLATE,
+                        model: attempt === 0 ? modelRef : undefined,
+                    };
 
-                const text = attempt === 0
-                    ? `Write the translations to ${OUTPUT_FILE}. Read the input data from ${INPUT_FILE}.`
-                    : `Verification failed: ${lastError}. Please fix ${OUTPUT_FILE}. You may read '${INPUT_FILE}' and '${OUTPUT_FILE}' to inspect.`;
+                    const text = attempt === 0
+                        ? `Write the translations to ${OUTPUT_FILE}. Read the input data from ${INPUT_FILE}.`
+                        : `Verification failed: ${lastError}. Please fix ${OUTPUT_FILE}. You may read '${INPUT_FILE}' and '${OUTPUT_FILE}' to inspect.`;
 
-                const rank = getModelRank(modelName, modelRef.providerID);
-                log(
-                    `submitting translation request for ${langEnglishName} to ${modelRef.providerID}(rank ${rank})/${modelRef.modelID}, proficiency: ${proficiency}. searching for ${unsettledCount} unsettled strings`,
-                );
-
-                const context =
-                    `${langEnglishName} to ${modelRef.providerID}(rank ${rank})/${modelRef.modelID}`;
-
-                await opencode.sendMessageAsync(sessionId, text, opts);
-
-                const pollResult = await pollForCompletion(
-                    opencode,
-                    sessionId,
-                    OUTPUT_FILE,
-                    POLL_TIMEOUT_MS,
-                );
-
-                if (pollResult.type === "quota") {
-                    lastError = `Quota exceeded: ${pollResult.message}`;
-                    logError(`${context}: ${lastError}, falling back`);
-                    await opencode.closeSession(sessionId);
-                    break;
-                }
-
-                if (pollResult.type === "timeout") {
-                    logError(
-                        `translation session timeout after ${
-                            POLL_TIMEOUT_MS / 60000
-                        } min for ${context}, creating new session`,
+                    const rank = getModelRank(modelName, modelRef.providerID);
+                    log(
+                        `submitting translation request for ${langEnglishName} to ${modelRef.providerID}(rank ${rank})/${modelRef.modelID}, proficiency: ${proficiency}. searching for ${unsettledCount} unsettled strings`,
                     );
-                    await opencode.closeSession(sessionId);
-                    sessionId = await opencode.createSession(PROJECT_DIR);
-                    continue;
-                }
 
-                const result = await verifyTranslationFile(
-                    OUTPUT_FILE,
-                    langBcp47,
-                    strings,
-                );
-                const language = await getOrCreateLanguage(langBcp47);
-                const modelDb = await getOrCreateModel(modelName);
+                    const context =
+                        `${langEnglishName} to ${modelRef.providerID}(rank ${rank})/${modelRef.modelID}`;
 
-                const allMs = await getAllMasterStrings();
-                let stringCount = 0;
-                let emptyCount = 0;
-                let skippedMasterString = 0;
-                for (const t of result.translations) {
-                    const ms = allMs.find((s) => s.text === t.key);
-                    if (!ms) {
-                        skippedMasterString++;
-                        continue;
+                    await opencode.sendMessageAsync(sessionId, text, opts);
+
+                    const pollResult = await pollForCompletion(
+                        opencode,
+                        sessionId,
+                        OUTPUT_FILE,
+                        POLL_TIMEOUT_MS,
+                    );
+
+                    if (pollResult.type === "quota") {
+                        lastError = `Quota exceeded: ${pollResult.message}`;
+                        logError(`${context}: ${lastError}, falling back`);
+                        break;
                     }
-                    if (t.translation === null) {
-                        await upsertVote(language.id, modelDb.id, ms.id, "");
-                        emptyCount++;
-                        continue;
-                    }
-                    const items = Array.isArray(t.translation)
-                        ? t.translation
-                        : [t.translation];
-                    for (const item of items) {
-                        await upsertVote(
-                            language.id,
-                            modelDb.id,
-                            ms.id,
-                            item,
+
+                    if (pollResult.type === "timeout") {
+                        logError(
+                            `translation session timeout after ${
+                                POLL_TIMEOUT_MS / 60000
+                            } min for ${context}, creating new session`,
                         );
-                        if (item === "") {
+                        await opencode.terminateSession(sessionId);
+                        sessionId = await opencode.createSession(PROJECT_DIR);
+                        continue;
+                    }
+
+                    const result = await verifyTranslationFile(
+                        OUTPUT_FILE,
+                        langBcp47,
+                        strings,
+                    );
+                    const language = await getOrCreateLanguage(langBcp47);
+                    const modelDb = await getOrCreateModel(modelName);
+
+                    const allMs = await getAllMasterStrings();
+                    let stringCount = 0;
+                    let emptyCount = 0;
+                    let skippedMasterString = 0;
+                    for (const t of result.translations) {
+                        const ms = allMs.find((s) => s.text === t.key);
+                        if (!ms) {
+                            skippedMasterString++;
+                            continue;
+                        }
+                        if (t.translation === null) {
+                            await upsertVote(language.id, modelDb.id, ms.id, "");
                             emptyCount++;
-                        } else {
-                            stringCount++;
+                            continue;
+                        }
+                        const items = Array.isArray(t.translation)
+                            ? t.translation
+                            : [t.translation];
+                        for (const item of items) {
+                            await upsertVote(
+                                language.id,
+                                modelDb.id,
+                                ms.id,
+                                item,
+                            );
+                            if (item === "") {
+                                emptyCount++;
+                            } else {
+                                stringCount++;
+                            }
                         }
                     }
-                }
 
-                const total = stringCount + emptyCount;
-                const suffix = skippedMasterString > 0
-                    ? `, ${skippedMasterString} skipped (no master_string match)`
-                    : "";
-                log(
-                    `got translation result for ${langEnglishName} to ${modelRef.providerID}(rank ${rank})/${modelRef.modelID}: ${total} votes stored (${stringCount} strings, ${emptyCount} empty)${suffix}`,
-                );
-                await (await getPrisma()).$queryRawUnsafe(
-                    "PRAGMA wal_checkpoint(TRUNCATE)",
-                );
-                return;
-            } catch (e) {
-                lastError = e instanceof VerifyError ? e.message : String(e);
-                logError(
-                    `${modelRef.providerID}/${modelRef.modelID} attempt ${
-                        attempt + 1
-                    }/${MAX_RETRIES}: ${lastError}`,
-                );
+                    const total = stringCount + emptyCount;
+                    const suffix = skippedMasterString > 0
+                        ? `, ${skippedMasterString} skipped (no master_string match)`
+                        : "";
+                    log(
+                        `got translation result for ${langEnglishName} to ${modelRef.providerID}(rank ${rank})/${modelRef.modelID}: ${total} votes stored (${stringCount} strings, ${emptyCount} empty)${suffix}`,
+                    );
+                    await (await getPrisma()).$queryRawUnsafe(
+                        "PRAGMA wal_checkpoint(TRUNCATE)",
+                    );
+                    return;
+                } catch (e) {
+                    lastError = e instanceof VerifyError ? e.message : String(e);
+                    logError(
+                        `${modelRef.providerID}/${modelRef.modelID} attempt ${
+                            attempt + 1
+                        }/${MAX_RETRIES}: ${lastError}`,
+                    );
+                }
             }
+        } finally {
+            await opencode.terminateSession(sessionId);
         }
     }
 
@@ -594,6 +598,7 @@ async function runOne(
     langEnglishName: string,
     availableModels: Map<string, ModelEntry[]>,
     minProficiency: number,
+    settledThreshold: number,
 ): Promise<void> {
     const modelDb = await getOrCreateModel(modelName);
     const language = await getOrCreateLanguage(langBcp47);
@@ -630,7 +635,7 @@ async function runOne(
     const allMs = await getAllMasterStrings();
     const existing = await getExistingVotes(modelDb.id, language.id);
     const nullVotes = await getNullExistingVotes(modelDb.id, language.id);
-    const settled = await getSettledStrings(language.id);
+    const settled = await getSettledStrings(language.id, settledThreshold);
     const skip = new Set([...existing, ...nullVotes, ...settled]);
     const missing = allMs.filter((s) => !skip.has(s.id));
 
@@ -688,6 +693,7 @@ async function runAll(
     availableModels: Map<string, ModelEntry[]>,
     minProficiency: number,
     maxDurationMs: number,
+    settledThreshold: number,
 ): Promise<void> {
     for (const m of models) {
         for (const lang of languages) {
@@ -702,6 +708,7 @@ async function runAll(
                 lang.english_name,
                 availableModels,
                 minProficiency,
+                settledThreshold,
             );
         }
     }
@@ -714,6 +721,7 @@ async function runOneModelAllLocales(
     availableModels: Map<string, ModelEntry[]>,
     minProficiency: number,
     maxDurationMs: number,
+    settledThreshold: number,
 ): Promise<void> {
     const languages = await getAllLanguages();
     log(`Model '${modelName}' over ${languages.length} locales`);
@@ -730,7 +738,43 @@ async function runOneModelAllLocales(
             lang.english_name,
             availableModels,
             minProficiency,
+            settledThreshold,
         );
+    }
+}
+
+// ── Validation ───────────────────────────────────────────────────────────────
+async function validateDatabaseConsistency(): Promise<void> {
+    const xml = await Deno.readTextFile(
+        new URL("../app/src/main/res/values/strings.xml", import.meta.url),
+    );
+
+    const models = await checkModelConsistency(masterModels.map((m) => m.name));
+    const languages = await checkLanguageConsistency(supportedLanguages.map((l) => l.bcp_47));
+    const strings = await checkMasterStringConsistency(parseMasterStringsXml(xml));
+
+    let failed = false;
+    if (models.missingFromDb.length > 0) {
+        logError(
+            `${models.missingFromDb.length} model(s) in llmmodels_master.json but not in DB: ${models.missingFromDb.join(", ")}`,
+        );
+        failed = true;
+    }
+    if (languages.missingFromDb.length > 0) {
+        logError(
+            `${languages.missingFromDb.length} language(s) in supported_languages.json but not in DB: ${languages.missingFromDb.join(", ")}`,
+        );
+        failed = true;
+    }
+    if (strings.missingFromDb.length > 0) {
+        logError(
+            `${strings.missingFromDb.length} master string(s) in strings.xml but not in DB`,
+        );
+        failed = true;
+    }
+    if (failed) {
+        logError("Run 'deno task seed' to synchronize.");
+        Deno.exit(1);
     }
 }
 
@@ -739,6 +783,13 @@ async function main() {
     const args = parseArgs();
     const opencode = new OpencodeClient();
 
+    await validateDatabaseConsistency();
+
+    if (args.model && !MODEL_PROVIDERS.has(normalizeModelName(args.model))) {
+        logError(`Unknown model '${args.model}'. Run with --help for available models.`);
+        Deno.exit(1);
+    }
+
     log("Fetching available models from opencode...");
     const availableModels = await fetchAvailableModels();
     log(`Found ${availableModels.size} unique models across providers`);
@@ -746,70 +797,27 @@ async function main() {
     if (args.all && !args.model) {
         const allModels = await getAllModels();
         const languages = await getAllLanguages();
-
-        // Error: MODEL_PROVIDERS-Model nicht in DB
-        for (const [norm] of MODEL_PROVIDERS) {
-            if (!allModels.some((m) => normalizeModelName(m.name) === norm)) {
-                logError(
-                    `Model '${norm}' is defined in MODEL_PROVIDERS (prisma/translate.ts) ` +
-                        `but not in DB (llm_models). ` +
-                        `Ensure it's in 'prisma/resources/llmmodels_master.json' ` +
-                        `and run 'deno task prismatranslationsseed'.`,
-                );
-                Deno.exit(1);
-            }
-        }
-
-        // Warning: DB-Model nicht in MODEL_PROVIDERS
-        for (const m of allModels) {
-            if (!MODEL_PROVIDERS.has(normalizeModelName(m.name))) {
-                log(
-                    `WARNING: model '${m.name}' exists in DB ` +
-                        `but is not defined in MODEL_PROVIDERS (prisma/translate.ts)`,
-                );
-            }
-        }
-
-        const activeModels = allModels.filter((m) =>
-            MODEL_PROVIDERS.has(normalizeModelName(m.name))
-        );
-        log(`Full run: ${activeModels.length} models x ${languages.length} locales`);
+        log(`Full run: ${allModels.length} models x ${languages.length} locales`);
 
         await runAll(
             opencode,
-            activeModels,
+            allModels,
             languages,
             availableModels,
             args.minProficiency,
             args.maxDuration * 60_000,
+            args.settledThreshold,
         );
 
         log("Full run complete");
     } else if (args.model && args.all) {
-        const normalized = normalizeModelName(args.model);
-        if (!MODEL_PROVIDERS.has(normalized)) {
-            logError(
-                `Model '${args.model}' is not defined in MODEL_PROVIDERS (prisma/translate.ts)`,
-            );
-            Deno.exit(1);
-        }
-        const dbModel = await getModelByName(args.model);
-        if (!dbModel) {
-            logError(
-                `Model '${args.model}' is defined in MODEL_PROVIDERS ` +
-                    `but not in DB (llm_models). ` +
-                    `Ensure it's in 'prisma/resources/llmmodels_master.json' ` +
-                    `and run 'deno task prismatranslationsseed'.`,
-            );
-            Deno.exit(1);
-        }
-
         await runOneModelAllLocales(
             opencode,
             args.model,
             availableModels,
             args.minProficiency,
             args.maxDuration * 60_000,
+            args.settledThreshold,
         );
 
         log(`Model '${args.model}' complete`);
@@ -822,6 +830,7 @@ async function main() {
             language.english_name,
             availableModels,
             args.minProficiency,
+            args.settledThreshold,
         );
     }
 }

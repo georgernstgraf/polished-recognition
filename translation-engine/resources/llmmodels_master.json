@@ -1,14 +1,14 @@
 [
-  { "name": "glm-5.1" },
-  { "name": "deepseek-v4-pro" },
-  { "name": "kimi-k2.6" },
-  { "name": "qwen3.6-plus" },
-  { "name": "minimax-m2.7" },
-  { "name": "gpt-5.4" },
-  { "name": "gpt-5.5" },
-  { "name": "grok-4.3" },
-  { "name": "claude-opus-4.7" },
-  { "name": "gemini-3.1-pro" },
-  { "name": "gemini-3.1-pro-preview" },
-  { "name": "gemini-3.5-flash" }
+  { "name": "claude-opus-4.7", "providers": ["openrouter"] },
+  { "name": "deepseek-v4-pro", "providers": ["opencode-go"] },
+  { "name": "gemini-3.1-pro-preview", "providers": ["google", "github-copilot"] },
+  { "name": "gemini-3.1-pro", "providers": ["opencode"] },
+  { "name": "gemini-3.5-flash", "providers": ["opencode", "github-copilot", "google", "openrouter"] },
+  { "name": "glm-5.1", "providers": ["zai-coding-plan", "opencode-go"] },
+  { "name": "gpt-5.4", "providers": ["openrouter", "github-copilot"] },
+  { "name": "gpt-5.5", "providers": ["opencode"] },
+  { "name": "grok-4.3", "providers": ["openrouter"] },
+  { "name": "kimi-k2.6", "providers": ["opencode-go"] },
+  { "name": "minimax-m2.7", "providers": ["opencode-go"] },
+  { "name": "qwen3.6-plus", "providers": ["opencode-go"] }
 ]
