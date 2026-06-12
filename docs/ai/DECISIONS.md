@@ -278,6 +278,36 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Direct API calls via curl (used for MR description update), plain Git
 - **Tradeoff**: Requires binary installation (downloaded from GitLab releases). The CLI's default MR creation creates intra-fork MRs; cross-project MRs need explicit API call with `source_project_id`.
 
+## 2026-06-12: Backport zazentimer translate.ts improvements
+- **Choice**: Port all improvements from `zazentimer/prisma/translate.ts` to `polished-recognition/translation-engine/translate.ts`
+- **Reason**: zazentimer's version had proper session cleanup (`terminateSession` + `try/finally`), DB consistency validation at startup, external JSON for model providers, configurable settled threshold, dynamic `--help`, and `MIN_VOTE_PROFICIENCY` from db.ts. polished-recognition's was a stale fork with hardcoded providers, leaked sessions, and a "ZazenTimer" app_name bug.
+- **Considered**: Incrementally fixing each difference (slower, more error-prone)
+- **Tradeoff**: Changes also affect `db.ts` and `opencode_client.ts`. `export.ts` and `voting_api.tsx` still need updating (#25 not fully done).
+
+## 2026-06-12: Score-based settlement with configurable threshold
+- **Choice**: `getSettledStrings(langId, threshold = SETTLED_SCORE_THRESHOLD)` uses `e.score` instead of `e.modelCount`, filters by `score >= threshold` (default 7)
+- **Reason**: A single high-proficiency model (level 5) settles a string only with score >= 7 (requires at least two models). Score rewards both model agreement AND individual quality. `modelCount >= 3` was too coarse.
+- **Considered**: Keeping modelCount-based (user wanted score-based per #25)
+- **Tradeoff**: Threshold 7 means fewer strings auto-settle. More translation work per language but higher confidence in results.
+
+## 2026-06-12: terminateSession for session cleanup
+- **Choice**: Add `abortSession()` + `terminateSession()` to `opencode_client.ts`, add `try/finally` blocks around retry loops in `dispatchProficiency` and `dispatchTranslate`
+- **Reason**: polished-recognition used `closeSession()` without `try/finally` — sessions leaked on errors and timeouts. zazentimer's `terminateSession()` calls abort then close with proper error handling.
+- **Considered**: Wrapping existing `closeSession` calls (doesn't guarantee execution on exception)
+- **Tradeoff**: Two additional HTTP calls per session cleanup. Negligible compared to the session lifespan.
+
+## 2026-06-12: External JSON for model providers
+- **Choice**: `llmmodels_master.json` now contains `{ name, providers[] }` objects. `translate.ts` imports this JSON instead of hardcoding `MODEL_PROVIDERS_RAW`.
+- **Reason**: Single source of truth for model→provider mapping. Same JSON file is also used by `seed.ts` to populate the DB. Keeps model config synchronized between translation orchestrator and voting dashboard.
+- **Considered**: Keeping hardcoded map (simpler but out of sync with DB)
+- **Tradeoff**: JSON import requires Deno `with { type: "json" }` syntax. The JSON must exist at build time.
+
+## 2026-06-12: GitHub Actions build-* release cleanup filter
+- **Choice**: Add `grep '^build-'` to the cleanup pipeline in both `build.yml` and `release.yml` so only `build-*` releases are counted/deleted (v* releases are excluded)
+- **Reason**: The existing `build.yml` cleanup listed ALL releases and could accidentally delete `v*` Play Store release tags. `release.yml` had no cleanup at all, allowing build releases to accumulate.
+- **Considered**: Separate `gh` list filtering by tag prefix (not supported by `gh release list`)
+- **Tradeoff**: Pipeline now depends on `grep`. `gh release list --limit 100` is the API cap — works for repos with <100 releases.
+
 ## 2026-06-09: Remove signingConfigs.release for F-Droid
 - **Choice**: Remove the entire `signingConfigs { release { ... } }` block and `signingConfig` from `release` build type in `app/build.gradle.kts`
 - **Reason**: F-Droid's `fdroid build` could not find the signed APK output — `assembleRelease` produced no APK when a signing config with a keystore was active. Removing the signing config lets the build produce `app-release-unsigned.apk` which F-Droid finds and signs itself.

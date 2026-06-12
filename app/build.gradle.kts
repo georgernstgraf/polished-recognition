@@ -17,8 +17,8 @@ android {
         // 4. GitHub Actions build.yml → creates GitHub Release
         // 5. release.yml → signs + uploads to Play Store
         // 6. F-Droid auto-update picks up new tag automatically
-        versionCode = 900
-        versionName = "0.0.9"
+        versionCode = 1000
+        versionName = "0.1.0"
     }
 
     buildTypes {

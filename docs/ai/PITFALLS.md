@@ -49,3 +49,7 @@ Read this file carefully before making changes in affected areas.
 - Backslashes in F-Droid `UpdateCheckData` regex (`\d`, `\s`) must be preserved. Using `sed` for replacement eats the backslashes. Use Python or heredoc instead.
 - `fdroid lint` passes but `fdroid rewritemeta` and `fdroid build` may fail on unrelated apps in the same MR branch. This happens when the fork has additional metadata changes (e.g. a second app). Remove all files except the target app's metadata from the branch.
 - fdroid/fdroiddata upstream master does NOT contain `at.priv.graf.zazentimer.yml` (MR !39945 is not yet merged). Including it in a polished-recognition MR branch causes the maintainer to reject with "Add only one app in one MR."
+- `build.yml` cleanup step used `gh release list` without filtering, deleting ALL releases (including `v*` Play Store releases) when >7 total releases existed. Add `| grep '^build-'` to the pipeline.
+- `release.yml` may not trigger when a `v*` tag is pushed in the same push as a branch commit. Push tags separately or delete and re-create the remote tag to re-trigger.
+- `translate.ts` dispatch functions had `app_name: "ZazenTimer"` hardcoded — a copy-paste artifact from the original fork. Change to the correct app name.
+- `getSettledStrings()` callers in `voting_api.tsx` pass only one argument (langId). The function now has a second optional parameter `threshold`. Backward compatible but callers should be updated to pass an explicit threshold.
