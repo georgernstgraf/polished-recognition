@@ -13,10 +13,9 @@ android {
         // === RELEASE INSTRUCTIONS ===
         // 1. Bump versionCode + versionName here
         // 2. git commit -m "chore: bump version to X.Y.Z"
-        // 3. git tag vX.Y.Z && git push --tags
-        // 4. GitHub Actions build.yml → creates GitHub Release
-        // 5. release.yml → signs + uploads to Play Store
-        // 6. F-Droid auto-update picks up new tag automatically
+        // 3. git tag vX.Y.Z && git push origin vX.Y.Z
+        // 4. release.yml → signs + uploads to Play Store
+        // 5. F-Droid auto-update picks up new tag automatically
         versionCode = 1000
         versionName = "0.1.0"
     }
