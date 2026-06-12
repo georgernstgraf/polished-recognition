@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Polished Recognition</string>
+    <string name="app_name" translatable="false">Polished Recognition</string>
     <string name="settings_title">Configure Voice Providers</string>
     <string name="stt_section">STT (Speech-to-Text)</string>
     <string name="llm_section">LLM Post-Processing</string>
@@ -39,9 +39,9 @@
     <string name="error_transcription_failed">Transcription failed</string>
     <string name="error_postprocess_failed">Post-processing failed</string>
     <string name="reset_prompt">Reset</string>
-    <string name="prompt_variables">Variables:</string>
+    <string name="prompt_variables" translatable="false">Variables:</string>
     <string name="set_recognition_service">Set as Voice Input (Recognition Service)</string>
     <string name="voice_input_set_success">Voice input set to Polished Recognition</string>
     <string name="voice_input_info_title">Voice Input Setup</string>
-    <string name="voice_input_info_message">Polished Recognition works with English prompts, so enter your target language in English (e.g. "German" not "Deutsch").\n\nFull setup guide:\n<a href="https://github.com/georgernstgraf/polished-recognition#readme">github.com/georgernstgraf/polished-recognition#readme</a>\n\nMade with love by Georg Graf 💙</string>
+    <string name="voice_input_info_message" translatable="false">Polished Recognition works with English prompts, so enter your target language in English (e.g. "German" not "Deutsch").\n\nFull setup guide:\n<a href="https://github.com/georgernstgraf/polished-recognition#readme">github.com/georgernstgraf/polished-recognition#readme</a>\n\nMade with love by Georg Graf 💙</string>
 </resources>

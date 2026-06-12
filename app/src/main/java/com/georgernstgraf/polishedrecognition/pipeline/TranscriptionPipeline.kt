@@ -4,7 +4,6 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
-import com.georgernstgraf.polishedrecognition.config.LanguageMapper
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
@@ -26,7 +25,7 @@ class TranscriptionPipeline(
 
     data class SttResult(
         val text: String,
-        val languageCode: String? = null
+        val language: String? = null
     )
 
     suspend fun transcribe(wavFile: File): Result<String> = withContext(Dispatchers.IO) {
@@ -42,13 +41,13 @@ class TranscriptionPipeline(
         )
 
         val whisper = sttResult.getOrThrow()
-        val sourceLanguageName = LanguageMapper.mapCodeToName(whisper.languageCode)
+        val sourceLanguageName = capitalizeWords(whisper.language)
 
         val systemPrompt = promptStore.systemPrompt
         val userTemplate = promptStore.userPromptTemplate
 
         val translatePrompt = if (targetLanguage != null) {
-            promptStore.translatePromptTemplate.replace("{{target_language}}", LanguageMapper.mapCodeToName(targetLanguage))
+            promptStore.translatePromptTemplate.replace("{{target_language}}", targetLanguage)
         } else {
             ""
         }
@@ -103,6 +102,17 @@ class TranscriptionPipeline(
         }
 
         val body = response.body()!!
-        return Result.success(SttResult(text = body.text, languageCode = body.language))
+        return Result.success(SttResult(text = body.text, language = body.language))
+    }
+
+    companion object {
+        private fun capitalizeWords(input: String?): String {
+            if (input == null) return "unknown"
+            return input.trim()
+                .split(" ")
+                .joinToString(" ") { word ->
+                    word.replaceFirstChar { it.uppercase() }
+                }
+        }
     }
 }

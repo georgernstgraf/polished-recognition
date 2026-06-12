@@ -91,7 +91,7 @@ class TranscriptionPipelineTest {
 
     private fun mockSttSuccess() {
         every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
-            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "de")))
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "german")))
     }
 
     private fun mockChatSuccess(content: String = "Cleaned text") {
