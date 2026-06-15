@@ -1,3 +1,36 @@
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import java.io.File
+
+abstract class GitHashSource : ValueSource<String, ValueSourceParameters.None> {
+    override fun obtain(): String {
+        val process =
+            ProcessBuilder("git", "rev-parse", "--short=7", "HEAD")
+                .directory(File(System.getProperty("user.dir")))
+                .start()
+        process.waitFor()
+        return process.inputStream.bufferedReader().readText().trim()
+    }
+}
+
+abstract class CommitCountSource : ValueSource<String, ValueSourceParameters.None> {
+    override fun obtain(): String {
+        val tagProcess =
+            ProcessBuilder("git", "describe", "--tags", "--match", "v*", "--abbrev=0")
+                .directory(File(System.getProperty("user.dir")))
+                .start()
+        tagProcess.waitFor()
+        val tag = tagProcess.inputStream.bufferedReader().readText().trim()
+        if (!tag.startsWith("v")) return "0"
+        val countProcess =
+            ProcessBuilder("git", "rev-list", "$tag..HEAD", "--count")
+                .directory(File(System.getProperty("user.dir")))
+                .start()
+        countProcess.waitFor()
+        return countProcess.inputStream.bufferedReader().readText().trim()
+    }
+}
+
 plugins {
     id("com.android.application")
 }
@@ -18,6 +51,13 @@ android {
         // 5. F-Droid auto-update picks up new tag automatically
         versionCode = 1000
         versionName = "0.1.0"
+
+        val gitHash = providers.of(GitHashSource::class.java) {}.get().trim()
+        buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
+
+        val commitCount = providers.of(CommitCountSource::class.java) {}.get().trim()
+        val versionDisplay = if (commitCount == "0") versionName else "$versionName+$commitCount"
+        buildConfigField("String", "VERSION_DISPLAY", "\"$versionDisplay\"")
     }
 
     buildTypes {

@@ -5,7 +5,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
+import android.text.Html
 import android.text.TextWatcher
+import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -22,6 +24,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
+import com.georgernstgraf.polishedrecognition.BuildConfig
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
@@ -71,6 +74,10 @@ class SettingsActivity : AppCompatActivity() {
     private val userPromptField: TextInputEditText by lazy { findViewById(R.id.user_prompt) }
     private val translatePromptField: TextInputEditText by lazy { findViewById(R.id.translate_prompt) }
 
+    private val aboutVersionText: TextView by lazy { findViewById(R.id.about_version) }
+    private val aboutCommitText: TextView by lazy { findViewById(R.id.about_commit) }
+    private val aboutInfoText: TextView by lazy { findViewById(R.id.about_info) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -83,6 +90,7 @@ class SettingsActivity : AppCompatActivity() {
         setupListeners()
         loadSettings()
         setupDropdowns()
+        setupAboutSection()
     }
 
     private fun setupListeners() {
@@ -578,6 +586,13 @@ class SettingsActivity : AppCompatActivity() {
             .setAdapter(adapter as android.widget.ListAdapter, null)
             .setPositiveButton(android.R.string.ok, null)
             .show()
+    }
+
+    private fun setupAboutSection() {
+        aboutVersionText.text = getString(R.string.about_version, BuildConfig.VERSION_DISPLAY)
+        aboutCommitText.text = getString(R.string.about_commit, BuildConfig.GIT_HASH)
+        aboutInfoText.text = Html.fromHtml(getString(R.string.voice_input_info_message), Html.FROM_HTML_MODE_LEGACY)
+        aboutInfoText.movementMethod = LinkMovementMethod.getInstance()
     }
 
     private fun saveAndClose() {

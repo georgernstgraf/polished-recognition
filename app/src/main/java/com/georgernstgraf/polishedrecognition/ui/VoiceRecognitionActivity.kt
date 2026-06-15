@@ -4,8 +4,6 @@ import android.Manifest
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.text.Html
-import android.text.method.LinkMovementMethod
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
@@ -15,7 +13,6 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -54,7 +51,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     private val stopButton: Button by lazy { findViewById(R.id.stop_button) }
     private val elapsedText: TextView by lazy { findViewById(R.id.elapsed_text) }
     private val settingsButton: View by lazy { findViewById(R.id.settings_button) }
-    private val infoButton: View by lazy { findViewById(R.id.info_button) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,28 +66,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
 
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
-        }
-
-        infoButton.setOnClickListener {
-            val wasRecording = isRecording
-            if (wasRecording) {
-                audioRecorder.pause()
-                isRecording = false
-                stopBlink()
-            }
-            val dialog = AlertDialog.Builder(this)
-                .setTitle(R.string.voice_input_info_title)
-                .setMessage(Html.fromHtml(getString(R.string.voice_input_info_message), Html.FROM_HTML_MODE_LEGACY))
-                .setPositiveButton(android.R.string.ok, null)
-                .setOnDismissListener {
-                    if (wasRecording) {
-                        audioRecorder.resume(recorderListener)
-                        isRecording = true
-                        startBlink()
-                    }
-                }
-                .show()
-            dialog.findViewById<android.widget.TextView>(android.R.id.message)?.movementMethod = LinkMovementMethod.getInstance()
         }
 
         if (hasRecordPermission()) {
@@ -208,8 +182,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         stopButton.isEnabled = true
         settingsButton.isEnabled = false
         settingsButton.alpha = 0.3f
-        infoButton.isEnabled = false
-        infoButton.alpha = 0.3f
     }
 
     private fun setButtonsForPause() {
@@ -218,8 +190,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         stopButton.isEnabled = true
         settingsButton.isEnabled = true
         settingsButton.alpha = 1.0f
-        infoButton.isEnabled = true
-        infoButton.alpha = 1.0f
     }
 
     private fun setButtonsForProcessing() {
@@ -228,8 +198,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         stopButton.isEnabled = false
         settingsButton.isEnabled = false
         settingsButton.alpha = 0.3f
-        infoButton.isEnabled = false
-        infoButton.alpha = 0.3f
     }
 
     private fun startBlink() {

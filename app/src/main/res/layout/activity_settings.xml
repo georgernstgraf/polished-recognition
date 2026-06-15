@@ -406,7 +406,45 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/save"
-            style="@style/Widget.Material3.Button" />
+            style="@style/Widget.Material3.Button"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- About Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/about_title"
+            android:textAppearance="?attr/textAppearanceHeadline6"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:id="@+id/about_version"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginBottom="2dp"/>
+
+        <TextView
+            android:id="@+id/about_commit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:id="@+id/about_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/voice_input_info_message"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?android:attr/textColorTertiary"
+            android:clickable="true"
+            android:focusable="true"
+            android:autoLink="web"
+            android:padding="4dp"
+            android:layout_marginStart="-4dp"/>
 
     </LinearLayout>
 </ScrollView>

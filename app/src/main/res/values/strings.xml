@@ -44,4 +44,8 @@
     <string name="voice_input_set_success">Voice input set to Polished Recognition</string>
     <string name="voice_input_info_title">Voice Input Setup</string>
     <string name="voice_input_info_message" translatable="false">Polished Recognition works with English prompts, so enter your target language in English (e.g. "German" not "Deutsch").\n\nFull setup guide:\n<a href="https://github.com/georgernstgraf/polished-recognition#readme">github.com/georgernstgraf/polished-recognition#readme</a>\n\nMade with love by Georg Graf 💙</string>
+
+    <string name="about_title">About</string>
+    <string name="about_version">Version: %s</string>
+    <string name="about_commit">Commit: %s</string>
 </resources>

@@ -1,18 +1,14 @@
 # Project State
 
-Current status as of 2026-06-12.
+Current status as of 2026-06-15.
 
 ## Current Focus
-Translation engine backport from zazentimer — score-based settlement, session cleanup, DB consistency validation, JSON-driven model providers.
+Polished Recognition Android app — About section with VERSION_DISPLAY.
 
 ## Completed (this cycle)
-- [x] `getSettledStrings()` now uses score-based filtering with configurable threshold (default `SETTLED_SCORE_THRESHOLD = 7`)
-- [x] `translate.ts` backported from zazentimer: JSON model config, `--settled-threshold` CLI arg, `terminateSession` + `try/finally`, `validateDatabaseConsistency()`, `MIN_VOTE_PROFICIENCY` from db.ts, fixed app_name
-- [x] `llmmodels_master.json` now includes `providers` arrays per model
-- [x] `opencode_client.ts` gains `abortSession()` and `terminateSession()`
-- [x] `db.ts` gains `SETTLED_SCORE_THRESHOLD`, `MIN_VOTE_PROFICIENCY`, `parseMasterStringsXml`, `checkModelConsistency`, `checkLanguageConsistency`, `checkMasterStringConsistency`
-- [x] GitHub Actions: `build.yml` cleanup filter fixed (grep `^build-`), same cleanup added to `release.yml`
-- [x] Issue #25 partial implementation committed and pushed
+- [x] Issue #28: Added about section to SettingsActivity with `BuildConfig.VERSION_DISPLAY`, `BuildConfig.GIT_HASH`, and setup guide text (moved from VoiceRecognitionActivity info dialog)
+- [x] Removed info button from VoiceRecognitionActivity (layout + code) — recording screen now has only settings, cancel, pause/resume, stop
+- [x] Added `GitHashSource` and `CommitCountSource` Gradle ValueSource classes (like zazentimer) to `app/build.gradle.kts`
 
 ## Pending
 - [ ] Issue #25 remaining: `export.ts` and `voting_api.tsx` need score-based threshold updates

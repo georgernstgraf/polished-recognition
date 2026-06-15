@@ -308,6 +308,12 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Separate `gh` list filtering by tag prefix (not supported by `gh release list`)
 - **Tradeoff**: Pipeline now depends on `grep`. `gh release list --limit 100` is the API cap — works for repos with <100 releases.
 
+## 2026-06-15: VERSION_DISPLAY + About section in Settings
+- **Choice**: Added `GitHashSource` and `CommitCountSource` Gradle `ValueSource` classes (identical to zazentimer) generating `BuildConfig.GIT_HASH` and `BuildConfig.VERSION_DISPLAY`. Added about section at bottom of `SettingsActivity` showing version, commit hash, and the setup guide text. Removed the info button from `VoiceRecognitionActivity` (its content moved to settings).
+- **Reason**: Users need to see the installed version for bug reports. The setup guide belongs in the configuration screen, not on the recording overlay. Removing the info button declutters the recording screen.
+- **Considered**: Keeping info button on recording screen (redundant after settings about section)
+- **Tradeoff**: Users must open Settings to find the README link and credits. Recording screen is cleaner with 3 buttons (cancel/pause-resume/stop) + settings gear.
+
 ## 2026-06-09: Remove signingConfigs.release for F-Droid
 - **Choice**: Remove the entire `signingConfigs { release { ... } }` block and `signingConfig` from `release` build type in `app/build.gradle.kts`
 - **Reason**: F-Droid's `fdroid build` could not find the signed APK output — `assembleRelease` produced no APK when a signing config with a keystore was active. Removing the signing config lets the build produce `app-release-unsigned.apk` which F-Droid finds and signs itself.
