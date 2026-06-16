@@ -52,6 +52,7 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     private var timerJob: Job? = null
     private var recordingStartMs: Long = 0
     private var recordedDurationMs: Long = 0
+    private var silenceRawListener = false
 
     private val statusText: TextView by lazy { findViewById(R.id.status_text) }
     private val cancelButton: Button by lazy { findViewById(R.id.cancel_button) }
@@ -217,33 +218,32 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     }
 
     private fun setupQuickSettings() {
-        val languages = buildLanguageList(settings.customLanguages)
-        quickLanguage.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages)
-        )
-
-        quickRaw.setOnCheckedChangeListener { _, isChecked ->
-            settings.rawMode = isChecked
-            updateLanguageDropdownEnabled()
-        }
+        quickLanguage.threshold = Int.MAX_VALUE
+        quickLanguage.setOnClickListener { quickLanguage.showDropDown() }
 
         quickLanguage.setOnItemClickListener { parent, _, position, _ ->
             val selected = parent.getItemAtPosition(position) as String
             settings.targetLanguage = if (selected == NONE_TARGET_LANGUAGE) null else selected
         }
 
-        refreshQuickSettings()
+        quickRaw.setOnCheckedChangeListener { _, isChecked ->
+            if (silenceRawListener) return@setOnCheckedChangeListener
+            settings.rawMode = isChecked
+            updateLanguageDropdownEnabled()
+        }
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun refreshQuickSettings() {
         val languages = buildLanguageList(settings.customLanguages)
-        (quickLanguage.adapter as? ArrayAdapter<String>)?.clear()
-        (quickLanguage.adapter as? ArrayAdapter<String>)?.addAll(languages)
+        quickLanguage.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages)
+        )
 
+        silenceRawListener = true
         quickRaw.isChecked = settings.rawMode
-        val current = settings.targetLanguage
-        quickLanguage.setText(current ?: NONE_TARGET_LANGUAGE, false)
+        silenceRawListener = false
+
+        quickLanguage.setText(settings.targetLanguage ?: NONE_TARGET_LANGUAGE, false)
         updateLanguageDropdownEnabled()
     }
 
