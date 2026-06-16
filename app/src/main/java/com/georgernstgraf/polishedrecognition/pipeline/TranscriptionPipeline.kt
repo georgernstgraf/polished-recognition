@@ -28,13 +28,22 @@ class TranscriptionPipeline(
         val language: String? = null
     )
 
-    suspend fun transcribe(wavFile: File): Result<String> = withContext(Dispatchers.IO) {
+    enum class TranscriptionStage {
+        REQUESTING_STT,
+        REQUESTING_LLM
+    }
+
+    suspend fun transcribe(
+        wavFile: File,
+        onStageChange: ((TranscriptionStage) -> Unit)? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
         val sttConfig = settingsStore.sttProvider
             ?: return@withContext Result.failure(Exception("STT provider not configured"))
 
         val rawMode = settingsStore.rawMode
         val targetLanguage = settingsStore.targetLanguage
 
+        onStageChange?.invoke(TranscriptionStage.REQUESTING_STT)
         val sttResult = runStt(wavFile, sttConfig)
         if (sttResult.isFailure) return@withContext Result.failure(
             Exception("STT transcription failed: ${sttResult.exceptionOrNull()?.message}")
@@ -63,6 +72,8 @@ class TranscriptionPipeline(
 
         val llmConfig = settingsStore.llmProvider
             ?: return@withContext Result.failure(Exception("LLM provider not configured"))
+
+        onStageChange?.invoke(TranscriptionStage.REQUESTING_LLM)
 
         val request = ChatRequest(
             model = llmConfig.model,

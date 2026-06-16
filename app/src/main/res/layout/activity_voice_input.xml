@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#E6000000">
+    android:background="@color/recording_overlay">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -22,7 +22,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Recording\u2026"
-            android:textColor="@android:color/white"
+            android:textColor="@color/recording_text_primary"
             android:textSize="28sp"
             android:layout_marginBottom="32dp"/>
 
@@ -50,10 +50,10 @@
                 android:clickable="true"
                 android:focusable="false"
                 android:focusableInTouchMode="false"
-                android:textColor="@android:color/white"
+                android:textColor="@color/recording_text_primary"
                 android:textSize="14sp"
                 android:hint="Language"
-                android:textColorHint="#99FFFFFF"
+                android:textColorHint="@color/recording_text_hint"
                 android:background="@null"
                 android:paddingStart="0dp"
                 android:paddingEnd="8dp"
@@ -63,7 +63,7 @@
             <View
                 android:layout_width="1dp"
                 android:layout_height="24dp"
-                android:background="#4DFFFFFF"
+                android:background="@color/recording_divider"
                 android:layout_marginEnd="12dp" />
 
             <CheckBox
@@ -71,9 +71,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Raw"
-                android:textColor="@android:color/white"
+                android:textColor="@color/recording_text_primary"
                 android:textSize="14sp"
-                android:buttonTint="@android:color/white" />
+                android:buttonTint="@color/recording_text_primary" />
 
         </LinearLayout>
 
@@ -95,7 +95,7 @@
                 android:layout_height="56dp"
                 android:text=""
                 android:contentDescription="Cancel"
-                android:textColor="@android:color/white"
+                android:textColor="@color/recording_text_primary"
                 app:icon="@drawable/ic_close"
                 app:iconSize="32dp"
                 app:iconGravity="textStart"
@@ -115,7 +115,7 @@
                 android:layout_height="56dp"
                 android:text=""
                 android:contentDescription="Pause"
-                android:textColor="@android:color/white"
+                android:textColor="@color/recording_text_primary"
                 app:icon="@drawable/ic_pause"
                 app:iconSize="32dp"
                 app:iconGravity="textStart"
@@ -134,7 +134,7 @@
                 android:layout_height="56dp"
                 android:text=""
                 android:contentDescription="Send"
-                android:textColor="@android:color/white"
+                android:textColor="@color/recording_text_primary"
                 app:icon="@drawable/ic_send"
                 app:iconSize="32dp"
                 app:iconGravity="textStart"
@@ -166,7 +166,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Settings"
         android:scaleType="centerInside"
-        android:tint="@android:color/white"/>
+        android:tint="@color/recording_icon_tint"/>
 
     <TextView
         android:id="@+id/elapsed_text"
@@ -174,9 +174,11 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center"
         android:text="00:00"
-        android:textColor="#80FFFFFF"
+        android:textColor="@color/recording_text_secondary"
         android:textSize="18sp"
         android:fontFamily="monospace"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
         android:layout_marginBottom="48dp"/>
 
 </FrameLayout>

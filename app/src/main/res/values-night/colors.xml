@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="recording_overlay">#E6000000</color>
+    <color name="recording_text_primary">#FFFFFF</color>
+    <color name="recording_text_secondary">#80FFFFFF</color>
+    <color name="recording_text_hint">#99FFFFFF</color>
+    <color name="recording_divider">#4DFFFFFF</color>
+    <color name="recording_pill_bg">#33FFFFFF</color>
+    <color name="recording_icon_tint">#FFFFFF</color>
+</resources>

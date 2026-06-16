@@ -24,6 +24,7 @@ import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -157,6 +158,13 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     }
 
     private fun stopRecording() {
+        val durationMs = if (isRecording) {
+            recordedDurationMs + (System.currentTimeMillis() - recordingStartMs)
+        } else {
+            recordedDurationMs
+        }
+        val durationStr = "%02d:%02d".format(durationMs / 1000 / 60, durationMs / 1000 % 60)
+
         isRecording = false
         isPaused = false
         stopBlink()
@@ -172,7 +180,19 @@ class VoiceRecognitionActivity : AppCompatActivity() {
                 val file = File(cacheDir, "recording.wav")
                 file.writeBytes(wavData)
 
-                val result = app.transcriptionPipeline.transcribe(file)
+                val result = app.transcriptionPipeline.transcribe(file) { stage ->
+                    runOnUiThread {
+                        elapsedText.text = when (stage) {
+                            TranscriptionPipeline.TranscriptionStage.REQUESTING_STT ->
+                                "requesting $durationStr STT\u2026"
+                            TranscriptionPipeline.TranscriptionStage.REQUESTING_LLM -> {
+                                val tl = settings.targetLanguage
+                                if (tl != null) "requesting clean up ($tl)\u2026"
+                                else "requesting clean up\u2026"
+                            }
+                        }
+                    }
+                }
                 file.delete()
 
                 if (result.isSuccess) {
