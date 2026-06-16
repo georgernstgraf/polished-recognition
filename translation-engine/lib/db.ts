@@ -5,7 +5,17 @@ let prisma = await getPrisma();
 const NOT_EMPTY = { translation: { not: "" as const } };
 
 export const SETTLED_SCORE_THRESHOLD = 7;
+export const TRANSLATION_SCORE_THRESHOLD = 3;
 export const MIN_VOTE_PROFICIENCY = 2;
+
+function byScoreThenCount(
+    a: { score: number; modelCount: number },
+    b: { score: number; modelCount: number },
+): number {
+    const ds = b.score - a.score;
+    if (ds !== 0) return ds;
+    return b.modelCount - a.modelCount;
+}
 
 // ── Models ──────────────────────────────────────────────────────────────────
 
@@ -399,7 +409,7 @@ export async function getEvaluation(langId: number) {
     });
 
     const profs = await prisma.language_proficiencies.findMany({
-        where: { languageId: langId, level: { gte: 2 } },
+        where: { languageId: langId },
         include: { llm_model: true },
     });
 
@@ -453,11 +463,7 @@ export async function getEvaluation(langId: number) {
             const j = Math.floor(Math.random() * (i + 1));
             [values[i], values[j]] = [values[j], values[i]];
         }
-        const ranked = values.sort((a, b) => {
-            const dc = b.modelCount - a.modelCount;
-            if (dc !== 0) return dc;
-            return b.score - a.score;
-        });
+        const ranked = values.sort(byScoreThenCount);
         result.push(...ranked);
     }
     return result.map((r) => ({
@@ -466,9 +472,10 @@ export async function getEvaluation(langId: number) {
     }));
 }
 
-export async function getBestTranslation(
+export async function getTranslation(
     text: string,
     bcp47: string,
+    minScore = TRANSLATION_SCORE_THRESHOLD,
 ): Promise<{ translation: string; modelCount: number; score: number } | null> {
     const ms = await prisma.master_strings.findUnique({ where: { text } });
     if (!ms) return null;
@@ -492,12 +499,10 @@ export async function getBestTranslation(
     const profs = await prisma.language_proficiencies.findMany({
         where: {
             languageId: lang.id,
-            llm_modelsId: { in: modelIds },
-            level: { gte: 2 },
+            modelId: { in: modelIds },
         },
-        include: { llm_model: true },
     });
-    const modelLevels = new Map(profs.map((p) => [p.llm_model.id, p.level]));
+    const modelLevels = new Map(profs.map((p) => [p.modelId, p.level]));
 
     const groups = new Map<string, { modelCount: number; score: number }>();
     for (const v of votes) {
@@ -518,17 +523,15 @@ export async function getBestTranslation(
         score: g.score,
     }));
 
-    // Fisher-Yates shuffle + sort
+    if (entries.length === 0) return null;
+
     for (let i = entries.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [entries[i], entries[j]] = [entries[j], entries[i]];
     }
-    entries.sort((a, b) => {
-        const dc = b.modelCount - a.modelCount;
-        if (dc !== 0) return dc;
-        return b.score - a.score;
-    });
+    entries.sort(byScoreThenCount);
 
+    if (entries[0].score < minScore) return null;
     return entries[0];
 }
 
@@ -549,7 +552,7 @@ export async function getSettledStrings(
     );
 }
 
-export async function getStringSettlement(stringId: number) {
+export async function getStringSettlement(stringId: number, threshold = SETTLED_SCORE_THRESHOLD) {
     const votes = await prisma.votes.findMany({
         where: { master_stringsId: stringId, ...NOT_EMPTY },
         include: { language: true, llm_model: true },
@@ -559,7 +562,6 @@ export async function getStringSettlement(stringId: number) {
     const langIds = [...new Set(votes.map((v) => v.languagesId))];
     const profs = await prisma.language_proficiencies.findMany({
         where: {
-            level: { gte: 2 },
             modelId: { in: modelIds },
             languageId: { in: langIds },
         },
@@ -573,7 +575,7 @@ export async function getStringSettlement(stringId: number) {
     const langData = new Map<number, {
         bcp47: string;
         englishName: string;
-        translations: Map<string, { count: number; score: number }>;
+        translations: Map<string, { modelCount: number; score: number }>;
     }>();
 
     for (const v of votes) {
@@ -589,29 +591,27 @@ export async function getStringSettlement(stringId: number) {
         }
         const lang = langData.get(v.languagesId)!;
         if (!lang.translations.has(v.translation)) {
-            lang.translations.set(v.translation, { count: 0, score: 0 });
+            lang.translations.set(v.translation, { modelCount: 0, score: 0 });
         }
         const t = lang.translations.get(v.translation)!;
-        t.count++;
+        t.modelCount++;
         t.score += level;
     }
 
     const languages = [...langData.entries()].map(([langId, data]) => {
-        const best = [...data.translations.entries()]
-            .sort((a, b) => {
-                const dc = b[1].count - a[1].count;
-                if (dc !== 0) return dc;
-                return b[1].score - a[1].score;
-            })[0];
+        const sorted = [...data.translations.entries()]
+            .map(([translation, stats]) => ({ translation, ...stats }))
+            .sort(byScoreThenCount);
+        const best = sorted[0];
 
         return {
             languageId: langId,
             bcp47: data.bcp47,
             englishName: data.englishName,
-            translation: best[0],
-            voteCount: best[1].count,
-            score: best[1].score,
-            settled: best[1].count >= 3,
+            translation: best.translation,
+            voteCount: best.modelCount,
+            score: best.score,
+            settled: best.score >= threshold,
         };
     });
 

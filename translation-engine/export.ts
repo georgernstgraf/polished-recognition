@@ -2,6 +2,7 @@ import {
     getEvaluation,
     getLanguagesWithVotes,
     getMasterStringByText,
+    TRANSLATION_SCORE_THRESHOLD,
 } from "./lib/db.ts";
 
 // ── XML Helpers ────────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ async function main() {
         // First entry per master_stringsId is the tiebreak winner
         const winners = new Map<number, string>();
         for (const row of evaluation) {
-            if (!winners.has(row.master_stringsId)) {
+            if (!winners.has(row.master_stringsId) && row.score >= TRANSLATION_SCORE_THRESHOLD) {
                 winners.set(row.master_stringsId, row.translation);
             }
         }
@@ -148,6 +149,8 @@ async function main() {
             entries.push({ key: src.key, text: translation });
         }
         entries.sort((a, b) => a.key.localeCompare(b.key));
+
+        if (entries.length === 0) continue;
 
         const lines: string[] = [];
         lines.push('<?xml version="1.0" encoding="utf-8"?>');
