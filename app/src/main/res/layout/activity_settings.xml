@@ -66,7 +66,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/manage_custom_languages"
-            android:textColor="?attr/colorPrimary"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:clickable="true"
             android:focusable="true"

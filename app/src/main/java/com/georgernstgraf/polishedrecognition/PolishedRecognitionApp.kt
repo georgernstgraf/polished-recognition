@@ -11,6 +11,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.PromptLogger
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
+import com.google.android.material.color.DynamicColors
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -24,6 +25,7 @@ class PolishedRecognitionApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DynamicColors.applyToActivitiesIfAvailable(this)
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             val type = throwable.javaClass.name
             val message = throwable.message ?: ""
