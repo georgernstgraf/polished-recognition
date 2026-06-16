@@ -49,8 +49,8 @@ android {
         // 3. git tag vX.Y.Z && git push origin vX.Y.Z
         // 4. release.yml → signs + uploads to Play Store
         // 5. F-Droid auto-update picks up new tag automatically
-        versionCode = 1000
-        versionName = "0.1.0"
+        versionCode = 10000
+        versionName = "1.0.0"
 
         val gitHash = providers.of(GitHashSource::class.java) {}.get().trim()
         buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
