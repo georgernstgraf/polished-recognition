@@ -314,8 +314,15 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Keeping info button on recording screen (redundant after settings about section)
 - **Tradeoff**: Users must open Settings to find the README link and credits. Recording screen is cleaner with 3 buttons (cancel/pause-resume/stop) + settings gear.
 
-## 2026-06-09: Remove signingConfigs.release for F-Droid
+## 2026-06-09: Remove signingConfigs.release for F-Droid [SUPERSEDED]
 - **Choice**: Remove the entire `signingConfigs { release { ... } }` block and `signingConfig` from `release` build type in `app/build.gradle.kts`
 - **Reason**: F-Droid's `fdroid build` could not find the signed APK output — `assembleRelease` produced no APK when a signing config with a keystore was active. Removing the signing config lets the build produce `app-release-unsigned.apk` which F-Droid finds and signs itself.
 - **Considered**: Keeping signing config with `output:` directive (wrong path, APK naming mismatch), creating dummy keystore via `prebuild` (worked locally but F-Droid's Gradle setup changed output behavior)
 - **Tradeoff**: Local `./gradlew assembleRelease` now produces unsigned APK. GitHub CI workflows (`build.yml`, `release.yml`) inject signing via `-Pandroid.injected.signing.*` properties, so releases remain signed.
+- **Superseded by**: 2026-06-16: Conditional signingConfig (file-existence guarded) (#30) — restored local `installRelease` without disturbing F-Droid/CI.
+
+## 2026-06-16: Conditional signingConfig (file-existence guarded)
+- **Choice**: Define `signingConfigs.release` and assign `release.signingConfig` in `app/build.gradle.kts` only when `file("release.keystore").exists()`.
+- **Reason**: Reconciles three conflicting requirements: (a) local `./gradlew installRelease` needs a signed release variant or AGP won't generate the install task (PITFALL #39); (b) `build.yml` and F-Droid expect unsigned `app-release-unsigned.apk`; (c) `release.yml` signs the AAB via `-Pandroid.injected.signing.*` independently. The keystore is gitignored, so it exists only on the dev machine and is absent in all CI/F-Droid environments — the `exists()` guard makes signing active locally and inert elsewhere.
+- **Considered**: Command-line `-Pandroid.injected.signing.*` per local invocation (works but loses the one-command `installRelease` workflow documented in AGENTS.md), unconditional `signingConfigs` (breaks F-Droid — missing keystore file in their container).
+- **Tradeoff**: Local `assembleRelease` now yields `app-release.apk` (signed) instead of `-unsigned`; harmless locally, and CI/F-Droid are unaffected (keystore absent → unsigned).

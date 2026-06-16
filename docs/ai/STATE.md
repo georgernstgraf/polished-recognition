@@ -1,25 +1,23 @@
 # Project State
 
-Current status as of 2026-06-15.
+Current status as of 2026-06-16.
 
 ## Current Focus
-Polished Recognition Android app — About section with VERSION_DISPLAY.
+Issue #29 (quick-settings pill on recording screen) — DONE and verified on device. Next: finish #25 remaining items.
 
 ## Completed (this cycle)
-- [x] Issue #30: Restored `./gradlew installRelease` via conditional `signingConfig` in `app/build.gradle.kts`, guarded by `file("release.keystore").exists()`. Safe for build.yml/release.yml/F-Droid (keystore absent there → unsigned output). Local APK now `app-release.apk` (signed).
-- [x] Issue #28: Added about section to SettingsActivity with `BuildConfig.VERSION_DISPLAY`, `BuildConfig.GIT_HASH`, and setup guide text (moved from VoiceRecognitionActivity info dialog)
-- [x] Removed info button from VoiceRecognitionActivity (layout + code) — recording screen now has only settings, cancel, pause/resume, stop
-- [x] Added `GitHashSource` and `CommitCountSource` Gradle ValueSource classes (like zazentimer) to `app/build.gradle.kts`
+- [x] Issue #29: Quick language/raw settings pill on the recording screen. Language `AutoCompleteTextView` now opens on the first tap (`focusable=false` + `focusableInTouchMode=false`, `setOnClickListener { showDropDown() }`, `threshold = Int.MAX_VALUE`, `inputType="none"`) — HTML `<select>`-like. Adapter is re-created in `refreshQuickSettings()` (called from `onResume`) so the option list repopulates after a Settings detour. RAW checkbox restore guarded by `silenceRawListener`. Layout spacing widened (status→pill 32dp, pill→buttons 48dp).
+- [x] Issue #30: Restored `./gradlew installRelease` via a conditional `signingConfig` guarded by `file("release.keystore").exists()`. Safe for build.yml/release.yml/F-Droid (keystore absent there → unsigned output).
+- [x] Issue #28: About section in SettingsActivity with `BuildConfig.VERSION_DISPLAY` / `GIT_HASH`.
 
 ## Pending
-- [ ] Issue #25 remaining: `export.ts` and `voting_api.tsx` need score-based threshold updates
-- [ ] Issue #25 remaining: `getAggregatedTranslations()` in db.ts still uses count-based settlement
+- [ ] Issue #25 remaining: `export.ts` (`--min-score`, `getBestTranslation`), `voting_api.tsx` (`score >= 7`), `getAggregatedTranslations()` in `db.ts` (still count-based)
 - [ ] F-Droid MR !40029 — waiting for maintainer review
-- [ ] F-Droid MR !39945 — waiting for maintainer review
+- [ ] F-Droid MR !39945 (Zazen Meditation Timer) — waiting for maintainer review
 - [ ] Issue #20: Play Console preconditions before production track
 
 ## Blocker
 None
 
 ## Next Session Suggestion
-Finish issue #25: update `export.ts` with `--min-score` and `getBestTranslation`, update `voting_api.tsx` hardcoded `modelCount >= 3` → `score >= 7`.
+Finish #25: update `export.ts` with `--min-score` and `getBestTranslation`; update `voting_api.tsx` hardcoded `modelCount >= 3` → `score >= 7`; convert `getAggregatedTranslations()` in `db.ts` to score-based.
