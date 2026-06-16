@@ -183,12 +183,13 @@ class VoiceRecognitionActivity : AppCompatActivity() {
                 val result = app.transcriptionPipeline.transcribe(file) { stage ->
                     runOnUiThread {
                         elapsedText.text = when (stage) {
-                            TranscriptionPipeline.TranscriptionStage.REQUESTING_STT ->
+                            is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                                 "requesting $durationStr STT\u2026"
-                            TranscriptionPipeline.TranscriptionStage.REQUESTING_LLM -> {
+                            is TranscriptionPipeline.TranscriptionStage.RequestingLlm -> {
                                 val tl = settings.targetLanguage
-                                if (tl != null) "requesting clean up ($tl)\u2026"
-                                else "requesting clean up\u2026"
+                                val base = if (tl != null) "requesting clean up ($tl)"
+                                    else "requesting clean up"
+                                "$base, ~ ${stage.wordCount} words\u2026"
                             }
                         }
                     }

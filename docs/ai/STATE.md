@@ -6,7 +6,7 @@ Current status as of 2026-06-16.
 Issue #32 complete. Recording screen is now DayNight-aware and shows pipeline stage messages. Next: Play Console preconditions (#20) or new feature work.
 
 ## Completed (this cycle)
-- [x] Issue #32: DayNight-aware recording screen (7 color resources in values/colors.xml + values-night/colors.xml, all hardcoded colors in layout replaced with @color/ references). Pipeline status messages via TranscriptionStage enum + optional onStageChange callback on TranscriptionPipeline.transcribe(). Bottom elapsed_text shows "requesting 7:23 STT…" then "requesting clean up (German)…" during API calls. 16dp horizontal padding on status line.
+- [x] Issue #32: DayNight-aware recording screen (7 color resources in values/colors.xml + values-night/colors.xml, all hardcoded colors in layout replaced with @color/ references). Pipeline status messages via TranscriptionStage sealed class + optional onStageChange callback on TranscriptionPipeline.transcribe(). Bottom elapsed_text shows "requesting 7:23 STT…" then "requesting clean up (German), ~ 123 words…" during API calls (LLM message includes Whisper text word count). 16dp horizontal padding on status line.
 - [x] Issue #25: Score-based settlement migration complete.
 - [x] Issue #29: Quick language/raw settings pill on the recording screen.
 - [x] Issue #30: Restored `./gradlew installRelease` via conditional `signingConfig`.

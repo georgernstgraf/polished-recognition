@@ -28,9 +28,9 @@ class TranscriptionPipeline(
         val language: String? = null
     )
 
-    enum class TranscriptionStage {
-        REQUESTING_STT,
-        REQUESTING_LLM
+    sealed class TranscriptionStage {
+        object RequestingStt : TranscriptionStage()
+        data class RequestingLlm(val wordCount: Int) : TranscriptionStage()
     }
 
     suspend fun transcribe(
@@ -43,7 +43,7 @@ class TranscriptionPipeline(
         val rawMode = settingsStore.rawMode
         val targetLanguage = settingsStore.targetLanguage
 
-        onStageChange?.invoke(TranscriptionStage.REQUESTING_STT)
+        onStageChange?.invoke(TranscriptionStage.RequestingStt)
         val sttResult = runStt(wavFile, sttConfig)
         if (sttResult.isFailure) return@withContext Result.failure(
             Exception("STT transcription failed: ${sttResult.exceptionOrNull()?.message}")
@@ -73,7 +73,11 @@ class TranscriptionPipeline(
         val llmConfig = settingsStore.llmProvider
             ?: return@withContext Result.failure(Exception("LLM provider not configured"))
 
-        onStageChange?.invoke(TranscriptionStage.REQUESTING_LLM)
+        onStageChange?.invoke(
+            TranscriptionStage.RequestingLlm(
+                whisper.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+            )
+        )
 
         val request = ChatRequest(
             model = llmConfig.model,
