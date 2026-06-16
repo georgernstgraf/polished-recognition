@@ -8,7 +8,6 @@
 - zazentimer#271 — voting_api.tsx settlement checks still use `modelCount >= 3` instead of `score >= SETTLED_SCORE_THRESHOLD` (same bug that was fixed here)
 
 ## Completed
-Issues #30, #29, #28, #27, #26, #25, #19, #18, #17, #16, #15, #14, #5, #1 closed.
-Issue #25 fully complete: score-based settlement migrated across `db.ts`, `export.ts`, `voting_api.tsx`.
+Issues #32, #30, #29, #28, #27, #26, #25, #19, #18, #17, #16, #15, #14, #5, #1 closed.
 
 Last updated: 2026-06-16.

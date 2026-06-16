@@ -332,3 +332,15 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: The DB layer should return all data; policy decisions about which models qualify belong in the orchestration layer. `byScoreThenCount` (score-first) replaces the old count-first sort because score rewards both agreement AND individual model quality — a single level-5 model agreeing with a level-2 model (score=7) should outrank three level-1 models agreeing (score=3). Zazentimer pioneered this approach; polished-recognition now matches.
 - **Considered**: Keeping `level: { gte: 2 }` in DB queries (redundant with `translate.ts` filtering; couples DB layer to proficiency policy). Keeping count-first sort (too coarse — treats all models equally regardless of quality).
 - **Tradeoff**: If votes exist from models without proficiency records (edge case), they are silently excluded by the `if (!level) continue` guard in scoring loops.
+
+## 2026-06-16: DayNight-aware recording screen (#32)
+- **Choice**: Created `values/colors.xml` (light) and `values-night/colors.xml` (dark) with 7 theme-aware color resources (`recording_overlay`, `recording_text_primary`, `recording_text_secondary`, `recording_text_hint`, `recording_divider`, `recording_pill_bg`, `recording_icon_tint`). Replaced all hardcoded color literals in `activity_voice_input.xml` and `bg_quick_settings_pill.xml`.
+- **Reason**: The recording screen hardcoded `#E6000000` background and white text/icons. The theme inherits `Theme.Material3.DayNight`, so Settings correctly follows system light/dark — but the recording screen ignored it entirely. Users in light mode saw a jarring dark overlay.
+- **Considered**: Using Material theme attributes (`?attr/colorBackground` etc.) — too generic for a translucent overlay that needs specific opacity values different from the standard surface colors.
+- **Tradeoff**: Button action colors (red/blue/yellow/green) stay hardcoded — they are semantic action colors that work on both light and dark backgrounds.
+
+## 2026-06-16: Pipeline stage callback for status messages (#32)
+- **Choice**: Added `TranscriptionStage` enum (`REQUESTING_STT`, `REQUESTING_LLM`) and optional `onStageChange: ((TranscriptionStage) -> Unit)? = null` callback parameter to `TranscriptionPipeline.transcribe()`. The activity passes a callback that updates the bottom `elapsed_text` via `runOnUiThread`.
+- **Reason**: The pipeline was a single suspend function with no stage visibility. The UI could only show "Processing…" for the entire duration. Users had no feedback during potentially long STT/LLM calls.
+- **Considered**: Splitting `transcribe()` into two public methods called sequentially from the activity (changes the API more drastically; harder to maintain atomic error handling). Using a Flow/Channel (overkill for 2 stage transitions).
+- **Tradeoff**: The callback runs on the IO thread (inside `withContext`); the activity must marshal UI updates via `runOnUiThread`. The `null` default ensures existing callers (tests) are unaffected.
