@@ -24,7 +24,54 @@
             android:text="Recording\u2026"
             android:textColor="@android:color/white"
             android:textSize="28sp"
-            android:layout_marginBottom="48dp"/>
+            android:layout_marginBottom="16dp"/>
+
+        <LinearLayout
+            android:id="@+id/quick_settings_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_quick_settings_pill"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="32dp">
+
+            <AutoCompleteTextView
+                android:id="@+id/quick_language"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="120dp"
+                android:inputType="none"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:hint="Language"
+                android:textColorHint="#99FFFFFF"
+                android:background="@null"
+                android:paddingStart="0dp"
+                android:paddingEnd="8dp"
+                android:ellipsize="end"
+                android:completionThreshold="1" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="24dp"
+                android:background="#4DFFFFFF"
+                android:layout_marginEnd="12dp" />
+
+            <CheckBox
+                android:id="@+id/quick_raw"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Raw"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:buttonTint="@android:color/white" />
+
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

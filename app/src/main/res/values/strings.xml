@@ -48,4 +48,6 @@
     <string name="about_title">About</string>
     <string name="about_version">Version: %s</string>
     <string name="about_commit">Commit: %s</string>
+    <string name="quick_raw">Raw</string>
+    <string name="quick_language_hint">Language</string>
 </resources>

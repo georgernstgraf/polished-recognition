@@ -10,7 +10,10 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +23,7 @@ import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
+import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +38,10 @@ class VoiceRecognitionActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 42
+        const val NONE_TARGET_LANGUAGE = "None"
+
+        fun buildLanguageList(customLanguages: List<String>): List<String> =
+            listOf(NONE_TARGET_LANGUAGE, "English") + customLanguages.sorted()
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -51,6 +59,9 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     private val stopButton: Button by lazy { findViewById(R.id.stop_button) }
     private val elapsedText: TextView by lazy { findViewById(R.id.elapsed_text) }
     private val settingsButton: View by lazy { findViewById(R.id.settings_button) }
+    private val quickLanguage: AutoCompleteTextView by lazy { findViewById(R.id.quick_language) }
+    private val quickRaw: CheckBox by lazy { findViewById(R.id.quick_raw) }
+    private val settings: SettingsStore by lazy { (application as PolishedRecognitionApp).settingsStore }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +78,8 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+
+        setupQuickSettings()
 
         if (hasRecordPermission()) {
             startRecording()
@@ -198,6 +211,51 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         stopButton.isEnabled = false
         settingsButton.isEnabled = false
         settingsButton.alpha = 0.3f
+        quickLanguage.isEnabled = false
+        quickLanguage.alpha = 0.3f
+        quickRaw.isEnabled = false
+    }
+
+    private fun setupQuickSettings() {
+        val languages = buildLanguageList(settings.customLanguages)
+        quickLanguage.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, languages)
+        )
+
+        quickRaw.setOnCheckedChangeListener { _, isChecked ->
+            settings.rawMode = isChecked
+            updateLanguageDropdownEnabled()
+        }
+
+        quickLanguage.setOnItemClickListener { parent, _, position, _ ->
+            val selected = parent.getItemAtPosition(position) as String
+            settings.targetLanguage = if (selected == NONE_TARGET_LANGUAGE) null else selected
+        }
+
+        refreshQuickSettings()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun refreshQuickSettings() {
+        val languages = buildLanguageList(settings.customLanguages)
+        (quickLanguage.adapter as? ArrayAdapter<String>)?.clear()
+        (quickLanguage.adapter as? ArrayAdapter<String>)?.addAll(languages)
+
+        quickRaw.isChecked = settings.rawMode
+        val current = settings.targetLanguage
+        quickLanguage.setText(current ?: NONE_TARGET_LANGUAGE, false)
+        updateLanguageDropdownEnabled()
+    }
+
+    private fun updateLanguageDropdownEnabled() {
+        val disabled = quickRaw.isChecked
+        quickLanguage.isEnabled = !disabled
+        quickLanguage.alpha = if (disabled) 0.3f else 1.0f
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshQuickSettings()
     }
 
     private fun startBlink() {
