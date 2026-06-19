@@ -46,7 +46,7 @@ transcribe, clean up, translate — all at zero cost. Just add your API key.*
 
 ## Installation
 
-See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup instructions (English & German). Covers downloading, configuring providers, setting the voice input service, device-specific notes, and AnySoftKeyboard.
+See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup instructions (English & German). Covers Play Store installation (closed testing), configuring providers, setting the voice input service, device-specific notes, and AnySoftKeyboard.
 
 ---
 

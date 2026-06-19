@@ -96,7 +96,8 @@ policy was last revised.
 ## Contact
 
 If you have questions about this privacy policy, please open an issue on the
-[GitHub repository](https://github.com/georgernstgraf/polished-recognition).
+[GitHub repository](https://github.com/georgernstgraf/polished-recognition)
+or email [georg.ernst.graf@gmail.com](mailto:georg.ernst.graf@gmail.com).
 
 ---
 

@@ -2,13 +2,15 @@
 
 ## English
 
-### 1. Download & Install
+### 1. Install from Play Store (Closed Testing)
 
-Download the APK from the [latest release](https://github.com/georgernstgraf/polished-recognition/releases/latest/download/app-release.apk) and install via ADB:
+The app is currently in closed testing. The Play Store link only works after
+you have been added to the testers list:
 
-```bash
-adb install app-release.apk
-```
+1. Send a [request email](mailto:georg.ernst.graf@gmail.com) to be added
+2. Once added, install from the [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
+
+> An APK is also built on GitHub for each release.
 
 ### 2. Configure Providers
 
@@ -83,13 +85,15 @@ Gboard uses its own built-in Google speech engine and cannot be intercepted. Ins
 
 ## Deutsch
 
-### 1. Herunterladen & Installieren
+### 1. Aus dem Play Store installieren (Closed Testing)
 
-Lade die APK vom [aktuellen Release](https://github.com/georgernstgraf/polished-recognition/releases/latest/download/app-release.apk) herunter und installiere sie via ADB:
+Die App befindet sich im geschlossenen Test. Der Play-Store-Link funktioniert
+erst, nachdem du zur Testerliste hinzugefügt wurdest:
 
-```bash
-adb install app-release.apk
-```
+1. Sende eine [Anfrage-E-Mail](mailto:georg.ernst.graf@gmail.com)
+2. Nach Freischaltung: installiere über den [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
+
+> Eine APK wird für jedes Release auch auf GitHub erstellt.
 
 ### 2. Anbieter konfigurieren
 
