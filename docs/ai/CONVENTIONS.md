@@ -69,3 +69,6 @@ The transcription pipeline resolves the following template variables at runtime:
 - `versionCode` and `versionName` must be static in `build.gradle.kts` for F-Droid regex extraction
 - New MRs must use the "App Inclusion" template with all checkboxes
 - Only one app per MR (don't include other metadata changes in the same branch)
+
+## Documentation
+- When editing `docs/privacy-policy.md`, always update the "Last updated" date to today's date.
