@@ -44,119 +44,11 @@ pick the LLM, write the prompt, control the data.
 *No budget? GROQ's free tier runs Whisper STT + gpt-oss-120b for a complete pipeline —  
 transcribe, clean up, translate — all at zero cost. Just add your API key.*
 
-## Download
+## Installation
 
-[Download app-release.apk](https://github.com/georgernstgraf/polished-recognition/releases/latest/download/app-release.apk)
-
-### Install via ADB
-
-```bash
-adb install app-release.apk
-```
-
-### Set as Voice Input
-
-```bash
-adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
-
-adb shell settings get secure voice_recognition_service   # Verify
-```
-
-Then install [AnySoftKeyboard](https://play.google.com/store/apps/details?id=com.menny.android.anysoftkeyboard)
-and press the microphone button.
+See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup instructions (English & German). Covers downloading, configuring providers, setting the voice input service, device-specific notes, and AnySoftKeyboard.
 
 ---
-
-## How It Works
-
-1. You press the microphone button on your keyboard
-2. Our `VoiceRecognitionActivity` overlay opens and starts recording immediately
-3. Tap the **Send** button to forward the audio to the STT pipeline
-4. Audio is sent to your configured STT provider (Whisper, Groq, etc.)
-5. The transcribed text is post-processed by an LLM using a **fully configurable prompt** — the core feature that enables cleanup, formatting, and translation. Small flash models (e.g. `gpt-oss-120b` on GROQ) run in under a second, avoiding the latency of larger models while producing excellent results.
-6. Tap **Pause** at any time to suspend recording, change settings or prompts, then tap **Resume** — recording picks up seamlessly where you left off
-7. Text is inserted into the text field
-
-**No custom keyboard required** — works with any keyboard that uses the
-`RECOGNIZE_SPEECH` intent (AnySoftKeyboard, etc.).
-
-> **Note:** Gboard uses its own built-in Google speech engine and ignores the
-> system RecognitionService. Install AnySoftKeyboard for voice input.
-
-## Quick Start
-
-### 1. Build & Install
-
-```bash
-git clone git@github.com:georgernstgraf/polished-recognition.git
-cd polished-recognition
-ln -sf ../../scripts/pre-push .git/hooks/pre-push   # optional: run tests before push
-./gradlew installRelease                             # build + install via ADB
-```
-
-### 2. Recommended Setup (GROQ)
-
-For the best experience, we strongly recommend using **Groq** as your API provider. Groq utilizes custom LPU hardware that runs AI models blazingly fast.
-
-1. **Sign up for free** at [console.groq.com](https://console.groq.com) and create an API key
-2. **Speed:** Groq runs OpenAI's Whisper model at up to 300x real-time speed, guaranteeing sub-second voice typing.
-3. **Cost:** Groq provides a highly generous free tier (roughly 30 requests per minute) that makes typical daily personal keyboard usage **completely free**.
-
-### 3. Set Up Recognition Service on Device
-
-The app does not appear in the app drawer on all launchers (e.g. OnePlus/OxygenOS
-hides it). Launch the settings activity via ADB:
-
-```bash
-adb shell am start -n "com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.ui.SettingsActivity"
-```
-
-Then configure:
-- **STT Provider** (e.g. OpenAI) → enter API token → Validate & Fetch Models → pick model
-- **LLM Provider** (optional) → same procedure
-- **Save**
-
-### 3. Set as Default Voice Input
-
-#### Standard Android (Pixel, etc.)
-**Settings → System → Languages & input → Voice input → Recognition service → Polished Recognition**
-
-#### Samsung (Android 11)
-On Samsung devices running Android 11, the "Voice input" option is hidden from
-the settings UI. Set the recognition service via ADB:
-
-```bash
-adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
-```
-
-Verify with:
-
-```bash
-adb shell settings get secure voice_recognition_service
-```
-
-#### OnePlus / OxygenOS (Android 12)
-1. **Settings → Apps → Default apps → Digital assistant app → Voice input**
-2. Select **Polished Recognition**
-
-If "Voice input" is not visible after scrolling, reboot the device — OxygenOS
-rebuilds the menu on boot. On any device where the Voice input menu is missing,
-use the ADB command shown in the Samsung section above.
-
-### 4. Install AnySoftKeyboard
-
-Gboard uses its own Google speech engine and cannot be intercepted. Install
-[AnySoftKeyboard](https://play.google.com/store/apps/details?id=com.menny.android.anysoftkeyboard)
-from the Play Store, then switch to it via the globe key (🌐) next to your spacebar.
-
-### 5. Use It
-
-1. Switch keyboard to **AnySoftKeyboard** (globe key → AnySoftKeyboard)
-2. Press the **microphone button**
-3. The voice overlay appears — recording starts immediately, tap the stop square to end
-4. Transcribed text is inserted into the text field
-
-Switch back to Gboard via the globe key when typing manually.
 
 ## Providers
 
@@ -248,28 +140,13 @@ Runs `./gradlew test` before every push.
 
 ## Troubleshooting
 
-**App not in app drawer?** On OnePlus/OxygenOS devices, the app does not appear
-in the app drawer. Launch settings via ADB:
-
-```bash
-adb shell am start -n "com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.ui.SettingsActivity"
-```
-
-Alternatively, install AnySoftKeyboard and press the mic button — the voice
-overlay will open the app regardless.
-
-**"Voice input" not visible in settings?** On OnePlus/OxygenOS, reboot the device.
-OxygenOS enumerates recognition services at boot time.
-
-**Service works in settings but Gboard doesn't use it?** Gboard has its own
-built-in Google speech engine. Use AnySoftKeyboard instead, which routes
-through the system `RECOGNIZE_SPEECH` intent.
-
 **Recording fails (no audio)?** Check that `RECORD_AUDIO` permission is granted.
 The voice overlay requests it on first use.
 
 **STT model not working?** If the model dropdown is empty, press **Validate & Fetch Models**
 after entering a valid API token. The model list is fetched dynamically from the provider.
+
+**Setup issues?** See the **[Installation Guide](INSTALLATION.md)** for device-specific help.
 
 ## Developer Documentation
 

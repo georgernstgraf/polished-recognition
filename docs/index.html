@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Polished Recognition</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+    <style>
+        :root {
+            --pico-font-family: system-ui, -apple-system, sans-serif;
+        }
+        header {
+            padding-block: 2rem;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<header>
+    <h1>Polished Recognition</h1>
+    <p>Voice input for any Android keyboard. Transcribe, clean up, and translate audio using your own OpenAI-compatible STT and LLM endpoints — no account, no central server, no vendor lock-in.</p>
+</header>
+
+<main>
+
+<section>
+    <h2>How it works</h2>
+    <ol>
+        <li><strong>Press the mic</strong> on your keyboard — recording starts instantly, no extra tap</li>
+        <li><strong>Speak naturally</strong> — pause and resume anytime mid-sentence</li>
+        <li><strong>Tap Send</strong> — audio goes to your chosen STT provider (Whisper, Groq, etc.)</li>
+        <li><strong>Optional polish</strong> — an LLM cleans up filler words, fixes punctuation, or translates using your own custom prompt</li>
+        <li><strong>Flawless text</strong> appears in your text field — as if you typed it perfectly</li>
+    </ol>
+</section>
+
+<section>
+    <h2>What makes it different</h2>
+    <ul>
+        <li><strong>Not a keyboard.</strong> Works with AnySoftKeyboard, OpenBoard, Samsung Keyboard — any keyboard that respects the system voice input setting.</li>
+        <li><strong>BYO provider — or use a free one.</strong> 15+ presets (OpenAI, Groq, OpenRouter, Google AI, DeepSeek, xAI, Mistral, local Ollama/LM Studio…). Groq gives you free Whisper STT and gpt-oss-120b LLM — a full pipeline at zero cost.</li>
+        <li><strong>Custom prompts.</strong> System prompt, user prompt with <code>{{text}}</code> templates, and a separate translate prompt. Make the LLM format as markdown, translate to French, or just fix punctuation.</li>
+        <li><strong>Pause &amp; resume.</strong> Get interrupted mid-dictation? Pause, handle it, resume exactly where you left off.</li>
+        <li><strong>Raw mode.</strong> Skip the LLM entirely and get plain STT output. Zero latency overhead.</li>
+        <li><strong>Privacy by design.</strong> No account, no registration, no central server. Your audio goes only to the provider you configured. Run Ollama locally for full offline use.</li>
+    </ul>
+</section>
+
+<section id="install">
+    <h2>Installation</h2>
+    <p><small>Loading guide&#8230;</small></p>
+</section>
+
+</main>
+
+<footer>
+    <small>
+        <a href="privacy-policy">Privacy Policy</a>
+        &middot;
+        <a href="https://github.com/georgernstgraf/polished-recognition">GitHub</a>
+        &middot;
+        <a href="https://github.com/georgernstgraf/polished-recognition/releases">Releases</a>
+    </small>
+</footer>
+
+<script>
+fetch('https://raw.githubusercontent.com/georgernstgraf/polished-recognition/master/INSTALLATION.md')
+    .then(function(r) { return r.text(); })
+    .then(function(md) {
+        document.getElementById('install').innerHTML = '<h2>Installation</h2>' + marked.parse(md);
+    })
+    .catch(function() {
+        document.getElementById('install').innerHTML =
+            '<h2>Installation</h2><p>Could not load the guide. View it on <a href="https://github.com/georgernstgraf/polished-recognition/blob/master/INSTALLATION.md">GitHub</a>.</p>';
+    });
+</script>
+</body>
+</html>
