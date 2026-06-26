@@ -47,18 +47,6 @@ class SettingsStore(context: Context) {
         } ?: emptyList()
         set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
 
-    var systemPrompt: String?
-        get() = prefs.getString(SYSTEM_PROMPT_KEY, null)
-        set(value) = prefs.edit().putString(SYSTEM_PROMPT_KEY, value).apply()
-
-    var userPromptTemplate: String?
-        get() = prefs.getString(USER_PROMPT_KEY, null)
-        set(value) = prefs.edit().putString(USER_PROMPT_KEY, value).apply()
-
-    var translatePromptTemplate: String?
-        get() = prefs.getString(TRANSLATE_PROMPT_KEY, null)
-        set(value) = prefs.edit().putString(TRANSLATE_PROMPT_KEY, value).apply()
-
     fun setSttModelList(models: List<String>) {
         prefs.edit().putString(STT_MODEL_LIST_KEY, gson.toJson(models)).apply()
     }
@@ -99,8 +87,5 @@ class SettingsStore(context: Context) {
         private const val RAW_MODE_KEY = "raw_mode"
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
-        private const val SYSTEM_PROMPT_KEY = "system_prompt"
-        private const val USER_PROMPT_KEY = "user_prompt"
-        private const val TRANSLATE_PROMPT_KEY = "translate_prompt"
     }
 }

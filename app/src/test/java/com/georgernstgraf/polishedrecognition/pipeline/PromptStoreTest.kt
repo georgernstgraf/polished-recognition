@@ -25,15 +25,17 @@ class PromptStoreTest {
         val prompt = store.get(PromptStore.KEY_SYSTEM)
         assertThat(prompt).contains("transcription post-processor")
         assertThat(prompt).contains("Return only the requested output text")
+        assertThat(prompt).contains("{{source_language}}")
+        assertThat(prompt).contains("{{translate_prompt}}")
+        assertThat(prompt).contains("markdown")
     }
 
     @Test
-    fun `get user returns default user prompt template with variables`() {
+    fun `get user returns default user prompt template`() {
         val prompt = store.get(PromptStore.KEY_USER)
-        assertThat(prompt).contains("{{source_language}}")
-        assertThat(prompt).contains("{{translate_prompt}}")
         assertThat(prompt).contains("{{text}}")
-        assertThat(prompt).contains("---")
+        assertThat(prompt).doesNotContain("{{source_language}}")
+        assertThat(prompt).doesNotContain("{{translate_prompt}}")
     }
 
     @Test
@@ -61,7 +63,7 @@ class PromptStoreTest {
         store.set(PromptStore.KEY_USER, "custom user")
         store.restoreAllDefaults()
         assertThat(store.get(PromptStore.KEY_SYSTEM)).contains("transcription post-processor")
-        assertThat(store.get(PromptStore.KEY_USER)).contains("{{source_language}}")
+        assertThat(store.get(PromptStore.KEY_USER)).contains("{{text}}")
     }
 
     @Test
@@ -90,7 +92,7 @@ class PromptStoreTest {
 
     @Test
     fun `userPromptTemplate convenience property matches get`() {
-        assertThat(store.userPromptTemplate).contains("{{source_language}}")
+        assertThat(store.userPromptTemplate).isEqualTo("{{text}}")
     }
 
     @Test

@@ -20,8 +20,7 @@
     <string name="manage_custom_languages">Manage saved languages</string>
     <string name="saved_languages_title">Saved Languages</string>
     <string name="system_prompt">System Prompt</string>
-    <string name="user_prompt_template">User Prompt Template</string>
-    <string name="translate_prompt">Translate Prompt (will be omitted if no target language is set.)</string>
+    <string name="translate_prompt">Target Language Prompt (omitted when no target language is set.)</string>
     <string name="restore_defaults">Restore all prompts to default</string>
     <string name="save">\u2190 save / back</string>
     <string name="saved">Settings saved</string>

@@ -104,17 +104,6 @@ class SettingsStoreTest {
     }
 
     @Test
-    fun `prompt template fields save and load`() {
-        store.systemPrompt = "sys"
-        store.userPromptTemplate = "user {{text}}"
-        store.translatePromptTemplate = "tl {{target_language}}"
-
-        assertThat(store.systemPrompt).isEqualTo("sys")
-        assertThat(store.userPromptTemplate).isEqualTo("user {{text}}")
-        assertThat(store.translatePromptTemplate).isEqualTo("tl {{target_language}}")
-    }
-
-    @Test
     fun `new SettingsStore reads previously saved data`() {
         store.sttProvider = SttProviderConfig(displayName = "X", baseUrl = "url", apiToken = "tok", model = "mod")
 

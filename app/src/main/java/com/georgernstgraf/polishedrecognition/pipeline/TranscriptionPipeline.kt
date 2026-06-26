@@ -50,10 +50,6 @@ class TranscriptionPipeline(
         )
 
         val whisper = sttResult.getOrThrow()
-        val sourceLanguageName = capitalizeWords(whisper.language)
-
-        val systemPrompt = promptStore.systemPrompt
-        val userTemplate = promptStore.userPromptTemplate
 
         val translatePrompt = if (targetLanguage != null) {
             promptStore.translatePromptTemplate.replace("{{target_language}}", targetLanguage)
@@ -61,9 +57,19 @@ class TranscriptionPipeline(
             ""
         }
 
-        val userPrompt = userTemplate
-            .replace("{{source_language}}", sourceLanguageName)
+        val sourceLanguageClause = if (isLanguageUnknown(whisper.language)) {
+            ""
+        } else {
+            "The STT service transcribed audio spoken in ${capitalizeWords(whisper.language)}."
+        }
+
+        val systemPrompt = promptStore.systemPrompt
+            .replace("{{source_language}}", sourceLanguageClause)
             .replace("{{translate_prompt}}", translatePrompt)
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+
+        val userPrompt = promptStore.userPromptTemplate
             .replace("{{text}}", whisper.text)
 
         promptLogger?.log(systemPrompt, userPrompt)
@@ -121,6 +127,11 @@ class TranscriptionPipeline(
     }
 
     companion object {
+        private fun isLanguageUnknown(raw: String?): Boolean {
+            val v = raw?.trim()
+            return v.isNullOrBlank() || v.equals("unknown", ignoreCase = true)
+        }
+
         private fun capitalizeWords(input: String?): String {
             if (input == null) return "unknown"
             return input.trim()

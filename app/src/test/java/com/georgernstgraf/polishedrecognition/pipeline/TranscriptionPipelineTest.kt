@@ -94,6 +94,11 @@ class TranscriptionPipelineTest {
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "german")))
     }
 
+    private fun mockSttSuccessNoLanguage() {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
+    }
+
     private fun mockChatSuccess(content: String = "Cleaned text") {
         every { chatApi.chatSync(any(), any<ChatRequest>()) } returns
             mockCall(Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", content))))))
@@ -137,8 +142,25 @@ class TranscriptionPipelineTest {
 
         pipeline.transcribe(lincolnFile)
 
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).contains("The STT service transcribed audio spoken in German.")
         val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
-        assertThat(userMessage).contains("German")
+        assertThat(userMessage).doesNotContain("STT service")
+    }
+
+    @Test
+    fun `source_language omitted when Whisper returns no language`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccessNoLanguage()
+
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        pipeline.transcribe(lincolnFile)
+
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).doesNotContain("transcribed audio spoken in")
+        assertThat(systemMessage).doesNotContain("{{source_language}}")
     }
 
     @Test
@@ -152,8 +174,8 @@ class TranscriptionPipelineTest {
 
         pipeline.transcribe(lincolnFile)
 
-        val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
-        assertThat(userMessage).contains("Please produce the output")
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).contains("Please produce the output")
     }
 
     @Test
@@ -167,13 +189,13 @@ class TranscriptionPipelineTest {
 
         pipeline.transcribe(lincolnFile)
 
-        val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
-        assertThat(userMessage).doesNotContain("Please produce the output")
-        assertThat(userMessage).contains("German")
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).doesNotContain("Please produce the output")
+        assertThat(systemMessage).contains("German")
     }
 
     @Test
-    fun `text replaced with Whisper output`() = runBlocking {
+    fun `user message contains only the Whisper output`() = runBlocking {
         settingsStore.rawMode = false
         mockSttSuccess()
 
@@ -183,8 +205,7 @@ class TranscriptionPipelineTest {
         pipeline.transcribe(lincolnFile)
 
         val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
-        assertThat(userMessage).contains("Bürgerkrieg")
-        assertThat(userMessage).contains("Emanzipationsproklamation")
+        assertThat(userMessage).isEqualTo(lincolnGermanText)
     }
 
     @Test

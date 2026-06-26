@@ -39,11 +39,11 @@ Follow these without question. Do not deviate unless explicitly told.
 - For custom filtering on `AutoCompleteTextView`, use `BaseAdapter` + `Filterable` with a directly owned `displayItems` list. Never extend `ArrayAdapter` with a custom `Filter` that calls `clear()`/`addAll()` — these modify the internal `mOriginalValues` (not `mObjects`), corrupting state and causing crashes on text input.
 
 ## Prompt Variables
-The transcription pipeline resolves the following template variables at runtime:
-- `{{text}}` — raw Whisper transcription output
-- `{{source_language}}` — human-readable language name (e.g. "English") from Whisper `language` field
-- `{{target_language}}` — the user's chosen output language
-- `{{translate_prompt}}` — empty string if no translation, otherwise the resolved translate prompt
+The transcription pipeline resolves the following template variables at runtime. The **system** prompt is the single editable instruction surface; the **user** message is an automatic, non-editable carrier containing only `{{text}}`.
+- `{{text}}` — raw Whisper transcription output (resolved into the user message; also the only content of the `user` prompt template)
+- `{{source_language}}` — resolved into the **system** prompt as a full sentence (`"The STT service transcribed audio spoken in <Name>."`) or **empty** (whole sentence dropped) when Whisper returns null/blank/`"unknown"`
+- `{{target_language}}` — the user's chosen output language (resolved into the translate prompt)
+- `{{translate_prompt}}` — resolved into the **system** prompt; empty string if no translation, otherwise the resolved translate prompt
 
 ## Build & Installation
 

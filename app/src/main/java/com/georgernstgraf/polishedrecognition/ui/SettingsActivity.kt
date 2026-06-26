@@ -71,7 +71,6 @@ class SettingsActivity : AppCompatActivity() {
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
 
     private val systemPromptField: TextInputEditText by lazy { findViewById(R.id.system_prompt) }
-    private val userPromptField: TextInputEditText by lazy { findViewById(R.id.user_prompt) }
     private val translatePromptField: TextInputEditText by lazy { findViewById(R.id.translate_prompt) }
 
     private val aboutVersionText: TextView by lazy { findViewById(R.id.about_version) }
@@ -143,11 +142,6 @@ class SettingsActivity : AppCompatActivity() {
             systemPromptField.setText(promptStore.systemPrompt)
         }
 
-        findViewById<Button>(R.id.reset_user_prompt).setOnClickListener {
-            promptStore.restoreDefault(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_USER)
-            userPromptField.setText(promptStore.userPromptTemplate)
-        }
-
         findViewById<Button>(R.id.reset_translate_prompt).setOnClickListener {
             promptStore.restoreDefault(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE)
             translatePromptField.setText(promptStore.translatePromptTemplate)
@@ -186,13 +180,11 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         systemPromptField.setText(promptStore.systemPrompt)
-        userPromptField.setText(promptStore.userPromptTemplate)
         translatePromptField.setText(promptStore.translatePromptTemplate)
     }
 
     private fun loadPromptDefaults() {
         systemPromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM))
-        userPromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_USER))
         translatePromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE))
     }
 
@@ -638,7 +630,6 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM, systemPromptField.text.toString())
-        promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_USER, userPromptField.text.toString())
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE, translatePromptField.text.toString())
 
         Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
