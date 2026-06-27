@@ -49,7 +49,8 @@ class TranscriptionPipeline(
             Exception("STT transcription failed: ${sttResult.exceptionOrNull()?.message}")
         )
 
-        val whisper = sttResult.getOrThrow()
+        val raw = sttResult.getOrThrow()
+        val whisper = raw.copy(text = raw.text.trim())
 
         val translatePrompt = if (targetLanguage != null) {
             promptStore.translatePromptTemplate.replace("{{target_language}}", targetLanguage)

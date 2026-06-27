@@ -99,6 +99,11 @@ class TranscriptionPipelineTest {
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
     }
 
+    private fun mockSttSuccessPadded() {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = "  \n$lincolnGermanText\n  ", language = "german")))
+    }
+
     private fun mockChatSuccess(content: String = "Cleaned text") {
         every { chatApi.chatSync(any(), any<ChatRequest>()) } returns
             mockCall(Response.success(ChatResponse(listOf(ChatChoice(ChatMessage("assistant", content))))))
@@ -118,6 +123,31 @@ class TranscriptionPipelineTest {
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
+    }
+
+    @Test
+    fun `STT text is trimmed before raw mode return`() = runBlocking {
+        settingsStore.rawMode = true
+        mockSttSuccessPadded()
+
+        val result = pipeline.transcribe(lincolnFile)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
+    }
+
+    @Test
+    fun `STT text is trimmed before substitution into user prompt`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccessPadded()
+
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        pipeline.transcribe(lincolnFile)
+
+        val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
+        assertThat(userMessage).isEqualTo(lincolnGermanText)
     }
 
     @Test
