@@ -10,3 +10,7 @@ Entries here are no longer active truth. Never delete from this file.
 ## 2026-06-27 (SUPERSEDED 2026-06-27, origin: CONVENTIONS.md/DOMAIN.md, reason: #39 rename for clarity): Placeholder names source_language / translate_prompt
 - The system-prompt placeholders were named `{{source_language}}` and `{{translate_prompt}}`.
 - **Reason**: Renamed to `{{optional_source_language_info}}` and `{{optional_target_language_wish}}` so the optional/clause (drop-when-empty) contract is visible in the name itself. CONVENTIONS.md and DOMAIN.md were updated in place to the new names; historical DECISIONS entries retain the old names as a record.
+
+## 2026-06-27 (SUPERSEDED 2026-06-27, origin: CONVENTIONS.md/DOMAIN.md, reason: #39 2nd round -> *_clause): Placeholder names optional_source_language_info / optional_target_language_wish
+- The system-prompt placeholders were briefly named `{{optional_source_language_info}}` and `{{optional_target_language_wish}}` (introduced earlier the same day in the first #39 round).
+- **Reason**: Renamed again to `{{source_language_clause}}` / `{{target_language_clause}}` — "clause" expresses the drop-when-empty contract more intuitively and keeps the pair parallel. CONVENTIONS.md and DOMAIN.md updated in place; historical DECISIONS entries retain the older names.
