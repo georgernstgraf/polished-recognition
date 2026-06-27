@@ -3,9 +3,10 @@
 Current status as of 2026-06-27.
 
 ## Current Focus
-Issue #41 complete. Three rotating pretty-JSON logs now: `llm-prompt.json` (request; renamed from `prompt.json`), `stt-response.json` (raw STT response, all fields), `llm-response.json` (raw LLM response, all fields) — each with history `*_1.json`…`*_9.json`. Responses captured verbatim via an OkHttp interceptor (`ResponseLoggerInterceptor`); `PromptLogger` generalized to `RotatingJsonLogger.log(baseName, content)`.
+Issue #42 complete (housekeeping). `./gradlew clean test` is now warning-free (migrated `onBackPressed`→`OnBackPressedCallback`; `-Xshare:off` on the test JVM silences the Robolectric CDS warning). `scripts/sync-device-logs.sh` pulls the device log dir into gitignored `tmp/`. Prior: #41 added three rotating pretty-JSON logs (`llm-prompt.json`, `stt-response.json`, `llm-response.json`) via `ResponseLoggerInterceptor` + `RotatingJsonLogger`.
 
 ## Completed (this cycle)
+- [x] Issue #42: Build/dev housekeeping. Migrated `VoiceRecognitionActivity.onBackPressed()` to `OnBackPressedCallback`; added `testOptions.unitTests.all { it.jvmArgs("-Xshare:off") }` to clear the JVM sharing warning — `./gradlew clean test` is warning-free. New `scripts/sync-device-logs.sh` (`adb pull` logs→`tmp/`); `/tmp/` gitignored.
 - [x] Issue #41: Verbatim STT/LLM response logging. New `ResponseLoggerInterceptor` (path-routed `audio/transcriptions`→`stt-response`, `chat/completions`→`llm-response`, `models` ignored) captures raw body via `peekBody`, pretty-prints (all fields, raw fallback). `PromptLogger`→`RotatingJsonLogger` (`log(baseName, content)`); `prompt.json`→`llm-prompt.json`; legacy `prompt*.json` swept. Logs error responses too. Tests: `RotatingJsonLoggerTest`, `ResponseLoggerInterceptorTest` (pure helpers), pipeline `llm-prompt.json` update.
 - [x] Issue #40: Logging rework. Log the verbatim `ChatRequest` sent to the LLM (pretty JSON); moved the log call after the request build so raw mode logs nothing; `.md`→`.json`, `maxCount` 5→9; legacy `prompt*.md` swept. New tests.
 - [x] Issue #39 (2nd round): Renamed placeholders to `*_clause` (`{{source_language_clause}}`, `{{target_language_clause}}`); internals `targetLanguageClauseTemplate`/`targetLanguageClause`; UI `target_language_prompt`→`target_language_clause` (key+value "Target Language Clause", ids, field). `KEY_TRANSLATE`/JSON key unchanged.
@@ -23,4 +24,4 @@ Issue #41 complete. Three rotating pretty-JSON logs now: `llm-prompt.json` (requ
 None
 
 ## Next Session Suggestion
-Manual on-device verification of #37/#39/#40/#41 (dictate with/without target language; confirm `logs/llm-prompt.json`, `logs/stt-response.json`, `logs/llm-response.json` show the resolved pretty JSON — full STT segments + LLM `usage` fields present; confirm raw mode writes no `llm-prompt.json`), then Issue #20 (Play Console preconditions) or new feature work.
+Manual on-device verification of #37/#39/#40/#41 (dictate with/without target language; pull logs via `scripts/sync-device-logs.sh` → `tmp/logs/`; confirm `llm-prompt.json`, `stt-response.json`, `llm-response.json` show resolved pretty JSON — full STT segments + LLM `usage` fields present; raw mode writes no `llm-prompt.json`), then Issue #20 (Play Console preconditions) or new feature work.
