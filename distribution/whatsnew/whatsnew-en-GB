@@ -1,1 +1,4 @@
-Initial release of Polished Recognition — voice input for any Android keyboard. Transcribe audio using your own OpenAI-compatible STT endpoint, optionally post-process with an LLM.
+• Simpler prompts — one editable System Prompt to tune how the app behaves; translation is now its own "Target Language Clause".
+• Cleaner text — transcripts and the final output are trimmed of stray whitespace.
+• Full transparency — every transcription is logged: the exact prompt sent to the LLM, plus the raw, uncut STT and LLM responses, saved as rotating JSON you can pull via adb to see exactly what your providers returned.
+• Clearer variable names and under-the-hood polish.
