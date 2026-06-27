@@ -1,0 +1,89 @@
+name: F-Droid APK (reproducible)
+
+# Publishes a signed release APK (for F-Droid reproducible-build verification)
+# WITHOUT touching the Play Store AAB pipeline (release.yml). The APK is built
+# with the release signing key (RELEASE_KEYSTORE secret) so fdroidserver's
+# from-source build can byte-match it.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.1.1)'
+        required: true
+        default: 'v1.1.1'
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building reproducible APK for $TAG"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          # Full history so VERSION_DISPLAY's commit-count matches F-Droid's full checkout.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > app/release.keystore
+
+      - name: Build signed release APK
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f app/release.keystore
+
+      - name: Stage APK (stable name)
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk polished-recognition.apk
+          ls -la polished-recognition.apk
+
+      - name: Attach APK to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --generate-notes --title "$TAG"
+          fi
+          gh release upload "$TAG" polished-recognition.apk --clobber
+
+      - name: Cleanup old releases (keep newest 10 v* releases; keep git tags)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mapfile -t old < <(gh release list --limit 100 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[].tagName' | grep '^v' | tail -n +11)
+          for t in "${old[@]}"; do
+            echo "Deleting old release page: $t (git tag kept)"
+            gh release delete "$t" --yes 2>/dev/null || true
+          done

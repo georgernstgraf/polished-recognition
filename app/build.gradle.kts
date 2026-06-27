@@ -1,6 +1,7 @@
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
 import java.io.File
+import java.util.Properties
 
 abstract class GitHashSource : ValueSource<String, ValueSourceParameters.None> {
     override fun obtain(): String {
@@ -49,8 +50,8 @@ android {
         // 3. git tag vX.Y.Z && git push origin vX.Y.Z
         // 4. release.yml → signs + uploads to Play Store
         // 5. F-Droid auto-update picks up new tag automatically
-        versionCode = 10100
-        versionName = "1.1.0"
+        versionCode = 10101
+        versionName = "1.1.1"
 
         val gitHash = providers.of(GitHashSource::class.java) {}.get().trim()
         buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
@@ -60,14 +61,18 @@ android {
         buildConfigField("String", "VERSION_DISPLAY", "\"$versionDisplay\"")
     }
 
-    val releaseKeystore = file("release.keystore")
-    if (releaseKeystore.exists()) {
+    val keystoreProperties = Properties().apply {
+        rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    val releaseKeystore = file(keystoreProperties.getProperty("storeFile", "release.keystore"))
+    val releaseStorePassword = keystoreProperties.getProperty("storePassword") ?: System.getenv("RELEASE_STORE_PASSWORD")
+    if (releaseKeystore.exists() && releaseStorePassword != null) {
         signingConfigs {
             create("release") {
                 storeFile = releaseKeystore
-                storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "android"
-                keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "androiddebugkey"
-                keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "android"
+                storePassword = releaseStorePassword
+                keyAlias = keystoreProperties.getProperty("keyAlias") ?: System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = keystoreProperties.getProperty("keyPassword") ?: System.getenv("RELEASE_KEY_PASSWORD")
             }
         }
     }
@@ -93,6 +98,13 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    dependenciesInfo {
+        // AGP embeds a "Dependency metadata" APK signing block by default, which
+        // F-Droid's scanner rejects. Disable it for APKs (the Play AAB keeps its
+        // own metadata via includeInBundle's default).
+        includeInApk = false
     }
 
     buildFeatures {
