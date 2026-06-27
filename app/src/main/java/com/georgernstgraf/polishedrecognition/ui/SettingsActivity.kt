@@ -71,7 +71,7 @@ class SettingsActivity : AppCompatActivity() {
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
 
     private val systemPromptField: TextInputEditText by lazy { findViewById(R.id.system_prompt) }
-    private val translatePromptField: TextInputEditText by lazy { findViewById(R.id.translate_prompt) }
+    private val targetLanguagePromptField: TextInputEditText by lazy { findViewById(R.id.target_language_prompt) }
 
     private val aboutVersionText: TextView by lazy { findViewById(R.id.about_version) }
     private val aboutCommitText: TextView by lazy { findViewById(R.id.about_commit) }
@@ -142,9 +142,9 @@ class SettingsActivity : AppCompatActivity() {
             systemPromptField.setText(promptStore.systemPrompt)
         }
 
-        findViewById<Button>(R.id.reset_translate_prompt).setOnClickListener {
+        findViewById<Button>(R.id.reset_target_language_prompt).setOnClickListener {
             promptStore.restoreDefault(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE)
-            translatePromptField.setText(promptStore.translatePromptTemplate)
+            targetLanguagePromptField.setText(promptStore.translatePromptTemplate)
         }
 
         findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openRecognitionServiceSettings() }
@@ -180,12 +180,12 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         systemPromptField.setText(promptStore.systemPrompt)
-        translatePromptField.setText(promptStore.translatePromptTemplate)
+        targetLanguagePromptField.setText(promptStore.translatePromptTemplate)
     }
 
     private fun loadPromptDefaults() {
         systemPromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM))
-        translatePromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE))
+        targetLanguagePromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE))
     }
 
     private fun setupDropdowns() {
@@ -630,7 +630,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM, systemPromptField.text.toString())
-        promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE, translatePromptField.text.toString())
+        promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE, targetLanguagePromptField.text.toString())
 
         Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
         finish()

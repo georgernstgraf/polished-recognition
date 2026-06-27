@@ -136,10 +136,10 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/translate_prompt"
+                android:text="@string/target_language_prompt"
                 android:textAppearance="?attr/textAppearanceSubtitle1"/>
             <Button
-                android:id="@+id/reset_translate_prompt"
+                android:id="@+id/reset_target_language_prompt"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/reset_prompt"
@@ -161,7 +161,7 @@
             android:layout_marginBottom="8dp">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/translate_prompt"
+                android:id="@+id/target_language_prompt"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
