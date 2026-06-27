@@ -3,11 +3,13 @@
 Current status as of 2026-06-27.
 
 ## Current Focus
-Issue #39 complete. Prompt template variables renamed for clarity (`{{optional_source_language_info}}` / `{{optional_target_language_wish}}`); Target Language Prompt UI ids renamed to `target_language_prompt`; `PromptStore` now fails fast on a missing/corrupt `prompts.json`. `SCRATCH.md` untracked.
+Issues #39 (2nd round) and #40 complete. Prompt placeholders renamed to a symmetric `*_clause` pattern (`{{source_language_clause}}` / `{{target_language_clause}}`); Target Language Prompt UI → "Target Language Clause" (`target_language_clause` ids); internals renamed (`targetLanguageClauseTemplate`, `targetLanguageClause`). Prompt logging reworked: writes the exact LLM `ChatRequest` as pretty-printed JSON (`prompt.json` + `prompt_1.json`…`prompt_9.json`), no log in raw mode.
 
 ## Completed (this cycle)
-- [x] Issue #39: Rename prompt template variables (`{{source_language}}`->`{{optional_source_language_info}}`, `{{translate_prompt}}`->`{{optional_target_language_wish}}`); rename `translate_prompt` UI ids to `target_language_prompt` (string + 2 ids + Kotlin field); replace `PromptStore` stale string fallback with fail-fast asset loading (single source of truth). Untracked `SCRATCH.md`.
-- [x] Issue #37: Single editable system prompt. Merged task instructions into System Prompt; user message is now automatic `{{text}}` (removed from UI). `{{optional_source_language_info}}`/`{{optional_target_language_wish}}` resolve into the system message; source-language sentence dropped entirely when Whisper returns null/blank/`"unknown"`. Renamed Translate Prompt → "Target Language Prompt". Removed dead `SettingsStore` prompt properties.
+- [x] Issue #40: Logging rework. Log the verbatim `ChatRequest` sent to the LLM (pretty JSON, `GsonBuilder().setPrettyPrinting()`); moved the log call after the request build so raw mode logs nothing; `.md`→`.json`, `maxCount` 5→9; `PromptLogger.log(content)` is a dumb rotating writer (pipeline owns serialization); legacy `prompt*.md` swept on init. New `PromptLoggerTest` + pipeline logging tests.
+- [x] Issue #39 (2nd round): Renamed placeholders to `*_clause` (`{{source_language_clause}}`, `{{target_language_clause}}`); internals `targetLanguageClauseTemplate`/`targetLanguageClause`; UI `target_language_prompt`→`target_language_clause` (key+value "Target Language Clause", ids, field). `KEY_TRANSLATE`/JSON key unchanged.
+- [x] Issue #39 (1st round): Renamed placeholders to `optional_*` (since superseded by `*_clause`); `translate_prompt` UI ids → `target_language_prompt`; `PromptStore` fail-fast asset loading. Untracked `SCRATCH.md`.
+- [x] Issue #37: Single editable system prompt. Merged task instructions into System Prompt; user message is now automatic `{{text}}` (removed from UI). `{{source_language_clause}}`/`{{target_language_clause}}` resolve into the system message; source-language sentence dropped entirely when Whisper returns null/blank/`"unknown"`. Removed dead `SettingsStore` prompt properties.
 - [x] Issue #32: DayNight-aware recording screen + pipeline status messages.
 - [x] Issue #25: Score-based settlement migration complete.
 
@@ -20,4 +22,4 @@ Issue #39 complete. Prompt template variables renamed for clarity (`{{optional_s
 None
 
 ## Next Session Suggestion
-Manual on-device verification of #37/#39 (dictate with/without target language; check `prompt.md` log shows resolved system message with the renamed placeholders + `{{text}}`-only user message), then Issue #20 (Play Console preconditions) or new feature work.
+Manual on-device verification of #37/#39/#40 (dictate with/without target language; confirm `logs/prompt.json` shows the resolved pretty-printed `ChatRequest` with the `*_clause` placeholders and a `{{text}}`-only user message; confirm raw mode writes no log), then Issue #20 (Play Console preconditions) or new feature work.
