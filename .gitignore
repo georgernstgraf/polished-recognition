@@ -16,3 +16,4 @@ keystore.properties
 *.keystore
 .env
 SCRATCH.md
+/tmp/
