@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -68,6 +69,10 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_voice_input)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { cancelAndFinish() }
+        })
 
         cancelButton.setOnClickListener { cancelAndFinish() }
 
@@ -331,10 +336,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     private fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
-    }
-
-    override fun onBackPressed() {
-        cancelAndFinish()
     }
 
     override fun onDestroy() {
