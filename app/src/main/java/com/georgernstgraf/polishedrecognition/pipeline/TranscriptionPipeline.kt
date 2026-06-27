@@ -52,8 +52,8 @@ class TranscriptionPipeline(
         val raw = sttResult.getOrThrow()
         val whisper = raw.copy(text = raw.text.trim())
 
-        val translatePrompt = if (targetLanguage != null) {
-            promptStore.translatePromptTemplate.replace("{{target_language}}", targetLanguage)
+        val targetLanguageClause = if (targetLanguage != null) {
+            promptStore.targetLanguageClauseTemplate.replace("{{target_language}}", targetLanguage)
         } else {
             ""
         }
@@ -65,8 +65,8 @@ class TranscriptionPipeline(
         }
 
         val systemPrompt = promptStore.systemPrompt
-            .replace("{{optional_source_language_info}}", sourceLanguageClause)
-            .replace("{{optional_target_language_wish}}", translatePrompt)
+            .replace("{{source_language_clause}}", sourceLanguageClause)
+            .replace("{{target_language_clause}}", targetLanguageClause)
             .replace(Regex("\n{3,}"), "\n\n")
             .trim()
 

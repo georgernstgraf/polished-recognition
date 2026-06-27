@@ -30,7 +30,7 @@ class PromptStore(context: Context) {
 
     val systemPrompt: String get() = get(KEY_SYSTEM)
     val userPromptTemplate: String get() = get(KEY_USER)
-    val translatePromptTemplate: String get() = get(KEY_TRANSLATE)
+    val targetLanguageClauseTemplate: String get() = get(KEY_TRANSLATE)
 
     companion object {
         const val KEY_SYSTEM = "system"

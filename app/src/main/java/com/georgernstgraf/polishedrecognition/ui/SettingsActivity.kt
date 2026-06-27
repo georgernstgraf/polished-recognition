@@ -144,7 +144,7 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.reset_target_language_prompt).setOnClickListener {
             promptStore.restoreDefault(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE)
-            targetLanguagePromptField.setText(promptStore.translatePromptTemplate)
+            targetLanguagePromptField.setText(promptStore.targetLanguageClauseTemplate)
         }
 
         findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openRecognitionServiceSettings() }
@@ -180,7 +180,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         systemPromptField.setText(promptStore.systemPrompt)
-        targetLanguagePromptField.setText(promptStore.translatePromptTemplate)
+        targetLanguagePromptField.setText(promptStore.targetLanguageClauseTemplate)
     }
 
     private fun loadPromptDefaults() {
