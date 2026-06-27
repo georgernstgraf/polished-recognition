@@ -7,6 +7,7 @@ import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -73,8 +74,6 @@ class TranscriptionPipeline(
         val userPrompt = promptStore.userPromptTemplate
             .replace("{{text}}", whisper.text)
 
-        promptLogger?.log(systemPrompt, userPrompt)
-
         if (rawMode) return@withContext Result.success(whisper.text)
 
         val llmConfig = settingsStore.llmProvider
@@ -93,6 +92,8 @@ class TranscriptionPipeline(
                 ChatMessage(role = "user", content = userPrompt)
             )
         )
+
+        promptLogger?.log(GsonBuilder().setPrettyPrinting().create().toJson(request))
 
         val response = getChatApi(llmConfig.baseUrl).chatSync(
             authorization = "Bearer ${llmConfig.apiToken}",

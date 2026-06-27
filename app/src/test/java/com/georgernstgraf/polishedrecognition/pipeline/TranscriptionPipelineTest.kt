@@ -11,6 +11,7 @@ import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.GsonBuilder
 import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
@@ -19,7 +20,9 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -40,6 +43,9 @@ class TranscriptionPipelineTest {
     private lateinit var promptStore: PromptStore
     private lateinit var pipeline: TranscriptionPipeline
     private lateinit var lincolnFile: File
+
+    @get:Rule
+    val tmp = TemporaryFolder()
 
     private val lincolnGermanText =
         "Abraham Lincoln war der 16. Präsident der Vereinigten Staaten von 1861 bis 1865. " +
@@ -134,6 +140,36 @@ class TranscriptionPipelineTest {
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
+    }
+
+    @Test
+    fun `raw mode writes no prompt log`() = runBlocking {
+        settingsStore.rawMode = true
+        mockSttSuccess()
+
+        val logDir = tmp.newFolder("rawlogs")
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, PromptLogger(logDir))
+        loggingPipeline.transcribe(lincolnFile)
+
+        val jsonFiles = logDir.listFiles().orEmpty().filter { it.extension == "json" }
+        assertThat(jsonFiles).isEmpty()
+    }
+
+    @Test
+    fun `LLM mode logs the exact ChatRequest sent to the LLM`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccess()
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        val logDir = tmp.newFolder("llmlogs")
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, PromptLogger(logDir))
+        loggingPipeline.transcribe(lincolnFile)
+
+        val logged = File(logDir, "prompt.json").readText()
+        assertThat(logged).isEqualTo(GsonBuilder().setPrettyPrinting().create().toJson(requestSlot.captured))
+        assertThat(logged).contains("The STT service transcribed audio spoken in German.")
+        assertThat(logged).contains(lincolnGermanText)
     }
 
     @Test
