@@ -102,7 +102,7 @@ screen.
 - **Fetch Models** — pulls available models from any OpenAI-compatible provider
 - **Fully customizable prompts** — two editable prompts in Settings: System Prompt (LLM behavior + transcription cleanup instructions, with `{{source_language_clause}}` and `{{target_language_clause}}` variables) and Target Language Clause (translation instruction with `{{target_language}}`). The transcribed text is sent automatically as the user message. Individual prompts can be restored to defaults, or all at once.
 - **Raw mode** — skip LLM post-processing, return STT text directly
-- **Prompt logging** — each LLM request is written verbatim (pretty-printed JSON) to rotating log files (`prompt.json` + history `prompt_1.json` … `prompt_9.json`); not written in raw mode. Pull via `adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/`
+- **Request & response logging** — three rotating pretty-JSON logs (each `*.json` + history `*_1.json` … `*_9.json`): `llm-prompt.json` (the request sent to the LLM; not written in raw mode), `stt-response.json` (the raw STT response, all fields), and `llm-response.json` (the raw LLM response, all fields). Pull via `adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/`
 
 ### Custom Prompts
 

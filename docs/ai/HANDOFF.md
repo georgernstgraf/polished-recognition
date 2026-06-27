@@ -1,3 +1,3 @@
 # Hand Off
 
-No pending tasks. Last cleared: 2026-06-27 (Issues #39 2nd round — `*_clause` placeholder rename — and #40 — pretty-JSON prompt logging, raw-mode skip — merged).
+No pending tasks. Last cleared: 2026-06-27 (Issue #41 — verbatim STT/LLM response logging via OkHttp interceptor, `prompt.json`→`llm-prompt.json`, `PromptLogger`→`RotatingJsonLogger` — merged).
