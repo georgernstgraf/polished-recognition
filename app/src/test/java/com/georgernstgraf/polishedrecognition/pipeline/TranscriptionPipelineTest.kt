@@ -148,7 +148,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
 
         val logDir = tmp.newFolder("rawlogs")
-        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, PromptLogger(logDir))
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
         loggingPipeline.transcribe(lincolnFile)
 
         val jsonFiles = logDir.listFiles().orEmpty().filter { it.extension == "json" }
@@ -163,10 +163,10 @@ class TranscriptionPipelineTest {
         mockChatSuccessWithCapture(requestSlot)
 
         val logDir = tmp.newFolder("llmlogs")
-        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, PromptLogger(logDir))
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
         loggingPipeline.transcribe(lincolnFile)
 
-        val logged = File(logDir, "prompt.json").readText()
+        val logged = File(logDir, "llm-prompt.json").readText()
         assertThat(logged).isEqualTo(GsonBuilder().setPrettyPrinting().create().toJson(requestSlot.captured))
         assertThat(logged).contains("The STT service transcribed audio spoken in German.")
         assertThat(logged).contains(lincolnGermanText)

@@ -7,8 +7,9 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
-import com.georgernstgraf.polishedrecognition.pipeline.PromptLogger
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
+import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
+import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
 import com.google.android.material.color.DynamicColors
@@ -46,19 +47,22 @@ class PolishedRecognitionApp : Application() {
         }
     }
 
-    val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
-        .build()
+    val jsonLogger by lazy {
+        RotatingJsonLogger(File(getExternalFilesDir(null) ?: filesDir, "logs"))
+    }
+
+    val okHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(ResponseLoggerInterceptor(jsonLogger))
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .build()
+    }
 
     val settingsStore by lazy { SettingsStore(this) }
     val promptStore by lazy { PromptStore(this) }
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
-
-    val promptLogger by lazy {
-        PromptLogger(File(getExternalFilesDir(null) ?: filesDir, "logs"))
-    }
 
     val transcriptionPipeline by lazy {
         TranscriptionPipeline(
@@ -66,7 +70,7 @@ class PolishedRecognitionApp : Application() {
             getChatApi = { baseUrl -> getChatApi(baseUrl) },
             promptStore = promptStore,
             settingsStore = settingsStore,
-            promptLogger = promptLogger
+            logger = jsonLogger
         )
     }
 

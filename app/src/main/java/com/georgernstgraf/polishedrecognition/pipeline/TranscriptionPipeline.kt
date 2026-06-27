@@ -21,7 +21,7 @@ class TranscriptionPipeline(
     private val getChatApi: (String) -> OpenAiChatApiService,
     private val promptStore: PromptStore,
     private val settingsStore: SettingsStore,
-    private val promptLogger: PromptLogger? = null
+    private val logger: RotatingJsonLogger? = null
 ) {
 
     data class SttResult(
@@ -93,7 +93,7 @@ class TranscriptionPipeline(
             )
         )
 
-        promptLogger?.log(GsonBuilder().setPrettyPrinting().create().toJson(request))
+        logger?.log("llm-prompt", GsonBuilder().setPrettyPrinting().create().toJson(request))
 
         val response = getChatApi(llmConfig.baseUrl).chatSync(
             authorization = "Bearer ${llmConfig.apiToken}",
