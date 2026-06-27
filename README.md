@@ -100,7 +100,7 @@ screen.
 - **Separate URL fields** — editable base URLs for each provider
 - **Test Token** — validates LLM tokens with a minimal chat request (avoids unauthenticated `/v1/models` endpoints)
 - **Fetch Models** — pulls available models from any OpenAI-compatible provider
-- **Fully customizable prompts** — two editable prompts in Settings: System Prompt (LLM behavior + transcription cleanup instructions, with `{{source_language}}` and `{{translate_prompt}}` variables) and Target Language Prompt (translation instruction with `{{target_language}}`). The transcribed text is sent automatically as the user message. Individual prompts can be restored to defaults, or all at once.
+- **Fully customizable prompts** — two editable prompts in Settings: System Prompt (LLM behavior + transcription cleanup instructions, with `{{optional_source_language_info}}` and `{{optional_target_language_wish}}` variables) and Target Language Prompt (translation instruction with `{{target_language}}`). The transcribed text is sent automatically as the user message. Individual prompts can be restored to defaults, or all at once.
 - **Raw mode** — skip LLM post-processing, return STT text directly
 - **Prompt logging** — resolved prompts written to rotating log files (pull via `adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/`)
 
@@ -110,11 +110,11 @@ The transcription pipeline has two editable prompts in Settings:
 
 | Prompt | Template Variables | Purpose |
 |--------|-------------------|---------|
-| **System Prompt** | `{{source_language}}`, `{{translate_prompt}}` | Controls the LLM's behavior, output constraints, and transcription cleanup instructions |
+| **System Prompt** | `{{optional_source_language_info}}`, `{{optional_target_language_wish}}` | Controls the LLM's behavior, output constraints, and transcription cleanup instructions |
 | **Target Language Prompt** | `{{target_language}}` | Translation instruction inserted into the system prompt when a target language is set |
 
 - The transcribed text is sent automatically as the user message (`{{text}}`); it is not user-editable
-- `{{source_language}}` resolves to a full sentence ("The STT service transcribed audio spoken in German.") and is dropped entirely when Whisper returns no language
+- `{{optional_source_language_info}}` resolves to a full sentence ("The STT service transcribed audio spoken in German.") and is dropped entirely when Whisper returns no language
 - Prompts are stored in `SharedPreferences` and persisted across sessions
 - Individual prompts can be restored to their defaults via the **Reset** button next to each field
 - All prompts can be restored at once via **Restore all prompts to default**

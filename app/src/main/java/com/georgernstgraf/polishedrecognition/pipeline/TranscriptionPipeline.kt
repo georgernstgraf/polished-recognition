@@ -65,8 +65,8 @@ class TranscriptionPipeline(
         }
 
         val systemPrompt = promptStore.systemPrompt
-            .replace("{{source_language}}", sourceLanguageClause)
-            .replace("{{translate_prompt}}", translatePrompt)
+            .replace("{{optional_source_language_info}}", sourceLanguageClause)
+            .replace("{{optional_target_language_wish}}", translatePrompt)
             .replace(Regex("\n{3,}"), "\n\n")
             .trim()
 

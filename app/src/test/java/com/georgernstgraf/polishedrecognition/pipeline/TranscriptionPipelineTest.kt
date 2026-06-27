@@ -163,7 +163,7 @@ class TranscriptionPipelineTest {
     }
 
     @Test
-    fun `source_language resolved from Whisper language field`() = runBlocking {
+    fun `optional_source_language_info resolved from Whisper language field`() = runBlocking {
         settingsStore.rawMode = false
         mockSttSuccess()
 
@@ -179,7 +179,7 @@ class TranscriptionPipelineTest {
     }
 
     @Test
-    fun `source_language omitted when Whisper returns no language`() = runBlocking {
+    fun `optional_source_language_info omitted when Whisper returns no language`() = runBlocking {
         settingsStore.rawMode = false
         mockSttSuccessNoLanguage()
 
@@ -190,11 +190,11 @@ class TranscriptionPipelineTest {
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).doesNotContain("transcribed audio spoken in")
-        assertThat(systemMessage).doesNotContain("{{source_language}}")
+        assertThat(systemMessage).doesNotContain("{{optional_source_language_info}}")
     }
 
     @Test
-    fun `translate_prompt injected when targetLanguage is set`() = runBlocking {
+    fun `optional_target_language_wish injected when targetLanguage is set`() = runBlocking {
         settingsStore.rawMode = false
         settingsStore.targetLanguage = "English"
         mockSttSuccess()
@@ -209,7 +209,7 @@ class TranscriptionPipelineTest {
     }
 
     @Test
-    fun `translate_prompt not injected when targetLanguage is null`() = runBlocking {
+    fun `optional_target_language_wish not injected when targetLanguage is null`() = runBlocking {
         settingsStore.rawMode = false
         settingsStore.targetLanguage = null
         mockSttSuccess()

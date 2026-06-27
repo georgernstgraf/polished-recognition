@@ -41,9 +41,9 @@ Follow these without question. Do not deviate unless explicitly told.
 ## Prompt Variables
 The transcription pipeline resolves the following template variables at runtime. The **system** prompt is the single editable instruction surface; the **user** message is an automatic, non-editable carrier containing only `{{text}}`.
 - `{{text}}` — raw Whisper transcription output (resolved into the user message; also the only content of the `user` prompt template)
-- `{{source_language}}` — resolved into the **system** prompt as a full sentence (`"The STT service transcribed audio spoken in <Name>."`) or **empty** (whole sentence dropped) when Whisper returns null/blank/`"unknown"`
+- `{{optional_source_language_info}}` — resolved into the **system** prompt as a full sentence (`"The STT service transcribed audio spoken in <Name>."`) or **empty** (whole sentence dropped) when Whisper returns null/blank/`"unknown"`
 - `{{target_language}}` — the user's chosen output language (resolved into the translate prompt)
-- `{{translate_prompt}}` — resolved into the **system** prompt; empty string if no translation, otherwise the resolved translate prompt
+- `{{optional_target_language_wish}}` — resolved into the **system** prompt; empty string if no translation, otherwise the resolved translate prompt
 
 ## Build & Installation
 
