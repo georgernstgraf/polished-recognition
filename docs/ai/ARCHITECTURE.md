@@ -99,17 +99,18 @@ Hosted at `https://georgernstgraf.github.io/polished-recognition/` for Google Pl
 | `privacy-policy.md` | English-language privacy policy (RECORD_AUDIO, INTERNET, no third-party sharing, user-configured endpoints) |
 | `assets/screenshots/` | Play Store screenshots (user-provided) |
 
-## F-Droid (`fdroid/` + `fastlane/`)
+## F-Droid (`fastlane/` only)
+
+F-Droid build metadata (`com.georgernstgraf.polishedrecognition.yml`) lives **only** in the [fdroiddata](https://gitlab.com/fdroid/fdroiddata) MR — it is NOT mirrored in this repo (single source of truth). Only upstream-consumable metadata is kept here:
 
 | File | Purpose |
 |------|---------|
-| `fdroid/com.georgernstgraf.polishedrecognition.yml` | F-Droid metadata (build config, license, links — NO Description) |
 | `fastlane/metadata/android/en-US/title.txt` | App title for F-Droid / Play Store |
 | `fastlane/metadata/android/en-US/short_description.txt` | ~80 char summary |
-| `fastlane/metadata/android/en-US/full_description.txt` | Full app description (pulled by F-Droid from upstream repo) |
+| `fastlane/metadata/android/en-US/full_description.txt` | Full app description (HTML; pulled by F-Droid from upstream repo) |
 
 F-Droid MR: [!40029](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/40029)
-Worktree: `~/repos/schurlix/fdroiddata-mr-polished-recognition`
+Worktree: `~/repos/schurlix/fdroiddata-mr-polished-recognition` (branch `add-polished-recognition` on the `schurlix/fdroiddata` fork).
 
 ## Knowledge Files (`docs/ai/`)
 

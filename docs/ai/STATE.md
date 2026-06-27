@@ -17,7 +17,7 @@ Current status as of 2026-06-27.
 - [x] Issue #25: Score-based settlement migration complete.
 
 ## Pending
-- [ ] F-Droid MR !40029 — waiting for maintainer review
+- [~] F-Droid MR !40029 — applied maintainer's requests (`subdir: app`, removed `output:` + `UpdateCheckData:`; commit `a3347eab`, pushed 2026-06-27). Verified locally: `fdroid rewritemeta`/`lint` clean, `checkupdates` detects version without `UpdateCheckData`, `fdroid build :100` succeeds. Awaiting linsui re-review.
 - [ ] F-Droid MR !39945 (Zazen Meditation Timer) — waiting for maintainer review
 - [ ] Issue #20: Play Console preconditions before production track
 
