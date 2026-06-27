@@ -3,9 +3,10 @@
 Current status as of 2026-06-27.
 
 ## Current Focus
-Issue #42 complete (housekeeping). `./gradlew clean test` is now warning-free (migrated `onBackPressed`→`OnBackPressedCallback`; `-Xshare:off` on the test JVM silences the Robolectric CDS warning). `scripts/sync-device-logs.sh` pulls the device log dir into gitignored `tmp/`. Prior: #41 added three rotating pretty-JSON logs (`llm-prompt.json`, `stt-response.json`, `llm-response.json`) via `ResponseLoggerInterceptor` + `RotatingJsonLogger`.
+**Released 1.1.0** (`v1.1.0`, versionCode 10100) — `release.yml` triggered (Play alpha track + GitHub Release + AAB artifact). Bundles #37–#42: single editable System Prompt + Target Language Clause, STT/output whitespace trimming, rotating request/response JSON logging, build cleanup. `PRIVACY-POLICY.md` now discloses the on-device diagnostic logs.
 
 ## Completed (this cycle)
+- [x] Release 1.1.0: version bump (10001→10100 / 1.0.1→1.1.0); PRIVACY-POLICY.md diagnostic-logs disclosure (date bumped); Play "What's new" in `distribution/whatsnew/whatsnew-en-GB`. Tag `v1.1.0` pushed → `release.yml` (Play alpha). **Manual follow-up: Play Console Data Safety form** (declare local transcript/provider-response log storage).
 - [x] Issue #42: Build/dev housekeeping. Migrated `VoiceRecognitionActivity.onBackPressed()` to `OnBackPressedCallback`; added `testOptions.unitTests.all { it.jvmArgs("-Xshare:off") }` to clear the JVM sharing warning — `./gradlew clean test` is warning-free. New `scripts/sync-device-logs.sh` (`adb pull` logs→`tmp/`); `/tmp/` gitignored.
 - [x] Issue #41: Verbatim STT/LLM response logging. New `ResponseLoggerInterceptor` (path-routed `audio/transcriptions`→`stt-response`, `chat/completions`→`llm-response`, `models` ignored) captures raw body via `peekBody`, pretty-prints (all fields, raw fallback). `PromptLogger`→`RotatingJsonLogger` (`log(baseName, content)`); `prompt.json`→`llm-prompt.json`; legacy `prompt*.json` swept. Logs error responses too. Tests: `RotatingJsonLoggerTest`, `ResponseLoggerInterceptorTest` (pure helpers), pipeline `llm-prompt.json` update.
 - [x] Issue #40: Logging rework. Log the verbatim `ChatRequest` sent to the LLM (pretty JSON); moved the log call after the request build so raw mode logs nothing; `.md`→`.json`, `maxCount` 5→9; legacy `prompt*.md` swept. New tests.
@@ -24,4 +25,4 @@ Issue #42 complete (housekeeping). `./gradlew clean test` is now warning-free (m
 None
 
 ## Next Session Suggestion
-Manual on-device verification of #37/#39/#40/#41 (dictate with/without target language; pull logs via `scripts/sync-device-logs.sh` → `tmp/logs/`; confirm `llm-prompt.json`, `stt-response.json`, `llm-response.json` show resolved pretty JSON — full STT segments + LLM `usage` fields present; raw mode writes no `llm-prompt.json`), then Issue #20 (Play Console preconditions) or new feature work.
+Confirm the `v1.1.0` `release.yml` run succeeded (Play alpha upload; the Play upload step is `continue-on-error` — check the Actions log + Play Console). **Update the Play Console Data Safety form** to declare local storage of transcripts + provider responses (mirrors PRIVACY-POLICY.md). On-device: pull logs via `scripts/sync-device-logs.sh` → `tmp/logs/` to verify `llm-prompt.json`/`stt-response.json`/`llm-response.json`. Then Issue #20 follow-ups or new feature work.
