@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** June 19, 2026
+**Last updated:** June 27, 2026
 
 ## Overview
 
@@ -60,6 +60,23 @@ All provider settings, prompt templates, and preferences are stored locally on
 your device in Android SharedPreferences. No configuration data is transmitted
 to the app developer.
 
+### Diagnostic Logs
+
+To help you troubleshoot your provider configuration, the app writes rotating
+JSON log files to its app-private storage
+(`Android/data/com.georgernstgraf.polishedrecognition/files/logs/`). These
+contain:
+
+- the prompt sent to your LLM, including the transcribed text
+  (`llm-prompt.json`; not written in raw mode);
+- the raw response from your STT provider, including the transcript
+  (`stt-response.json`);
+- the raw response from your LLM provider (`llm-response.json`).
+
+Up to nine historical copies of each are kept. These logs are stored **only**
+on your device and are **never** transmitted to the app developer. They remain
+until you clear the app's data, uninstall the app, or delete the files.
+
 ## Third-Party Data Sharing
 
 Polished Recognition **does not**:
@@ -68,7 +85,7 @@ Polished Recognition **does not**:
 - Use analytics SDKs
 - Display advertisements
 - Track user behavior
-- Collect crash reports or diagnostics
+- Transmit crash reports or diagnostics to the app developer (local diagnostic logs stay on your device — see Diagnostic Logs above)
 - Sell user data
 
 The only external data transmission is the audio and text data you explicitly
@@ -80,6 +97,9 @@ choose to send to the API provider you configure in Settings.
   are discarded immediately after processing.
 - Configuration data remains on your device until you clear app data or
   uninstall the application.
+- Diagnostic log files (the LLM prompt including transcript, and the raw STT
+  and LLM responses) are stored on your device as described under Diagnostic
+  Logs, until you clear app data or uninstall.
 - No data is retained on servers controlled by the app developer.
 
 ## Children's Privacy
