@@ -18,7 +18,7 @@ Current status as of 2026-06-27.
 
 ## Pending
 - [~] F-Droid MR !40029 — applied maintainer's requests (`subdir: app`, removed `output:` + `UpdateCheckData:`; commit `a3347eab`, pushed 2026-06-27). Verified locally: `fdroid rewritemeta`/`lint` clean, `checkupdates` detects version without `UpdateCheckData`, `fdroid build :100` succeeds. Awaiting linsui re-review.
-- [ ] F-Droid MR !39945 (Zazen Meditation Timer) — waiting for maintainer review
+- [~] F-Droid MR !39945 (Zazen Meditation Timer) — reproducible build landed. `Categories: Time→Timer`; branch unprotected; added `Binaries:`+`AllowedAPKSigningKeys:`; pinned 3.2.2 (drops non-deterministic `BUILD_HOST`, strips AGP dependency-metadata block). All 9 CI jobs green incl `check apk`; verified reproducible locally + CI. Signed reference APK published via zazentimer's new `fdroid-apk.yml` (Play pipeline untouched). Replied to linsui; awaiting re-review.
 - [ ] Issue #20: Play Console preconditions before production track
 
 ## Blockers
