@@ -82,11 +82,12 @@ Builds AAB signed with upload keystore from secrets, uploads to Play Console int
 
 | Build | Signing | Where |
 |-------|---------|-------|
-| `installRelease` / `assembleRelease` local | `signingConfigs.release` → `app/release.keystore` (copy of `~/.android/debug.keystore`) | On your machine |
+| `installRelease` / `assembleRelease` local | `signingConfigs.release` → `app/release.keystore` (proper RSA-2048 release key), passwords from gitignored `keystore.properties` (restored from the pass wallet) | On your machine |
 | `build.yml` APK & AAB | `RELEASE_KEYSTORE` secret decoded to `app/release.keystore` + `RELEASE_*` env vars | CI |
-| `release.yml` AAB | Upload keystore via injected properties (CI) | CI |
+| `release.yml` AAB | Upload keystore via injected properties (CI) — **different key** (Play upload key), unaffected by the APK release key | CI |
+| `fdroid-apk.yml` APK | `RELEASE_KEYSTORE` secret → `app/release.keystore` + `RELEASE_*` env vars → signed APK for F-Droid reproducible verification | CI |
 
-`app/build.gradle.kts` has `signingConfigs.release` that reads `app/release.keystore` with env var fallback to `android`/`androiddebugkey`.
+`app/build.gradle.kts` `signingConfigs.release` reads a gitignored `keystore.properties` (rootProject) when present, else `RELEASE_STORE_PASSWORD`/`RELEASE_KEY_ALIAS`/`RELEASE_KEY_PASSWORD` env vars — no `android` fallback (the old debug-keystore defaults are gone). The APK release key (cert `62f9d7b0…a76a85`, `AllowedAPKSigningKeys` for F-Droid) is unrelated to the Play upload keystore. Keys live in the `pass` wallet at `~/svn/georg/private/password-store`.
 
 ## GitHub Pages (`docs/` public)
 

@@ -17,7 +17,7 @@ Current status as of 2026-06-27.
 - [x] Issue #25: Score-based settlement migration complete.
 
 ## Pending
-- [~] F-Droid MR !40029 — applied maintainer's requests (`subdir: app`, removed `output:` + `UpdateCheckData:`; commit `a3347eab`, pushed 2026-06-27). Verified locally: `fdroid rewritemeta`/`lint` clean, `checkupdates` detects version without `UpdateCheckData`, `fdroid build :100` succeeds. Awaiting linsui re-review.
+- [~] F-Droid MR !40029 — reproducible build landed. Pinned v1.1.1 (bumped from 1.0.0; `UpdateCheckMode: Tags ^v` to skip `build-*` tags); added `Binaries:` + `AllowedAPKSigningKeys:` (new RSA-2048 release key, cert `62f9d7b0…85`); disabled AGP `dependenciesInfo` (strips the ‘Dependency metadata’ block F-Droid rejects). All 9 CI jobs green incl `check apk`; verified reproducible locally + CI (R8/minify reproduces). Reference APK published by `fdroid-apk.yml` (Play AAB pipeline untouched). Replied to linsui; awaiting re-review. Also shipped Play alpha v1.1.1 via tag (additive).
 - [~] F-Droid MR !39945 (Zazen Meditation Timer) — reproducible build landed. `Categories: Time→Timer`; branch unprotected; added `Binaries:`+`AllowedAPKSigningKeys:`; pinned 3.2.2 (drops non-deterministic `BUILD_HOST`, strips AGP dependency-metadata block). All 9 CI jobs green incl `check apk`; verified reproducible locally + CI. Signed reference APK published via zazentimer's new `fdroid-apk.yml` (Play pipeline untouched). Replied to linsui; awaiting re-review.
 - [ ] Issue #20: Play Console preconditions before production track
 
