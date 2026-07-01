@@ -63,12 +63,15 @@ The transcription pipeline resolves the following template variables at runtime.
 - Test resources: `src/test/resources/` for audio fixtures, `src/test/resources/robolectric.properties` for SDK config
 
 ## F-Droid
+- **Active submission MR:** https://gitlab.com/fdroid/fdroiddata/-/merge_requests/40029 (New App: Polished Recognition). Use `glab` CLI (authenticated as `schurlix`) for all GitLab API access — `gh` only works for GitHub.
 - F-Droid metadata YAML (`fdroid/*.yml`) must NOT contain `Description:` — store text goes in `fastlane/metadata/android/<locale>/`
 - `AutoUpdateMode` uses `Version` (not `VersionTag`) with `UpdateCheckMode: Tags`
 - `UpdateCheckData` format: `file|versionCode_regex|.|versionName_regex` — exactly 4 pipe-separated parts, backslashes must be preserved (use Python/heredoc, not sed)
 - `versionCode` and `versionName` must be static in `build.gradle.kts` for F-Droid regex extraction
 - New MRs must use the "App Inclusion" template with all checkboxes
 - Only one app per MR (don't include other metadata changes in the same branch)
+- Fastlane `short_description.txt` must be < 80 characters (F-Droid enforces this).
+- **The app is NOT on-device ML.** It uses user-configured OpenAI-compatible cloud APIs (Groq, OpenAI, OpenRouter, etc.) for STT + optional LLM refinement. The `INTERNET` permission is for these user-initiated API calls — no analytics/tracking. Testers on headless emulators see no app traffic because no API key is configured; be explicit about this in review responses.
 
 ## Documentation
 - When editing `docs/privacy-policy.md`, always update the "Last updated" date to today's date.
