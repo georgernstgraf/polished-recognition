@@ -86,6 +86,10 @@ class VoiceSessionController(
                 Result.failure(e)
             }
             emit(Event.Completed(result))
+            accumulatedMs = 0L
+            segStartMs = 0L
+            state = State.IDLE
+            emit(Event.StateChanged(state))
         }
     }
 

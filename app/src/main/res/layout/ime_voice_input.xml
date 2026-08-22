@@ -4,20 +4,69 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@color/recording_overlay"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp">
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
 
-    <TextView
-        android:id="@+id/ime_status_text"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/ime_status_idle"
-        android:textColor="@color/recording_text_primary"
-        android:textSize="16sp"
-        android:gravity="center"
-        android:layout_marginBottom="12dp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/ime_status_text"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/ime_status_idle"
+            android:textColor="@color/recording_text_primary"
+            android:textSize="15sp"
+            android:gravity="center" />
+
+        <ImageButton
+            android:id="@+id/ime_settings_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/ic_settings"
+            android:background="@null"
+            android:contentDescription="Settings"
+            android:scaleType="centerInside" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <Spinner
+            android:id="@+id/ime_language_spinner"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="20dp"
+            android:background="@color/recording_divider"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+
+        <CheckBox
+            android:id="@+id/ime_raw"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/quick_raw"
+            android:textColor="@color/recording_text_primary"
+            android:textSize="13sp"
+            android:buttonTint="@color/recording_text_primary" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"

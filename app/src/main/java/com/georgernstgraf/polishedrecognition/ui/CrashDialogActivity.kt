@@ -1,10 +1,14 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.os.Bundle
-import android.widget.ScrollView
+import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.georgernstgraf.polishedrecognition.R
 
 class CrashDialogActivity : AppCompatActivity() {
 
@@ -24,25 +28,23 @@ class CrashDialogActivity : AppCompatActivity() {
             appendLine(stackTrace)
         }
 
-        val textView = TextView(this).apply {
-            text = message
-            textSize = 12f
-            isSingleLine = false
-            setPadding(24, 24, 24, 24)
-        }
+        val view = layoutInflater.inflate(R.layout.dialog_crash, null)
+        view.findViewById<TextView>(R.id.crash_text).text = message
 
-        val scrollView = ScrollView(this).apply {
-            addView(textView)
+        view.findViewById<Button>(R.id.crash_copy_button).setOnClickListener {
+            val clipboard = getSystemService(ClipboardManager::class.java)
+            clipboard.setPrimaryClip(ClipData.newPlainText("Polished Recognition crash", message))
+            Toast.makeText(this, R.string.crash_copied, Toast.LENGTH_SHORT).show()
+        }
+        view.findViewById<Button>(R.id.crash_close_button).setOnClickListener {
+            finishAffinity()
+            kotlin.system.exitProcess(1)
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Fatal Error")
-            .setView(scrollView)
+            .setTitle(R.string.crash_title)
+            .setView(view)
             .setCancelable(false)
-            .setPositiveButton("Close App") { _, _ ->
-                finishAffinity()
-                kotlin.system.exitProcess(1)
-            }
             .show()
     }
 

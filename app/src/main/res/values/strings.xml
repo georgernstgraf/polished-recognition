@@ -64,4 +64,8 @@
     <string name="ime_error">Transcription failed</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>
+    <string name="crash_title">Fatal Error</string>
+    <string name="crash_copy">Copy to Clipboard</string>
+    <string name="crash_close">Close App</string>
+    <string name="crash_copied">Copied to clipboard</string>
 </resources>
