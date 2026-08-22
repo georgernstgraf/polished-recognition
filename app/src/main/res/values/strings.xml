@@ -39,8 +39,8 @@
     <string name="error_postprocess_failed">Post-processing failed</string>
     <string name="reset_prompt">Reset</string>
     <string name="prompt_variables" translatable="false">Variables:</string>
-    <string name="set_recognition_service">Register as Voice Recognition Service</string>
-    <string name="voice_input_set_success">Voice input set to Polished Recognition</string>
+    <string name="enable_voice_keyboard">Enable Voice Keyboard (IME)</string>
+    <string name="voice_keyboard_hint">Enable “Polished Recognition” in the on-screen keyboard list, then choose it as the voice input in your keyboard’s settings (HeliBoard, Fossify Keyboard, or OpenBoard).</string>
     <string name="voice_input_info_title">Voice Input Setup</string>
     <string name="voice_input_info_message" translatable="false">Polished Recognition works with English prompts, so enter your target language in English (e.g. "German" not "Deutsch").\n\nFull setup guide:\n<a href="https://github.com/georgernstgraf/polished-recognition#readme">github.com/georgernstgraf/polished-recognition#readme</a>\n\nMade with love by Georg Graf 💙</string>
 
@@ -49,4 +49,19 @@
     <string name="about_commit">Commit: %s</string>
     <string name="quick_raw">Raw</string>
     <string name="quick_language_hint">Language</string>
+
+    <string name="voice_subtype_label" translatable="false">Polished Recognition voice</string>
+    <string name="ime_status_idle">Tap the mic to speak</string>
+    <string name="ime_status_recording">Recording\u2026</string>
+    <string name="ime_status_paused">Paused</string>
+    <string name="ime_status_processing">Processing\u2026</string>
+    <string name="ime_status_stt">Transcribing (STT)\u2026</string>
+    <string name="ime_status_llm">Polishing (LLM)\u2026</string>
+    <string name="ime_record">Record</string>
+    <string name="ime_stop">Send</string>
+    <string name="ime_cancel">Cancel</string>
+    <string name="ime_processing">\u2026</string>
+    <string name="ime_error">Transcription failed</string>
+    <string name="ime_channel_name">Voice input</string>
+    <string name="ime_channel_desc">Active voice input session</string>
 </resources>

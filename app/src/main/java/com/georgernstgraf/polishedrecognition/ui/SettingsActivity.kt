@@ -1,6 +1,5 @@
 package com.georgernstgraf.polishedrecognition.ui
 
-import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
@@ -147,7 +146,7 @@ class SettingsActivity : AppCompatActivity() {
             targetLanguageClauseField.setText(promptStore.targetLanguageClauseTemplate)
         }
 
-        findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openRecognitionServiceSettings() }
+        findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openVoiceKeyboardSettings() }
         findViewById<Button>(R.id.save_button_top).setOnClickListener { saveAndClose() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
 
@@ -517,21 +516,11 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun openRecognitionServiceSettings() {
-        val cn = ComponentName(packageName, "${packageName}.service.PolishedRecognitionService")
-        val flattened = cn.flattenToString()
+    private fun openVoiceKeyboardSettings() {
+        Toast.makeText(this, R.string.voice_keyboard_hint, Toast.LENGTH_LONG).show()
         try {
-            Settings.Secure.putString(contentResolver, "voice_recognition_service", flattened)
-            val current = Settings.Secure.getString(contentResolver, "voice_recognition_service")
-            if (current == flattened) {
-                Toast.makeText(this, R.string.voice_input_set_success, Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this,
-                    "Could not set service. Use ADB: adb shell settings put secure voice_recognition_service $flattened",
-                    Toast.LENGTH_LONG).show()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, e.message ?: "Could not set voice input", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        } catch (_: Exception) {
         }
     }
 

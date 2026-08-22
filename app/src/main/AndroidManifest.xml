@@ -44,14 +44,23 @@
             android:process=":crash"
             android:theme="@style/Theme.PolishedRecognition.Transparent" />
 
+        <activity
+            android:name=".ui.MicrophonePermissionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.PolishedRecognition.Transparent"
+            android:excludeFromRecents="true" />
+
         <service
-            android:name=".service.PolishedRecognitionService"
+            android:name=".service.PolishedVoiceInputIME"
             android:exported="true"
             android:foregroundServiceType="microphone"
-            android:permission="android.permission.BIND_RECOGNITION_SERVICE">
+            android:permission="android.permission.BIND_INPUT_METHOD">
             <intent-filter>
-                <action android:name="android.speech.RecognitionService" />
+                <action android:name="android.view.InputMethod" />
             </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/voice_method" />
         </service>
 
     </application>

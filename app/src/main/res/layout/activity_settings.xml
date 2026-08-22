@@ -353,12 +353,12 @@
                 android:completionThreshold="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Recognition Service Setup -->
+        <!-- Voice Keyboard (IME) Setup -->
         <Button
             android:id="@+id/set_recognition_service"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/set_recognition_service"
+            android:text="@string/enable_voice_keyboard"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_marginBottom="16dp"/>
 

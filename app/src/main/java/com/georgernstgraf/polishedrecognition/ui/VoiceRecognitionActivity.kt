@@ -22,10 +22,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
-import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
-import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
+import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +33,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 
 class VoiceRecognitionActivity : AppCompatActivity() {
 
@@ -47,13 +45,10 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val audioRecorder = AudioRecorder()
-    private var isRecording = false
-    private var isPaused = false
+    private lateinit var controller: VoiceSessionController
     private var blinkAnimator: ValueAnimator? = null
     private var timerJob: Job? = null
-    private var recordingStartMs: Long = 0
-    private var recordedDurationMs: Long = 0
+    private var processingDurationStr = "00:00"
     private var silenceRawListener = false
 
     private val statusText: TextView by lazy { findViewById(R.id.status_text) }
@@ -74,13 +69,22 @@ class VoiceRecognitionActivity : AppCompatActivity() {
             override fun handleOnBackPressed() { cancelAndFinish() }
         })
 
+        controller = VoiceSessionController(
+            this,
+            (application as PolishedRecognitionApp).transcriptionPipeline
+        )
+
         cancelButton.setOnClickListener { cancelAndFinish() }
 
         pauseResumeButton.setOnClickListener {
-            if (isRecording) pause() else resume()
+            when (controller.state) {
+                VoiceSessionController.State.RECORDING -> controller.pause()
+                VoiceSessionController.State.PAUSED -> controller.resume()
+                else -> Unit
+            }
         }
 
-        stopButton.setOnClickListener { stopRecording() }
+        stopButton.setOnClickListener { controller.stopAndTranscribe() }
 
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -89,16 +93,73 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         setupQuickSettings()
 
         if (hasRecordPermission()) {
-            startRecording()
+            controller.start { onControllerEvent(it) }
         } else {
             ActivityCompat.requestPermissions(this,
                 arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
         }
     }
 
-    private val recorderListener = object : AudioRecorderListener {
-        override fun onRmsChanged(rms: Float) {}
-        override fun onSpeechBegin() {}
+    private fun onControllerEvent(event: VoiceSessionController.Event) {
+        when (event) {
+            is VoiceSessionController.Event.StateChanged -> onStateChanged(event.state)
+            is VoiceSessionController.Event.StageChanged -> onStage(event.stage)
+            is VoiceSessionController.Event.Completed -> {
+                val text = event.result.getOrNull()
+                if (text != null) {
+                    returnResults(arrayListOf(text))
+                } else {
+                    val msg = event.result.exceptionOrNull()?.message ?: "Transcription failed"
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    returnResults(ArrayList())
+                }
+            }
+            is VoiceSessionController.Event.RmsChanged,
+            is VoiceSessionController.Event.SpeechBegin -> Unit
+        }
+    }
+
+    private fun onStateChanged(state: VoiceSessionController.State) {
+        when (state) {
+            VoiceSessionController.State.RECORDING -> {
+                statusText.text = "Recording\u2026"
+                showPauseIcon()
+                setButtonsForRecording()
+                startBlink()
+                startTimer()
+            }
+            VoiceSessionController.State.PAUSED -> {
+                statusText.text = "Paused"
+                showResumeIcon()
+                setButtonsForPause()
+                stopBlink()
+                stopTimer()
+            }
+            VoiceSessionController.State.PROCESSING -> {
+                processingDurationStr = formatDuration(controller.recordedDurationMs())
+                statusText.text = "Processing\u2026"
+                setButtonsForProcessing()
+                stopBlink()
+                stopTimer()
+            }
+            VoiceSessionController.State.IDLE -> {
+                stopBlink()
+                stopTimer()
+            }
+        }
+    }
+
+    private fun onStage(stage: TranscriptionPipeline.TranscriptionStage) {
+        when (stage) {
+            is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
+                elapsedText.text = "requesting $processingDurationStr STT\u2026"
+            is TranscriptionPipeline.TranscriptionStage.RequestingLlm -> {
+                val tl = settings.targetLanguage
+                val base = if (tl != null) "requesting clean up ($tl)"
+                    else "requesting clean up"
+                elapsedText.text = "$base, ~ ${stage.wordCount} words\u2026"
+            }
+        }
     }
 
     private fun hasRecordPermission(): Boolean =
@@ -107,47 +168,11 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_RECORD_AUDIO && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startRecording()
+            controller.start { onControllerEvent(it) }
         } else {
             Toast.makeText(this, "Microphone permission required", Toast.LENGTH_SHORT).show()
             finish()
         }
-    }
-
-    private fun startRecording() {
-        isRecording = true
-        isPaused = false
-        recordingStartMs = System.currentTimeMillis()
-        recordedDurationMs = 0
-        statusText.text = "Recording\u2026"
-        showPauseIcon()
-        setButtonsForRecording()
-
-        audioRecorder.start(recorderListener)
-        startBlink()
-        startTimer()
-    }
-
-    private fun pause() {
-        recordedDurationMs += System.currentTimeMillis() - recordingStartMs
-        isRecording = false
-        isPaused = true
-        audioRecorder.pause()
-        stopBlink()
-        statusText.text = "Paused"
-        showResumeIcon()
-        setButtonsForPause()
-    }
-
-    private fun resume() {
-        recordingStartMs = System.currentTimeMillis()
-        isRecording = true
-        isPaused = false
-        audioRecorder.resume(recorderListener)
-        showPauseIcon()
-        statusText.text = "Recording\u2026"
-        setButtonsForRecording()
-        startBlink()
     }
 
     private fun showPauseIcon() {
@@ -160,60 +185,6 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         pauseResumeButton.setIconResource(R.drawable.ic_resume)
         pauseResumeButton.contentDescription = "Resume"
         pauseResumeButton.backgroundTintList = ColorStateList.valueOf(0xFF2E7D32.toInt())
-    }
-
-    private fun stopRecording() {
-        val durationMs = if (isRecording) {
-            recordedDurationMs + (System.currentTimeMillis() - recordingStartMs)
-        } else {
-            recordedDurationMs
-        }
-        val durationStr = "%02d:%02d".format(durationMs / 1000 / 60, durationMs / 1000 % 60)
-
-        isRecording = false
-        isPaused = false
-        stopBlink()
-        stopTimer()
-        statusText.text = "Processing\u2026"
-        setButtonsForProcessing()
-
-        val wavData = audioRecorder.stop()
-
-        scope.launch {
-            try {
-                val app = application as PolishedRecognitionApp
-                val file = File(cacheDir, "recording.wav")
-                file.writeBytes(wavData)
-
-                val result = app.transcriptionPipeline.transcribe(file) { stage ->
-                    runOnUiThread {
-                        elapsedText.text = when (stage) {
-                            is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
-                                "requesting $durationStr STT\u2026"
-                            is TranscriptionPipeline.TranscriptionStage.RequestingLlm -> {
-                                val tl = settings.targetLanguage
-                                val base = if (tl != null) "requesting clean up ($tl)"
-                                    else "requesting clean up"
-                                "$base, ~ ${stage.wordCount} words\u2026"
-                            }
-                        }
-                    }
-                }
-                file.delete()
-
-                if (result.isSuccess) {
-                    val text = result.getOrThrow()
-                    returnResults(arrayListOf(text))
-                } else {
-                    val msg = result.exceptionOrNull()?.message ?: "Transcription failed"
-                    Toast.makeText(this@VoiceRecognitionActivity, msg, Toast.LENGTH_LONG).show()
-                    returnResults(ArrayList())
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@VoiceRecognitionActivity, e.message ?: "Unexpected error", Toast.LENGTH_LONG).show()
-                returnResults(ArrayList())
-            }
-        }
     }
 
     private fun setButtonsForRecording() {
@@ -305,7 +276,7 @@ class VoiceRecognitionActivity : AppCompatActivity() {
     private fun cancelAndFinish() {
         stopBlink()
         stopTimer()
-        if (isRecording || isPaused) audioRecorder.cancel()
+        controller.cancel()
         returnResults(ArrayList())
     }
 
@@ -323,12 +294,7 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         timerJob = scope.launch {
             while (isActive) {
                 delay(250)
-                val currentSegment = if (isRecording) System.currentTimeMillis() - recordingStartMs else 0
-                val total = recordedDurationMs + currentSegment
-                val totalSec = total / 1000
-                val min = totalSec / 60
-                val sec = totalSec % 60
-                elapsedText.text = "%02d:%02d".format(min, sec)
+                elapsedText.text = formatDuration(controller.recordedDurationMs())
             }
         }
     }
@@ -338,10 +304,17 @@ class VoiceRecognitionActivity : AppCompatActivity() {
         timerJob = null
     }
 
+    private fun formatDuration(ms: Long): String {
+        val totalSec = ms / 1000
+        val min = totalSec / 60
+        val sec = totalSec % 60
+        return "%02d:%02d".format(min, sec)
+    }
+
     override fun onDestroy() {
         stopBlink()
         stopTimer()
-        scope.launch { try { audioRecorder.cancel() } catch (_: Exception) {} }
+        controller.cancel()
         super.onDestroy()
     }
 }
