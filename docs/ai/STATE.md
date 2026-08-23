@@ -1,26 +1,22 @@
 # Project State
 
-Current status as of 2026-08-22 (on-device testing on an Oplus/OnePlus phone).
+Current status as of 2026-08-23.
 
 ## Current Focus
-**Auxiliary voice IME (#43)** — implemented (commit `97939c9`) + further crash/deadlock/Copy-button fixes (uncommitted in this session, will be committed). Installed on the phone (v1.2.0, versionCode 10200, release-key-signed). **The IME works** — transcription `commitText`s into the focused field. On-device testing revealed the compact-bar UX needs polish + a crash (now fixed). **Two follow-up issues opened for fresh agents** (see Pending); this session does NOT implement them.
+**IME voice bar redesign (#44)** — implemented, committed (`4bdedbc`), pushed. Build + tests green. Awaiting on-device verification. **New issue opened (#46, pending) — keyboard selectability:** Polished is auxiliary-only (`isAuxiliary="true"` in `voice_method.xml`), so it can't be set as a primary keyboard; when it's the only enabled IME, the user can't switch back to Gboard from the nav-bar picker. Planned fix: add a second non-auxiliary keyboard subtype to the same IME (mixed subtypes), preserving the auxiliary voice subtype for HeliBoard/Fossify integration.
 
 ## Completed (this cycle)
-- [x] `VoiceSessionController` de-dup; `PolishedVoiceInputIME` + `voice_method.xml` + `MicrophonePermissionActivity` trampoline; removed bound `PolishedRecognitionService`; `SettingsActivity` → "Enable Voice Keyboard (IME)"; `INSTALLATION.md` rewritten; bump to 1.2.0. (commit `97939c9`, issue #43)
-- [x] **Crash fix**: IME `ImageButton` `?attr/selectableItemBackgroundBorderless` → `@null` (service context can't resolve Material theme attrs → crash loop). (uncommitted)
-- [x] **Deadlock fix**: `VoiceSessionController` resets to IDLE after `Completed` (2nd-dictation deadlock). (uncommitted)
-- [x] **CrashDialog Copy-to-Clipboard** button (left) + Close App (right) via `dialog_crash.xml`. (uncommitted)
-- [x] v1.2.0 compact bar (gear + language Spinner + Raw + Cancel + Mic) — baseline for issue #44. (uncommitted)
-- [x] GitLab token hygiene: exposed PAT stripped from remote URL + local `credential.helper`; `credential.helper=store` set; old tokens revoked; new `api`-scoped token cached. fdroiddata worktree unstuck (`git rebase --abort` → `ae5b1e5d`).
+- [x] #44 IME voice bar redesign (commit `4bdedbc`): 3 icon `ImageButton`s (Cancel/Pause-Resume/Mic-Send), pause/resume, gear-implicit-pause (RECORDING→pause before opening Settings), `onFinishInputView` lifecycle fix (only pause RECORDING, don't cancel PAUSED — opening Settings no longer destroys a paused recording), custom spinner item layouts with explicit hardcoded colors for contrast, quick-settings (spinner+raw) disabled+dimmed during RECORDING/PROCESSING, content descriptions for accessibility.
+- [x] Knowledge persistence run; ARCHITECTURE.md rewritten (was stale — still described the removed `PolishedRecognitionService`).
 
-## Pending (new issues, for fresh agents with clean context)
-- [ ] **#44 — IME voice bar redesign**: icon buttons (Cancel `ic_close` / Pause-Resume / Mic-Send), pause/resume, spinner contrast (custom item layouts), **implicit-pause on Settings-gear**, lifecycle fix (`onFinishInputView` must not cancel PAUSED). Do NOT delegate to the full-screen activity.
-- [ ] **#45 — Settings theme-free**: replace all Material (`TextInputLayout`, `MaterialCheckBox`, `Widget.Material3.*`, `?attr/textAppearance*`, androidx `AlertDialog`) with plain Views + a platform theme. No functional need (Settings works with Material) — aesthetic. Large/risky; see issue body.
-- [ ] On-device verify the #44 redesign (pause/resume/send/cancel + gear-implicit-pause→return→Resume + spinner readability + 2nd dictation).
-- [ ] Tag `v1.2.0` → `release.yml` → bump fdroiddata metadata + comment on MR !40029 (after #44 lands; the bar must be polished first).
+## Pending
+- [ ] On-device verify #44: `adb install -r` → switch active keyboard to Polished → pause→resume, send (commitText), cancel, gear-implicit-pause→Settings→return→Resume, spinner readability, 2nd dictation (no deadlock).
+- [ ] **#46 (to create) — IME keyboard selectability**: add a non-auxiliary keyboard subtype to `voice_method.xml` so Polished appears as a fully selectable primary keyboard, while keeping the existing auxiliary voice subtype for HeliBoard/Fossify integration. Planned, not yet implemented.
+- [ ] #45 — Settings theme-free (replace Material with plain Views + platform theme). Aesthetic; lower priority than #46.
+- [ ] After #44 verified + #46 landed: tag `v1.2.0` → `release.yml` → bump fdroiddata metadata + comment on MR !40029.
 
 ## Blockers
-None. (The Oplus ROM blocks adb `ime`/`settings secure`/`pm grant` — all UI-driven; not a blocker.)
+None. (Oplus ROM blocks adb `ime`/`settings secure`/`pm grant` — all UI-driven; not a blocker.)
 
 ## Next Session Suggestion
-A fresh agent picks up **#44** (IME bar) — it has the full context + the crash/deadlock pitfalls in PITFALLS. Then **#45** (Settings theme-free). After both + on-device verify → tag `v1.2.0` + F-Droid MR !40029 bump.
+Create issue #46 (keyboard selectability — mixed subtypes), implement the `voice_method.xml` change (add a non-auxiliary keyboard subtype alongside the existing auxiliary voice subtype), build, install, on-device verify that Polished now appears as a selectable primary keyboard AND that the auxiliary voice path still works. Then on-device verify #44 in the same session.

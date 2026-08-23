@@ -1,39 +1,48 @@
 # Architecture
 
-Living structural map of the system as of 2026-05-29.
+Living structural map of the system as of 2026-08-23.
+Overwritten when structural changes occur during a session.
 
 ## Overview
 
-Polished Recognition is an Android `RecognitionService` that provides
-OpenAI-compatible voice input for any Android keyboard. It captures
-audio via AudioRecord, transcribes via any `/v1/audio/transcriptions`
-endpoint, and optionally post-processes via any `/v1/chat/completions`
-endpoint. Results are returned to the keyboard through the standard
-Android speech recognition callback.
+Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`) that captures audio via `AudioRecord`, transcribes it via any OpenAI-compatible `/v1/audio/transcriptions` endpoint, optionally post-processces it via any `/v1/chat/completions` endpoint, and `commitText`s the result into the focused field through the standard `InputConnection`. It also ships a full-screen `VoiceRecognitionActivity` (invoked by the `RECOGNIZE_SPEECH` intent path) used historically by the bound `RecognitionService` and retained as an alternate entry point. The bound `PolishedRecognitionService` was removed in #43 — the IME is now the primary surface.
 
 ## Components
 
 | Component | Package | Role |
 |-----------|---------|------|
-| `PolishedRecognitionApp` | root | Application class — manual DI, OkHttpClient singleton, Retrofit cache per baseUrl, global `UncaughtExceptionHandler` |
-| `PolishedRecognitionService` | service | Extends `RecognitionService` — foreground notification, audio capture, pipeline call, callback.results() |
-| `TranscriptionPipeline` | pipeline | Orchestrates STT → (optional) LLM flow. Resolves prompt templates at runtime |
-| `PromptStore` | pipeline | Loads prompt defaults from `assets/prompts.json`, persists edits in SharedPreferences |
-| `OpenAiSttApiService` | api | Generic Retrofit interface: `POST audio/transcriptions`, `GET models` |
-| `OpenAiChatApiService` | api | Generic Retrofit interface: `POST chat/completions`, `GET models` |
+| `PolishedRecognitionApp` | root | Application class — manual DI, OkHttpClient singleton, Retrofit cache per baseUrl, global `UncaughtExceptionHandler` → `CrashDialogActivity` |
+| `PolishedVoiceInputIME` | service | `InputMethodService` — the auxiliary voice IME. Inflates `ime_voice_input.xml`, owns a `VoiceSessionController`, drives audio capture + transcription, `commitText`s results. Foreground service of type `microphone` while recording. |
+| `VoiceSessionController` | service (or sibling) | State machine for an IME voice session: IDLE → RECORDING ⇄ PAUSED → PROCESSING → IDLE. De-dups events, resets to IDLE after `Completed` (deadlock fix). |
+| `MicrophonePermissionActivity` | ui | Transparent trampoline `Activity` — `registerForActivityResult(RequestPermission())` for `RECORD_AUDIO`, then `finish()`. Launched by the IME with `FLAG_ACTIVITY_NEW_TASK` (a service cannot request runtime permissions directly). |
+| `VoiceRecognitionActivity` | ui | Full-screen overlay `AppCompatActivity` — audio capture + transcription, three-button layout (Cancel/Pause-Resume/Stop), `configChanges` for rotation safety. Retained as an alternate entry point. |
+| `TranscriptionPipeline` | pipeline | Orchestrates STT → (optional) LLM flow. Resolves prompt templates at runtime. Emits `TranscriptionStage` callbacks (`RequestingStt`, `RequestingLlm(wordCount)`). |
+| `PromptStore` | pipeline | Loads prompt defaults from `assets/prompts.json`, persists edits in SharedPreferences. Single editable System Prompt; user message is an automatic `{{text}}` carrier. |
+| `OpenAiSttApiService` | api | Generic Retrofit interface: `POST audio/transcriptions` (sync `Call<T>` to dodge R8 `Continuation` stripping), `GET models` |
+| `OpenAiChatApiService` | api | Generic Retrofit interface: `POST chat/completions` (sync `Call<T>`), `GET models` |
 | `AudioRecorder` | audio | AudioRecord wrapper: PCM 16kHz mono → WAV ByteArray |
 | `SettingsStore` | config | SharedPreferences: provider configs, raw mode, target language, cached model lists |
 | `ProviderPresetLoader` | config | Loads and queries `assets/provider_presets.json` |
 | `LanguageMapper` | config | Maps ISO 639-1 codes to human-readable names |
-| `SettingsActivity` | ui | XML-based: provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults |
-| `CrashDialogActivity` | ui | Transparent dialog Activity in separate `:crash` process — shows `AlertDialog` with exception details from global crash handler |
+| `SettingsActivity` | ui | XML-based: provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults, About section |
+| `CrashDialogActivity` | ui | Transparent dialog `Activity` in separate `:crash` process — shows `AlertDialog` with exception details from the global crash handler |
+
+## IME Registration
+
+`AndroidManifest.xml` declares `PolishedVoiceInputIME` as a service with `BIND_INPUT_METHOD` permission, an `android.view.InputMethod` intent-filter, and `meta-data` pointing to `res/xml/voice_method.xml`. The latter defines one auxiliary voice `<subtype>` (`imeSubtypeMode="voice"`, `isAuxiliary="true"`). **Known limitation:** an auxiliary-only IME cannot be set as the primary keyboard — when it's the only enabled IME, the user can't switch back to Gboard from the nav-bar picker. Tracked as a planned fix (#46): add a second, non-auxiliary keyboard subtype to the same `<input-method>` so Polished also appears as a selectable primary keyboard, while keeping the auxiliary voice subtype for HeliBoard/Fossify integration.
 
 ## Data Flows
 
-- Keyboard mic tap → System → `PolishedRecognitionService.onStartListening()` → `AudioRecorder.start()`
-- Keyboard mic release → System → `PolishedRecognitionService.onStopListening()` → `AudioRecorder.stop()` → WAV bytes → temp file → `TranscriptionPipeline.transcribe()`
-- Pipeline: WAV file → `OpenAiSttApiService.transcribeAudio()` → STT text → (raw mode: return text) → resolve prompts → `OpenAiChatApiService.chat()` → LLM text
-- Result → `callback.results()` → System → Keyboard → `InputConnection.commitText()`
+### IME path (primary, post-#43)
+- Nav-bar switcher (or Fossify's voice-typing selector) → active keyboard = Polished → `PolishedVoiceInputIME.onCreateInputView()` inflates the compact bar.
+- Mic tap → permission check (trampoline if missing) → `VoiceSessionController` IDLE→RECORDING → `AudioRecorder.start()` + foreground notification (type `microphone`).
+- Send/Stop → `AudioRecorder.stop()` → WAV bytes → `TranscriptionPipeline.transcribe()` → STT text → (raw: return) → resolve prompts → LLM text → `currentInputConnection.commitText()`.
+- Pause/Resume toggles `AudioRecord` start/stop while keeping the PCM buffer; Settings-gear press during RECORDING implicitly pauses before opening `SettingsActivity`.
+- `onFinishInputView` (IME hides, e.g. to open Settings) only pauses RECORDING — PAUSED/PROCESSING are left untouched so a paused recording survives.
+
+### Full-screen activity path (alternate)
+- `RECOGNIZE_SPEECH` intent (keyboards that use the system `voice_recognition_service`) → `VoiceRecognitionActivity` → same `AudioRecorder` + `TranscriptionPipeline` → `setResult` + `finish`.
+- Note: HeliBoard's mic uses the system `voice_recognition_service`, which was removed in #43, so HeliBoard's mic no longer routes to Polished. Use the IME path or re-add the bound service (possible follow-up).
 
 ## CI/CD Workflows
 
@@ -56,8 +65,8 @@ Builds release APK and AAB signed with the same keystore as local builds for Git
 ```
 
 - Publishes APK and AAB as GitHub Release (`build-N`)
-- Keeps newest 7 releases, cleans up older ones
-- Keystore decoded from `RELEASE_KEYSTORE` secret (same as local `~/.android/debug.keystore`)
+- Keeps newest 7 `build-*` releases, cleans up older ones (v* releases excluded)
+- Keystore decoded from `RELEASE_KEYSTORE` secret
 
 ### `release.yml` — Play Store Release (tag `v*`)
 
@@ -124,3 +133,4 @@ Worktree: `~/repos/schurlix/fdroiddata-mr-polished-recognition` (branch `add-pol
 | PITFALLS.md | Hard-won failure knowledge | Append |
 | DOMAIN.md | Business/domain rules | Append |
 | STATE.md | Current project status | Overwrite |
+| HISTORY.md | Superseded entries archive | Append-only |
