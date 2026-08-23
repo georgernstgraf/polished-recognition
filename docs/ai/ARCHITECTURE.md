@@ -24,8 +24,8 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 | `SettingsStore` | config | SharedPreferences: provider configs, raw mode, target language, cached model lists |
 | `ProviderPresetLoader` | config | Loads and queries `assets/provider_presets.json` |
 | `LanguageMapper` | config | Maps ISO 639-1 codes to human-readable names |
-| `SettingsActivity` | ui | XML-based: provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults, About section |
-| `CrashDialogActivity` | ui | Transparent dialog `Activity` in separate `:crash` process — shows `AlertDialog` with exception details from the global crash handler |
+| `SettingsActivity` | ui | XML-based, **plain `Activity` on `Theme.DeviceDefault.DayNight`** (since #45, theme-free): provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults, About section. Errors via `EditText.setError()`; token reveal via eye `ImageButton`; provider/target dropdowns use `setOnClickListener{showDropDown()}` |
+| `CrashDialogActivity` | ui | Transparent dialog `Activity` (plain, `Theme.DeviceDefault.DayNight` variant since #45) in separate `:crash` process — shows `android.app.AlertDialog` with exception details from the global crash handler + a Copy-to-Clipboard button |
 
 ## IME Registration
 
