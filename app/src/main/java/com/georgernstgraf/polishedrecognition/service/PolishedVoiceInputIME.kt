@@ -11,7 +11,6 @@ import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.Spinner
@@ -35,8 +34,9 @@ class PolishedVoiceInputIME : InputMethodService() {
     private lateinit var settings: SettingsStore
 
     private var statusText: TextView? = null
-    private var micButton: Button? = null
-    private var cancelButton: Button? = null
+    private var micSendButton: ImageButton? = null
+    private var pauseResumeButton: ImageButton? = null
+    private var cancelButton: ImageButton? = null
     private var languageSpinner: Spinner? = null
     private var rawCheckbox: CheckBox? = null
     private var settingsGear: ImageButton? = null
@@ -53,16 +53,25 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
         statusText = view.findViewById(R.id.ime_status_text)
-        micButton = view.findViewById(R.id.ime_mic_button)
+        micSendButton = view.findViewById(R.id.ime_mic_send_button)
+        pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
         cancelButton = view.findViewById(R.id.ime_cancel_button)
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
         rawCheckbox = view.findViewById(R.id.ime_raw)
         settingsGear = view.findViewById(R.id.ime_settings_button)
 
-        micButton?.setOnClickListener {
+        micSendButton?.setOnClickListener {
             when (controller.state) {
                 VoiceSessionController.State.IDLE -> startIfPermitted()
-                VoiceSessionController.State.RECORDING -> controller.stopAndTranscribe()
+                VoiceSessionController.State.RECORDING,
+                VoiceSessionController.State.PAUSED -> controller.stopAndTranscribe()
+                else -> Unit
+            }
+        }
+        pauseResumeButton?.setOnClickListener {
+            when (controller.state) {
+                VoiceSessionController.State.RECORDING -> controller.pause()
+                VoiceSessionController.State.PAUSED -> controller.resume()
                 else -> Unit
             }
         }
@@ -71,6 +80,9 @@ class PolishedVoiceInputIME : InputMethodService() {
             requestHideSelf(0)
         }
         settingsGear?.setOnClickListener {
+            if (controller.state == VoiceSessionController.State.RECORDING) {
+                controller.pause()
+            }
             startActivity(
                 Intent(this, SettingsActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -99,10 +111,9 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
-        if (controller.state != VoiceSessionController.State.IDLE) {
-            controller.cancel()
+        if (controller.state == VoiceSessionController.State.RECORDING) {
+            controller.pause()
         }
-        stopMicForeground()
     }
 
     private fun setupLanguageSpinner() {
@@ -127,8 +138,8 @@ class PolishedVoiceInputIME : InputMethodService() {
         languageSpinner?.let { sp ->
             silenceLangListener = true
             sp.adapter = ArrayAdapter(
-                this, android.R.layout.simple_spinner_item, langs
-            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+                this, R.layout.ime_spinner_item, langs
+            ).also { it.setDropDownViewResource(R.layout.ime_spinner_dropdown_item) }
             val current = settings.targetLanguage ?: VoiceRecognitionActivity.NONE_TARGET_LANGUAGE
             val idx = langs.indexOf(current).let { if (it >= 0) it else 0 }
             sp.setSelection(idx)
@@ -204,36 +215,75 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun applyUiState() {
         val st = statusText ?: return
-        val mb = micButton ?: return
+        val ms = micSendButton ?: return
+        val pr = pauseResumeButton ?: return
         val cb = cancelButton ?: return
-        when (controller.state) {
+        val gear = settingsGear ?: return
+        val sp = languageSpinner
+        val raw = rawCheckbox
+        val s = controller.state
+        when (s) {
             VoiceSessionController.State.IDLE -> {
                 st.text = getString(R.string.ime_status_idle)
-                mb.text = getString(R.string.ime_record)
-                mb.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.ic_mic, 0, 0)
-                mb.isEnabled = true
+                ms.setImageResource(R.drawable.ic_mic)
+                ms.contentDescription = getString(R.string.ime_mic_desc)
+                ms.isEnabled = true
+                pr.setImageResource(R.drawable.ic_pause)
+                pr.contentDescription = getString(R.string.ime_pause_desc)
+                pr.isEnabled = false
                 cb.isEnabled = true
+                gear.isEnabled = true
+                setQuickSettingsEnabled(true)
             }
             VoiceSessionController.State.RECORDING -> {
                 st.text = getString(R.string.ime_status_recording)
-                mb.text = getString(R.string.ime_stop)
-                mb.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.ic_send, 0, 0)
-                mb.isEnabled = true
+                ms.setImageResource(R.drawable.ic_send)
+                ms.contentDescription = getString(R.string.ime_send_desc)
+                ms.isEnabled = true
+                pr.setImageResource(R.drawable.ic_pause)
+                pr.contentDescription = getString(R.string.ime_pause_desc)
+                pr.isEnabled = true
                 cb.isEnabled = true
+                gear.isEnabled = true
+                setQuickSettingsEnabled(false)
             }
             VoiceSessionController.State.PAUSED -> {
                 st.text = getString(R.string.ime_status_paused)
-                mb.isEnabled = false
+                ms.setImageResource(R.drawable.ic_send)
+                ms.contentDescription = getString(R.string.ime_send_desc)
+                ms.isEnabled = true
+                pr.setImageResource(R.drawable.ic_resume)
+                pr.contentDescription = getString(R.string.ime_resume_desc)
+                pr.isEnabled = true
                 cb.isEnabled = true
+                gear.isEnabled = true
+                setQuickSettingsEnabled(true)
             }
             VoiceSessionController.State.PROCESSING -> {
                 st.text = getString(R.string.ime_status_processing)
-                mb.text = getString(R.string.ime_processing)
-                mb.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.ic_send, 0, 0)
-                mb.isEnabled = false
+                ms.setImageResource(R.drawable.ic_send)
+                ms.contentDescription = getString(R.string.ime_send_desc)
+                ms.isEnabled = false
+                pr.setImageResource(R.drawable.ic_pause)
+                pr.contentDescription = getString(R.string.ime_pause_desc)
+                pr.isEnabled = false
                 cb.isEnabled = false
+                gear.isEnabled = false
+                setQuickSettingsEnabled(false)
             }
         }
+        updateLanguageEnabled()
+    }
+
+    private fun setQuickSettingsEnabled(enabled: Boolean) {
+        val sp = languageSpinner ?: return
+        val raw = rawCheckbox ?: return
+        silenceLangListener = true
+        sp.isEnabled = enabled
+        sp.alpha = if (enabled) 1.0f else 0.4f
+        raw.isEnabled = enabled
+        raw.alpha = if (enabled) 1.0f else 0.4f
+        silenceLangListener = false
     }
 
     private fun hasMicPermission(): Boolean =

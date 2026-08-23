@@ -74,24 +74,35 @@
         android:orientation="horizontal"
         android:gravity="center">
 
-        <Button
+        <ImageButton
             android:id="@+id/ime_cancel_button"
-            style="@android:style/Widget.DeviceDefault.Button.Borderless"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="@string/ime_cancel"
-            android:textColor="@color/recording_text_primary" />
+            android:layout_height="48dp"
+            android:src="@drawable/ic_close"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ime_cancel_desc"
+            android:scaleType="centerInside" />
 
-        <Button
-            android:id="@+id/ime_mic_button"
-            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+        <ImageButton
+            android:id="@+id/ime_pause_resume_button"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="@string/ime_record"
-            android:drawableTop="@drawable/ic_mic"
-            android:textColor="@color/recording_text_primary" />
+            android:layout_height="48dp"
+            android:src="@drawable/ic_pause"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ime_pause_desc"
+            android:scaleType="centerInside" />
+
+        <ImageButton
+            android:id="@+id/ime_mic_send_button"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_mic"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ime_mic_desc"
+            android:scaleType="centerInside" />
 
     </LinearLayout>
 </LinearLayout>
