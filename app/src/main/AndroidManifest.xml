@@ -31,7 +31,8 @@
 
         <activity
             android:name=".ui.SettingsActivity"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.PolishedRecognition.Plain">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -42,7 +43,7 @@
             android:name=".ui.CrashDialogActivity"
             android:exported="false"
             android:process=":crash"
-            android:theme="@style/Theme.PolishedRecognition.Transparent" />
+            android:theme="@style/Theme.PolishedRecognition.Plain.Transparent" />
 
         <activity
             android:name=".ui.MicrophonePermissionActivity"

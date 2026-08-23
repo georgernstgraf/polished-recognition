@@ -31,7 +31,7 @@
 
         <Button
             android:id="@+id/crash_copy_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@android:style/Widget.DeviceDefault.Button.Borderless"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
@@ -39,7 +39,6 @@
 
         <Button
             android:id="@+id/crash_close_button"
-            style="@style/Widget.Material3.Button"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"

@@ -1,16 +1,16 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import com.georgernstgraf.polishedrecognition.R
 
-class CrashDialogActivity : AppCompatActivity() {
+class CrashDialogActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

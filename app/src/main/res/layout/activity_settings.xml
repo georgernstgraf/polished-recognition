@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true">
@@ -17,48 +16,45 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/save"
-            style="@style/Widget.Material3.Button"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="16dp" />
 
         <!-- Processing Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/processing_section"
-            android:textAppearance="?attr/textAppearanceHeadline6"
-            android:layout_marginBottom="8dp"/>
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <CheckBox
             android:id="@+id/raw_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/raw_mode"
-            android:layout_marginBottom="8dp"/>
+            android:layout_marginBottom="8dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/target_language_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        <AutoCompleteTextView
+            android:id="@+id/target_language"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/target_language"
-            android:layout_marginBottom="16dp">
-
-            <AutoCompleteTextView
-                android:id="@+id/target_language"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:inputType="text"
+            android:completionThreshold="1"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:layout_marginBottom="4dp" />
 
         <TextView
             android:id="@+id/target_language_explanation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/target_language_hint"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="12sp"
             android:textColor="?android:attr/textColorTertiary"
             android:layout_marginStart="4dp"
-            android:layout_marginTop="-12dp"
+            android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp" />
 
         <TextView
@@ -66,7 +62,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/manage_custom_languages"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorSecondary"
             android:clickable="true"
             android:focusable="true"
             android:padding="4dp"
@@ -78,8 +75,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/prompts_section"
-            android:textAppearance="?attr/textAppearanceHeadline6"
-            android:layout_marginBottom="8dp"/>
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
 
         <!-- System Prompt -->
         <LinearLayout
@@ -93,39 +92,35 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/system_prompt"
-                android:textAppearance="?attr/textAppearanceSubtitle1"/>
+                android:textSize="16sp"
+                android:textColor="?android:attr/textColorPrimary" />
             <Button
                 android:id="@+id/reset_system_prompt"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/reset_prompt"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:textSize="12sp"/>
+                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                android:textSize="12sp" />
         </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/prompt_variables"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:layout_marginBottom="4dp"/>
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:layout_marginBottom="4dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <EditText
+            android:id="@+id/system_prompt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
+            android:inputType="textMultiLine"
+            android:minLines="5"
+            android:gravity="top"
+            android:layout_marginBottom="16dp" />
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/system_prompt"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="5"
-                android:gravity="top" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Translate Prompt -->
+        <!-- Target Language Clause -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -137,37 +132,33 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/target_language_clause"
-                android:textAppearance="?attr/textAppearanceSubtitle1"/>
+                android:textSize="16sp"
+                android:textColor="?android:attr/textColorPrimary" />
             <Button
                 android:id="@+id/reset_target_language_clause"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/reset_prompt"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:textSize="12sp"/>
+                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                android:textSize="12sp" />
         </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/prompt_variables"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:layout_marginBottom="4dp"/>
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:layout_marginBottom="4dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <EditText
+            android:id="@+id/target_language_clause"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/target_language_clause"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:gravity="top" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:inputType="textMultiLine"
+            android:minLines="2"
+            android:gravity="top"
+            android:layout_marginBottom="8dp" />
 
         <!-- Restore All Prompts Button -->
         <Button
@@ -175,65 +166,62 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/restore_defaults"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@android:style/Widget.DeviceDefault.Button.Borderless"
             android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="16dp" />
 
         <!-- LLM Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/llm_section"
-            android:textAppearance="?attr/textAppearanceHeadline6"
-            android:layout_marginBottom="8dp"/>
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/llm_provider_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        <AutoCompleteTextView
+            android:id="@+id/llm_provider"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/provider"
-            android:layout_marginBottom="8dp">
+            android:inputType="none"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:layout_marginBottom="8dp" />
 
-            <AutoCompleteTextView
-                android:id="@+id/llm_provider"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="none" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/llm_url_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <EditText
+            android:id="@+id/llm_url"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/api_url"
-            android:layout_marginBottom="8dp">
+            android:inputType="textUri"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="8dp" />
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/llm_url"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:imeOptions="actionDone" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/llm_token_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/api_token"
-            android:layout_marginBottom="4dp"
-            app:endIconMode="password_toggle">
-
-            <com.google.android.material.textfield.TextInputEditText
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <EditText
                 android:id="@+id/llm_token"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/api_token"
                 android:inputType="textPassword"
                 android:imeOptions="actionDone" />
-        </com.google.android.material.textfield.TextInputLayout>
+            <ImageButton
+                android:id="@+id/llm_token_toggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_eye"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/show_password"
+                android:scaleType="center" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -246,112 +234,95 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/fetch_models"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_marginEnd="8dp"/>
+                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                android:layout_marginEnd="8dp" />
 
             <Button
                 android:id="@+id/test_llm_token"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/test_token"
-                style="@style/Widget.Material3.Button.OutlinedButton"/>
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
         </LinearLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/llm_model_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        <AutoCompleteTextView
+            android:id="@+id/llm_model"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/model"
-            android:layout_marginBottom="16dp">
-
-            <AutoCompleteTextView
-                android:id="@+id/llm_model"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:completionThreshold="1" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:inputType="text"
+            android:completionThreshold="1"
+            android:layout_marginBottom="16dp" />
 
         <!-- STT Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/stt_section"
-            android:textAppearance="?attr/textAppearanceHeadline6"
-            android:layout_marginBottom="8dp"/>
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_provider_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        <AutoCompleteTextView
+            android:id="@+id/stt_provider"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/provider"
-            android:layout_marginBottom="8dp">
+            android:inputType="none"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:layout_marginBottom="8dp" />
 
-            <AutoCompleteTextView
-                android:id="@+id/stt_provider"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="none" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_url_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <EditText
+            android:id="@+id/stt_url"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/api_url"
-            android:layout_marginBottom="8dp">
+            android:inputType="textUri"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="8dp" />
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/stt_url"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:imeOptions="actionDone" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_token_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/api_token"
-            android:layout_marginBottom="4dp"
-            app:endIconMode="password_toggle">
-
-            <com.google.android.material.textfield.TextInputEditText
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <EditText
                 android:id="@+id/stt_token"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/api_token"
                 android:inputType="textPassword"
                 android:imeOptions="actionDone" />
-        </com.google.android.material.textfield.TextInputLayout>
+            <ImageButton
+                android:id="@+id/stt_token_toggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_eye"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/show_password"
+                android:scaleType="center" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/validate_stt"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/validate_fetch"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_marginBottom="8dp"/>
+            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+            android:layout_marginBottom="8dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/stt_model_layout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        <AutoCompleteTextView
+            android:id="@+id/stt_model"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/model"
-            android:layout_marginBottom="16dp">
-
-            <AutoCompleteTextView
-                android:id="@+id/stt_model"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:completionThreshold="1" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:inputType="text"
+            android:completionThreshold="1"
+            android:layout_marginBottom="16dp" />
 
         <!-- Voice Keyboard (IME) Setup -->
         <Button
@@ -359,8 +330,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/enable_voice_keyboard"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_marginBottom="16dp"/>
+            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+            android:layout_marginBottom="16dp" />
 
         <!-- Bottom Save Button -->
         <Button
@@ -368,45 +339,46 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/save"
-            style="@style/Widget.Material3.Button"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="24dp" />
 
         <!-- About Section -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/about_title"
-            android:textAppearance="?attr/textAppearanceHeadline6"
-            android:layout_marginBottom="4dp"/>
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="4dp" />
 
         <TextView
             android:id="@+id/about_version"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="12sp"
             android:textColor="?android:attr/textColorTertiary"
-            android:layout_marginBottom="2dp"/>
+            android:layout_marginBottom="2dp" />
 
         <TextView
             android:id="@+id/about_commit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="12sp"
             android:textColor="?android:attr/textColorTertiary"
-            android:layout_marginBottom="12dp"/>
+            android:layout_marginBottom="12dp" />
 
         <TextView
             android:id="@+id/about_info"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/voice_input_info_message"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="12sp"
             android:textColor="?android:attr/textColorTertiary"
             android:clickable="true"
             android:focusable="true"
             android:autoLink="web"
             android:padding="4dp"
-            android:layout_marginStart="-4dp"/>
+            android:layout_marginStart="-4dp" />
 
     </LinearLayout>
 </ScrollView>

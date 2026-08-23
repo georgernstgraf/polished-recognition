@@ -1,5 +1,7 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
@@ -7,6 +9,7 @@ import android.text.Editable
 import android.text.Html
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
+import android.text.method.PasswordTransformationMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,13 +18,13 @@ import android.widget.AutoCompleteTextView
 import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.Filter
 import android.widget.Filterable
 import android.widget.ImageButton
+import android.widget.ListAdapter
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.BuildConfig
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
@@ -30,14 +33,12 @@ import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : Activity() {
 
     private companion object {
         const val NONE_TARGET_LANGUAGE = "None (no translation)"
@@ -50,27 +51,25 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var app: PolishedRecognitionApp
 
     private val sttProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_provider) }
-    private val sttUrlField: TextInputEditText by lazy { findViewById(R.id.stt_url) }
-    private val sttTokenField: TextInputEditText by lazy { findViewById(R.id.stt_token) }
-    private val sttTokenLayout: TextInputLayout by lazy { findViewById(R.id.stt_token_layout) }
+    private val sttUrlField: EditText by lazy { findViewById(R.id.stt_url) }
+    private val sttTokenField: EditText by lazy { findViewById(R.id.stt_token) }
+    private val sttTokenToggle: ImageButton by lazy { findViewById(R.id.stt_token_toggle) }
     private val sttModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_model) }
-    private val sttModelLayout: TextInputLayout by lazy { findViewById(R.id.stt_model_layout) }
     private val validateSttButton: Button by lazy { findViewById(R.id.validate_stt) }
 
     private val llmProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_provider) }
-    private val llmUrlField: TextInputEditText by lazy { findViewById(R.id.llm_url) }
-    private val llmTokenField: TextInputEditText by lazy { findViewById(R.id.llm_token) }
-    private val llmTokenLayout: TextInputLayout by lazy { findViewById(R.id.llm_token_layout) }
+    private val llmUrlField: EditText by lazy { findViewById(R.id.llm_url) }
+    private val llmTokenField: EditText by lazy { findViewById(R.id.llm_token) }
+    private val llmTokenToggle: ImageButton by lazy { findViewById(R.id.llm_token_toggle) }
     private val llmModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_model) }
-    private val llmModelLayout: TextInputLayout by lazy { findViewById(R.id.llm_model_layout) }
     private val fetchLlmModelsButton: Button by lazy { findViewById(R.id.fetch_llm_models) }
     private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
     private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
 
-    private val systemPromptField: TextInputEditText by lazy { findViewById(R.id.system_prompt) }
-    private val targetLanguageClauseField: TextInputEditText by lazy { findViewById(R.id.target_language_clause) }
+    private val systemPromptField: EditText by lazy { findViewById(R.id.system_prompt) }
+    private val targetLanguageClauseField: EditText by lazy { findViewById(R.id.target_language_clause) }
 
     private val aboutVersionText: TextView by lazy { findViewById(R.id.about_version) }
     private val aboutCommitText: TextView by lazy { findViewById(R.id.about_commit) }
@@ -96,11 +95,13 @@ class SettingsActivity : AppCompatActivity() {
         fetchLlmModelsButton.setOnClickListener { fetchLlmModels() }
         testLlmTokenButton.setOnClickListener { testLlmToken() }
 
+        sttTokenToggle.setOnClickListener { togglePassword(sttTokenField, sttTokenToggle) }
+        llmTokenToggle.setOnClickListener { togglePassword(llmTokenField, llmTokenToggle) }
+
         sttTokenField.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                sttTokenLayout.error = null
-                sttTokenLayout.helperText = null
+                sttTokenField.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -108,8 +109,7 @@ class SettingsActivity : AppCompatActivity() {
         llmTokenField.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                llmTokenLayout.error = null
-                llmTokenLayout.helperText = null
+                llmTokenField.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -117,7 +117,7 @@ class SettingsActivity : AppCompatActivity() {
         sttModelDropdown.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                sttModelLayout.error = null
+                sttModelDropdown.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -125,7 +125,7 @@ class SettingsActivity : AppCompatActivity() {
         llmModelDropdown.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                llmModelLayout.error = null
+                llmModelDropdown.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -151,6 +151,18 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
 
         findViewById<TextView>(R.id.manage_custom_languages).setOnClickListener { showManageLanguagesDialog() }
+    }
+
+    private fun togglePassword(field: EditText, toggle: ImageButton) {
+        val isMasked = field.transformationMethod is PasswordTransformationMethod
+        if (isMasked) {
+            field.transformationMethod = null
+            toggle.setImageResource(R.drawable.ic_eye_off)
+        } else {
+            field.transformationMethod = PasswordTransformationMethod.getInstance()
+            toggle.setImageResource(R.drawable.ic_eye)
+        }
+        field.setSelection(field.text?.length ?: 0)
     }
 
     private fun loadSettings() {
@@ -215,9 +227,17 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // Provider dropdowns use inputType=none; the Material exposed-dropdown arrow is gone,
+        // so we wire tap -> showDropDown() and raise the threshold to Int.MAX_VALUE so typing
+        // (which can't happen, inputType=none) never filters the list away. Same hook applied to
+        // the target-language dropdown for tap-to-open parity. See PITFALLS #37.
+        listOf(sttProviderDropdown, llmProviderDropdown, targetLanguageDropdown).forEach { dropdown ->
+            dropdown.threshold = Int.MAX_VALUE
+            dropdown.setOnClickListener { dropdown.showDropDown() }
+        }
+
         sttModelDropdown.threshold = 1
         llmModelDropdown.threshold = 1
-        targetLanguageDropdown.threshold = 1
     }
 
     private fun validateSttProvider() {
@@ -251,15 +271,15 @@ class SettingsActivity : AppCompatActivity() {
                             sttModelDropdown.text.clear()
                         }
                     }
-                    sttTokenLayout.error = null
-                    sttTokenLayout.helperText = getString(R.string.token_valid)
+                    sttTokenField.error = null
+                    Toast.makeText(this@SettingsActivity, getString(R.string.token_valid), Toast.LENGTH_SHORT).show()
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
                 } else {
-                    sttTokenLayout.error = result.exceptionOrNull()?.message
+                    sttTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
                 }
             } catch (e: Exception) {
-                sttTokenLayout.error = e.message ?: getString(R.string.token_invalid)
+                sttTokenField.error = e.message ?: getString(R.string.token_invalid)
             } finally {
                 validateSttButton.isEnabled = true
             }
@@ -297,15 +317,14 @@ class SettingsActivity : AppCompatActivity() {
                             llmModelDropdown.text.clear()
                         }
                     }
-                    llmTokenLayout.error = null
-                    llmTokenLayout.helperText = getString(R.string.models_fetched, models.size)
+                    llmTokenField.error = null
                     Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
                 } else {
-                    llmTokenLayout.error = result.exceptionOrNull()?.message
+                    llmTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
                 }
             } catch (e: Exception) {
-                llmTokenLayout.error = e.message ?: getString(R.string.token_invalid)
+                llmTokenField.error = e.message ?: getString(R.string.token_invalid)
             } finally {
                 fetchLlmModelsButton.isEnabled = true
             }
@@ -337,15 +356,14 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val result = testLlmTokenCall(baseUrl, token, model)
                 if (result.isSuccess) {
-                    llmTokenLayout.error = null
-                    llmTokenLayout.helperText = getString(R.string.token_valid)
+                    llmTokenField.error = null
                     Toast.makeText(this@SettingsActivity, R.string.token_valid, Toast.LENGTH_SHORT).show()
                 } else {
-                    llmTokenLayout.error = result.exceptionOrNull()?.message
+                    llmTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
                 }
             } catch (e: Exception) {
-                llmTokenLayout.error = e.message ?: getString(R.string.token_invalid)
+                llmTokenField.error = e.message ?: getString(R.string.token_invalid)
             } finally {
                 testLlmTokenButton.isEnabled = true
             }
@@ -564,7 +582,7 @@ class SettingsActivity : AppCompatActivity() {
 
         dialog = AlertDialog.Builder(this)
             .setTitle(R.string.saved_languages_title)
-            .setAdapter(adapter as android.widget.ListAdapter, null)
+            .setAdapter(adapter as ListAdapter, null)
             .setPositiveButton(android.R.string.ok, null)
             .show()
     }
@@ -586,13 +604,13 @@ class SettingsActivity : AppCompatActivity() {
 
         val sttModels = settings.getSttModelList()
         if (sttModels.isNotEmpty() && sttModel !in sttModels) {
-            sttModelLayout.error = "Select a model from the list"
+            sttModelDropdown.error = "Select a model from the list"
             return
         }
 
         val llmModels = settings.getLlmModelList()
         if (llmModels.isNotEmpty() && llmModel !in llmModels) {
-            llmModelLayout.error = "Select a model from the list"
+            llmModelDropdown.error = "Select a model from the list"
             return
         }
 

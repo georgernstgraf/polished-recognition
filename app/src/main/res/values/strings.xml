@@ -10,6 +10,7 @@
     <string name="model">Model</string>
     <string name="api_token">API Token</string>
     <string name="api_url">API URL</string>
+    <string name="show_password">Show password</string>
     <string name="validate_fetch">Validate &amp; Fetch Models</string>
     <string name="fetch_models">Fetch Models</string>
     <string name="test_token">Test Token</string>
