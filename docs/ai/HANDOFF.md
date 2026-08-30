@@ -1,13 +1,13 @@
 # Hand Off
 
-**Active: #55 (release v1.2.0 tracking — tag, fdroiddata bump, MR update, Play-upload validation). Code issues #47/#48/#53/#54 all implemented + CLOSED this cycle (commits `a48d279`, `2c5a315`, `db82be8`; CI green). #43 excluded by user decision.**
+**Active: #55 (release v1.2.0 tracking — tag, fdroiddata bump, MR update, Play-upload validation). Code issues #47/#48/#53/#54 all implemented + CLOSED this cycle (commits `a48d279`, `2c5a315`, `db82be8`, `c678339`; CI green). #43 excluded by user decision.**
 
 ## Open tasks
 
 1. [ ] **#55 — Tag `v1.2.0`** (includes #49/#50/#51 + this cycle's #47/#48/#53/#54 if tagged after them) → `release.yml` → bump `metadata/com.georgernstgraf.polishedrecognition.yml` (version + commit; keep `Binaries`/`AllowedAPKSigningKeys`, signing key unchanged `62f9d7b0…a76a85`) → comment on MR !40029 → force-push the `add-polished-recognition` branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`; verify current HEAD). Push the tag separately from branch commits (PITFALLS). The real Play upload step of `release.yml` is the only #52-related path not yet exercised live — watch that run.
 2. [ ] **#45 leftover**: CrashDialog Copy-button on-device test (force a crash: `adb shell am crash com.georgernstgraf.polishedrecognition`).
 3. [ ] **On-device verify** (same install session as the v1.2.0 check):
-   - #48/#53: dropdown trash-icon tap deletes without selecting; label tap still selects; icon contrast in dark mode; rename dialog (dedupe + re-point of active selection).
+   - #48/#53: dropdown trash-icon tap deletes without selecting; label tap still selects; icon contrast in dark mode; rename dialog (dedupe + re-point of active selection); **long-press the language field → inline edit → new name appended+selected without Save; short tap still opens dropdown**.
    - #54: auto-start fires on keyboard show when IDLE + mic granted; PAUSED session stays paused after hide; no permission-activity spam when RECORD_AUDIO missing.
 
 ## Known on-device gotchas (Oplus/OnePlus)
