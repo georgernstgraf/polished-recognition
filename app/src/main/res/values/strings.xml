@@ -29,9 +29,9 @@
     <string name="token_invalid">Invalid token or no access</string>
     <string name="no_models_endpoint">Provider does not support model listing — enter model name manually</string>
     <string name="models_fetched">%1$d models loaded</string>
-    <string name="no_models_yet">No models yet — validate / fetch first</string>
+    <string name="no_models_yet">No cached models for this endpoint — validate / fetch first</string>
     <string name="select_model_from_list">Select a model from the list</string>
-    <string name="select_or_enter_model">Select or enter a model</string>
+    <string name="select_or_enter_model">Select or enter a model — a space shows all</string>
     <string name="settings_hint_message">Polished is your active keyboard, so Settings can\'t be edited here. Switch back to your text keyboard and open Polished Recognition from the app launcher.</string>
     <string name="settings_hint_title">Open from launcher</string>
     <string name="add_from_preset">Add from preset…</string>

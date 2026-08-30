@@ -221,6 +221,9 @@ class SettingsActivity : Activity() {
                 sttModelDropdown.error = null
                 reloadModelDropdown(sttModelDropdown)
             }
+            // This dropdown isn't focusable (inputType=none), so selecting an item never moves
+            // focus away from the model fields — re-run model validation explicitly (#50).
+            validateModelField(sttModelDropdown)
         }
 
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
@@ -235,6 +238,7 @@ class SettingsActivity : Activity() {
                 llmModelDropdown.error = null
                 reloadModelDropdown(llmModelDropdown)
             }
+            validateModelField(llmModelDropdown)
         }
 
         // Provider dropdowns use inputType=none; the Material exposed-dropdown arrow is gone,
@@ -244,6 +248,13 @@ class SettingsActivity : Activity() {
         listOf(sttProviderDropdown, llmProviderDropdown, targetLanguageDropdown).forEach { dropdown ->
             dropdown.threshold = Int.MAX_VALUE
             dropdown.setOnClickListener { dropdown.showDropDown() }
+        }
+
+        // The target-language dropdown isn't focusable (inputType=none) either — re-run model
+        // validation explicitly when the user switches language (#50).
+        targetLanguageDropdown.setOnItemClickListener { _, _, _, _ ->
+            validateModelField(sttModelDropdown)
+            validateModelField(llmModelDropdown)
         }
 
         sttModelDropdown.threshold = 1
