@@ -46,6 +46,13 @@
             android:theme="@style/Theme.PolishedRecognition.Plain.Transparent" />
 
         <activity
+            android:name=".ui.SettingsHintActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.PolishedRecognition.Plain.Transparent" />
+
+        <activity
             android:name=".ui.MicrophonePermissionActivity"
             android:exported="false"
             android:theme="@style/Theme.PolishedRecognition.Transparent"

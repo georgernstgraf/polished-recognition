@@ -25,7 +25,7 @@ import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
-import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
+import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
 import com.georgernstgraf.polishedrecognition.ui.VoiceRecognitionActivity
 
 class PolishedVoiceInputIME : InputMethodService() {
@@ -84,7 +84,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 controller.pause()
             }
             startActivity(
-                Intent(this, SettingsActivity::class.java)
+                Intent(this, SettingsHintActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
@@ -307,7 +307,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         .setContentIntent(
             PendingIntent.getActivity(
                 this, 0,
-                Intent(this, SettingsActivity::class.java),
+                Intent(this, SettingsHintActivity::class.java),
                 PendingIntent.FLAG_IMMUTABLE
             )
         )
