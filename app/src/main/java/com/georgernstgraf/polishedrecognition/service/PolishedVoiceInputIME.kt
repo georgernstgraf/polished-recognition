@@ -107,6 +107,9 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
         refreshQuickSettings()
         applyUiState()
+        if (AutoStartPolicy.shouldAutoStart(controller.state, hasMicPermission())) {
+            startIfPermitted()
+        }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
