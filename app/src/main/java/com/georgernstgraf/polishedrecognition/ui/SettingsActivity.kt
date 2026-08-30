@@ -171,7 +171,7 @@ class SettingsActivity : Activity() {
             sttUrlField.setText(it.baseUrl)
             sttTokenField.setText(it.apiToken)
             sttModelDropdown.setText(it.model, false)
-            updateModelDropdown(sttModelDropdown, settings.getSttModelList())
+            updateModelDropdown(sttModelDropdown, settings.getSttModels(it.baseUrl))
         }
 
         settings.llmProvider?.let {
@@ -179,7 +179,7 @@ class SettingsActivity : Activity() {
             llmUrlField.setText(it.baseUrl)
             llmTokenField.setText(it.apiToken)
             llmModelDropdown.setText(it.model, false)
-            updateModelDropdown(llmModelDropdown, settings.getLlmModelList())
+            updateModelDropdown(llmModelDropdown, settings.getLlmModels(it.baseUrl))
         }
 
         rawModeCheckbox.isChecked = settings.rawMode
@@ -211,19 +211,29 @@ class SettingsActivity : Activity() {
 
         sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = sttProviderDropdown.adapter.getItem(position) as String
+            val changed = name != settings.sttProvider?.displayName
             val preset = presets.findSttPreset(name)
             if (preset != null) {
                 sttUrlField.setText(preset.base_url)
+            }
+            if (changed) {
                 sttModelDropdown.text.clear()
+                sttModelDropdown.error = null
+                reloadModelDropdown(sttModelDropdown)
             }
         }
 
         llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
             val name = llmProviderDropdown.adapter.getItem(position) as String
+            val changed = name != settings.llmProvider?.displayName
             val preset = presets.findLlmPreset(name)
             if (preset != null) {
                 llmUrlField.setText(preset.base_url)
+            }
+            if (changed) {
                 llmModelDropdown.text.clear()
+                llmModelDropdown.error = null
+                reloadModelDropdown(llmModelDropdown)
             }
         }
 
@@ -253,12 +263,32 @@ class SettingsActivity : Activity() {
                 if (!hasFocus) validateModelField(dropdown)
             }
         }
+
+        // When the endpoint URL changes (manual edit or provider switch), the cached model
+        // list belongs to a different endpoint — reload the dropdown from the store.
+        listOf(sttUrlField, llmUrlField).forEach { urlField ->
+            urlField.setOnFocusChangeListener { _, hasFocus ->
+                if (!hasFocus) {
+                    reloadModelDropdown(if (urlField === sttUrlField) sttModelDropdown else llmModelDropdown)
+                }
+            }
+        }
+    }
+
+    private fun reloadModelDropdown(dropdown: AutoCompleteTextView) {
+        val baseUrl = if (dropdown === sttModelDropdown) sttUrlField.text.toString() else llmUrlField.text.toString()
+        val models = if (dropdown === sttModelDropdown) settings.getSttModels(baseUrl) else settings.getLlmModels(baseUrl)
+        updateModelDropdown(dropdown, models)
     }
 
     private fun validateModelField(dropdown: AutoCompleteTextView) {
-        val adapter = dropdown.adapter as? ModelFilterAdapter ?: return
+        val adapter = dropdown.adapter as? ModelFilterAdapter
         val text = dropdown.text.toString().trim()
-        if (text.isNotEmpty() && text !in adapter.allItems) {
+        if (text.isEmpty()) {
+            dropdown.error = getString(R.string.select_or_enter_model)
+            return
+        }
+        if (adapter != null && text !in adapter.allItems) {
             dropdown.error = getString(R.string.select_model_from_list)
         } else {
             dropdown.error = null
@@ -285,7 +315,7 @@ class SettingsActivity : Activity() {
                 val result = fetchSttModels(baseUrl, token)
                 if (result.isSuccess) {
                     val models = result.getOrThrow()
-                    settings.setSttModelList(models)
+                    settings.setSttModels(baseUrl, models)
                     updateModelDropdown(sttModelDropdown, models)
                     if (sttModelDropdown.text.toString() !in models) {
                         val currentPresetName = sttProviderDropdown.text.toString()
@@ -331,7 +361,7 @@ class SettingsActivity : Activity() {
                 val result = fetchLlmModels(baseUrl, token)
                 if (result.isSuccess) {
                     val models = result.getOrThrow()
-                    settings.setLlmModelList(models)
+                    settings.setLlmModels(baseUrl, models)
                     updateModelDropdown(llmModelDropdown, models)
                     if (llmModelDropdown.text.toString() !in models) {
                         val currentPresetName = llmProviderDropdown.text.toString()
@@ -480,10 +510,14 @@ class SettingsActivity : Activity() {
         private val filter = object : Filter() {
             override fun performFiltering(constraint: CharSequence?): FilterResults {
                 val results = FilterResults()
-                val filtered = if (constraint.isNullOrBlank()) {
+                val query = constraint?.toString()?.trim()?.lowercase()
+                // The view's internal focus-triggered filter runs async and lands after the
+                // click handler's showAll() — with the field holding the selected model, it
+                // would shrink the list to that single entry. Returning the full list for an
+                // exact match keeps every trigger path (focus, click, full-ID typing) at "all".
+                val filtered = if (query.isNullOrBlank() || allItems.any { it.equals(query, ignoreCase = true) }) {
                     allItems
                 } else {
-                    val query = constraint.toString().lowercase()
                     allItems.filter { it.lowercase().contains(query) }
                 }
                 results.values = filtered
@@ -631,15 +665,23 @@ class SettingsActivity : Activity() {
         val sttModel = sttModelDropdown.text.toString().trim()
         val llmModel = llmModelDropdown.text.toString().trim()
 
-        val sttModels = settings.getSttModelList()
+        if (sttModel.isEmpty()) {
+            sttModelDropdown.error = getString(R.string.select_or_enter_model)
+            return
+        }
+        val sttModels = settings.getSttModels(sttBaseUrl)
         if (sttModels.isNotEmpty() && sttModel !in sttModels) {
-            sttModelDropdown.error = "Select a model from the list"
+            sttModelDropdown.error = getString(R.string.select_model_from_list)
             return
         }
 
-        val llmModels = settings.getLlmModelList()
+        if (llmModel.isEmpty()) {
+            llmModelDropdown.error = getString(R.string.select_or_enter_model)
+            return
+        }
+        val llmModels = settings.getLlmModels(llmBaseUrl)
         if (llmModels.isNotEmpty() && llmModel !in llmModels) {
-            llmModelDropdown.error = "Select a model from the list"
+            llmModelDropdown.error = getString(R.string.select_model_from_list)
             return
         }
 

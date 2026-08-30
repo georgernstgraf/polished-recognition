@@ -7,7 +7,7 @@
     <string name="processing_section">Processing</string>
     <string name="prompts_section">Prompts</string>
     <string name="provider">Provider</string>
-    <string name="model">Model</string>
+    <string name="model">Select or fetch a model</string>
     <string name="api_token">API Token</string>
     <string name="api_url">API URL</string>
     <string name="show_password">Show password</string>
@@ -31,6 +31,7 @@
     <string name="models_fetched">%1$d models loaded</string>
     <string name="no_models_yet">No models yet — validate / fetch first</string>
     <string name="select_model_from_list">Select a model from the list</string>
+    <string name="select_or_enter_model">Select or enter a model</string>
     <string name="settings_hint_message">Polished is your active keyboard, so Settings can\'t be edited here. Switch back to your text keyboard and open Polished Recognition from the app launcher.</string>
     <string name="settings_hint_title">Open from launcher</string>
     <string name="add_from_preset">Add from preset…</string>

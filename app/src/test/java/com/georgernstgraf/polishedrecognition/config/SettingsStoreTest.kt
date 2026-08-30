@@ -77,23 +77,85 @@ class SettingsStoreTest {
     }
 
     @Test
-    fun `set and get STT model list`() {
-        val models = listOf("model-a", "model-b")
-        store.setSttModelList(models)
-        val loaded = store.getSttModelList()
-        assertThat(loaded).containsExactly("model-a", "model-b").inOrder()
+    fun `set and get STT models keyed per URL`() {
+        store.setSttModels("https://a.example.com/v1", listOf("model-a1", "model-a2"))
+        store.setSttModels("https://b.example.com/v1", listOf("model-b1"))
+        assertThat(store.getSttModels("https://a.example.com/v1"))
+            .containsExactly("model-a1", "model-a2").inOrder()
+        assertThat(store.getSttModels("https://b.example.com/v1")).containsExactly("model-b1")
     }
 
     @Test
-    fun `getSttModelList returns empty before save`() {
-        assertThat(store.getSttModelList()).isEmpty()
+    fun `getSttModels returns empty for unknown URL`() {
+        assertThat(store.getSttModels("https://none.example.com")).isEmpty()
     }
 
     @Test
-    fun `set and get LLM model list`() {
-        val models = listOf("x", "y", "z")
-        store.setLlmModelList(models)
-        assertThat(store.getLlmModelList()).containsExactly("x", "y", "z").inOrder()
+    fun `overwriting URL updates models in place`() {
+        store.setSttModels("https://a.example.com/v1", listOf("old"))
+        store.setSttModels("https://a.example.com/v1", listOf("new"))
+        assertThat(store.getSttModels("https://a.example.com/v1")).containsExactly("new")
+        assertThat(store.getSttModels("https://b.example.com/v1")).isEmpty()
+    }
+
+    @Test
+    fun `set and get LLM models keyed per URL`() {
+        store.setLlmModels("https://llm.example.com/v1", listOf("x", "y", "z"))
+        assertThat(store.getLlmModels("https://llm.example.com/v1")).containsExactly("x", "y", "z").inOrder()
+        assertThat(store.getLlmModels("https://other.example.com")).isEmpty()
+    }
+
+    @Test
+    fun `stt and llm caches are independent`() {
+        store.setSttModels("https://same.example.com/v1", listOf("stt-model"))
+        store.setLlmModels("https://same.example.com/v1", listOf("llm-model"))
+        assertThat(store.getSttModels("https://same.example.com/v1")).containsExactly("stt-model")
+        assertThat(store.getLlmModels("https://same.example.com/v1")).containsExactly("llm-model")
+    }
+
+    @Test
+    fun `expired cache entry is pruned and returns empty`() {
+        store.setSttModels("https://old.example.com/v1", listOf("stale"))
+        val prefs = RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+        // Age the stored timestamp beyond the 6-week TTL.
+        val json = prefs.getString("stt_model_lists", null)!!
+        val aged = json.replace("\"timestamp\":", "\"timestamp\":${System.currentTimeMillis() - SettingsStore.MODEL_CACHE_TTL_MS - 1000},\"ignored\":")
+        prefs.edit().putString("stt_model_lists", aged).commit()
+
+        assertThat(store.getSttModels("https://old.example.com/v1")).isEmpty()
+        // Pruned — a fresh store no longer has it either.
+        val fresh = SettingsStore(RuntimeEnvironment.getApplication())
+        assertThat(fresh.getSttModels("https://old.example.com/v1")).isEmpty()
+    }
+
+    @Test
+    fun `fresh cache entry survives read`() {
+        store.setSttModels("https://a.example.com/v1", listOf("m"))
+        assertThat(store.getSttModels("https://a.example.com/v1")).containsExactly("m")
+    }
+
+    @Test
+    fun `legacy model list migrates under saved provider baseUrl`() {
+        val prefs = RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+        store.sttProvider = SttProviderConfig(displayName = "Groq", baseUrl = "https://api.groq.com/openai/v1", apiToken = "t", model = "whisper-large-v3")
+        prefs.edit().putString("stt_model_list", "[\"whisper-large-v3\",\"whisper-large-v3-turbo\"]").commit()
+
+        assertThat(store.getSttModels("https://api.groq.com/openai/v1"))
+            .containsExactly("whisper-large-v3", "whisper-large-v3-turbo").inOrder()
+        // Legacy key removed after migration.
+        assertThat(prefs.getString("stt_model_list", null)).isNull()
+    }
+
+    @Test
+    fun `legacy model list without saved provider is dropped`() {
+        val prefs = RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+        prefs.edit().putString("stt_model_list", "[\"orphan\"]").commit()
+
+        assertThat(store.getSttModels("https://any.example.com")).isEmpty()
+        assertThat(prefs.getString("stt_model_list", null)).isNull()
     }
 
     @Test
