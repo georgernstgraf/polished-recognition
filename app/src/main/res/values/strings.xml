@@ -18,8 +18,13 @@
     <string name="target_language">Target language</string>
     <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None" disables translation.</string>
     <string name="delete_language">Delete this language</string>
+    <string name="edit_language">Edit this language</string>
     <string name="manage_custom_languages">Manage saved languages</string>
     <string name="saved_languages_title">Saved Languages</string>
+    <string name="rename_language_title">Rename Language</string>
+    <string name="rename_language_duplicate">This language is already in the list</string>
+    <string name="rename_language_empty">Enter a language name</string>
+    <string name="language_renamed">Language renamed</string>
     <string name="system_prompt">System Prompt</string>
     <string name="target_language_clause">Target Language Clause (omitted when no target language is set)</string>
     <string name="restore_defaults">Restore all prompts to default</string>

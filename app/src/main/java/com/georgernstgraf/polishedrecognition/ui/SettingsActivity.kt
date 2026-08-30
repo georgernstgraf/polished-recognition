@@ -22,13 +22,13 @@ import android.widget.EditText
 import android.widget.Filter
 import android.widget.Filterable
 import android.widget.ImageButton
-import android.widget.ListAdapter
 import android.widget.TextView
 import android.widget.Toast
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.BuildConfig
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.config.CustomLanguages
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
@@ -39,10 +39,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SettingsActivity : Activity() {
-
-    private companion object {
-        const val NONE_TARGET_LANGUAGE = "None (no translation)"
-    }
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private lateinit var settings: com.georgernstgraf.polishedrecognition.config.SettingsStore
@@ -183,9 +179,9 @@ class SettingsActivity : Activity() {
         }
 
         rawModeCheckbox.isChecked = settings.rawMode
-        targetLanguageDropdown.setText(settings.targetLanguage ?: NONE_TARGET_LANGUAGE, false)
+        targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
         settings.targetLanguage?.let { tl ->
-            if (tl.isNotBlank() && tl != NONE_TARGET_LANGUAGE && tl != "English" && tl !in settings.customLanguages) {
+            if (tl.isNotBlank() && tl != CustomLanguages.NONE_TARGET_LANGUAGE && tl != CustomLanguages.BUILTIN_LANGUAGE && tl !in settings.customLanguages) {
                 settings.customLanguages = settings.customLanguages + tl
             }
         }
@@ -564,10 +560,10 @@ class SettingsActivity : Activity() {
     }
 
     private inner class LanguageDropdownAdapter : BaseAdapter(), Filterable {
-        private var displayItems: List<String> = listOf(NONE_TARGET_LANGUAGE, "English") + settings.customLanguages.sorted()
+        private var displayItems: List<String> = CustomLanguages.displayList(settings.customLanguages)
 
         fun rebuild() {
-            displayItems = listOf(NONE_TARGET_LANGUAGE, "English") + settings.customLanguages.sorted()
+            displayItems = CustomLanguages.displayList(settings.customLanguages)
             notifyDataSetChanged()
         }
 
@@ -577,9 +573,24 @@ class SettingsActivity : Activity() {
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val item = displayItems[position]
-            val view = convertView as? TextView ?: LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_language_dropdown, parent, false) as TextView
-            view.text = item
+            val view = convertView as? ViewGroup ?: LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_language_dropdown, parent, false) as ViewGroup
+            val label = view.findViewById<TextView>(R.id.language_name)
+            val delete = view.findViewById<ImageButton>(R.id.delete_button)
+            label.text = item
+            // Pitfall #36: rows must not contain focusable children (AbsListView skips onItemClick
+            // for rows whose hasFocusable() is true) — the trash ImageButton is clickable but
+            // focusable=false, so row taps still select and icon taps delete. Built-ins get no icon.
+            if (CustomLanguages.isBuiltIn(item)) {
+                delete.visibility = View.GONE
+            } else {
+                delete.visibility = View.VISIBLE
+                delete.imageTintList = label.textColors
+                delete.setOnClickListener {
+                    deleteCustomLanguage(item)
+                    targetLanguageDropdown.dismissDropDown()
+                }
+            }
             return view
         }
 
@@ -587,12 +598,12 @@ class SettingsActivity : Activity() {
             return object : Filter() {
                 override fun performFiltering(constraint: CharSequence?): FilterResults {
                     val results = FilterResults()
-                    val all = listOf(NONE_TARGET_LANGUAGE, "English") + settings.customLanguages.sorted()
+                    val all = CustomLanguages.displayList(settings.customLanguages)
                     val filtered = if (constraint.isNullOrBlank()) {
                         all
                     } else {
                         val query = constraint.toString().lowercase()
-                        listOf(NONE_TARGET_LANGUAGE) + all.drop(1).filter { it.lowercase().contains(query) }
+                        listOf(CustomLanguages.NONE_TARGET_LANGUAGE) + all.drop(1).filter { it.lowercase().contains(query) }
                     }
                     results.values = ArrayList(filtered)
                     results.count = filtered.size
@@ -617,20 +628,20 @@ class SettingsActivity : Activity() {
     }
 
     private fun showManageLanguagesDialog() {
-        val customs = settings.customLanguages.toList()
-        if (customs.isEmpty()) {
+        if (settings.customLanguages.isEmpty()) {
             Toast.makeText(this, "No saved languages yet — type one and tap Save to add it.", Toast.LENGTH_SHORT).show()
             return
         }
 
         var dialog: AlertDialog? = null
 
+        val items = ArrayList(settings.customLanguages)
         val adapter = object : BaseAdapter() {
-            override fun getCount() = customs.size
-            override fun getItem(pos: Int) = customs[pos]
+            override fun getCount() = items.size
+            override fun getItem(pos: Int) = items[pos]
             override fun getItemId(pos: Int) = pos.toLong()
             override fun getView(pos: Int, convertView: View?, parent: ViewGroup): View {
-                val lang = customs[pos]
+                val lang = items[pos]
                 val view = convertView ?: LayoutInflater.from(this@SettingsActivity)
                     .inflate(R.layout.item_manage_language, parent, false)
                 view.findViewById<TextView>(R.id.language_name).also {
@@ -640,25 +651,89 @@ class SettingsActivity : Activity() {
                         dialog?.dismiss()
                     }
                 }
+                view.findViewById<ImageButton>(R.id.edit_button).setOnClickListener {
+                    showRenameLanguageDialog(lang) { refresh() }
+                }
                 view.findViewById<ImageButton>(R.id.delete_button).setOnClickListener {
-                    settings.customLanguages = settings.customLanguages - lang
-                    if (settings.targetLanguage == lang) {
-                        settings.targetLanguage = null
-                        targetLanguageDropdown.setText(NONE_TARGET_LANGUAGE, false)
-                    }
-                    (targetLanguageDropdown.adapter as LanguageDropdownAdapter).rebuild()
-                    dialog?.dismiss()
-                    showManageLanguagesDialog()
+                    deleteCustomLanguage(lang)
+                    refresh()
                 }
                 return view
+            }
+
+            fun refresh() {
+                items.clear()
+                items.addAll(settings.customLanguages)
+                notifyDataSetChanged()
+                if (items.isEmpty()) dialog?.dismiss()
             }
         }
 
         dialog = AlertDialog.Builder(this)
             .setTitle(R.string.saved_languages_title)
-            .setAdapter(adapter as ListAdapter, null)
+            .setAdapter(adapter, null)
             .setPositiveButton(android.R.string.ok, null)
             .show()
+    }
+
+    private fun deleteCustomLanguage(name: String) {
+        settings.customLanguages = settings.customLanguages - name
+        if (settings.targetLanguage == name) {
+            settings.targetLanguage = null
+            targetLanguageDropdown.setText(CustomLanguages.NONE_TARGET_LANGUAGE, false)
+        } else if (targetLanguageDropdown.text.toString() == name) {
+            targetLanguageDropdown.setText(CustomLanguages.NONE_TARGET_LANGUAGE, false)
+        }
+        (targetLanguageDropdown.adapter as? LanguageDropdownAdapter)?.rebuild()
+    }
+
+    private fun showRenameLanguageDialog(oldName: String, onRenamed: () -> Unit) {
+        val input = EditText(this).apply {
+            setText(oldName)
+            setSelection(oldName.length)
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                input.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.rename_language_title)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val newName = input.text.toString().trim()
+                when (CustomLanguages.validateRename(settings.customLanguages, oldName, newName)) {
+                    CustomLanguages.RenameError.EMPTY ->
+                        input.error = getString(R.string.rename_language_empty)
+                    CustomLanguages.RenameError.DUPLICATE ->
+                        input.error = getString(R.string.rename_language_duplicate)
+                    null -> {
+                        settings.customLanguages = CustomLanguages.rename(settings.customLanguages, oldName, newName)
+                        if (settings.targetLanguage == oldName) {
+                            settings.targetLanguage = newName
+                        }
+                        if (targetLanguageDropdown.text.toString() == oldName) {
+                            targetLanguageDropdown.setText(newName, false)
+                        }
+                        (targetLanguageDropdown.adapter as? LanguageDropdownAdapter)?.rebuild()
+                        Toast.makeText(this, R.string.language_renamed, Toast.LENGTH_SHORT).show()
+                        dialog.dismiss()
+                        onRenamed()
+                    }
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun setupAboutSection() {
@@ -712,9 +787,9 @@ class SettingsActivity : Activity() {
 
         settings.rawMode = rawModeCheckbox.isChecked
         val tl = targetLanguageDropdown.text.toString()
-        val tlToSave = if (tl.isBlank() || tl == NONE_TARGET_LANGUAGE) null else tl
+        val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl
         settings.targetLanguage = tlToSave
-        if (tlToSave != null && tlToSave != "English" && tlToSave !in settings.customLanguages) {
+        if (tlToSave != null && tlToSave != CustomLanguages.BUILTIN_LANGUAGE && tlToSave !in settings.customLanguages) {
             settings.customLanguages = settings.customLanguages + tlToSave
         }
 
