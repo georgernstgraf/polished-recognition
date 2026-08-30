@@ -14,3 +14,8 @@ Entries here are no longer active truth. Never delete from this file.
 ## 2026-06-27 (SUPERSEDED 2026-06-27, origin: CONVENTIONS.md/DOMAIN.md, reason: #39 2nd round -> *_clause): Placeholder names optional_source_language_info / optional_target_language_wish
 - The system-prompt placeholders were briefly named `{{optional_source_language_info}}` and `{{optional_target_language_wish}}` (introduced earlier the same day in the first #39 round).
 - **Reason**: Renamed again to `{{source_language_clause}}` / `{{target_language_clause}}` — "clause" expresses the drop-when-empty contract more intuitively and keeps the pair parallel. CONVENTIONS.md and DOMAIN.md updated in place; historical DECISIONS entries retain the older names.
+
+## 2026-08-23 (SUPERSEDED 2026-08-30, origin: PITFALLS.md, reason: #49 — hallucination guardrail now in default prompt, trailing-only scope; Amara claim wrong): Whisper hallucination guardrail advisory
+- Whisper models (especially v3) can hallucinate text like "Thank you." or "Subtitles by Amara" during silent periods. Add explicit LLM instruction guardrails in the system or user prompt to filter these out.
+- **Origin**: PITFALLS.md
+- **Reason**: Superseded by #49 — the guardrail now lives in the default system prompt, scoped to trailing hallucinations (strip trailing part, empty string only if whole transcription is one). "Subtitles by Amara" never appears on Whisper per user observation and was dropped from the examples.

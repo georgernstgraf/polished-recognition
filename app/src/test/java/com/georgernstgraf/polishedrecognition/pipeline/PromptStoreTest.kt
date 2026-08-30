@@ -23,11 +23,12 @@ class PromptStoreTest {
     @Test
     fun `get system returns default system prompt`() {
         val prompt = store.get(PromptStore.KEY_SYSTEM)
-        assertThat(prompt).contains("transcription post-processor")
-        assertThat(prompt).contains("Return only the requested output text")
+        assertThat(prompt).contains("post-process voice dictation")
+        assertThat(prompt).contains("Return only the cleaned-up transcription")
         assertThat(prompt).contains("{{source_language_clause}}")
         assertThat(prompt).contains("{{target_language_clause}}")
         assertThat(prompt).contains("markdown")
+        assertThat(prompt).doesNotContain("Amara")
     }
 
     @Test
@@ -54,7 +55,7 @@ class PromptStoreTest {
     fun `restoreDefault reverts to original`() {
         store.set(PromptStore.KEY_SYSTEM, "custom")
         store.restoreDefault(PromptStore.KEY_SYSTEM)
-        assertThat(store.get(PromptStore.KEY_SYSTEM)).contains("transcription post-processor")
+        assertThat(store.get(PromptStore.KEY_SYSTEM)).contains("post-process voice dictation")
     }
 
     @Test
@@ -62,7 +63,7 @@ class PromptStoreTest {
         store.set(PromptStore.KEY_SYSTEM, "custom")
         store.set(PromptStore.KEY_USER, "custom user")
         store.restoreAllDefaults()
-        assertThat(store.get(PromptStore.KEY_SYSTEM)).contains("transcription post-processor")
+        assertThat(store.get(PromptStore.KEY_SYSTEM)).contains("post-process voice dictation")
         assertThat(store.get(PromptStore.KEY_USER)).contains("{{text}}")
     }
 

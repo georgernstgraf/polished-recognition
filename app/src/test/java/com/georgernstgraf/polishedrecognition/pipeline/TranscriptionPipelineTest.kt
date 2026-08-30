@@ -285,8 +285,8 @@ class TranscriptionPipelineTest {
         pipeline.transcribe(lincolnFile)
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
-        assertThat(systemMessage).contains("transcription post-processor")
-        assertThat(systemMessage).contains("Return only the requested output text")
+        assertThat(systemMessage).contains("post-process voice dictation")
+        assertThat(systemMessage).contains("Return only the cleaned-up transcription")
     }
 
     @Test

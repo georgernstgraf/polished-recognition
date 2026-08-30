@@ -15,3 +15,4 @@ Business rules and domain relationships not obvious from code.
 - Source language detection comes from Whisper's response `language` field (ISO 639-1 code), mapped to human-readable via LanguageMapper. When the field is null/blank (or literally `"unknown"`), the `{{source_language_clause}}` sentence is dropped entirely from the system prompt.
 - If Whisper's language field is null/empty, a second API call is made with `response_format=json` to extract it.
 - The `target_language` setting uses human-readable English names (e.g. "German", "French"), not ISO codes.
+- Whisper hallucination handling (#49): the default system prompt strips only **trailing** hallucinations (e.g. "Thank you." after silence); an empty string is returned only if the entire transcription is a hallucination. Real dictation content before the hallucination is preserved.
