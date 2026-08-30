@@ -1,33 +1,34 @@
 # Hand Off
 
-**Active: none — #49/#50/#51 implemented + CLOSED + verified on device (latest `643cc38`, docs `6801de6`). Next: tag `v1.2.0` → fdroiddata metadata bump → MR !40029. NOTE: user works in parallel on #52 (Gradle wrapper/CI) — check `git log` before assuming HEAD state.**
+**Active: none. #49/#50/#51/#52 all implemented + CLOSED. #52 (Gradle caching) fully validated — see STATE.md for numbers. Next: tag `v1.2.0` → fdroiddata metadata bump → MR !40029.**
 
-## What's done
+## What's done this cycle
+
+### #52 — Gradle caching + config cache (commits `66eb197` + `3eb5927` + `0340ac9`, CLOSED)
+- Repo `gradle.properties`: `org.gradle.caching/parallel/configuration-cache=true`. Local no-op build: 3s (config cache reuse).
+- All 3 workflows: `gradle/actions/setup-gradle@v4`. `build.yml`: Robolectric `~/.m2` cache + merged single invocation `./gradlew test assembleRelease bundleRelease`. Warm CI build step 28s (was ~187s).
+- `release.yml`: `workflow_dispatch` + `dry_run` input (default true) — skips GitHub Release creation + Play upload. Validated from master (run 33327458318): 1m27s, upload steps correctly skipped. Real tag runs are unaffected (`inputs.dry_run` empty → upload happens).
+- Wrapper jar regenerated to official 9.5.1 checksum (`497c8c2a…`, was unlisted `b5173cbc…`) — was blocking `setup-gradle` validation. Tag workflows keep `validate-wrappers: false` (old tags carry the old jar forever).
+- Reproducibility proven: `fdroid-apk.yml` rebuild of `v1.1.1` byte-identical (sha256 `53d06787…` before/after).
 
 ### #50 — Model dropdown UX (rounds `b87e018` + `9847d9a` + `643cc38`, CLOSED — verified on device)
-- Tap → full list (click hook + `showAll()`; exact-match→full-list in `performFiltering` kills the async focus-filter race); `threshold=1` keeps search-as-you-type.
-- Per-provider model cache (`SettingsStore`): keyed per endpoint URL, `{timestamp, models}` entries, **6-week TTL** (user decision); expired/uncached → free text + save OK; legacy keys migrate under the saved provider's baseUrl.
-- `text|textNoSuggestions` + `importantForAutofill="no"` on both model fields (kills IME interference).
-- Symmetric validation: blank → "Select or enter a model — a space shows all" (save blocked); non-blank not in current URL's cached list → "Select a model from the list"; fires on focus loss AND on selections in the non-focusable provider/language dropdowns (item-click hooks).
-- Hint "Select or fetch a model"; toast "No cached models for this endpoint — validate / fetch first".
-- `SettingsStoreTest` +8 cases. PITFALLS: period key = contains-filter red herring; focusable=false dropdowns skip focus-loss validation.
+- Tap → full list; per-URL model cache 6-week TTL; `textNoSuggestions`+autofill-off; symmetric validation; hinting error text; cache-aware toast. See DECISIONS/PITFALLS.
 
 ### #51 — IME gear hint dialog (commit `b7dd88c`, CLOSED — verified on device)
-- `SettingsHintActivity` (transparent `Plain.Transparent`, `noHistory`, plain AlertDialog, OK → finish). IME gear + mic-notification `contentIntent` launch it instead of `SettingsActivity` — circular dependency (Settings' EditTexts summoning the Polished voice bar) broken from both entry points.
+- `SettingsHintActivity` trampoline; gear + mic-notification repointed; circular dependency broken.
 
 ### #49 — Default system prompt overhaul (commit `b032d44`, CLOSED — installed on device)
-- `app/src/main/assets/prompts.json`: context-first order → `{{source_language_clause}}` → concrete cleanup bullets → preserve meaning → ambiguity carve-out → don't answer dictation questions → Whisper trailing-hallucination clause (strip trailing only; empty string only if the ENTIRE transcription is one; "Subtitles by Amara" dropped) → "Return only the cleaned-up transcription." → `{{target_language_clause}}`.
-- Tests updated (`PromptStoreTest`, `TranscriptionPipelineTest`, incl. `doesNotContain("Amara")` guard). Fold into v1.2.0.
+- Context-first prompt, trailing-only hallucination strip, positive output clause. Fold into v1.2.0.
 
 ## Open tasks
-1. [ ] **Tag `v1.2.0`** (includes #49/#50/#51; user deferred tagging this session) → `release.yml` → bump `metadata/com.georgernstgraf.polishedrecognition.yml` (version + commit; keep `Binaries`/`AllowedAPKSigningKeys`, signing key unchanged `62f9d7b0…a76a85`) → comment on MR !40029 → force-push the `add-polished-recognition` branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`, currently clean at `ae5b1e5d`).
-2. [ ] **#45 leftover**: CrashDialog Copy-button on-device test (release build already installed; force a crash while the app is foreground, e.g. `adb shell am crash com.georgernstgraf.polishedrecognition`).
-3. [ ] **#52 (user's parallel work)**: commit `643cc38` accidentally carries #52's leftover wrapper files (`gradlew`, `gradlew.bat`, `gradle-wrapper.properties` — the script+properties half of the wrapper regeneration, jar was already committed in `3eb5927`). Content correct, attribution mixed — decide: leave as-is (noted on #52) or split via force-push.
+1. [ ] **Tag `v1.2.0`** (includes #49/#50/#51; user deferred tagging this session) → `release.yml` → bump `metadata/com.georgernstgraf.polishedrecognition.yml` (version + commit; keep `Binaries`/`AllowedAPKSigningKeys`, signing key unchanged `62f9d7b0…a76a85`) → comment on MR !40029 → force-push the `add-polished-recognition` branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`; verify current HEAD). Push the tag separately from branch commits (PITFALLS).
+2. [ ] **#45 leftover**: CrashDialog Copy-button on-device test (force a crash: `adb shell am crash com.georgernstgraf.polishedrecognition`).
+3. [ ] The **real Play upload** step of `release.yml` is the only #52-related path not yet exercised live (dry-run covered everything else). The `v1.2.0` tag run validates it — watch that run closely.
 
 ## Known on-device gotchas (Oplus/OnePlus)
 - `adb shell ime …` / `settings put secure …` / `pm grant …` → all blocked (SecurityException). Enable IME + grant mic + set default keyboard via Settings UI only. Verify via `dumpsys input_method | grep polished` + `dumpsys package … | grep RECORD_AUDIO`.
 - HeliBoard's mic uses the system `voice_recognition_service`, NOT the auxiliary IME → HeliBoard's mic won't route to Polished. Use the nav-bar switcher or Fossify Keyboard.
-- The IME crashes on `?attr/` theme attrs — only platform attrs / `@null` / explicit colors in IME layouts. (Now also true for Settings/Crash layouts under `Theme.DeviceDefault` — see PITFALLS.)
+- The IME crashes on `?attr/` theme attrs — only platform attrs / `@null` / explicit colors in IME layouts. (Also true for Settings/Crash layouts under `Theme.DeviceDefault` — see PITFALLS.)
 - "Manage Keyboards" greyed-out behavior matches AOSP — no Oplus OEM override (7-row evidence table in PITFALLS).
 
-Last cleared: 2026-08-30. Knowledge files current (HANDOFF/STATE updated for #50/#51 closure; DECISIONS/PITFALLS/DOMAIN current as of rounds 2–3; #52 noted).
+Last cleared: 2026-08-30 (late). Knowledge files current for #52 closure (DECISIONS/PITFALLS/STATE updated; wrapper attribution task from earlier HANDOFF resolved by commits `3eb5927`/`66eb197`).
