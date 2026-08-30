@@ -16,7 +16,7 @@
     <string name="test_token">Test Token</string>
     <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
     <string name="target_language">Target language</string>
-    <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None" disables translation.</string>
+    <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None" disables translation. Tap to pick, long-press to edit or add.</string>
     <string name="delete_language">Delete this language</string>
     <string name="edit_language">Edit this language</string>
     <string name="manage_custom_languages">Manage saved languages</string>
@@ -25,6 +25,8 @@
     <string name="rename_language_duplicate">This language is already in the list</string>
     <string name="rename_language_empty">Enter a language name</string>
     <string name="language_renamed">Language renamed</string>
+    <string name="language_added">Language added</string>
+    <string name="no_saved_languages_hint">No saved languages yet — long-press the language field above to add one.</string>
     <string name="system_prompt">System Prompt</string>
     <string name="target_language_clause">Target Language Clause (omitted when no target language is set)</string>
     <string name="restore_defaults">Restore all prompts to default</string>

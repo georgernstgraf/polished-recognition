@@ -63,6 +63,7 @@ class SettingsActivity : Activity() {
 
     private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
+    private var languageEditPrevious: String = ""
 
     private val systemPromptField: EditText by lazy { findViewById(R.id.system_prompt) }
     private val targetLanguageClauseField: EditText by lazy { findViewById(R.id.target_language_clause) }
@@ -251,6 +252,14 @@ class SettingsActivity : Activity() {
         targetLanguageDropdown.setOnItemClickListener { _, _, _, _ ->
             validateModelField(sttModelDropdown)
             validateModelField(llmModelDropdown)
+        }
+
+        // Long-press the selected language to edit it inline (old Material behavior, #48):
+        // the edit commits directly to the list — existing names are selected, new names are
+        // appended. Short tap keeps opening the dropdown (#37 tap-to-open selector).
+        targetLanguageDropdown.setOnLongClickListener {
+            enterLanguageEditMode()
+            true
         }
 
         sttModelDropdown.threshold = 1
@@ -628,11 +637,6 @@ class SettingsActivity : Activity() {
     }
 
     private fun showManageLanguagesDialog() {
-        if (settings.customLanguages.isEmpty()) {
-            Toast.makeText(this, "No saved languages yet — type one and tap Save to add it.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         var dialog: AlertDialog? = null
 
         val items = ArrayList(settings.customLanguages)
@@ -671,9 +675,73 @@ class SettingsActivity : Activity() {
 
         dialog = AlertDialog.Builder(this)
             .setTitle(R.string.saved_languages_title)
+            .apply {
+                if (items.isEmpty()) setMessage(R.string.no_saved_languages_hint)
+            }
             .setAdapter(adapter, null)
             .setPositiveButton(android.R.string.ok, null)
             .show()
+    }
+
+    private fun enterLanguageEditMode() {
+        languageEditPrevious = targetLanguageDropdown.text.toString()
+        targetLanguageDropdown.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+        targetLanguageDropdown.inputType =
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        targetLanguageDropdown.isFocusable = true
+        targetLanguageDropdown.isFocusableInTouchMode = true
+        targetLanguageDropdown.isCursorVisible = true
+        targetLanguageDropdown.requestFocus()
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.showSoftInput(targetLanguageDropdown, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        targetLanguageDropdown.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                commitLanguageEdit()
+                true
+            } else {
+                false
+            }
+        }
+        targetLanguageDropdown.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus && languageEditMode) commitLanguageEdit()
+        }
+    }
+
+    private val languageEditMode: Boolean
+        get() = targetLanguageDropdown.isFocusableInTouchMode
+
+    private fun commitLanguageEdit() {
+        if (!languageEditMode) return
+        exitLanguageEditMode()
+        val value = targetLanguageDropdown.text.toString()
+        when (val result = CustomLanguages.commitEdit(settings.customLanguages, value)) {
+            is CustomLanguages.CommitResult.Selected -> {
+                settings.targetLanguage = result.language
+                targetLanguageDropdown.setText(result.language, false)
+            }
+            is CustomLanguages.CommitResult.Added -> {
+                settings.customLanguages = result.newList
+                settings.targetLanguage = result.language
+                targetLanguageDropdown.setText(result.language, false)
+                (targetLanguageDropdown.adapter as? LanguageDropdownAdapter)?.rebuild()
+                Toast.makeText(this, R.string.language_added, Toast.LENGTH_SHORT).show()
+            }
+            CustomLanguages.CommitResult.Reverted ->
+                targetLanguageDropdown.setText(languageEditPrevious, false)
+        }
+        validateModelField(sttModelDropdown)
+        validateModelField(llmModelDropdown)
+    }
+
+    private fun exitLanguageEditMode() {
+        targetLanguageDropdown.isCursorVisible = false
+        targetLanguageDropdown.isFocusable = false
+        targetLanguageDropdown.isFocusableInTouchMode = false
+        targetLanguageDropdown.inputType = android.text.InputType.TYPE_CLASS_TEXT
+        targetLanguageDropdown.setOnEditorActionListener(null)
+        targetLanguageDropdown.setOnFocusChangeListener(null)
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(targetLanguageDropdown.windowToken, 0)
     }
 
     private fun deleteCustomLanguage(name: String) {

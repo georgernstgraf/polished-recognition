@@ -26,4 +26,18 @@ object CustomLanguages {
         }
         return null
     }
+
+    sealed class CommitResult {
+        data class Selected(val language: String) : CommitResult()
+        data class Added(val language: String, val newList: List<String>) : CommitResult()
+        object Reverted : CommitResult()
+    }
+
+    fun commitEdit(customLanguages: List<String>, value: String): CommitResult {
+        val name = value.trim()
+        if (name.isEmpty()) return CommitResult.Reverted
+        val existing = displayList(customLanguages).firstOrNull { it.equals(name, ignoreCase = true) }
+        if (existing != null) return CommitResult.Selected(existing)
+        return CommitResult.Added(name, customLanguages + name)
+    }
 }

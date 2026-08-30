@@ -74,4 +74,38 @@ class CustomLanguagesTest {
     fun `validateRename allows unused name`() {
         assertThat(CustomLanguages.validateRename(listOf("German"), "German", "Italian")).isNull()
     }
+
+    @Test
+    fun `commitEdit selects existing entry case-insensitively`() {
+        val result = CustomLanguages.commitEdit(listOf("German", "French"), "  FRENCH  ")
+        assertThat(result).isEqualTo(CustomLanguages.CommitResult.Selected("French"))
+    }
+
+    @Test
+    fun `commitEdit selects built-in entries`() {
+        assertThat(CustomLanguages.commitEdit(listOf("German"), "english"))
+            .isEqualTo(CustomLanguages.CommitResult.Selected("English"))
+        assertThat(CustomLanguages.commitEdit(listOf("German"), "none (no translation)"))
+            .isEqualTo(CustomLanguages.CommitResult.Selected("None (no translation)"))
+    }
+
+    @Test
+    fun `commitEdit appends new name and returns updated list`() {
+        val result = CustomLanguages.commitEdit(listOf("German"), "  Italian  ")
+        assertThat(result).isEqualTo(CustomLanguages.CommitResult.Added("Italian", listOf("German", "Italian")))
+    }
+
+    @Test
+    fun `commitEdit appends new name to empty list`() {
+        val result = CustomLanguages.commitEdit(emptyList(), "German")
+        assertThat(result).isEqualTo(CustomLanguages.CommitResult.Added("German", listOf("German")))
+    }
+
+    @Test
+    fun `commitEdit reverts on blank input`() {
+        assertThat(CustomLanguages.commitEdit(listOf("German"), "   "))
+            .isEqualTo(CustomLanguages.CommitResult.Reverted)
+        assertThat(CustomLanguages.commitEdit(emptyList(), ""))
+            .isEqualTo(CustomLanguages.CommitResult.Reverted)
+    }
 }
