@@ -10,7 +10,8 @@ data class SttResponse(
 data class ChatResponse(
     @SerializedName("choices") val choices: List<ChatChoice>
 ) {
-    fun getContent(): String = choices.firstOrNull()?.message?.content ?: ""
+    fun getContent(): String =
+        choices.firstOrNull()?.message?.content?.let { stripReasoning(it) } ?: ""
 }
 
 data class ChatChoice(
