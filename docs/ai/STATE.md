@@ -10,6 +10,7 @@ User-issue batch orchestrated and CLOSED: #47, #48+#53, #54 (commits `a48d279`, 
 - [x] #48+#53 editable/deletable custom target languages: rename dialog + in-dropdown non-focusable trash icon, `CustomLanguages` helper, 11 tests (`2c5a315`).
 - [x] #54 mic auto-start: `AutoStartPolicy` + `onStartInputView` hook, 5 tests (`db82be8`).
 - [x] #48 round 2: long-press inline edit on target-language field + always-open manage dialog, 5 commitEdit tests (`c678339`).
+- [x] #48 wording: "None (polish only)" (Settings) / "Polish only" (IME spinner), no-migration rename (`77e5040`).
 - [x] #55 created as release-tasks tracker (excluded from code orchestration).
 - [x] #52 Gradle caching/config cache, CLOSED + validated (warm CI 28s; dry-run release validated).
 - [x] #50 model dropdown UX, #51 gear hint dialog, #49 system prompt overhaul — CLOSED.
