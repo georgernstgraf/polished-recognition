@@ -9,21 +9,21 @@ import org.robolectric.RobolectricTestRunner
 class VoiceRecognitionActivityTest {
 
     @Test
-    fun `buildLanguageList includes None and English by default`() {
+    fun `buildLanguageList includes Polish only and English by default`() {
         val list = VoiceRecognitionActivity.buildLanguageList(emptyList())
-        assertThat(list).containsExactly("None", "English").inOrder()
+        assertThat(list).containsExactly("Polish only", "English").inOrder()
     }
 
     @Test
     fun `buildLanguageList appends custom languages sorted`() {
         val list = VoiceRecognitionActivity.buildLanguageList(listOf("Italian", "German", "French"))
-        assertThat(list).containsExactly("None", "English", "French", "German", "Italian").inOrder()
+        assertThat(list).containsExactly("Polish only", "English", "French", "German", "Italian").inOrder()
     }
 
     @Test
-    fun `buildLanguageList None always first`() {
+    fun `buildLanguageList Polish only always first`() {
         val list = VoiceRecognitionActivity.buildLanguageList(listOf("A", "B"))
-        assertThat(list[0]).isEqualTo("None")
+        assertThat(list[0]).isEqualTo("Polish only")
     }
 
     @Test
@@ -35,7 +35,7 @@ class VoiceRecognitionActivityTest {
     @Test
     fun `buildLanguageList handles duplicates from custom languages`() {
         val list = VoiceRecognitionActivity.buildLanguageList(listOf("English", "German"))
-        assertThat(list).containsAtLeast("None", "English", "German")
+        assertThat(list).containsAtLeast("Polish only", "English", "German")
     }
 
     @Test
@@ -45,7 +45,7 @@ class VoiceRecognitionActivityTest {
     }
 
     @Test
-    fun `NONE_TARGET_LANGUAGE is None`() {
-        assertThat(VoiceRecognitionActivity.NONE_TARGET_LANGUAGE).isEqualTo("None")
+    fun `NONE_TARGET_LANGUAGE is Polish only`() {
+        assertThat(VoiceRecognitionActivity.NONE_TARGET_LANGUAGE).isEqualTo("Polish only")
     }
 }

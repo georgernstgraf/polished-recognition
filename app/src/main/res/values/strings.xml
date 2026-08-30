@@ -16,7 +16,7 @@
     <string name="test_token">Test Token</string>
     <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
     <string name="target_language">Target language</string>
-    <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None" disables translation. Tap to pick, long-press to edit or add.</string>
+    <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None (polish only)" disables translation. Tap to pick, long-press to edit or add.</string>
     <string name="delete_language">Delete this language</string>
     <string name="edit_language">Edit this language</string>
     <string name="manage_custom_languages">Manage saved languages</string>

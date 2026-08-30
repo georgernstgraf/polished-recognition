@@ -38,7 +38,7 @@ class VoiceRecognitionActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 42
-        const val NONE_TARGET_LANGUAGE = "None"
+        const val NONE_TARGET_LANGUAGE = "Polish only"
 
         fun buildLanguageList(customLanguages: List<String>): List<String> =
             listOf(NONE_TARGET_LANGUAGE, "English") + customLanguages.sorted()

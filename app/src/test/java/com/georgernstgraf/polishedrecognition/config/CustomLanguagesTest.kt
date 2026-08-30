@@ -8,18 +8,18 @@ class CustomLanguagesTest {
     @Test
     fun `displayList starts with built-ins then sorted customs`() {
         val list = CustomLanguages.displayList(listOf("Italian", "German"))
-        assertThat(list).containsExactly("None (no translation)", "English", "German", "Italian").inOrder()
+        assertThat(list).containsExactly("None (polish only)", "English", "German", "Italian").inOrder()
     }
 
     @Test
     fun `displayList with no customs is just the built-ins`() {
         val list = CustomLanguages.displayList(emptyList())
-        assertThat(list).containsExactly("None (no translation)", "English").inOrder()
+        assertThat(list).containsExactly("None (polish only)", "English").inOrder()
     }
 
     @Test
     fun `isBuiltIn matches None and English`() {
-        assertThat(CustomLanguages.isBuiltIn("None (no translation)")).isTrue()
+        assertThat(CustomLanguages.isBuiltIn("None (polish only)")).isTrue()
         assertThat(CustomLanguages.isBuiltIn("English")).isTrue()
         assertThat(CustomLanguages.isBuiltIn("German")).isFalse()
     }
@@ -56,7 +56,7 @@ class CustomLanguagesTest {
     fun `validateRename rejects built-in names`() {
         assertThat(CustomLanguages.validateRename(listOf("German"), "German", "English"))
             .isEqualTo(CustomLanguages.RenameError.DUPLICATE)
-        assertThat(CustomLanguages.validateRename(listOf("German"), "German", "None (no translation)"))
+        assertThat(CustomLanguages.validateRename(listOf("German"), "German", "None (polish only)"))
             .isEqualTo(CustomLanguages.RenameError.DUPLICATE)
     }
 
@@ -85,8 +85,8 @@ class CustomLanguagesTest {
     fun `commitEdit selects built-in entries`() {
         assertThat(CustomLanguages.commitEdit(listOf("German"), "english"))
             .isEqualTo(CustomLanguages.CommitResult.Selected("English"))
-        assertThat(CustomLanguages.commitEdit(listOf("German"), "none (no translation)"))
-            .isEqualTo(CustomLanguages.CommitResult.Selected("None (no translation)"))
+        assertThat(CustomLanguages.commitEdit(listOf("German"), "NONE (POLISH ONLY)"))
+            .isEqualTo(CustomLanguages.CommitResult.Selected("None (polish only)"))
     }
 
     @Test

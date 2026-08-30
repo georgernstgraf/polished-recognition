@@ -2,7 +2,7 @@ package com.georgernstgraf.polishedrecognition.config
 
 object CustomLanguages {
 
-    const val NONE_TARGET_LANGUAGE = "None (no translation)"
+    const val NONE_TARGET_LANGUAGE = "None (polish only)"
     const val BUILTIN_LANGUAGE = "English"
 
     enum class RenameError { EMPTY, DUPLICATE }
