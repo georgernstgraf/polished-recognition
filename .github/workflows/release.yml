@@ -33,7 +33,11 @@ jobs:
       uses: android-actions/setup-android@v3
 
     - name: Setup Gradle cache
+      # validate-wrappers off: this workflow checks out the tag, and older
+      # tags contain wrapper jars not in the official checksum database.
       uses: gradle/actions/setup-gradle@v4
+      with:
+        validate-wrappers: false
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
