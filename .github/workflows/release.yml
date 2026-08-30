@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Skip Play Store upload (validation run)'
+        type: boolean
+        required: false
+        default: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -25,6 +32,9 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
+    - name: Setup Gradle cache
+      uses: gradle/actions/setup-gradle@v4
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
@@ -44,12 +54,14 @@ jobs:
       run: rm -f $RUNNER_TEMP/upload.keystore
 
     - name: Create GitHub Release
+      if: inputs.dry_run != true
       uses: softprops/action-gh-release@v2
       with:
         files: app/build/outputs/bundle/release/app-release.aab
         generate_release_notes: true
 
     - name: Upload to Play Console
+      if: inputs.dry_run != true
       uses: r0adkll/upload-google-play@v1
       with:
         serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
