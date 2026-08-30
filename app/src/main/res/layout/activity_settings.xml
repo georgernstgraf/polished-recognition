@@ -250,7 +250,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/model"
-            android:inputType="text"
+            android:inputType="text|textNoSuggestions"
+            android:importantForAutofill="no"
             android:completionThreshold="1"
             android:layout_marginBottom="16dp" />
 
@@ -320,7 +321,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/model"
-            android:inputType="text"
+            android:inputType="text|textNoSuggestions"
+            android:importantForAutofill="no"
             android:completionThreshold="1"
             android:layout_marginBottom="16dp" />
 

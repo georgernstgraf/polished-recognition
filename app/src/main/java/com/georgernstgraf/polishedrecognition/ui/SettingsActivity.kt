@@ -238,6 +238,31 @@ class SettingsActivity : Activity() {
 
         sttModelDropdown.threshold = 1
         llmModelDropdown.threshold = 1
+
+        listOf(sttModelDropdown, llmModelDropdown).forEach { dropdown ->
+            dropdown.setOnClickListener {
+                val adapter = dropdown.adapter as? ModelFilterAdapter
+                if (adapter == null) {
+                    Toast.makeText(this, R.string.no_models_yet, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                adapter.showAll()
+                dropdown.showDropDown()
+            }
+            dropdown.setOnFocusChangeListener { _, hasFocus ->
+                if (!hasFocus) validateModelField(dropdown)
+            }
+        }
+    }
+
+    private fun validateModelField(dropdown: AutoCompleteTextView) {
+        val adapter = dropdown.adapter as? ModelFilterAdapter ?: return
+        val text = dropdown.text.toString().trim()
+        if (text.isNotEmpty() && text !in adapter.allItems) {
+            dropdown.error = getString(R.string.select_model_from_list)
+        } else {
+            dropdown.error = null
+        }
     }
 
     private fun validateSttProvider() {
@@ -450,8 +475,34 @@ class SettingsActivity : Activity() {
     }
 
     private inner class ModelFilterAdapter(items: List<String>) : BaseAdapter(), Filterable {
-        private val allItems: List<String> = items.toList()
+        val allItems: List<String> = items.toList()
         private var displayItems: List<String> = items.toList()
+        private val filter = object : Filter() {
+            override fun performFiltering(constraint: CharSequence?): FilterResults {
+                val results = FilterResults()
+                val filtered = if (constraint.isNullOrBlank()) {
+                    allItems
+                } else {
+                    val query = constraint.toString().lowercase()
+                    allItems.filter { it.lowercase().contains(query) }
+                }
+                results.values = filtered
+                results.count = filtered.size
+                return results
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                val filtered = results?.values as? List<String> ?: return
+                displayItems = filtered.toList()
+                notifyDataSetChanged()
+            }
+        }
+
+        fun showAll() {
+            displayItems = allItems.toList()
+            notifyDataSetChanged()
+        }
 
         override fun getCount(): Int = displayItems.size
         override fun getItem(position: Int): Any = displayItems[position]
@@ -464,29 +515,7 @@ class SettingsActivity : Activity() {
             return view
         }
 
-        override fun getFilter(): Filter {
-            return object : Filter() {
-                override fun performFiltering(constraint: CharSequence?): FilterResults {
-                    val results = FilterResults()
-                    val filtered = if (constraint.isNullOrBlank()) {
-                        allItems
-                    } else {
-                        val query = constraint.toString().lowercase()
-                        allItems.filter { it.lowercase().contains(query) }
-                    }
-                    results.values = filtered
-                    results.count = filtered.size
-                    return results
-                }
-
-                @Suppress("UNCHECKED_CAST")
-                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
-                    val filtered = results?.values as? List<String> ?: return
-                    displayItems = filtered.toList()
-                    notifyDataSetChanged()
-                }
-            }
-        }
+        override fun getFilter(): Filter = filter
     }
 
     private inner class LanguageDropdownAdapter : BaseAdapter(), Filterable {
@@ -599,8 +628,8 @@ class SettingsActivity : Activity() {
         val llmName = llmProviderDropdown.text.toString()
         val sttBaseUrl = sttUrlField.text.toString()
         val llmBaseUrl = llmUrlField.text.toString()
-        val sttModel = sttModelDropdown.text.toString()
-        val llmModel = llmModelDropdown.text.toString()
+        val sttModel = sttModelDropdown.text.toString().trim()
+        val llmModel = llmModelDropdown.text.toString().trim()
 
         val sttModels = settings.getSttModelList()
         if (sttModels.isNotEmpty() && sttModel !in sttModels) {
