@@ -36,6 +36,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     private lateinit var settings: SettingsStore
 
     private var rootView: View? = null
+    private var rowTop: View? = null
+    private var rowButtons: View? = null
     private var micSendButton: ImageButton? = null
     private var pauseResumeButton: ImageButton? = null
     private var cancelButton: ImageButton? = null
@@ -62,6 +64,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
         rootView = view.findViewById(R.id.ime_root)
+        rowTop = view.findViewById(R.id.ime_row_top)
+        rowButtons = view.findViewById(R.id.ime_row_buttons)
         micSendButton = view.findViewById(R.id.ime_mic_send_button)
         pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
         cancelButton = view.findViewById(R.id.ime_cancel_button)
@@ -294,7 +298,6 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun setFlashing(active: Boolean) {
-        val root = rootView ?: return
         if (active) {
             smoothedRms = 0f
             voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
@@ -304,7 +307,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         } else {
             breathAnimator?.cancel()
             breathAnimator = null
-            root.alpha = 1f
+            applyAlpha()
         }
     }
 
@@ -339,7 +342,11 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun applyAlpha() {
-        rootView?.alpha = maxOf(breathAlpha, voiceAlpha)
+        // Pulse the foreground rows only — a dimmed root background over the dark IME window
+        // reads as a "pulsing background" in light mode but is invisible in dark mode (#59).
+        val a = maxOf(breathAlpha, voiceAlpha)
+        rowTop?.alpha = a
+        rowButtons?.alpha = a
     }
 
     private fun setPausedEnlarged(enlarged: Boolean) {

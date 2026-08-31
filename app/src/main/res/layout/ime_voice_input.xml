@@ -11,6 +11,7 @@
     android:paddingBottom="8dp">
 
     <LinearLayout
+        android:id="@+id/ime_row_top"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -71,6 +72,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/ime_row_buttons"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -82,6 +84,7 @@
             android:layout_weight="1"
             android:layout_height="48dp"
             android:src="@drawable/ic_close"
+            android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_cancel_desc"
             android:scaleType="centerInside" />
@@ -92,6 +95,7 @@
             android:layout_weight="1"
             android:layout_height="48dp"
             android:src="@drawable/ic_pause"
+            android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_pause_desc"
             android:scaleType="centerInside" />
@@ -102,6 +106,7 @@
             android:layout_weight="1"
             android:layout_height="48dp"
             android:src="@drawable/ic_mic"
+            android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_mic_desc"
             android:scaleType="centerInside" />

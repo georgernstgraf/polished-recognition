@@ -589,7 +589,15 @@ class SettingsActivity : Activity() {
             label.text = item
             // Pitfall #36: rows must not contain focusable children (AbsListView skips onItemClick
             // for rows whose hasFocusable() is true) — the trash ImageButton is clickable but
-            // focusable=false, so row taps still select and icon taps delete. Built-ins get no icon.
+            // focusable=false. On-device verification (#59) showed the popup ListView still
+            // swallows row-clicks for custom rows, so the label commits selection explicitly
+            // instead of relying on the internal onItemClick path.
+            label.setOnClickListener {
+                settings.targetLanguage = if (item == CustomLanguages.NONE_TARGET_LANGUAGE) null else item
+                targetLanguageDropdown.setText(item, false)
+                targetLanguageDropdown.dismissDropDown()
+            }
+            // Built-ins get no icon.
             if (CustomLanguages.isBuiltIn(item)) {
                 delete.visibility = View.GONE
             } else {
