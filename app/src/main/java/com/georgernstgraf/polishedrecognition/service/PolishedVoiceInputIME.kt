@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -33,13 +34,16 @@ class PolishedVoiceInputIME : InputMethodService() {
     private lateinit var controller: VoiceSessionController
     private lateinit var settings: SettingsStore
 
-    private var statusText: TextView? = null
+    private var rootView: View? = null
     private var micSendButton: ImageButton? = null
     private var pauseResumeButton: ImageButton? = null
     private var cancelButton: ImageButton? = null
     private var languageSpinner: Spinner? = null
     private var rawCheckbox: CheckBox? = null
     private var settingsGear: ImageButton? = null
+    private var quickSettingsDivider: View? = null
+    private var stageText: TextView? = null
+    private var flashAnimator: ValueAnimator? = null
     private var silenceLangListener = false
 
     override fun onCreate() {
@@ -52,13 +56,15 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
-        statusText = view.findViewById(R.id.ime_status_text)
+        rootView = view.findViewById(R.id.ime_root)
         micSendButton = view.findViewById(R.id.ime_mic_send_button)
         pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
         cancelButton = view.findViewById(R.id.ime_cancel_button)
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
         rawCheckbox = view.findViewById(R.id.ime_raw)
         settingsGear = view.findViewById(R.id.ime_settings_button)
+        quickSettingsDivider = view.findViewById(R.id.ime_quick_settings_divider)
+        stageText = view.findViewById(R.id.ime_stage_text)
 
         micSendButton?.setOnClickListener {
             when (controller.state) {
@@ -189,11 +195,11 @@ class PolishedVoiceInputIME : InputMethodService() {
                 }
             }
             is VoiceSessionController.Event.StageChanged -> {
-                statusText?.text = when (event.stage) {
+                stageText?.text = when (event.stage) {
                     is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
-                        getString(R.string.ime_status_stt)
+                        getString(R.string.ime_stage_stt)
                     is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
-                        getString(R.string.ime_status_llm)
+                        getString(R.string.ime_stage_llm)
                 }
             }
             is VoiceSessionController.Event.Completed -> {
@@ -217,17 +223,15 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun applyUiState() {
-        val st = statusText ?: return
         val ms = micSendButton ?: return
         val pr = pauseResumeButton ?: return
         val cb = cancelButton ?: return
         val gear = settingsGear ?: return
-        val sp = languageSpinner
-        val raw = rawCheckbox
         val s = controller.state
+        setFlashing(s == VoiceSessionController.State.RECORDING)
+        setPausedEnlarged(s == VoiceSessionController.State.PAUSED)
         when (s) {
             VoiceSessionController.State.IDLE -> {
-                st.text = getString(R.string.ime_status_idle)
                 ms.setImageResource(R.drawable.ic_mic)
                 ms.contentDescription = getString(R.string.ime_mic_desc)
                 ms.isEnabled = true
@@ -237,9 +241,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 cb.isEnabled = true
                 gear.isEnabled = true
                 setQuickSettingsEnabled(true)
+                setQuickSettingsVisible(true)
             }
             VoiceSessionController.State.RECORDING -> {
-                st.text = getString(R.string.ime_status_recording)
                 ms.setImageResource(R.drawable.ic_send)
                 ms.contentDescription = getString(R.string.ime_send_desc)
                 ms.isEnabled = true
@@ -249,9 +253,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 cb.isEnabled = true
                 gear.isEnabled = true
                 setQuickSettingsEnabled(false)
+                setQuickSettingsVisible(true)
             }
             VoiceSessionController.State.PAUSED -> {
-                st.text = getString(R.string.ime_status_paused)
                 ms.setImageResource(R.drawable.ic_send)
                 ms.contentDescription = getString(R.string.ime_send_desc)
                 ms.isEnabled = true
@@ -261,9 +265,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 cb.isEnabled = true
                 gear.isEnabled = true
                 setQuickSettingsEnabled(true)
+                setQuickSettingsVisible(true)
             }
             VoiceSessionController.State.PROCESSING -> {
-                st.text = getString(R.string.ime_status_processing)
                 ms.setImageResource(R.drawable.ic_send)
                 ms.contentDescription = getString(R.string.ime_send_desc)
                 ms.isEnabled = false
@@ -273,9 +277,46 @@ class PolishedVoiceInputIME : InputMethodService() {
                 cb.isEnabled = false
                 gear.isEnabled = false
                 setQuickSettingsEnabled(false)
+                setQuickSettingsVisible(false)
             }
         }
+        stageText?.visibility =
+            if (s == VoiceSessionController.State.PROCESSING) View.VISIBLE else View.GONE
         updateLanguageEnabled()
+    }
+
+    private fun setFlashing(active: Boolean) {
+        val root = rootView ?: return
+        if (active && flashAnimator == null) {
+            flashAnimator = ValueAnimator.ofFloat(1f, 0.7f).apply {
+                duration = 500
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.REVERSE
+                addUpdateListener { root.alpha = it.animatedValue as Float }
+                start()
+            }
+        } else if (!active) {
+            flashAnimator?.cancel()
+            flashAnimator = null
+            root.alpha = 1f
+        }
+    }
+
+    private fun setPausedEnlarged(enlarged: Boolean) {
+        val target = if (enlarged) 1.3f else 1f
+        pauseResumeButton?.animate()?.cancel()
+        pauseResumeButton?.animate()
+            ?.scaleX(target)
+            ?.scaleY(target)
+            ?.setDuration(150)
+            ?.start()
+    }
+
+    private fun setQuickSettingsVisible(visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        languageSpinner?.visibility = visibility
+        quickSettingsDivider?.visibility = visibility
+        rawCheckbox?.visibility = visibility
     }
 
     private fun setQuickSettingsEnabled(enabled: Boolean) {
@@ -341,6 +382,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        flashAnimator?.cancel()
+        flashAnimator = null
         controller.cancel()
         stopMicForeground()
         super.onDestroy()

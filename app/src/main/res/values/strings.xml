@@ -64,12 +64,9 @@
     <string name="quick_language_hint">Language</string>
 
     <string name="voice_subtype_label" translatable="false">Polished Recognition voice</string>
-    <string name="ime_status_idle">Tap the mic to speak</string>
-    <string name="ime_status_recording">Recording\u2026</string>
-    <string name="ime_status_paused">Paused</string>
-    <string name="ime_status_processing">Processing\u2026</string>
-    <string name="ime_status_stt">Transcribing (STT)\u2026</string>
-    <string name="ime_status_llm">Polishing (LLM)\u2026</string>
+    <string name="ime_stage_stt">Transcribing (STT)\u2026</string>
+    <string name="ime_stage_llm">Polishing (LLM)\u2026</string>
+    <string name="ime_settings_desc">Settings</string>
     <string name="ime_record">Record</string>
     <string name="ime_stop">Send</string>
     <string name="ime_cancel">Cancel</string>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ime_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -14,17 +15,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="4dp">
-
-        <TextView
-            android:id="@+id/ime_status_text"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="@string/ime_status_idle"
-            android:textColor="@color/recording_text_primary"
-            android:textSize="15sp"
-            android:gravity="center" />
+        android:layout_marginBottom="6dp">
 
         <ImageButton
             android:id="@+id/ime_settings_button"
@@ -32,25 +23,18 @@
             android:layout_height="36dp"
             android:src="@drawable/ic_settings"
             android:background="@null"
-            android:contentDescription="Settings"
+            android:contentDescription="@string/ime_settings_desc"
             android:scaleType="centerInside" />
-
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="6dp">
 
         <Spinner
             android:id="@+id/ime_language_spinner"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
 
         <View
+            android:id="@+id/ime_quick_settings_divider"
             android:layout_width="1dp"
             android:layout_height="20dp"
             android:background="@color/recording_divider"
@@ -65,6 +49,18 @@
             android:textColor="@color/recording_text_primary"
             android:textSize="13sp"
             android:buttonTint="@color/recording_text_primary" />
+
+        <TextView
+            android:id="@+id/ime_stage_text"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/recording_text_primary"
+            android:textSize="15sp"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            android:gravity="center_vertical" />
 
     </LinearLayout>
 

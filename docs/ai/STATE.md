@@ -1,28 +1,21 @@
 # Project State
 
-Current status as of 2026-08-30 (late evening, post-orchestration run).
+Current status as of 2026-08-31.
 
 ## Current Focus
-User-issue batch orchestrated and CLOSED: #47, #48+#53, #54 (commits `a48d279`, `2c5a315`, `db82be8`); #48 reopened and re-fixed with long-press inline edit (`c678339`). All CI green. Open: #55 (release v1.2.0 tracking) and #43 (auxiliary IME decision already shipped — see DECISIONS 2026-08-22; issue kept open as follow-up tracker).
+#57 (two-line IME redesign) implemented and installed on-device; awaiting user's on-device verification. Open: #55 (release v1.2.0 tracking), #43 (follow-up tracker), #57 (verify before close).
 
 ## Completed (this cycle)
-- [x] #47 reasoning-strip: `stripReasoning()` + `getContent()` choke point, 11 tests (`a48d279`).
-- [x] #48+#53 editable/deletable custom target languages: rename dialog + in-dropdown non-focusable trash icon, `CustomLanguages` helper, 11 tests (`2c5a315`).
-- [x] #54 mic auto-start: `AutoStartPolicy` + `onStartInputView` hook, 5 tests (`db82be8`).
-- [x] #48 round 2: long-press inline edit on target-language field + always-open manage dialog, 5 commitEdit tests (`c678339`).
-- [x] #48 wording: "None (polish only)" (Settings) / "Polish only" (IME spinner), no-migration rename (`77e5040`).
-- [x] #55 created as release-tasks tracker (excluded from code orchestration).
-- [x] #52 Gradle caching/config cache, CLOSED + validated (warm CI 28s; dry-run release validated).
-- [x] #50 model dropdown UX, #51 gear hint dialog, #49 system prompt overhaul — CLOSED.
+- [x] #57 two-line IME: gear far-left of row 1 (spinner|divider|Raw), status line removed, flash pulse (root alpha 1.0↔0.7) while recording, pause/resume button scaled 1.3× when paused, inline stage text in row 1 during processing (zero toasts) — installed on OnePlus 7T (`f6de166c`, v1.2.0, `installRelease`).
 
 ## Pending
+- [ ] **#57 on-device verify** (user, UI-only on Oplus): flash pulse while recording; enlarged resume button when paused; stage text in row 1 during processing (incl. Raw mode → only "Transcribing (STT)…"); gear position/behavior.
 - [ ] **#55 — release `v1.2.0`**: tag (push tag separately from branch commits) → `release.yml` (real Play upload = last untested #52 path — watch the run) → fdroiddata metadata bump → MR !40029 comment + force-push branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`, verify HEAD).
 - [ ] #45 leftover: CrashDialog Copy-button on-device test (`adb shell am crash com.georgernstgraf.polishedrecognition`).
-- [ ] On-device verification of #48/#53 (dropdown icon-tap vs row-tap; dark-mode contrast; **long-press inline edit**: short tap opens dropdown, hold edits, new name appended+selected) and #54 (auto-start on real IME; Oplus adb restriction → Settings UI only).
-- [ ] Install current build on device — `installRelease` failed once (device disconnected); run when reconnected.
+- [ ] On-device verification of #48/#53 (dropdown icon-tap vs row-tap; dark-mode contrast; long-press inline edit) and #54 (auto-start on real IME) — same install session as the v1.2.0/#57 check.
 
 ## Blockers
 None.
 
 ## Next Session Suggestion
-Work #55: tag `v1.2.0`, watch `release.yml` live (Play upload validation), then fdroiddata bump + MR update. While the release build is installed on-device, verify #48/#53/#54 on-device (see Pending) and do the CrashDialog Copy test.
+After the user confirms #57 on-device, run #55: tag `v1.2.0` (now includes #57), watch `release.yml` live, then fdroiddata bump + MR update. Batch the remaining on-device verifications (#48/#53/#54/#45) into the same session.
