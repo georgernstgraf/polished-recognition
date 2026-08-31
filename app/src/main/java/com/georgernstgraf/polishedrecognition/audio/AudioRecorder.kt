@@ -114,15 +114,8 @@ class AudioRecorder {
         }
     }
 
-    private fun computeRms(buffer: ByteArray, bytesRead: Int): Float {
-        var sum = 0L
-        for (i in 0 until bytesRead step 2) {
-            val sample = ((buffer[i + 1].toInt() and 0xFF) shl 8) or (buffer[i].toInt() and 0xFF)
-            sum += (sample * sample).toLong()
-        }
-        val samples = (bytesRead / 2).coerceAtLeast(1)
-        return kotlin.math.sqrt(sum.toDouble() / samples).toFloat()
-    }
+    private fun computeRms(buffer: ByteArray, bytesRead: Int): Float =
+        computePcmRms(buffer, bytesRead)
 
     private fun pcmToWav(pcmData: ByteArray, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
         val byteRate = sampleRate * channels * bitsPerSample / 8
@@ -172,5 +165,20 @@ class AudioRecorder {
     private fun writeShortLE(buf: ByteArray, offset: Int, value: Short) {
         buf[offset] = (value.toInt() and 0xFF).toByte()
         buf[offset + 1] = ((value.toInt() shr 8) and 0xFF).toByte()
+    }
+
+    companion object {
+        fun computePcmRms(buffer: ByteArray, bytesRead: Int): Float {
+            var sum = 0L
+            var i = 0
+            while (i + 1 < bytesRead) {
+                val sample = ((buffer[i + 1].toInt() and 0xFF) shl 8) or (buffer[i].toInt() and 0xFF)
+                val signed = if (sample >= 32768) sample - 65536 else sample
+                sum += signed.toLong() * signed
+                i += 2
+            }
+            val samples = (bytesRead / 2).coerceAtLeast(1)
+            return kotlin.math.sqrt(sum.toDouble() / samples).toFloat()
+        }
     }
 }

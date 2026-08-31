@@ -45,9 +45,9 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var quickSettingsDivider: View? = null
     private var stageText: TextView? = null
     private var smoothedRms = 0f
-    private var lastTargetAlpha = -1f
-    private var breathAnimator: ValueAnimator? = null
+    private var voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
     private var breathAlpha = BREATH_CEIL
+    private var breathAnimator: ValueAnimator? = null
     private var rmsLogCount = 0
     private var silenceLangListener = false
 
@@ -260,7 +260,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.isEnabled = true
                 cb.isEnabled = true
                 gear.isEnabled = true
-                setQuickSettingsEnabled(false)
+                setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
             VoiceSessionController.State.PAUSED -> {
@@ -295,13 +295,11 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun setFlashing(active: Boolean) {
         val root = rootView ?: return
-        root.animate().cancel()
         if (active) {
             smoothedRms = 0f
-            lastTargetAlpha = -1f
+            voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
             breathAlpha = BREATH_CEIL
             rmsLogCount = 0
-            root.alpha = 1f
             startBreathing()
         } else {
             breathAnimator?.cancel()
@@ -319,35 +317,28 @@ class PolishedVoiceInputIME : InputMethodService() {
             interpolator = android.view.animation.AccelerateDecelerateInterpolator()
             addUpdateListener {
                 breathAlpha = it.animatedValue as Float
-                applyTargetAlpha()
+                applyAlpha()
             }
             start()
         }
     }
 
     private fun onRmsChanged(rms: Float) {
+        if (!rms.isFinite()) return
         smoothedRms = RmsAlphaMapper.smooth(smoothedRms, rms)
+        voiceAlpha = RmsAlphaMapper.alpha(smoothedRms)
         if (rmsLogCount++ % RMS_LOG_EVERY == 0) {
             Log.d(
                 RMS_LOG_TAG,
                 "rms=%.0f smoothed=%.0f voiceAlpha=%.3f breathAlpha=%.3f"
-                    .format(rms, smoothedRms, RmsAlphaMapper.alpha(smoothedRms), breathAlpha)
+                    .format(rms, smoothedRms, voiceAlpha, breathAlpha)
             )
         }
-        applyTargetAlpha()
+        applyAlpha()
     }
 
-    private fun applyTargetAlpha() {
-        val root = rootView ?: return
-        val voiceAlpha = RmsAlphaMapper.alpha(smoothedRms)
-        val target = maxOf(breathAlpha, voiceAlpha)
-        if (lastTargetAlpha >= 0f && kotlin.math.abs(target - lastTargetAlpha) < DEADBAND) return
-        lastTargetAlpha = target
-        val duration = if (target < root.alpha) DIVE_MS else RISE_MS
-        root.animate()
-            .alpha(target)
-            .setDuration(duration)
-            .start()
+    private fun applyAlpha() {
+        rootView?.alpha = maxOf(breathAlpha, voiceAlpha)
     }
 
     private fun setPausedEnlarged(enlarged: Boolean) {
@@ -432,7 +423,6 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onDestroy() {
         breathAnimator?.cancel()
         breathAnimator = null
-        rootView?.animate()?.cancel()
         controller.cancel()
         stopMicForeground()
         super.onDestroy()
@@ -444,9 +434,6 @@ class PolishedVoiceInputIME : InputMethodService() {
         private const val BREATH_FLOOR = 0.6f
         private const val BREATH_CEIL = 0.9f
         private const val BREATH_HALF_PERIOD_MS = 1000L
-        private const val DIVE_MS = 600L
-        private const val RISE_MS = 150L
-        private const val DEADBAND = 0.015f
         private const val RMS_LOG_TAG = "PolishedRMS"
         private const val RMS_LOG_EVERY = 10
     }
