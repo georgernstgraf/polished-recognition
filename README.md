@@ -9,17 +9,14 @@ full control of your voice input.
 
 Polished Recognition installs as a **voice keyboard**: switch to it, and it
 starts listening immediately — no extra tap, no learning a new typing UI.
-It also registers as a system voice-input service, so the mic button on
-Gboard, Samsung Keyboard & co. can use it too (where vendors don't break
-that API).
 
-| ![Voice keyboard](docs/img/ime-recording.png) | ![Voice overlay](docs/img/overlay-recording.png) | ![Settings](docs/img/settings.png) |
-|:---:|:---:|:---:|
-| The voice keyboard — recording | Overlay mode from any keyboard's mic | Your pipeline, your prompts |
+| ![Voice keyboard](docs/img/ime-recording.png) | ![Settings](docs/img/settings.png) |
+|:---:|:---:|
+| The voice keyboard — recording | Your pipeline, your prompts |
 
 ## How it works
 
-1. **Switch to the Polished keyboard** (or press the mic on your existing keyboard) → recording starts instantly
+1. **Switch to the Polished keyboard** → recording starts instantly
 2. **Speak naturally** — pause/resume anytime mid-sentence
 3. **Tap send** → audio goes to your STT provider (Whisper on GROQ, OpenAI, …)
 4. **The LLM polishes the text** using your custom prompt — fix filler words and punctuation, restructure, or translate to another language
@@ -35,7 +32,7 @@ plain transcription — zero extra latency.
 - **Custom prompts.** The system prompt is fully editable, with variables for source and target language. Make the LLM format markdown, translate to French, or just fix punctuation.
 - **Translation built in.** Pick a target language and dictation arrives translated. Languages are freely editable — long-press to add your own.
 - **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume — the entire recording buffers, nothing is lost.
-- **Works everywhere.** As a keyboard in every text field — or as the voice service behind keyboards that delegate their mic button.
+- **Works everywhere.** Any text field, any app — no integration needed. It also registers as the system voice-input service for keyboards that delegate their mic button.
 - **Searchable model pickers.** Type to filter hundreds of models by substring, with per-provider caching. No infinite dropdown scrolling.
 - **Clean output.** LLM "reasoning/thinking" blocks are stripped automatically — only the finished text gets inserted.
 
@@ -84,13 +81,6 @@ fallback to free-text entry for providers that don't support it).
 - **Live stage display** — shows exactly what's happening: *Recording*, *Transcribing (STT)*, *Polishing (LLM)*
 - **Recording pulse** — the send button breathes with your voice
 - **Works in any app** — any text field, any app, no integration needed
-
-### Voice overlay (for other keyboards)
-
-Registered as the system voice-input service, the familiar mic button on
-supporting keyboards opens the Polished overlay: recording with elapsed
-timer, pause/resume, target-language picker, Raw toggle — and a gear to
-reach the full settings without leaving the recording screen.
 
 ### Your pipeline, your rules
 
