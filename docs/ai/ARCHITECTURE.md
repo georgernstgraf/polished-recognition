@@ -13,7 +13,7 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 |-----------|---------|------|
 | `PolishedRecognitionApp` | root | Application class — manual DI, OkHttpClient singleton, Retrofit cache per baseUrl, global `UncaughtExceptionHandler` → `CrashDialogActivity` |
 | `PolishedVoiceInputIME` | service | `InputMethodService` — the auxiliary voice IME. Inflates `ime_voice_input.xml`, owns a `VoiceSessionController`, drives audio capture + transcription, `commitText`s results. Foreground service of type `microphone` while recording. |
-| `VoiceSessionController` | service (or sibling) | State machine for an IME voice session: IDLE → RECORDING ⇄ PAUSED → PROCESSING → IDLE. De-dups events, resets to IDLE after `Completed` (deadlock fix). |
+| `VoiceSessionController` | service (or sibling) | State machine for an IME voice session: IDLE → RECORDING ⇄ PAUSED → PROCESSING → IDLE. De-dups events, resets to IDLE after `Completed` (deadlock fix). Writes the recording for upload: with `compress_audio` set, transcodes WAV → `recording.ogg` via `AudioTranscoder` (WAV fallback on failure). Takes `SettingsStore` + `AudioTranscoder` as injectable constructor params (testability). |
 | `MicrophonePermissionActivity` | ui | Transparent trampoline `Activity` — `registerForActivityResult(RequestPermission())` for `RECORD_AUDIO`, then `finish()`. Launched by the IME with `FLAG_ACTIVITY_NEW_TASK` (a service cannot request runtime permissions directly). |
 | `VoiceRecognitionActivity` | ui | Full-screen overlay `AppCompatActivity` — audio capture + transcription, three-button layout (Cancel/Pause-Resume/Stop), `configChanges` for rotation safety. Retained as an alternate entry point. |
 | `TranscriptionPipeline` | pipeline | Orchestrates STT → (optional) LLM flow. Resolves prompt templates at runtime. Emits `TranscriptionStage` callbacks (`RequestingStt`, `RequestingLlm(wordCount)`). |
@@ -21,6 +21,9 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 | `OpenAiSttApiService` | api | Generic Retrofit interface: `POST audio/transcriptions` (sync `Call<T>` to dodge R8 `Continuation` stripping), `GET models` |
 | `OpenAiChatApiService` | api | Generic Retrofit interface: `POST chat/completions` (sync `Call<T>`), `GET models` |
 | `AudioRecorder` | audio | AudioRecord wrapper: PCM 16kHz mono → WAV ByteArray |
+| `WavReader` | audio | Fail-fast parser for the recorder's canonical 44-byte-header WAV → PCM + sample rate |
+| `PcmConditioner` | audio | Pure-JVM DSP over 16-bit LE PCM: one-pole 80 Hz high-pass + amplify-only peak normalization (target ~0.8 FS, gain cap 10x, silence guard at peak 200) |
+| `AudioTranscoder` / `OpusOggTranscoder` | audio | WAV → Ogg/Opus 24 kbps via platform `MediaCodec` encoder + `MediaMuxer MUXER_OUTPUT_OGG` (API 30 = minSdk). Throws on any failure and deletes partial output — callers fall back to WAV |
 | `SettingsStore` | config | SharedPreferences: provider configs, raw mode, target language, cached model lists |
 | `ProviderPresetLoader` | config | Loads and queries `assets/provider_presets.json` |
 | `LanguageMapper` | config | Maps ISO 639-1 codes to human-readable names |
@@ -36,7 +39,7 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 ### IME path (primary, post-#43)
 - Nav-bar switcher (or Fossify's voice-typing selector) → active keyboard = Polished → `PolishedVoiceInputIME.onCreateInputView()` inflates the compact bar.
 - Mic tap → permission check (trampoline if missing) → `VoiceSessionController` IDLE→RECORDING → `AudioRecorder.start()` + foreground notification (type `microphone`).
-- Send/Stop → `AudioRecorder.stop()` → WAV bytes → `TranscriptionPipeline.transcribe()` → STT text → (raw: return) → resolve prompts → LLM text → `currentInputConnection.commitText()`.
+- Send/Stop → `AudioRecorder.stop()` → WAV bytes → `VoiceSessionController.prepareAudioFile()` (if `compress_audio`: `WavReader` → `PcmConditioner` → `OpusOggTranscoder` → `cacheDir/recording.ogg` on `Dispatchers.IO`; any failure → original WAV) → `TranscriptionPipeline.transcribe()` (multipart media type/filename derived from file extension) → STT text → (raw: return) → resolve prompts → LLM text → `currentInputConnection.commitText()`.
 - Pause/Resume toggles `AudioRecord` start/stop while keeping the PCM buffer; Settings-gear press during RECORDING implicitly pauses before opening `SettingsActivity`.
 - `onFinishInputView` (IME hides, e.g. to open Settings) only pauses RECORDING — PAUSED/PROCESSING are left untouched so a paused recording survives.
 

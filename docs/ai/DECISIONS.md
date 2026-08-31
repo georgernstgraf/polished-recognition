@@ -51,11 +51,14 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: Pinning stdlib to 1.9.x (complex, fragile, Gradle resolution conflicts)
 - **Tradeoff**: Kotlin 2.x has stricter parameter handling (named args required when default params at front of constructor).
 
-## 2026-05-29: AudioRecord + WAV in-memory
-- **Choice**: `AudioRecord` capturing PCM 16-bit 16kHz mono, with manual 44-byte WAV header
-- **Reason**: RecognitionService needs raw audio for the STT API. `MediaRecorder` produces compressed formats (AAC) requiring conversion. In-memory WAV is ~50 lines of header byte manipulation. No temp file I/O during recording.
-- **Considered**: MediaRecorder + temp file + FFmpeg conversion
-- **Tradeoff**: WAV is uncompressed — larger than AAC for long recordings. Fine for short voice input (typically <30s).
+## 2026-05-29: AudioRecord + WAV in-memory [REFINED by 2026-08-31 #60]
+- Moved to HISTORY.md — the upload-format part was refined by the optional Ogg/Opus compression (#60). AudioRecord PCM 16 kHz mono capture itself remains in force.
+
+## 2026-08-31: Optional Ogg/Opus compression before STT upload (#60)
+- **Choice**: Opt-in `compress_audio` setting transcodes the recording to Ogg/Opus (24 kbps) via the **platform MediaCodec encoder + MediaMuxer `MUXER_OUTPUT_OGG`** before upload; light pure-Kotlin PCM conditioning (80 Hz high-pass + peak normalization) runs before encoding. WAV stays default and is the automatic fallback on any transcoder failure.
+- **Reason**: 16 kHz mono WAV is 256 kbps — Opus at 24 kbps cuts upload ~10x, which matters on poor connections. FFmpegKit (the obvious tool) was retired Jan 2025 and its prebuilt binaries removed from Maven Central Apr 2025; community forks are unmaintained/trust-risky and would add 10–40 MB of prebuilt `.so` blobs with F-Droid reproducibility friction. MediaCodec Opus encoder is API 29+, OGG muxing is API 30 — both exactly covered by minSdk 30, zero dependencies, zero APK-size impact.
+- **Considered**: Community ffmpeg-kit forks (`ffmpegkit-maintained` group-ID swap, `com.mrljdx`), self-built minimal FFmpeg via NDK (F-Droid-friendly but a large NDK toolchain to maintain), AAC/m4a via MediaCodec (accepted too, but Ogg/Opus is the better-supported speech codec at low bitrates).
+- **Tradeoff**: No FFmpeg filter chain (DSP is hand-rolled in `PcmConditioner`); real-encoder behavior can only be verified on-device (Robolectric can't run MediaCodec); `MediaMuxer` Ogg output must be confirmed acceptable to each STT provider (Groq/OpenAI list `ogg`).
 
 ## 2026-05-29: HTTP error detail in token validation
 - **Choice**: Parse OpenAI-compatible error body JSON (`error.message`) and display it in `TextInputLayout.error` (e.g. "HTTP 401: Invalid API key")

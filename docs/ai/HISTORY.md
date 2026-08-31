@@ -29,3 +29,11 @@ Entries here are no longer active truth. Never delete from this file.
 - Original claim: "Dropdown rows MAY contain a clickable but non-focusable child (`focusable="false"` + `focusableInTouchMode="false"`): `AbsListView` only blocks `onItemClick` for rows with `hasFocusable()` descendants, so a clickable non-focusable `ImageButton` works — the icon consumes its own tap, label taps still select the row."
 - **Origin**: PITFALLS.md
 - **Reason**: On-device verification showed label taps on custom rows (visible trash ImageButton) were swallowed — no selection, dropdown never closed; built-in rows without the visible icon selected fine. Fix: explicit label click listener committing selection + dismiss; the ListView internal item-click path is not relied upon.
+
+## 2026-05-29 (SUPERSEDED 2026-08-31, origin: DECISIONS.md, reason: upload-format part refined by optional Ogg/Opus compression, #60): AudioRecord + WAV in-memory
+- **Choice**: `AudioRecord` capturing PCM 16-bit 16kHz mono, with manual 44-byte WAV header
+- **Reason**: RecognitionService needs raw audio for the STT API. `MediaRecorder` produces compressed formats (AAC) requiring conversion. In-memory WAV is ~50 lines of header byte manipulation. No temp file I/O during recording.
+- **Considered**: MediaRecorder + temp file + FFmpeg conversion
+- **Tradeoff**: WAV is uncompressed — larger than AAC for long recordings. Fine for short voice input (typically <30s).
+- **Origin**: DECISIONS.md
+- **Reason**: #60 added an opt-in Ogg/Opus transcode step before upload (platform MediaCodec/MediaMuxer, not FFmpeg). AudioRecord PCM capture itself remains in force; a one-line pointer stays in DECISIONS.md.

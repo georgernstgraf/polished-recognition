@@ -13,7 +13,7 @@ Follow these without question. Do not deviate unless explicitly told.
 
 ## File Layout
 - `api/` — Retrofit interfaces and DTOs
-- `audio/` — audio capture utilities
+- `audio/` — audio capture utilities (`AudioRecorder`) plus the upload-transcoding chain: `WavReader` (fail-fast parse of the recorder's 44-byte WAV), `PcmConditioner` (pure-JVM high-pass + peak normalization), `AudioTranscoder` (interface), `OpusOggTranscoder` (MediaCodec/MediaMuxer impl)
 - `config/` — settings, provider presets, language mapping
 - `pipeline/` — transcription orchestration and prompt management
 - `service/` — Android Service subclasses
@@ -23,9 +23,14 @@ Follow these without question. Do not deviate unless explicitly told.
 ## API Patterns
 - Retrofit base URLs must end with `/v1/` (or the path prefix the provider uses)
 - All API calls use `Bearer <token>` authorization header
-- STT multipart: `file` part with WAV, `model` and `response_format` as text/plain parts
+- STT multipart: `file` part, media type + filename **derived from the file extension** (`.ogg` → `audio/ogg`/`audio.ogg`, else `audio/wav`/`audio.wav`) — never hardcode WAV (since #60)
 - LLM request: standard `{"model": "...", "messages": [...]}` JSON body
 - `GET /v1/models` may return 404 for providers that don't support it — fall back to free-text model input
+
+## Audio Upload (#60)
+- `compress_audio` setting (default false): when set, `VoiceSessionController` transcodes the recording to `cacheDir/recording.ogg` via `AudioTranscoder` on `Dispatchers.IO`; **any transcoder failure falls back to the original WAV** — a recording must never be lost over transcoding
+- `OpusOggTranscoder` throws on any failure and deletes partial output; callers catch and fall back
+- Keep WAV upload as the always-working baseline; Ogg/Opus is strictly opt-in
 
 ## Configuration
 - Provider configs serialized as JSON objects in SharedPreferences

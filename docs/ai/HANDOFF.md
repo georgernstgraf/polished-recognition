@@ -1,11 +1,16 @@
 # Hand Off
 
-**No active code issues. #58 (README revamp) CLOSED — README rewritten IME-first with fresh `docs/img/` screenshots. Remaining: MR !40029 maintainer watch; v1.2.1 release to ship the ac75231 fixes.**
+**#60 (Ogg/Opus compression) implemented on master (545af3c) — on-device verification pending. MR !40029 maintainer watch; v1.2.1 release still open.**
 
 ## Open tasks
 
-1. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
-2. [ ] **v1.2.1 release**: master has verification-round fixes (ac75231) beyond v1.2.0 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
+1. [ ] **#60 on-device verification** (`./gradlew installRelease`, always release):
+   - Enable the new "Compress audio before upload" checkbox (end of STT section in Settings), record, confirm `cacheDir/recording.ogg` is produced and transcribes correctly via the configured Groq endpoint (MediaMuxer-produced Ogg Opus acceptance is the one unverified assumption).
+   - Size comparison WAV vs OGG for a real recording (~10x expected: 256 kbps → 24 kbps).
+   - Toggle checkbox off → WAV path unchanged; airplane-mode failure still toasts the error detail (transcoder failure must silently fall back to WAV, only the upload may fail visibly).
+   - Check logcat tag `VoiceSessionController` for `Opus transcoding failed, falling back to WAV` warnings.
+2. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
+3. [ ] **v1.2.1 release**: master has verification-round fixes (ac75231) + #60 beyond v1.2.0 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
 
 ## Known on-device gotchas (Oplus/OnePlus)
 
