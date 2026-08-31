@@ -26,12 +26,18 @@
             android:contentDescription="@string/ime_settings_desc"
             android:scaleType="centerInside" />
 
+        <View
+            android:layout_width="1dp"
+            android:layout_height="20dp"
+            android:background="@color/recording_divider"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+
         <Spinner
             android:id="@+id/ime_language_spinner"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp" />
+            android:layout_height="wrap_content" />
 
         <View
             android:id="@+id/ime_quick_settings_divider"
