@@ -241,7 +241,7 @@ class TranscriptionPipelineTest {
         pipeline.transcribe(lincolnFile)
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
-        assertThat(systemMessage).contains("Please produce the output")
+        assertThat(systemMessage).contains("IMPORTANT: Write your output in English")
     }
 
     @Test
@@ -256,7 +256,7 @@ class TranscriptionPipelineTest {
         pipeline.transcribe(lincolnFile)
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
-        assertThat(systemMessage).doesNotContain("Please produce the output")
+        assertThat(systemMessage).doesNotContain("IMPORTANT: Write your output in")
         assertThat(systemMessage).contains("German")
     }
 
