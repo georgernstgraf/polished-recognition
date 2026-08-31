@@ -6,10 +6,10 @@ Current status as of 2026-08-31.
 #57 (two-line IME redesign) implemented and installed on-device; awaiting user's on-device verification. Open: #55 (release v1.2.0 tracking), #43 (follow-up tracker), #57 (verify before close).
 
 ## Completed (this cycle)
-- [x] #57 two-line IME: gear far-left of row 1 (spinner|divider|Raw), status line removed, flash pulse (root alpha 1.0↔0.7) while recording, pause/resume button scaled 1.3× when paused, inline stage text in row 1 during processing (zero toasts) — installed on OnePlus 7T (`f6de166c`, v1.2.0, `installRelease`).
+- [x] #57 round 2: voice-reactive RMS-driven pulse (`RmsAlphaMapper` + tests; floor 0.5 on silence, rise with loudness, dive 1000 ms / rise 150 ms) replacing the fixed-cycle flash — installed on OnePlus 7T (lastUpdateTime 2026-08-31 07:54).
 
 ## Pending
-- [ ] **#57 on-device verify** (user, UI-only on Oplus): flash pulse while recording; enlarged resume button when paused; stage text in row 1 during processing (incl. Raw mode → only "Transcribing (STT)…"); gear position/behavior.
+- [ ] **#57 on-device verify** (user, UI-only on Oplus): voice-reactive pulse — bar brightens with speech, slowly sinks to gray (alpha 0.5) during silence; enlarged resume button when paused; stage text in row 1 during processing (incl. Raw mode → only "Transcribing (STT)…"); gear position/behavior.
 - [ ] **#55 — release `v1.2.0`**: tag (push tag separately from branch commits) → `release.yml` (real Play upload = last untested #52 path — watch the run) → fdroiddata metadata bump → MR !40029 comment + force-push branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`, verify HEAD).
 - [ ] #45 leftover: CrashDialog Copy-button on-device test (`adb shell am crash com.georgernstgraf.polishedrecognition`).
 - [ ] On-device verification of #48/#53 (dropdown icon-tap vs row-tap; dark-mode contrast; long-press inline edit) and #54 (auto-start on real IME) — same install session as the v1.2.0/#57 check.

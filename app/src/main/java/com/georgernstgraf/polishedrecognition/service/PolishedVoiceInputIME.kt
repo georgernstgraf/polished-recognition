@@ -1,7 +1,6 @@
 package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
-import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -43,7 +42,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var settingsGear: ImageButton? = null
     private var quickSettingsDivider: View? = null
     private var stageText: TextView? = null
-    private var flashAnimator: ValueAnimator? = null
+    private var smoothedRms = 0f
+    private var lastTargetAlpha = -1f
     private var silenceLangListener = false
 
     override fun onCreate() {
@@ -217,7 +217,10 @@ class PolishedVoiceInputIME : InputMethodService() {
                 }
                 applyUiState()
             }
-            is VoiceSessionController.Event.RmsChanged,
+            is VoiceSessionController.Event.RmsChanged ->
+                if (controller.state == VoiceSessionController.State.RECORDING) {
+                    onRmsChanged(event.rms)
+                }
             is VoiceSessionController.Event.SpeechBegin -> Unit
         }
     }
@@ -287,19 +290,24 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun setFlashing(active: Boolean) {
         val root = rootView ?: return
-        if (active && flashAnimator == null) {
-            flashAnimator = ValueAnimator.ofFloat(1f, 0.7f).apply {
-                duration = 500
-                repeatCount = ValueAnimator.INFINITE
-                repeatMode = ValueAnimator.REVERSE
-                addUpdateListener { root.alpha = it.animatedValue as Float }
-                start()
-            }
-        } else if (!active) {
-            flashAnimator?.cancel()
-            flashAnimator = null
-            root.alpha = 1f
-        }
+        root.animate().cancel()
+        root.alpha = 1f
+        smoothedRms = 0f
+        lastTargetAlpha = -1f
+    }
+
+    private fun onRmsChanged(rms: Float) {
+        val root = rootView ?: return
+        smoothedRms = RmsAlphaMapper.smooth(smoothedRms, rms)
+        val target = RmsAlphaMapper.alpha(smoothedRms)
+        if (lastTargetAlpha >= 0f && kotlin.math.abs(target - lastTargetAlpha) < DEADBAND) return
+        lastTargetAlpha = target
+        val current = root.alpha
+        val duration = if (target < current) DIVE_MS else RISE_MS
+        root.animate()
+            .alpha(target)
+            .setDuration(duration)
+            .start()
     }
 
     private fun setPausedEnlarged(enlarged: Boolean) {
@@ -382,8 +390,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     override fun onDestroy() {
-        flashAnimator?.cancel()
-        flashAnimator = null
+        rootView?.animate()?.cancel()
         controller.cancel()
         stopMicForeground()
         super.onDestroy()
@@ -392,5 +399,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     companion object {
         private const val CHANNEL_ID = "voice_recognition_ime"
         private const val NOTIFICATION_ID = 1002
+        private const val DIVE_MS = 1000L
+        private const val RISE_MS = 150L
+        private const val DEADBAND = 0.03f
     }
 }

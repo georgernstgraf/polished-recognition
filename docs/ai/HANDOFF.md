@@ -4,7 +4,7 @@
 
 ## Open tasks
 
-1. [ ] **#57 on-device verify** (UI-only on Oplus — adb IME ops blocked): flash pulse (whole bar, full contrast ↔ slight gray) while recording; pause/resume button enlarged ~1.3× when paused; during processing row 1 shows "Transcribing (STT)…"/"Polishing (LLM)…" in place of spinner/Raw (Raw mode → only STT stage); gear at far left of row 1 still opens the hint dialog.
+1. [ ] **#57 on-device verify** (UI-only on Oplus — adb IME ops blocked): voice-reactive pulse — bar brightens with speech, slowly sinks to deep gray (alpha 0.5) during silence; pause/resume button enlarged ~1.3× when paused; during processing row 1 shows "Transcribing (STT)…"/"Polishing (LLM)…" in place of spinner/Raw (Raw mode → only STT stage); gear at far left of row 1 still opens the hint dialog. Tuning knob if reaction feels weak/strong: `RMS_CEILING` in `RmsAlphaMapper`.
 2. [ ] **#55 — Tag `v1.2.0`** (now includes #57) → `release.yml` → bump `metadata/com.georgernstgraf.polishedrecognition.yml` (version + commit; keep `Binaries`/`AllowedAPKSigningKeys`, signing key unchanged `62f9d7b0…a76a85`) → comment on MR !40029 → force-push the `add-polished-recognition` branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`; verify current HEAD). Push the tag separately from branch commits (PITFALLS). The real Play upload step of `release.yml` is the only #52-related path not yet exercised live — watch that run.
 3. [ ] **#45 leftover**: CrashDialog Copy-button on-device test (force a crash: `adb shell am crash com.georgernstgraf.polishedrecognition`).
 4. [ ] **On-device verify** (same install session as the v1.2.0/#57 check):
