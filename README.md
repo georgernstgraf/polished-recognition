@@ -1,59 +1,54 @@
 # Polished Recognition
 
-Your keyboard already has a microphone button.  
-This is what happens when you press it.
+**A voice keyboard powered by your own AI.**
 
-Most voice typing apps send audio to a single cloud provider.  
-**Polished Recognition** is different. It gives you a **two-stage AI pipeline** —  
-speech-to-text + optional LLM clean-up — connected to **any OpenAI-compatible provider**  
-you choose. Bring your own API key (or run a local model) and take full control.
+Tap the mic, speak, and polished text appears — transcribed by the speech
+provider *you* choose, refined by the language model *you* choose, with a
+prompt *you* write. Bring your own API key (or run a local model) and take
+full control of your voice input.
 
-### How it works
+Polished Recognition installs as a **voice keyboard**: switch to it, and it
+starts listening immediately — no extra tap, no learning a new typing UI.
+It also registers as a system voice-input service, so the mic button on
+Gboard, Samsung Keyboard & co. can use it too (where vendors don't break
+that API).
 
-1. Press the mic on your keyboard → recording starts instantly — no extra tap
-2. Speak naturally — pause/resume anytime mid-sentence
-3. Tap Send → audio goes to your STT provider (Whisper, GROQ, etc.)
-4. The text gets polished by an LLM using your own custom prompt — clean up filler words, fix punctuation, translate to another language
-5. Flawless text appears in your text field — as if you typed it perfectly
+| ![Voice keyboard](docs/img/ime-recording.png) | ![Voice overlay](docs/img/overlay-recording.png) | ![Settings](docs/img/settings.png) |
+|:---:|:---:|:---:|
+| The voice keyboard — recording | Overlay mode from any keyboard's mic | Your pipeline, your prompts |
 
-### What makes it different
+## How it works
 
-- **Not a keyboard.** Works with AnySoftKeyboard, OpenBoard, Samsung Keyboard —  
-  any keyboard that respects the system voice input setting. No need to learn a new typing UI.
-- **BYO provider — or use a free one.** 15+ presets (OpenAI, GROQ, OpenRouter, Google AI,  
-  DeepSeek, xAI, Mistral, local Ollama/LM Studio…). GROQ gives you free Whisper STT  
-  and the excellent `gpt-oss-120b` LLM — a full STT+polish pipeline at zero cost.
-- **Custom prompts.** Every stage of the pipeline is editable — system prompt,  
-  user prompt with `{{text}}` templates, and a separate translate prompt.  
-  Make the LLM format as markdown, translate to French, or just fix punctuation.
-- **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume  
-  exactly where you left off — the entire recording buffers, nothing is lost.
-- **Raw mode.** Skip the LLM entirely and get plain STT output. Zero latency overhead.
-- **Privacy by design.** No account, no registration, no central server.  
-  Your audio goes only to the provider you configured. Run Ollama locally for full offline use.
-- **Searchable model picker.** Type to filter 600+ OpenRouter models by substring.  
-  No infinite scrolling through dropdowns.
+1. **Switch to the Polished keyboard** (or press the mic on your existing keyboard) → recording starts instantly
+2. **Speak naturally** — pause/resume anytime mid-sentence
+3. **Tap send** → audio goes to your STT provider (Whisper on GROQ, OpenAI, …)
+4. **The LLM polishes the text** using your custom prompt — fix filler words and punctuation, restructure, or translate to another language
+5. **Flawless text lands in the app you're typing in**
 
-### The problem it solves
+Don't need the polish? **Raw mode** skips the LLM entirely and inserts the
+plain transcription — zero extra latency.
 
-Gboard's voice typing is fast — until you need it in a language it doesn't support,  
-or you want the text formatted before insertion, or you don't want Google touching  
-your audio. Polished Recognition hands the pipeline **to you**: pick the STT model,  
-pick the LLM, write the prompt, control the data.
+## Why it's different
 
-*No budget? GROQ's free tier runs Whisper STT + gpt-oss-120b for a complete pipeline —  
-transcribe, clean up, translate — all at zero cost. Just add your API key.*
+- **BYO provider — or use a free one.** 18 presets (OpenAI, GROQ, OpenRouter, Google AI, DeepSeek, xAI, Mistral, local Ollama/LM Studio, …). GROQ's free tier gives you Whisper STT plus a strong LLM — a complete STT+polish pipeline at zero cost.
+- **Not a walled garden.** No account, no registration, no central server. Your audio goes only to the provider you configured — or nowhere at all, if you run Ollama locally.
+- **Custom prompts.** The system prompt is fully editable, with variables for source and target language. Make the LLM format markdown, translate to French, or just fix punctuation.
+- **Translation built in.** Pick a target language and dictation arrives translated. Languages are freely editable — long-press to add your own.
+- **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume — the entire recording buffers, nothing is lost.
+- **Works everywhere.** As a keyboard in every text field — or as the voice service behind keyboards that delegate their mic button.
+- **Searchable model pickers.** Type to filter hundreds of models by substring, with per-provider caching. No infinite dropdown scrolling.
+- **Clean output.** LLM "reasoning/thinking" blocks are stripped automatically — only the finished text gets inserted.
 
 ## Installation
 
-See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup instructions (English & German). Covers Play Store installation (closed testing), configuring providers, setting the voice input service, device-specific notes, and AnySoftKeyboard.
-
----
+See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup
+(English & German): Play Store installation, configuring providers, enabling
+the voice keyboard, and device-specific notes.
 
 ## Providers
 
-Configured via presets or custom URLs. All providers speaking the OpenAI API
-contract are supported:
+Configured via presets or custom URLs — anything speaking the OpenAI API
+contract works:
 
 | Provider           | Type | Base URL                                            |
 |--------------------|------|-----------------------------------------------------|
@@ -76,82 +71,71 @@ contract are supported:
 | Ollama (local)     | LLM  | `http://localhost:11434/v1/`                        |
 | LM Studio (local)  | LLM  | `http://localhost:1234/v1/`                         |
 
-Add custom providers by entering any base URL + API token. Models are fetched
-dynamically from each provider's `/v1/models` endpoint.
+Or add any custom provider by entering a base URL + API token. Models are
+fetched dynamically from each provider's `/v1/models` endpoint (with a
+fallback to free-text entry for providers that don't support it).
 
 ## Features
 
-### Voice Overlay
+### Voice keyboard (IME)
 
-- **Auto-start recording** — opens directly in recording mode, no extra tap
-- **Elapsed timer** — monospace clock at the bottom showing recording duration
-- **Send** — forwards audio to the STT pipeline for transcription
-- **Pause / Resume** — suspend dictation at any time and resume later
-- **Settings gear** — tap the gear icon during recording to open settings
+- **Instant recording** — switching to the keyboard starts the mic right away
+- **Two-line control surface** — settings gear, target language, Raw toggle on top; cancel / pause / send below
+- **Live stage display** — shows exactly what's happening: *Recording*, *Transcribing (STT)*, *Polishing (LLM)*
+- **Recording pulse** — the send button breathes with your voice
+- **Works in any app** — any text field, any app, no integration needed
 
-### Settings
+### Voice overlay (for other keyboards)
 
-When configured as both a `RecognitionActivity` and a `RecognitionService`, the
-settings are available during recording via the gear icon on the voice overlay.
-This allows adjusting provider configs and prompts without leaving the recording
-screen.
+Registered as the system voice-input service, the familiar mic button on
+supporting keyboards opens the Polished overlay: recording with elapsed
+timer, pause/resume, target-language picker, Raw toggle — and a gear to
+reach the full settings without leaving the recording screen.
 
-- **Searchable model dropdowns** — type to filter 600+ models via substring matching
-- **Separate URL fields** — editable base URLs for each provider
-- **Test Token** — validates LLM tokens with a minimal chat request (avoids unauthenticated `/v1/models` endpoints)
-- **Fetch Models** — pulls available models from any OpenAI-compatible provider
-- **Fully customizable prompts** — two editable prompts in Settings: System Prompt (LLM behavior + transcription cleanup instructions, with `{{source_language_clause}}` and `{{target_language_clause}}` variables) and Target Language Clause (translation instruction with `{{target_language}}`). The transcribed text is sent automatically as the user message. Individual prompts can be restored to defaults, or all at once.
-- **Raw mode** — skip LLM post-processing, return STT text directly
-- **Request & response logging** — three rotating pretty-JSON logs (each `*.json` + history `*_1.json` … `*_9.json`): `llm-prompt.json` (the request sent to the LLM; not written in raw mode), `stt-response.json` (the raw STT response, all fields), and `llm-response.json` (the raw LLM response, all fields). Pull via `adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/`
+### Your pipeline, your rules
 
-### Custom Prompts
+- **Polish only vs. Raw mode** — with no target language set, the LLM still
+  polishes your dictation (punctuation, structure, filler-word removal);
+  flip **Raw mode** to bypass the LLM completely and insert the raw
+  transcription
+- **Editable prompts** — System Prompt with `{{source_language_clause}}` /
+  `{{target_language_clause}}` variables, plus the translation clause with
+  `{{target_language}}`; reset individually or all at once
+- **Custom target languages** — the language dropdown accepts any language
+  name; long-press to edit or add, and your languages are remembered
+- **Token & model validation** — test tokens with a minimal chat request,
+  fetch model lists on demand, cached per provider
+- **Request & response logging** — rotating JSON logs of the STT and LLM
+  exchanges on-device, pullable via `adb` for debugging
 
-The transcription pipeline has two editable prompts in Settings:
+## Privacy
 
-| Prompt | Template Variables | Purpose |
-|--------|-------------------|---------|
-| **System Prompt** | `{{source_language_clause}}`, `{{target_language_clause}}` | Controls the LLM's behavior, output constraints, and transcription cleanup instructions |
-| **Target Language Clause** | `{{target_language}}` | Translation instruction inserted into the system prompt when a target language is set |
-
-- The transcribed text is sent automatically as the user message (`{{text}}`); it is not user-editable
-- `{{source_language_clause}}` resolves to a full sentence ("The STT service transcribed audio spoken in German.") and is dropped entirely when Whisper returns no language
-- Prompts are stored in `SharedPreferences` and persisted across sessions
-- Individual prompts can be restored to their defaults via the **Reset** button next to each field
-- All prompts can be restored at once via **Restore all prompts to default**
-- When **Target Language** is set to `None (no translation)`, the target language clause is omitted entirely
-- Raw mode (skip LLM) bypasses all prompts and returns the STT text directly
-
-## Build
-
-| Command                     | Result                               |
-|-----------------------------|--------------------------------------|
-| `./gradlew installRelease`  | Build + install release APK via ADB  |
-| `./gradlew assembleRelease` | Build release APK (minified)         |
-| `./gradlew test`            | Run all unit tests                   |
-| `./gradlew clean`           | Clean build artifacts                |
-
-### Git Hooks
-
-```bash
-ln -sf ../../scripts/pre-push .git/hooks/pre-push
-```
-
-Runs `./gradlew test` before every push.
+No account, no analytics, no tracking, no proprietary SDKs. The only
+network traffic is your own API calls to the endpoints you configured.
+Everything sensitive — keys, prompts, logs — stays on your device. See the
+[Privacy Policy](PRIVACY-POLICY.md).
 
 ## Troubleshooting
 
-**Recording fails (no audio)?** Check that `RECORD_AUDIO` permission is granted.
-The voice overlay requests it on first use.
+- **Recording fails / no audio?** Check that `RECORD_AUDIO` is granted — the app requests it on first use.
+- **Model dropdown empty?** Enter a valid token and press **Validate & Fetch Models**; model lists are fetched from the provider (some providers only allow free-text model entry).
+- **Voice-input service greyed out?** Some keyboards/vendor builds restrict the system voice service — use the Polished keyboard directly instead.
+- **More help?** See the **[Installation Guide](INSTALLATION.md)**.
 
-**STT model not working?** If the model dropdown is empty, press **Validate & Fetch Models**
-after entering a valid API token. The model list is fetched dynamically from the provider.
+## For developers
 
-**Setup issues?** See the **[Installation Guide](INSTALLATION.md)** for device-specific help.
+| Command                     | Result                               |
+|-----------------------------|--------------------------------------|
+| `./gradlew assembleRelease` | Build release APK (minified, signed with debug key) |
+| `./gradlew installRelease`  | Build + install release APK via ADB  |
+| `./gradlew test`            | Run all unit tests                   |
 
-## Developer Documentation
+Stack: Kotlin, Retrofit + OkHttp, AudioRecord (16 kHz mono → in-memory
+WAV), AppCompat/Material settings UI. Min SDK 30. No DI framework, no
+Room, no Compose — deliberately small and fast.
 
 Technical details (architecture, decisions, conventions, pitfalls) are
-maintained in [`docs/ai/`](docs/ai/). Start with `HANDOFF.md`.
+maintained in [`docs/ai/`](docs/ai/) — start with `HANDOFF.md`.
 
 ## License
 

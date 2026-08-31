@@ -78,3 +78,8 @@ The transcription pipeline resolves the following template variables at runtime.
 
 ## Documentation
 - When editing `docs/privacy-policy.md`, always update the "Last updated" date to today's date.
+
+## Documentation
+- README.md is **IME-first** (since #58): the voice keyboard is the headline mode, the RecognitionService/overlay is secondary. Keep that positioning when editing.
+- README screenshots live in `docs/img/` (raw 1080×2400 `adb exec-out screencap` PNGs, embedded via relative paths). Re-capture from a current release build when UI changes; do NOT reuse `distribution/*.png` (stale pre-#48/#49 UI).
+- User-facing terminology in docs: **"Raw mode"** = skip LLM entirely (checkbox); **"Polish only"** = target-language "None" option (LLM polishes, no translation). Never conflate the two.
