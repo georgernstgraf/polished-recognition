@@ -326,6 +326,13 @@
             android:completionThreshold="1"
             android:layout_marginBottom="16dp" />
 
+        <CheckBox
+            android:id="@+id/compress_audio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/compress_audio"
+            android:layout_marginBottom="8dp" />
+
         <!-- Voice Keyboard (IME) Setup -->
         <Button
             android:id="@+id/set_recognition_service"

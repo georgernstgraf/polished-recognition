@@ -35,7 +35,7 @@ class TranscriptionPipeline(
     }
 
     suspend fun transcribe(
-        wavFile: File,
+        audioFile: File,
         onStageChange: ((TranscriptionStage) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val sttConfig = settingsStore.sttProvider
@@ -45,7 +45,7 @@ class TranscriptionPipeline(
         val targetLanguage = settingsStore.targetLanguage
 
         onStageChange?.invoke(TranscriptionStage.RequestingStt)
-        val sttResult = runStt(wavFile, sttConfig)
+        val sttResult = runStt(audioFile, sttConfig)
         if (sttResult.isFailure) return@withContext Result.failure(
             Exception("STT transcription failed: ${sttResult.exceptionOrNull()?.message}")
         )
@@ -107,9 +107,12 @@ class TranscriptionPipeline(
         Result.success(response.body()!!.getContent().trim())
     }
 
-    private suspend fun runStt(wavFile: File, config: SttProviderConfig): Result<SttResult> {
-        val requestFile = wavFile.asRequestBody("audio/wav".toMediaTypeOrNull())
-        val filePart = MultipartBody.Part.createFormData("file", "audio.wav", requestFile)
+    private suspend fun runStt(audioFile: File, config: SttProviderConfig): Result<SttResult> {
+        val isOgg = audioFile.extension.equals("ogg", ignoreCase = true)
+        val mediaType = if (isOgg) "audio/ogg" else "audio/wav"
+        val uploadName = if (isOgg) "audio.ogg" else "audio.wav"
+        val requestFile = audioFile.asRequestBody(mediaType.toMediaTypeOrNull())
+        val filePart = MultipartBody.Part.createFormData("file", uploadName, requestFile)
         val modelPart = config.model.toRequestBody("text/plain".toMediaTypeOrNull())
         val responseFormatPart = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
 

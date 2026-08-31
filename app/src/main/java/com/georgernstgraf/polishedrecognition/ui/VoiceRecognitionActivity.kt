@@ -71,7 +71,8 @@ class VoiceRecognitionActivity : AppCompatActivity() {
 
         controller = VoiceSessionController(
             this,
-            (application as PolishedRecognitionApp).transcriptionPipeline
+            (application as PolishedRecognitionApp).transcriptionPipeline,
+            (application as PolishedRecognitionApp).settingsStore
         )
 
         cancelButton.setOnClickListener { cancelAndFinish() }

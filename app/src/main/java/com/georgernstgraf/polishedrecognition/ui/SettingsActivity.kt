@@ -62,6 +62,7 @@ class SettingsActivity : Activity() {
     private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
     private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
+    private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
 
@@ -180,6 +181,7 @@ class SettingsActivity : Activity() {
         }
 
         rawModeCheckbox.isChecked = settings.rawMode
+        compressAudioCheckbox.isChecked = settings.compressAudio
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
         settings.targetLanguage?.let { tl ->
             if (tl.isNotBlank() && tl != CustomLanguages.NONE_TARGET_LANGUAGE && tl != CustomLanguages.BUILTIN_LANGUAGE && tl !in settings.customLanguages) {
@@ -862,6 +864,7 @@ class SettingsActivity : Activity() {
         )
 
         settings.rawMode = rawModeCheckbox.isChecked
+        settings.compressAudio = compressAudioCheckbox.isChecked
         val tl = targetLanguageDropdown.text.toString()
         val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl
         settings.targetLanguage = tlToSave

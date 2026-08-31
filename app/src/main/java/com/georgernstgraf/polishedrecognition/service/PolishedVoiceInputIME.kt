@@ -56,7 +56,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         val app = application as PolishedRecognitionApp
-        controller = VoiceSessionController(this, app.transcriptionPipeline)
+        controller = VoiceSessionController(this, app.transcriptionPipeline, app.settingsStore)
         settings = app.settingsStore
         createNotificationChannel()
     }

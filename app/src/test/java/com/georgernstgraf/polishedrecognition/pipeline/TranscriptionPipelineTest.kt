@@ -17,6 +17,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import org.junit.After
 import org.junit.Before
@@ -299,6 +301,36 @@ class TranscriptionPipelineTest {
 
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 500")
+    }
+
+    @Test
+    fun `ogg file is uploaded as ogg with ogg filename`() = runBlocking {
+        settingsStore.rawMode = true
+        mockSttSuccess()
+        val partSlot = slot<MultipartBody.Part>()
+        every { sttApi.transcribeAudioSync(any(), capture(partSlot), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
+        val oggFile = File(tmp.root, "recording.ogg").apply { writeBytes(ByteArray(8)) }
+
+        pipeline.transcribe(oggFile)
+
+        assertThat(partSlot.captured.body.contentType()).isEqualTo("audio/ogg".toMediaTypeOrNull())
+        assertThat(partSlot.captured.headers.toString()).contains("filename=\"audio.ogg\"")
+    }
+
+    @Test
+    fun `wav file is uploaded as wav with wav filename`() = runBlocking {
+        settingsStore.rawMode = true
+        mockSttSuccess()
+        val partSlot = slot<MultipartBody.Part>()
+        every { sttApi.transcribeAudioSync(any(), capture(partSlot), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
+        val wavFile = File(tmp.root, "recording.wav").apply { writeBytes(ByteArray(8)) }
+
+        pipeline.transcribe(wavFile)
+
+        assertThat(partSlot.captured.body.contentType()).isEqualTo("audio/wav".toMediaTypeOrNull())
+        assertThat(partSlot.captured.headers.toString()).contains("filename=\"audio.wav\"")
     }
 
     @Test

@@ -3,18 +3,25 @@ package com.georgernstgraf.polishedrecognition.pipeline
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
+import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
+import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
+import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class VoiceSessionController(
     context: Context,
     private val pipeline: TranscriptionPipeline,
+    private val settings: SettingsStore,
+    private val transcoder: AudioTranscoder = OpusOggTranscoder(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) {
 
@@ -77,8 +84,7 @@ class VoiceSessionController(
 
         transcribeJob = scope.launch {
             val result = try {
-                val file = File(appContext.cacheDir, "recording.wav")
-                file.writeBytes(wav)
+                val file = prepareAudioFile(wav)
                 val r = pipeline.transcribe(file) { stage -> emit(Event.StageChanged(stage)) }
                 file.delete()
                 r
@@ -114,6 +120,26 @@ class VoiceSessionController(
         override fun onSpeechBegin() = emit(Event.SpeechBegin)
     }
 
+    /**
+     * Writes the recording for upload. With `compress_audio` enabled the WAV is
+     * transcoded to Ogg/Opus; any transcoder failure falls back to the original
+     * WAV so a recording is never lost over transcoding.
+     */
+    private suspend fun prepareAudioFile(wav: ByteArray): File {
+        if (!settings.compressAudio) return writeWavFile(wav)
+        return try {
+            withContext(Dispatchers.IO) {
+                transcoder.transcode(wav, File(appContext.cacheDir, "recording.ogg"))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Opus transcoding failed, falling back to WAV", e)
+            writeWavFile(wav)
+        }
+    }
+
+    private fun writeWavFile(wav: ByteArray): File =
+        File(appContext.cacheDir, "recording.wav").apply { writeBytes(wav) }
+
     private fun emit(event: Event) {
         val cb = callback ?: return
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -121,5 +147,9 @@ class VoiceSessionController(
         } else {
             mainHandler.post { cb.invoke(event) }
         }
+    }
+
+    companion object {
+        private const val TAG = "VoiceSessionController"
     }
 }

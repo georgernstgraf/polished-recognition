@@ -15,6 +15,7 @@
     <string name="fetch_models">Fetch Models</string>
     <string name="test_token">Test Token</string>
     <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
+    <string name="compress_audio">Compress audio before upload (.ogg, smaller on slow connections)</string>
     <string name="target_language">Target language</string>
     <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None (polish only)" disables translation. Tap to pick, long-press to edit or add.</string>
     <string name="delete_language">Delete this language</string>

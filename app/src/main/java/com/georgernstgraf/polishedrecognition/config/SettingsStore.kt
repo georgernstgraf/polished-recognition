@@ -42,6 +42,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(RAW_MODE_KEY, false)
         set(value) = prefs.edit().putBoolean(RAW_MODE_KEY, value).apply()
 
+    var compressAudio: Boolean
+        get() = prefs.getBoolean(COMPRESS_AUDIO_KEY, false)
+        set(value) = prefs.edit().putBoolean(COMPRESS_AUDIO_KEY, value).apply()
+
     var targetLanguage: String?
         get() = prefs.getString(TARGET_LANGUAGE_KEY, null)
         set(value) = prefs.edit().putString(TARGET_LANGUAGE_KEY, value).apply()
@@ -130,6 +134,7 @@ class SettingsStore(context: Context) {
         private const val STT_MODEL_LISTS_KEY = "stt_model_lists"
         private const val LLM_MODEL_LISTS_KEY = "llm_model_lists"
         private const val RAW_MODE_KEY = "raw_mode"
+        private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
 
