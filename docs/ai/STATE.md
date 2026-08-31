@@ -1,25 +1,22 @@
 # Project State
 
-Current status as of 2026-08-31 (round 4, post root-cause hunt).
+Current status as of 2026-08-31 (late, post v1.2.0 release).
 
 ## Current Focus
-#57 pulse root-caused and fixed (AudioRecorder RMS NaN — latent since day one); #56 quick-settings-during-recording shipped. Awaiting on-device verification of pulse + RMS calibration. Language non-compliance documented (no prompt changes per user decision). Open: #55 (release v1.2.0), #43 (tracker), #56 (verify + language follow-up), #57 (verify).
+**v1.2.0 RELEASED.** #55, #56, #57 all CLOSED. Release pipeline fully validated including the previously-untested real Play upload. Remaining known work: #45 CrashDialog on-device test, #48/#53/#54 on-device verifications (batchable into one session).
 
 ## Completed (this cycle)
-- [x] #57 round 4: `computePcmRms` sign-correct + Long accumulation (NaN root cause; 7 regression tests); single-owner pulse (breath animator writes `max(breath, voice)` directly; chase removed; NaN guard) (`8d56d20`).
-- [x] #56: quick settings (spinner + Raw) enabled during RECORDING (inside `8d56d20`).
-- [x] Language evidence gathered from device logs: clause present in 10/10 prompts; model compliance 7/10; failures clustered German-source. No prompt changes (user decision).
+- [x] #57 CLOSED (rounds 1–5): two-line IME, hybrid voice-reactive pulse (breathing 0.9↔0.45 + gated RMS), RMS NaN root cause fixed (`computePcmRms`), inline stage display, gear divider, paused scale-up, quick settings during recording. Commits `0826a6d`,`7d95d84`,`f7d38e9`,`8d56d20`,`f7d38e9`,`43933fb`(->#56),`92698f3`,`558890b`.
+- [x] #56 CLOSED: quick settings during recording shipped; language clause hardened (option C); language compliance evidence documented (model-dependent; gpt-oss-120b reliable).
+- [x] #55 CLOSED: tag `v1.2.0` pushed separately; `release.yml` run 33369074786 SUCCESS — **real Play upload validated live**; GitHub release with signed APK; fdroiddata bumped to 1.2.0/10200 (commit `1c43ae05f`, force-pushed with verified lease `ae5b1e5dc`); MR !40029 note posted.
+- [x] RMS diagnostics removed (kept as code comment with re-enable note, tag `PolishedRMS`).
 
 ## Pending
-- [ ] **#57 on-device verify**: pulse working (owner satisfied with round-4 result); gear|spinner divider shipped (`92698f3`); `Log.d("PolishedRMS")` diagnostics kept for now (owner decision) — calibrate `RMS_CEILING` / remove logging once tuning is final.
-- [ ] **#56 on-device verify**: RAW + language toggleable mid-recording and mid-pause; changes take effect for the transcription.
-- [x] #56 language: clause wording hardened (option C, `43933fb`); user-message purity locked (injection rejected); gpt-oss-120b datapoint recorded.
-- [ ] #56 verify: next dictation's `llm-prompt.json` shows new wording; monitor compliance; model A/B via Settings if still flaky.
-- [ ] **#55 — release `v1.2.0`**: tag (push tag separately) → `release.yml` → fdroiddata bump → MR !40029 comment + force-push branch.
-- [ ] #45 leftover: CrashDialog Copy-button on-device test.
+- [ ] #45 leftover: CrashDialog Copy-button on-device test (`adb shell am crash com.georgernstgraf.polishedrecognition`).
+- [ ] On-device verification (v1.2.0 install session): #48/#53 dropdown trash vs label tap, dark-mode contrast, long-press inline edit; #54 auto-start on keyboard show; PAUSED-after-hide.
 
 ## Blockers
 None.
 
 ## Next Session Suggestion
-User dictates once: verify pulse + pull PolishedRMS logcat for calibration; then #55 release tagging (v1.2.0 now includes all #57 rounds + #56 fix).
+Batch the remaining on-device verifications (#48/#53/#54/#45) against the freshly installed v1.2.0 build; watch for F-Droid maintainer response on MR !40029.
