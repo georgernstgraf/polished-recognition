@@ -24,3 +24,8 @@ Entries here are no longer active truth. Never delete from this file.
 - Flash feedback: while RECORDING, a repeating `ValueAnimator` on the root view's alpha (1.0 ↔ 0.7, 500 ms/cycle, REVERSE, INFINITE) pulses the entire bar between full contrast and slight gray; cancelled in every other state (root alpha reset to 1f).
 - **Origin**: docs/ai/DECISIONS.md (entry "2026-08-31: Two-line IME with flash pulse + inline stage display (#57)")
 - **Reason**: Replaced by a voice-reactive RMS-driven pulse (alpha floor 0.5, slow dive 1000 ms / quick rise 150 ms) — see the round-2 decision.
+
+## 2026-08-31 (SUPERSEDED 2026-08-31, origin: PITFALLS.md, reason: #48/#53 on-device verification — claim empirically false for AutoCompleteTextView popups on Oplus, fixed ac75231/#59): Clickable non-focusable dropdown children "work"
+- Original claim: "Dropdown rows MAY contain a clickable but non-focusable child (`focusable="false"` + `focusableInTouchMode="false"`): `AbsListView` only blocks `onItemClick` for rows with `hasFocusable()` descendants, so a clickable non-focusable `ImageButton` works — the icon consumes its own tap, label taps still select the row."
+- **Origin**: PITFALLS.md
+- **Reason**: On-device verification showed label taps on custom rows (visible trash ImageButton) were swallowed — no selection, dropdown never closed; built-in rows without the visible icon selected fine. Fix: explicit label click listener committing selection + dismiss; the ListView internal item-click path is not relied upon.
