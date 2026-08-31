@@ -1,21 +1,24 @@
 # Project State
 
-Current status as of 2026-08-31.
+Current status as of 2026-08-31 (round 4, post root-cause hunt).
 
 ## Current Focus
-#57 (two-line IME redesign) implemented and installed on-device; awaiting user's on-device verification. Open: #55 (release v1.2.0 tracking), #43 (follow-up tracker), #57 (verify before close).
+#57 pulse root-caused and fixed (AudioRecorder RMS NaN — latent since day one); #56 quick-settings-during-recording shipped. Awaiting on-device verification of pulse + RMS calibration. Language non-compliance documented (no prompt changes per user decision). Open: #55 (release v1.2.0), #43 (tracker), #56 (verify + language follow-up), #57 (verify).
 
 ## Completed (this cycle)
-- [x] #57 round 2: voice-reactive RMS-driven pulse (`RmsAlphaMapper` + tests; floor 0.5 on silence, rise with loudness, dive 1000 ms / rise 150 ms) replacing the fixed-cycle flash — installed on OnePlus 7T (lastUpdateTime 2026-08-31 07:54).
+- [x] #57 round 4: `computePcmRms` sign-correct + Long accumulation (NaN root cause; 7 regression tests); single-owner pulse (breath animator writes `max(breath, voice)` directly; chase removed; NaN guard) (`8d56d20`).
+- [x] #56: quick settings (spinner + Raw) enabled during RECORDING (inside `8d56d20`).
+- [x] Language evidence gathered from device logs: clause present in 10/10 prompts; model compliance 7/10; failures clustered German-source. No prompt changes (user decision).
 
 ## Pending
-- [ ] **#57 on-device verify** (user, UI-only on Oplus): hybrid pulse — slow breathing (0.6↔0.9, 2 s cycle) during silence, brightening with speech (gated RMS); enlarged resume button when paused; stage text in row 1 during processing (incl. Raw mode → only "Transcribing (STT)…"); gear position/behavior.
-- [ ] **#55 — release `v1.2.0`**: tag (push tag separately from branch commits) → `release.yml` (real Play upload = last untested #52 path — watch the run) → fdroiddata metadata bump → MR !40029 comment + force-push branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`, verify HEAD).
-- [ ] #45 leftover: CrashDialog Copy-button on-device test (`adb shell am crash com.georgernstgraf.polishedrecognition`).
-- [ ] On-device verification of #48/#53 (dropdown icon-tap vs row-tap; dark-mode contrast; long-press inline edit) and #54 (auto-start on real IME) — same install session as the v1.2.0/#57 check.
+- [ ] **#57 on-device verify**: dictate once → confirm breathing during silence + brightening with speech; `adb logcat -d -s PolishedRMS` now shows finite rms (calibrate `RMS_CEILING` if speech saturates / ambient exceeds the 200 gate); remove the temporary `Log.d("PolishedRMS")` after calibration.
+- [ ] **#56 on-device verify**: RAW + language toggleable mid-recording and mid-pause; changes take effect for the transcription.
+- [ ] #56 language follow-up (user decides later): quantify flaky compliance (repeat dictations per language); optional model A/B in Settings; deferred mitigation = directive in user message.
+- [ ] **#55 — release `v1.2.0`**: tag (push tag separately) → `release.yml` → fdroiddata bump → MR !40029 comment + force-push branch.
+- [ ] #45 leftover: CrashDialog Copy-button on-device test.
 
 ## Blockers
 None.
 
 ## Next Session Suggestion
-After the user confirms #57 on-device, run #55: tag `v1.2.0` (now includes #57), watch `release.yml` live, then fdroiddata bump + MR update. Batch the remaining on-device verifications (#48/#53/#54/#45) into the same session.
+User dictates once: verify pulse + pull PolishedRMS logcat for calibration; then #55 release tagging (v1.2.0 now includes all #57 rounds + #56 fix).

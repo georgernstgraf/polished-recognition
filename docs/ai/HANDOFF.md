@@ -1,16 +1,14 @@
 # Hand Off
 
-**Active: #57 (two-line IME — implemented, installed on device, awaiting user on-device verification) and #55 (release v1.2.0 tracking). #47/#48/#53/#54 all implemented + CLOSED. #43 excluded by user decision.**
+**Active: #57 (pulse root cause fixed — needs on-device verify + RMS calibration) and #55 (release v1.2.0 tracking). #56 partially fixed (quick settings during recording) — verify + language follow-up pending. #43 excluded by user decision.**
 
 ## Open tasks
 
-1. [ ] **#57 on-device verify** (UI-only on Oplus — adb IME ops blocked): hybrid pulse — slow breathing (0.6↔0.9, 2 s cycle) during silence, brightening with speech (gated RMS); pause/resume button enlarged ~1.3× when paused; during processing row 1 shows "Transcribing (STT)…"/"Polishing (LLM)…" in place of spinner/Raw (Raw mode → only STT stage); gear at far left of row 1 still opens the hint dialog. Tuning knob if reaction feels weak/strong: `RMS_CEILING` in `RmsAlphaMapper`.
-2. [ ] **#57 cleanup after calibration**: remove the temporary `Log.d("PolishedRMS", …)` diagnostics from `PolishedVoiceInputIME` once mic levels are confirmed via `adb logcat -d -s PolishedRMS` (dictate once, read rms/smoothed values, tune `RMS_CEILING` in `RmsAlphaMapper` if speech saturates or ambient noise exceeds the 200 gate).
-3. [ ] **#55 — Tag `v1.2.0`** (now includes #57) → `release.yml` → bump `metadata/com.georgernstgraf.polishedrecognition.yml` (version + commit; keep `Binaries`/`AllowedAPKSigningKeys`, signing key unchanged `62f9d7b0…a76a85`) → comment on MR !40029 → force-push the `add-polished-recognition` branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`; verify current HEAD). Push the tag separately from branch commits (PITFALLS). The real Play upload step of `release.yml` is the only #52-related path not yet exercised live — watch that run.
-4. [ ] **#45 leftover**: CrashDialog Copy-button on-device test (force a crash: `adb shell am crash com.georgernstgraf.polishedrecognition`).
-5. [ ] **On-device verify** (same install session as the v1.2.0/#57 check):
-   - #48/#53: dropdown trash-icon tap deletes without selecting; label tap still selects; icon contrast in dark mode; rename dialog (dedupe + re-point of active selection); **long-press the language field → inline edit → new name appended+selected without Save; short tap still opens dropdown**.
-   - #54: auto-start fires on keyboard show when IDLE + mic granted; PAUSED session stays paused after hide; no permission-activity spam when RECORD_AUDIO missing.
+1. [ ] **#57 on-device verify + calibrate** (user dictates once): breathing (0.6↔0.9, 2 s) during silence, brightening with speech; then `adb logcat -d -s PolishedRMS` → finite rms values (NaN root cause fixed in `computePcmRms`); tune `RMS_CEILING` (2500) in `RmsAlphaMapper` if speech saturates or ambient exceeds the 200 gate; **remove the temporary `Log.d("PolishedRMS")` diagnostics after calibration**.
+2. [ ] **#56 verify**: RAW + language selectable during recording AND pause; mid-recording changes take effect (pipeline reads settings at transcription time). Language flakiness documented in #56 (7/10 compliance, German-source failures) — user decides on model A/B or the deferred user-message-injection mitigation. No prompt changes per user decision.
+3. [ ] **#55 — Tag `v1.2.0`** (now includes #57 rounds 1–4 + #56 fix) → `release.yml` → bump `metadata/com.georgernstgraf.polishedrecognition.yml` (keep `Binaries`/`AllowedAPKSigningKeys`, key `62f9d7b0…a76a85`) → comment on MR !40029 → force-push `add-polished-recognition` branch (worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition`; verify HEAD). Push the tag separately from branch commits (PITFALLS). Watch the real Play upload run.
+4. [ ] **#45 leftover**: CrashDialog Copy-button on-device test (`adb shell am crash com.georgernstgraf.polishedrecognition`).
+5. [ ] **On-device verify** (same session): #48/#53 dropdown trash vs label tap, dark-mode contrast, long-press inline edit; #54 auto-start on keyboard show; #48/#53/#54/#45 batch.
 
 ## Known on-device gotchas (Oplus/OnePlus)
 
@@ -18,5 +16,6 @@
 - HeliBoard's mic uses the system `voice_recognition_service`, NOT the auxiliary IME → HeliBoard's mic won't route to Polished. Use the nav-bar switcher or Fossify Keyboard.
 - The IME crashes on `?attr/` theme attrs — only platform attrs / `@null` / explicit colors in IME layouts. (Also true for Settings/Crash layouts under `Theme.DeviceDefault` — see PITFALLS.)
 - "Manage Keyboards" greyed-out behavior matches AOSP — no Oplus OEM override (7-row evidence table in PITFALLS).
+- Diagnostic logs readable via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` (llm-prompt/llm-response rotating JSON) — no root needed; invaluable for prompt/response evidence.
 
-Last cleared: 2026-08-31 (#57 implemented + installed on f6de166c; knowledge files current).
+Last cleared: 2026-08-31 (round 4 — RMS NaN root cause, single-animator pulse, #56 quick settings; installed 08:22 on f6de166c).
