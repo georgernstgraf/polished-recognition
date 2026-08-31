@@ -327,13 +327,14 @@ class PolishedVoiceInputIME : InputMethodService() {
         if (!rms.isFinite()) return
         smoothedRms = RmsAlphaMapper.smooth(smoothedRms, rms)
         voiceAlpha = RmsAlphaMapper.alpha(smoothedRms)
-        if (rmsLogCount++ % RMS_LOG_EVERY == 0) {
-            Log.d(
-                RMS_LOG_TAG,
-                "rms=%.0f smoothed=%.0f voiceAlpha=%.3f breathAlpha=%.3f"
-                    .format(rms, smoothedRms, voiceAlpha, breathAlpha)
-            )
-        }
+        // RMS diagnostics (removed for v1.2.0; re-enable via logcat tag "PolishedRMS"):
+        // if (rmsLogCount++ % RMS_LOG_EVERY == 0) {
+        //     Log.d(
+        //         RMS_LOG_TAG,
+        //         "rms=%.0f smoothed=%.0f voiceAlpha=%.3f breathAlpha=%.3f"
+        //             .format(rms, smoothedRms, voiceAlpha, breathAlpha)
+        //     )
+        // }
         applyAlpha()
     }
 
@@ -431,7 +432,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     companion object {
         private const val CHANNEL_ID = "voice_recognition_ime"
         private const val NOTIFICATION_ID = 1002
-        private const val BREATH_FLOOR = 0.6f
+        private const val BREATH_FLOOR = 0.45f
         private const val BREATH_CEIL = 0.9f
         private const val BREATH_HALF_PERIOD_MS = 1000L
         private const val RMS_LOG_TAG = "PolishedRMS"

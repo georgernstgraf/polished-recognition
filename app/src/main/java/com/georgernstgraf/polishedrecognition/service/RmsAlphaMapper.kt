@@ -4,7 +4,7 @@ import kotlin.math.ln
 
 object RmsAlphaMapper {
 
-    const val ALPHA_FLOOR = 0.5f
+    const val ALPHA_FLOOR = 0.45f
     const val NOISE_FLOOR = 200f
     const val RMS_CEILING = 2500f
     const val EMA_WEIGHT = 0.3f
