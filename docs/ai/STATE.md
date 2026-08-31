@@ -11,9 +11,10 @@ Current status as of 2026-08-31 (round 4, post root-cause hunt).
 - [x] Language evidence gathered from device logs: clause present in 10/10 prompts; model compliance 7/10; failures clustered German-source. No prompt changes (user decision).
 
 ## Pending
-- [ ] **#57 on-device verify**: dictate once → confirm breathing during silence + brightening with speech; `adb logcat -d -s PolishedRMS` now shows finite rms (calibrate `RMS_CEILING` if speech saturates / ambient exceeds the 200 gate); remove the temporary `Log.d("PolishedRMS")` after calibration.
+- [ ] **#57 on-device verify**: pulse working (owner satisfied with round-4 result); gear|spinner divider shipped (`92698f3`); `Log.d("PolishedRMS")` diagnostics kept for now (owner decision) — calibrate `RMS_CEILING` / remove logging once tuning is final.
 - [ ] **#56 on-device verify**: RAW + language toggleable mid-recording and mid-pause; changes take effect for the transcription.
-- [ ] #56 language follow-up (user decides later): quantify flaky compliance (repeat dictations per language); optional model A/B in Settings; deferred mitigation = directive in user message.
+- [x] #56 language: clause wording hardened (option C, `43933fb`); user-message purity locked (injection rejected); gpt-oss-120b datapoint recorded.
+- [ ] #56 verify: next dictation's `llm-prompt.json` shows new wording; monitor compliance; model A/B via Settings if still flaky.
 - [ ] **#55 — release `v1.2.0`**: tag (push tag separately) → `release.yml` → fdroiddata bump → MR !40029 comment + force-push branch.
 - [ ] #45 leftover: CrashDialog Copy-button on-device test.
 
