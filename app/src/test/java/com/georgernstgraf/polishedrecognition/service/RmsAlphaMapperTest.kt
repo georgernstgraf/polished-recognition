@@ -6,15 +6,23 @@ import org.junit.Test
 class RmsAlphaMapperTest {
 
     @Test
-    fun `silence maps to alpha floor`() {
+    fun `below noise gate maps to alpha floor`() {
         assertThat(RmsAlphaMapper.alpha(0f)).isEqualTo(RmsAlphaMapper.ALPHA_FLOOR)
+        assertThat(RmsAlphaMapper.alpha(RmsAlphaMapper.NOISE_FLOOR))
+            .isEqualTo(RmsAlphaMapper.ALPHA_FLOOR)
     }
 
     @Test
-    fun `loud input maps close to full contrast`() {
-        val loud = RmsAlphaMapper.alpha(RmsAlphaMapper.RMS_CEILING)
-        assertThat(loud).isAtLeast(0.95f)
-        assertThat(loud).isAtMost(1f)
+    fun `typical ambient noise stays near the floor`() {
+        val a = RmsAlphaMapper.alpha(100f)
+        assertThat(a).isLessThan(RmsAlphaMapper.ALPHA_FLOOR + 0.01f)
+    }
+
+    @Test
+    fun `typical speech clearly exceeds the floor`() {
+        assertThat(RmsAlphaMapper.alpha(400f)).isAtLeast(0.8f)
+        assertThat(RmsAlphaMapper.alpha(800f)).isAtLeast(0.88f)
+        assertThat(RmsAlphaMapper.alpha(2000f)).isAtLeast(0.95f)
     }
 
     @Test

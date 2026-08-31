@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -8,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.inputmethodservice.InputMethodService
+import android.util.Log
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -44,6 +46,9 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var stageText: TextView? = null
     private var smoothedRms = 0f
     private var lastTargetAlpha = -1f
+    private var breathAnimator: ValueAnimator? = null
+    private var breathAlpha = BREATH_CEIL
+    private var rmsLogCount = 0
     private var silenceLangListener = false
 
     override fun onCreate() {
@@ -291,19 +296,54 @@ class PolishedVoiceInputIME : InputMethodService() {
     private fun setFlashing(active: Boolean) {
         val root = rootView ?: return
         root.animate().cancel()
-        root.alpha = 1f
-        smoothedRms = 0f
-        lastTargetAlpha = -1f
+        if (active) {
+            smoothedRms = 0f
+            lastTargetAlpha = -1f
+            breathAlpha = BREATH_CEIL
+            rmsLogCount = 0
+            root.alpha = 1f
+            startBreathing()
+        } else {
+            breathAnimator?.cancel()
+            breathAnimator = null
+            root.alpha = 1f
+        }
+    }
+
+    private fun startBreathing() {
+        breathAnimator?.cancel()
+        breathAnimator = ValueAnimator.ofFloat(BREATH_CEIL, BREATH_FLOOR).apply {
+            duration = BREATH_HALF_PERIOD_MS
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener {
+                breathAlpha = it.animatedValue as Float
+                applyTargetAlpha()
+            }
+            start()
+        }
     }
 
     private fun onRmsChanged(rms: Float) {
-        val root = rootView ?: return
         smoothedRms = RmsAlphaMapper.smooth(smoothedRms, rms)
-        val target = RmsAlphaMapper.alpha(smoothedRms)
+        if (rmsLogCount++ % RMS_LOG_EVERY == 0) {
+            Log.d(
+                RMS_LOG_TAG,
+                "rms=%.0f smoothed=%.0f voiceAlpha=%.3f breathAlpha=%.3f"
+                    .format(rms, smoothedRms, RmsAlphaMapper.alpha(smoothedRms), breathAlpha)
+            )
+        }
+        applyTargetAlpha()
+    }
+
+    private fun applyTargetAlpha() {
+        val root = rootView ?: return
+        val voiceAlpha = RmsAlphaMapper.alpha(smoothedRms)
+        val target = maxOf(breathAlpha, voiceAlpha)
         if (lastTargetAlpha >= 0f && kotlin.math.abs(target - lastTargetAlpha) < DEADBAND) return
         lastTargetAlpha = target
-        val current = root.alpha
-        val duration = if (target < current) DIVE_MS else RISE_MS
+        val duration = if (target < root.alpha) DIVE_MS else RISE_MS
         root.animate()
             .alpha(target)
             .setDuration(duration)
@@ -390,6 +430,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        breathAnimator?.cancel()
+        breathAnimator = null
         rootView?.animate()?.cancel()
         controller.cancel()
         stopMicForeground()
@@ -399,8 +441,13 @@ class PolishedVoiceInputIME : InputMethodService() {
     companion object {
         private const val CHANNEL_ID = "voice_recognition_ime"
         private const val NOTIFICATION_ID = 1002
-        private const val DIVE_MS = 1000L
+        private const val BREATH_FLOOR = 0.6f
+        private const val BREATH_CEIL = 0.9f
+        private const val BREATH_HALF_PERIOD_MS = 1000L
+        private const val DIVE_MS = 600L
         private const val RISE_MS = 150L
-        private const val DEADBAND = 0.03f
+        private const val DEADBAND = 0.015f
+        private const val RMS_LOG_TAG = "PolishedRMS"
+        private const val RMS_LOG_EVERY = 10
     }
 }

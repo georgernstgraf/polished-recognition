@@ -5,6 +5,7 @@ import kotlin.math.ln
 object RmsAlphaMapper {
 
     const val ALPHA_FLOOR = 0.5f
+    const val NOISE_FLOOR = 200f
     const val RMS_CEILING = 2500f
     const val EMA_WEIGHT = 0.3f
 
@@ -17,10 +18,8 @@ object RmsAlphaMapper {
     }
 
     private fun normalizedLevel(smoothedRms: Float): Float {
-        if (smoothedRms <= 0f) return 0f
-        val rms = smoothedRms.coerceAtMost(RMS_CEILING)
-        val max = ln(1f + RMS_CEILING)
-        val value = ln(1f + rms) / max
-        return value.coerceIn(0f, 1f)
+        val effective = (smoothedRms - NOISE_FLOOR).coerceIn(0f, RMS_CEILING - NOISE_FLOOR)
+        val max = ln(1f + RMS_CEILING - NOISE_FLOOR)
+        return (ln(1f + effective) / max).coerceIn(0f, 1f)
     }
 }
