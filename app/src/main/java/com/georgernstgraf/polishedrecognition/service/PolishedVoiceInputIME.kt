@@ -23,12 +23,12 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.config.LanguageOptions
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
-import com.georgernstgraf.polishedrecognition.ui.VoiceRecognitionActivity
 
 class PolishedVoiceInputIME : InputMethodService() {
 
@@ -143,7 +143,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                     if (silenceLangListener) return
                     val selected = parent?.getItemAtPosition(position) as? String ?: return
                     settings.targetLanguage =
-                        if (selected == VoiceRecognitionActivity.NONE_TARGET_LANGUAGE) null else selected
+                        if (selected == LanguageOptions.NONE_TARGET_LANGUAGE) null else selected
                 }
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -158,7 +158,7 @@ class PolishedVoiceInputIME : InputMethodService() {
             sp.adapter = ArrayAdapter(
                 this, R.layout.ime_spinner_item, langs
             ).also { it.setDropDownViewResource(R.layout.ime_spinner_dropdown_item) }
-            val current = settings.targetLanguage ?: VoiceRecognitionActivity.NONE_TARGET_LANGUAGE
+            val current = settings.targetLanguage ?: LanguageOptions.NONE_TARGET_LANGUAGE
             val idx = langs.indexOf(current).let { if (it >= 0) it else 0 }
             sp.setSelection(idx)
             silenceLangListener = false
@@ -170,8 +170,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun buildLanguageList(): List<String> =
-        listOf(VoiceRecognitionActivity.NONE_TARGET_LANGUAGE, "English") +
-            settings.customLanguages.sorted()
+        LanguageOptions.buildLanguageList(settings.customLanguages)
 
     private fun updateLanguageEnabled() {
         val disabled = rawCheckbox?.isChecked == true

@@ -1,13 +1,13 @@
 # Hand Off
 
-**#60 (Ogg/Opus compression + stage feedback) CLOSED — verified on device 2026-09-01. Next: #61 (remove VoiceRecognitionActivity + Material), then v1.2.1 release. MR !40029 watch continues.**
+**#61 (remove VoiceRecognitionActivity + drop Material/appcompat) CLOSED 2026-09-01 — build/tests/install verified, IME + Settings confirmed alive via dumpsys. Next: on-device IME smoke pass, then #62 (HeliBoard RecognitionService design session) or v1.2.1 release. MR !40029 watch continues.**
 
 ## Open tasks
 
-1. [ ] **#61 — remove VoiceRecognitionActivity + drop Material** (owner-approved plan): relocate `NONE_TARGET_LANGUAGE`/`buildLanguageList` from the activity to `config/` (IME uses them at PolishedVoiceInputIME.kt:31,146,161,173); delete activity + layout + manifest block (AndroidManifest.xml:19-30); audit shared resources before deleting; drop `com.google.android.material` and check `appcompat`/theme parents for remaining consumers. Verified tradeoff: RecognizerIntent callers get ActivityNotFoundException.
+1. [ ] **On-device IME smoke pass for #61**: open IME in a text field — quick-settings spinner, raw checkbox, gear, and a real transcription via AnySoftKeyboard (language logic moved to `config/LanguageOptions`).
 2. [ ] **#62 — HeliBoard mic via additive bound RecognitionService** (issue created, not started; needs dedicated design session).
 3. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
-4. [ ] **v1.2.1 release**: master now has ac75231 fixes + #60 + (upcoming) #61 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
+4. [ ] **v1.2.1 release**: master now has ac75231 fixes + #60 + #61 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
 
 ## Known on-device gotchas (Oplus/OnePlus)
 
@@ -18,4 +18,4 @@
 - Pulse diagnostics: re-enable the commented `Log.d` block in `PolishedVoiceInputIME.onRmsChanged` (tag `PolishedRMS`).
 - Screenshot automation: tap coords need REAL pixels (`wm size` 1080×2400; screencap PNGs display at 900×2000 → ×1.2). IME state: pause btn = recording, ↺ = paused (interrupted sessions persist PAUSED). `distribution/*.png` are stale — README screenshots live in `docs/img/`.
 
-Last cleared: 2026-08-31 (late — #58 closed, knowledge current).
+Last cleared: 2026-09-01 (#61 closed, knowledge current).

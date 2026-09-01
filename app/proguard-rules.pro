@@ -57,9 +57,3 @@
 # Kotlin
 -dontwarn kotlin.**
 -keep class kotlin.Metadata { *; }
-
-# AppCompat / Material
--dontwarn com.google.android.material.**
--keep class com.google.android.material.** { *; }
--dontwarn androidx.appcompat.**
--keep class androidx.appcompat.** { *; }
