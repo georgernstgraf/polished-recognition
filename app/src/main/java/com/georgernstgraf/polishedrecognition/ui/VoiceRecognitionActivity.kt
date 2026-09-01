@@ -152,6 +152,8 @@ class VoiceRecognitionActivity : AppCompatActivity() {
 
     private fun onStage(stage: TranscriptionPipeline.TranscriptionStage) {
         when (stage) {
+            is TranscriptionPipeline.TranscriptionStage.CompressingAudio ->
+                elapsedText.text = "compressing $processingDurationStr\u2026"
             is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                 elapsedText.text = "requesting $processingDurationStr STT\u2026"
             is TranscriptionPipeline.TranscriptionStage.RequestingLlm -> {

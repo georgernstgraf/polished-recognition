@@ -205,6 +205,8 @@ class PolishedVoiceInputIME : InputMethodService() {
             }
             is VoiceSessionController.Event.StageChanged -> {
                 stageText?.text = when (event.stage) {
+                    is TranscriptionPipeline.TranscriptionStage.CompressingAudio ->
+                        getString(R.string.ime_stage_compressing)
                     is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                         getString(R.string.ime_stage_stt)
                     is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->

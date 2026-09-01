@@ -30,6 +30,7 @@ class TranscriptionPipeline(
     )
 
     sealed class TranscriptionStage {
+        object CompressingAudio : TranscriptionStage()
         object RequestingStt : TranscriptionStage()
         data class RequestingLlm(val wordCount: Int) : TranscriptionStage()
     }

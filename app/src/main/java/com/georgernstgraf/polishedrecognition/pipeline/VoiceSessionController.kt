@@ -127,9 +127,12 @@ class VoiceSessionController(
      */
     private suspend fun prepareAudioFile(wav: ByteArray): File {
         if (!settings.compressAudio) return writeWavFile(wav)
+        emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
         return try {
             withContext(Dispatchers.IO) {
-                transcoder.transcode(wav, File(appContext.cacheDir, "recording.ogg"))
+                val ogg = transcoder.transcode(wav, File(appContext.cacheDir, "recording.ogg"))
+                Log.i(TAG, "Audio compressed: wav=${wav.size}B ogg=${ogg.length()}B")
+                ogg
             }
         } catch (e: Exception) {
             Log.w(TAG, "Opus transcoding failed, falling back to WAV", e)

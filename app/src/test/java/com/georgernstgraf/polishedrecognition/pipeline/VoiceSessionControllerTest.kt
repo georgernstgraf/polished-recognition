@@ -43,10 +43,14 @@ class VoiceSessionControllerTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     )
 
-    private fun recordAndStop(): VoiceSessionController {
+    private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
         val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
         try {
-            controller.start { }
+            controller.start { e ->
+                events.add(e)
+                record(events)
+            }
         } catch (_: Throwable) {
             // AudioRecord is not fully supported under Robolectric — the
             // controller still transitions to RECORDING, which is all we need.
@@ -101,5 +105,35 @@ class VoiceSessionControllerTest {
         recordAndStop()
 
         assertThat(uploadedFile().name).isEqualTo("recording.wav")
+    }
+
+    @Test
+    fun `compressing stage is emitted when compressAudio enabled`() {
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(byteArrayOf(1)) }
+        }
+        var stages = emptyList<TranscriptionPipeline.TranscriptionStage>()
+
+        recordAndStop { events ->
+            stages = events.filterIsInstance<VoiceSessionController.Event.StageChanged>()
+                .map { it.stage }
+        }
+
+        assertThat(stages.first())
+            .isInstanceOf(TranscriptionPipeline.TranscriptionStage.CompressingAudio::class.java)
+    }
+
+    @Test
+    fun `no compressing stage when compressAudio disabled`() {
+        settings.compressAudio = false
+        var stages = emptyList<TranscriptionPipeline.TranscriptionStage>()
+
+        recordAndStop { events ->
+            stages = events.filterIsInstance<VoiceSessionController.Event.StageChanged>()
+                .map { it.stage }
+        }
+
+        assertThat(stages).isEmpty()
     }
 }
