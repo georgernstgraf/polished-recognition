@@ -5,9 +5,10 @@
 ## Open tasks
 
 1. [ ] **On-device IME smoke pass for #61**: open IME in a text field — quick-settings spinner, raw checkbox, gear, and a real transcription via AnySoftKeyboard (language logic moved to `config/LanguageOptions`).
-2. [ ] **#62 — HeliBoard mic via additive bound RecognitionService** (issue created, not started; needs dedicated design session).
-3. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
-4. [ ] **v1.2.1 release**: master now has ac75231 fixes + #60 + #61 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
+2. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (issue created with full option analysis; recommended entry: measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
+3. [ ] **#62 — HeliBoard mic via additive bound RecognitionService** (issue created, not started; needs dedicated design session).
+4. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
+5. [ ] **v1.2.1 release**: master now has ac75231 fixes + #60 + #61 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
 
 ## Known on-device gotchas (Oplus/OnePlus)
 
