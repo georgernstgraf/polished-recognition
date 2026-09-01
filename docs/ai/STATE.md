@@ -1,21 +1,23 @@
 # Project State
 
-Current status as of 2026-08-31 (#60 Ogg/Opus compression session).
+Current status as of 2026-09-01 (#60 closed).
 
 ## Current Focus
-**#60 (optional Ogg/Opus compression before STT upload) — implemented, committed (545af3c), pushed. On-device verification still pending.** MR !40029 maintainer watch continues; v1.2.1 release still pending.
+**#60 (Ogg/Opus compression + stage feedback) CLOSED — fully verified on device.** Next workstream: #61 (remove VoiceRecognitionActivity + drop Material). #62 (HeliBoard RecognitionService re-add) opened, not started. MR !40029 watch + v1.2.1 release still open.
 
 ## Completed (this cycle)
-- [x] #60 (in progress): full implementation — `WavReader`/`PcmConditioner`/`AudioTranscoder`/`OpusOggTranscoder` in `audio/`, `VoiceSessionController` transcode + WAV fallback, pipeline extension-derived multipart media type, `compress_audio` checkbox (end of STT section), 15 new tests. `./gradlew test` green (141 tests), `assembleRelease` green, zero new dependencies.
-- [x] FFmpegKit retirement researched: binaries gone from Maven since 2025-04; decision recorded to use platform MediaCodec/MediaMuxer instead (DECISIONS.md).
+- [x] #60 CLOSED: full implementation (WavReader/PcmConditioner/OpusOggTranscoder, controller transcode + WAV fallback, extension-derived multipart, compress_audio checkbox) + owner-feedback follow-up: `CompressingAudio` stage with "Compressing to .ogg …" IME bar label (84f3a32).
+- [x] #60 on-device verification: Groq accepts the MediaMuxer Ogg Opus (text inserted), compressing label visible, airplane-mode → error toast without freeze, checkbox OFF → WAV path unchanged. Commits 545af3c, 84f3a32.
+- [x] #61 created (remove activity + Material), #62 created (HeliBoard service re-add).
 
 ## Pending
-- [ ] #60 on-device verification (`installRelease`): real MediaCodec encode; Groq accepts the MediaMuxer-produced Ogg Opus; WAV-vs-OGG size comparison; toggle-off → WAV path; airplane-mode error path.
-- [ ] MR !40029 watch: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f`.
-- [ ] Cut v1.2.1 (versionCode bump) to ship the ac75231 verification-round fixes — consider bundling #60.
+- [ ] #61: remove VoiceRecognitionActivity + Material dependency (implementation phase ready to start).
+- [ ] #62: HeliBoard mic via additive bound RecognitionService (not started).
+- [ ] MR !40029 watch: F-Droid maintainer (linsui) response to the 1.2.0 bump.
+- [ ] Cut v1.2.1 (versionCode bump) — consider bundling #60 + #61 into one release.
 
 ## Blockers
 None.
 
 ## Next Session Suggestion
-On-device verification of #60 (checklist in the issue comment + HANDOFF.md), then close #60; then decide whether to fold v1.2.1 into an #60-inclusive release.
+Start #61 implementation (plan already agreed with owner: relocate language logic, delete activity, drop Material/appcompat if clean), then decide release bundling.

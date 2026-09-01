@@ -54,6 +54,12 @@ Each entry documents WHAT was decided and WHY.
 ## 2026-05-29: AudioRecord + WAV in-memory [REFINED by 2026-08-31 #60]
 - Moved to HISTORY.md — the upload-format part was refined by the optional Ogg/Opus compression (#60). AudioRecord PCM 16 kHz mono capture itself remains in force.
 
+## 2026-09-01: Compression stage feedback in the IME bar (#60)
+- **Choice**: Added `TranscriptionStage.CompressingAudio`, emitted by `VoiceSessionController.prepareAudioFile()` only when `compress_audio` is enabled; the IME bar shows "Compressing to .ogg …" between stop and the STT stage (parallel to "Transcribing (STT)…"/"Polishing (LLM)…").
+- **Reason**: Owner feedback: with compression enabled the bar sat silent during transcode — STT and LLM had stage labels, compression didn't, making the app look frozen.
+- **Considered**: Emitting through the pipeline (rejected — transcode runs in the controller before the pipeline call); notification-text updates (rejected — stages only touch the IME bar, consistent with existing behavior).
+- **Tradeoff**: The exhaustive `when`s over `TranscriptionStage` force a branch at every consumer (compile-time safety; `VoiceRecognitionActivity` needed a throwaway branch that dies with #61).
+
 ## 2026-08-31: Optional Ogg/Opus compression before STT upload (#60)
 - **Choice**: Opt-in `compress_audio` setting transcodes the recording to Ogg/Opus (24 kbps) via the **platform MediaCodec encoder + MediaMuxer `MUXER_OUTPUT_OGG`** before upload; light pure-Kotlin PCM conditioning (80 Hz high-pass + peak normalization) runs before encoding. WAV stays default and is the automatic fallback on any transcoder failure.
 - **Reason**: 16 kHz mono WAV is 256 kbps — Opus at 24 kbps cuts upload ~10x, which matters on poor connections. FFmpegKit (the obvious tool) was retired Jan 2025 and its prebuilt binaries removed from Maven Central Apr 2025; community forks are unmaintained/trust-risky and would add 10–40 MB of prebuilt `.so` blobs with F-Droid reproducibility friction. MediaCodec Opus encoder is API 29+, OGG muxing is API 30 — both exactly covered by minSdk 30, zero dependencies, zero APK-size impact.

@@ -1,16 +1,13 @@
 # Hand Off
 
-**#60 (Ogg/Opus compression) implemented on master (545af3c) — on-device verification pending. MR !40029 maintainer watch; v1.2.1 release still open.**
+**#60 (Ogg/Opus compression + stage feedback) CLOSED — verified on device 2026-09-01. Next: #61 (remove VoiceRecognitionActivity + Material), then v1.2.1 release. MR !40029 watch continues.**
 
 ## Open tasks
 
-1. [ ] **#60 on-device verification** (`./gradlew installRelease`, always release):
-   - Enable the new "Compress audio before upload" checkbox (end of STT section in Settings), record, confirm `cacheDir/recording.ogg` is produced and transcribes correctly via the configured Groq endpoint (MediaMuxer-produced Ogg Opus acceptance is the one unverified assumption).
-   - Size comparison WAV vs OGG for a real recording (~10x expected: 256 kbps → 24 kbps).
-   - Toggle checkbox off → WAV path unchanged; airplane-mode failure still toasts the error detail (transcoder failure must silently fall back to WAV, only the upload may fail visibly).
-   - Check logcat tag `VoiceSessionController` for `Opus transcoding failed, falling back to WAV` warnings.
-2. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
-3. [ ] **v1.2.1 release**: master has verification-round fixes (ac75231) + #60 beyond v1.2.0 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
+1. [ ] **#61 — remove VoiceRecognitionActivity + drop Material** (owner-approved plan): relocate `NONE_TARGET_LANGUAGE`/`buildLanguageList` from the activity to `config/` (IME uses them at PolishedVoiceInputIME.kt:31,146,161,173); delete activity + layout + manifest block (AndroidManifest.xml:19-30); audit shared resources before deleting; drop `com.google.android.material` and check `appcompat`/theme parents for remaining consumers. Verified tradeoff: RecognizerIntent callers get ActivityNotFoundException.
+2. [ ] **#62 — HeliBoard mic via additive bound RecognitionService** (issue created, not started; needs dedicated design session).
+3. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
+4. [ ] **v1.2.1 release**: master now has ac75231 fixes + #60 + (upcoming) #61 — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
 
 ## Known on-device gotchas (Oplus/OnePlus)
 

@@ -39,7 +39,7 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 ### IME path (primary, post-#43)
 - Nav-bar switcher (or Fossify's voice-typing selector) → active keyboard = Polished → `PolishedVoiceInputIME.onCreateInputView()` inflates the compact bar.
 - Mic tap → permission check (trampoline if missing) → `VoiceSessionController` IDLE→RECORDING → `AudioRecorder.start()` + foreground notification (type `microphone`).
-- Send/Stop → `AudioRecorder.stop()` → WAV bytes → `VoiceSessionController.prepareAudioFile()` (if `compress_audio`: `WavReader` → `PcmConditioner` → `OpusOggTranscoder` → `cacheDir/recording.ogg` on `Dispatchers.IO`; any failure → original WAV) → `TranscriptionPipeline.transcribe()` (multipart media type/filename derived from file extension) → STT text → (raw: return) → resolve prompts → LLM text → `currentInputConnection.commitText()`.
+- Send/Stop → `AudioRecorder.stop()` → WAV bytes → `VoiceSessionController.prepareAudioFile()` (if `compress_audio`: emits `StageChanged(CompressingAudio)` — IME bar shows "Compressing to .ogg …" — then `WavReader` → `PcmConditioner` → `OpusOggTranscoder` → `cacheDir/recording.ogg` on `Dispatchers.IO`; any failure → original WAV) → `TranscriptionPipeline.transcribe()` (multipart media type/filename derived from file extension) → STT text → (raw: return) → resolve prompts → LLM text → `currentInputConnection.commitText()`.
 - Pause/Resume toggles `AudioRecord` start/stop while keeping the PCM buffer; Settings-gear press during RECORDING implicitly pauses before opening `SettingsActivity`.
 - `onFinishInputView` (IME hides, e.g. to open Settings) only pauses RECORDING — PAUSED/PROCESSING are left untouched so a paused recording survives.
 
