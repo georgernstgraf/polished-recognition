@@ -6,10 +6,17 @@ import org.junit.Test
 class InsertionSpacingPolicyTest {
 
     @Test
-    fun `adds leading space at field start`() {
+    fun `no leading space at genuine field start`() {
         assertThat(
             InsertionSpacingPolicy.apply("foo", before = "", after = " bar")
-        ).isEqualTo(" foo")
+        ).isEqualTo("foo")
+    }
+
+    @Test
+    fun `genuine empty field keeps only the trailing space`() {
+        assertThat(
+            InsertionSpacingPolicy.apply("foo", before = "", after = "")
+        ).isEqualTo("foo ")
     }
 
     @Test
@@ -71,7 +78,7 @@ class InsertionSpacingPolicyTest {
     }
 
     @Test
-    fun `null before counts as no whitespace`() {
+    fun `null before keeps the conservative leading space`() {
         assertThat(
             InsertionSpacingPolicy.apply("foo", before = null, after = " baz")
         ).isEqualTo(" foo")
