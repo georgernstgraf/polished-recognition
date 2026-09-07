@@ -10,6 +10,13 @@ full control of your voice input.
 Polished Recognition installs as a **voice keyboard**: switch to it, and it
 starts listening immediately — no extra tap, no learning a new typing UI.
 
+> **Gboard will never use this.** Gboard's microphone is hardcoded to Google's
+> voice typing — it cannot be redirected to any third-party voice input,
+> including Polished Recognition. To use Polished, switch to a keyboard that
+> delegates its mic and select Polished Recognition as its voice input: the
+> **AOSP keyboard** (LineageOS and derivatives), **HeliBoard** (F-Droid only),
+> **Fossify Keyboard**, or **OpenBoard**.
+
 | ![Voice keyboard](docs/img/ime-recording.png) | ![Settings](docs/img/settings.png) |
 |:---:|:---:|
 | The voice keyboard — recording | Your pipeline, your prompts |
@@ -32,7 +39,7 @@ plain transcription — zero extra latency.
 - **Custom prompts.** The system prompt is fully editable, with variables for source and target language. Make the LLM format markdown, translate to French, or just fix punctuation.
 - **Translation built in.** Pick a target language and dictation arrives translated. Languages are freely editable — long-press to add your own.
 - **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume — the entire recording buffers, nothing is lost. You can even switch to your typing keyboard and back: the dictation survives the round trip.
-- **Works everywhere.** Any text field, any app — no integration needed. It also registers as the system voice-input service for keyboards that delegate their mic button.
+- **Works everywhere.** Any text field, any app — no integration needed. It also registers as the system voice-input service for keyboards that delegate their mic button (HeliBoard, Fossify/OpenBoard, the AOSP keyboard) — note that Gboard never delegates: its mic is hardcoded to Google's own voice typing.
 - **Searchable model pickers.** Type to filter hundreds of models by substring, with per-provider caching. No infinite dropdown scrolling.
 - **Clean output.** LLM "reasoning/thinking" blocks are stripped automatically — only the finished text gets inserted.
 
@@ -112,6 +119,7 @@ Everything sensitive — keys, prompts, logs — stays on your device. See the
 - **Recording fails / no audio?** Check that `RECORD_AUDIO` is granted — the app requests it on first use.
 - **Model dropdown empty?** Enter a valid token and press **Validate & Fetch Models**; model lists are fetched from the provider (some providers only allow free-text model entry).
 - **Voice-input service greyed out?** Some keyboards/vendor builds restrict the system voice service — use the Polished keyboard directly instead.
+- **Gboard's mic doesn't launch it?** That's by design — Gboard hardcodes Google's voice typing and never uses external voice keyboards. Switch to the AOSP keyboard (LineageOS), HeliBoard (F-Droid), Fossify, or OpenBoard. See the [Installation Guide](INSTALLATION.md).
 - **More help?** See the **[Installation Guide](INSTALLATION.md)**.
 
 ## For developers
