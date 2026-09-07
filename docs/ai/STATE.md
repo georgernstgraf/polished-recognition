@@ -16,10 +16,10 @@ Current status as of 2026-09-07 (#65 implemented, on-device verified incl. switc
 
 ## Pending
 - [ ] #67: disk snapshot of paused dictation — UNLINKED from #65 (open sub-issue would block closing); standalone deferred `enhancement` now.
-- [ ] #62: HeliBoard mic via additive bound RecognitionService (not started; needs dedicated design session).
+- [x] #62: CLOSED not-planned (2026-09-07) — premise obsolete: HeliBoard's mic works via the auxiliary voice IME on the OnePlus (no bound service needed); PITFALLS entry corrected.
 - [ ] #64: explore parallelize/hide Ogg/Opus compression latency (measure per-stage timings on the S5 first).
-- [ ] MR !40029 watch: F-Droid maintainer (linsui) response to the 1.2.0 bump.
-- [ ] Cut v1.2.1 (versionCode bump) — bundles #60 + #61 + #65 (incl. redesign, README, screenshots).
+- [ ] MR !40029: act on linsui's 2026-08-31 feedback — remove the old 1.1.1 Build entry (New-App MR should carry only the newest version) + fix the pipeline (`fdroid rewritemeta` wants Builds chronological; 1.2.0 was prepended above 1.1.1 → job failed).
+- [ ] Cut v1.2.1 (versionCode → 10201, versionName 1.2.1, tag → release.yml → fdroiddata Build entry + MR comment).
 
 ## Blockers
 None.
@@ -30,4 +30,4 @@ None.
 - f6de166c = OnePlus 7T (HD1903, 1080×2400) — original screenshot device; provider configured; Oplus shell restrictions apply.
 
 ## Next Session Suggestion
-Start the #62 design session, or cut v1.2.1 (now includes switch-button redesign + fresh screenshots). Check MR !40029 for linsui feedback first.
+Cut v1.2.1 and bundle the MR !40029 fixes (remove 1.1.1 Build entry, chronological order / rewritemeta fix, reply to linsui). Then #64 or #67.

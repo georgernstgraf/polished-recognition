@@ -1,14 +1,13 @@
 # Hand Off
 
-**#65 COMPLETE 2026-09-07 — keyboard-switch button (final design: history-resolved target + ACTION_INPUT_METHOD_SETTINGS fallback + fresh `default_input_method` post-check), session preservation, smoke-tested on S5, README + screenshots refreshed (OPO). Issue closed; #67 unlinked as standalone deferred enhancement. Next: #62 design session or v1.2.1 release. MR !40029 watch continues.**
+**#62 CLOSED not-planned 2026-09-07 — premise obsolete: HeliBoard's mic works via the auxiliary voice IME on the OnePlus (no bound RecognitionService needed); PITFALLS entry corrected. MR !40029 watch paid off: linsui (2026-08-31) wants the old 1.1.1 Build entry removed + pipeline fixed (rewritemeta wants Builds chronological — 1.2.0 was prepended). Next: v1.2.1 release bundling those MR fixes, then #64/#67.**
 
 ## Open tasks
 
-1. [ ] **v1.2.1 release**: master has ac75231 fixes + #60 + #61 + #65 (switch-button redesign, README, fresh screenshots) — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. Consider bundling with any linsui feedback.
+1. [ ] **v1.2.1 release**: master has ac75231 fixes + #60 + #61 + #65 (switch-button redesign, README, fresh screenshots) — bump versionCode → tag → release.yml → fdroiddata bump + MR comment. **Bundle the MR !40029 fixes from linsui's 2026-08-31 feedback**: remove the old 1.1.1 Build entry (New-App MR = newest version only) and fix chronology (rewritemeta failed because 1.2.0 was prepended above 1.1.1); reply to linsui. Worktree at `1c43ae05f`.
 2. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; now a STANDALONE issue — sub-issue link to #65 removed so #65 could close).
 3. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (issue created with full option analysis; recommended entry: measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
-4. [ ] **#62 — HeliBoard mic via additive bound RecognitionService** (issue created, not started; needs dedicated design session).
-5. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump; fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
+4. [ ] **MR !40029 watch**: F-Droid maintainer (linsui) response to the 1.2.0 bump — **feedback exists (2026-08-31, unaddressed)**: "Remove the old version. Please fix the pipeline." fdroiddata worktree `~/repos/schurlix/fdroiddata-mr-polished-recognition` at `1c43ae05f` (branch `add-polished-recognition`).
 
 ## Known on-device gotchas
 
@@ -21,4 +20,4 @@
 - Oplus/OnePlus suppresses app-level IME logcat; S5 (LineageOS) shows app lines normally. Pulse diagnostics: re-enable the commented `Log.d` block in `PolishedVoiceInputIME.onRmsChanged` (tag `PolishedRMS`).
 - IME state: pause bars = recording, ↺ = paused (interrupted sessions persist PAUSED). `distribution/*.png` remain stale; README screenshots live in `docs/img/` (refreshed 2026-09-07: current bar incl. switch icon).
 
-Last cleared: 2026-09-07 (#65 closed; smoke test + redesign + screenshots complete).
+Last cleared: 2026-09-07 (#62 closed not-planned; MR !40029 linsui feedback surfaced: remove old Build + pipeline fix).
