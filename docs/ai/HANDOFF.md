@@ -1,6 +1,6 @@
 # Hand Off
 
-**#69 IMPLEMENTED 2026-09-07 (commit c0f00ff, pushed): pulse floors 0.15 + 15% floor dwell; tests + assembleRelease green, installed on OnePlus (f6de166c). Pending: S5 feel-check (S5 was not connected) — if a louder room clamps the depth (static NOISE_FLOOR=200 gate), the round-3 adaptive noise floor is the prepared lever. Next: MR !40029 watch, then #64/#67.**
+**#70 CLOSED 2026-09-07 (commit 4c70c45): README Gboard warning prominent (callout + bullet + troubleshooting), INSTALLATION.md EN-only, keyboard list per owner (AOSP/LineageOS, HeliBoard F-Droid-only, Fossify, OpenBoard; AnySoftKeyboard dropped). #69 pulse depth (0.15 + 15% dwell, commit c0f00ff) installed on OnePlus — S5 feel-check pending. Next: watch MR !40029, then #64/#67.**
 
 ## Open tasks
 
@@ -8,9 +8,7 @@
 2. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; now a STANDALONE issue — sub-issue link to #65 removed so #65 could close).
 3. [ ] **#69 — S5 feel-check of the 0.15/dwell pulse** (implemented 2026-09-07 on OnePlus; S5 not connected). Prepared follow-up: adaptive noise floor.
 4. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (issue created with full option analysis; recommended entry: measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
-5. [ ] **MR !40029 watch**: all reviewer feedback addressed (linsui 2026-08-31 answered 2026-09-07); waiting for merge. Worktree at `1127cbebe`.
-
-## Known on-device gotchas
+5. [ ] **MR !40029 watch**: all reviewer feedback addressed (linsui 2026-08-31 answered 2026-09-07); waiting for merge. Worktree at `1127cbebe`.## Known on-device gotchas
 
 - **Devices: d890cc9e = S5** (SM-G900F, LineageOS 18.1, `wm size` **1080×1920**); f6de166c = OnePlus 7T (HD1903, Oplus, **1080×2400**). The old "1080×2400 = S5" note was the OnePlus. Tap coords need REAL pixels (screencap PNGs displayed at 900×2000 → ×1.2 at OPO size).
 - **adb `ime`/`settings put secure` WORK on the S5** (LineageOS userdebug) — scripted IME enable/disable + `input_methods_subtype_history` manipulation possible; Oplus (OnePlus) blocks them all via SecurityException — there: Settings UI only.

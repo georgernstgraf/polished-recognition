@@ -1,9 +1,9 @@
 # Project State
 
-Current status as of 2026-09-07 (v1.2.1 released; #69 pulse-depth tuning implemented + pushed).
+Current status as of 2026-09-07 (v1.2.1 released; #69 pulse-depth tuning implemented + pushed; #70 Gboard docs warning done).
 
 ## Current Focus
-**#69 implemented** (commit c0f00ff, on master): pulse floors 0.15 + 15% floor dwell; installed on OnePlus; S5 feel-check pending. Closing this session.
+**#70 complete** (commit 4c70c45): prominent Gboard-hardcoded-mic warning in README (EN-only), INSTALLATION.md de-Germanized + keyboard list updated per owner (AOSP/LineageOS first, HeliBoard F-Droid-only, AnySoftKeyboard dropped). Issue closed. Closing this session.
 
 ## Completed (this cycle)
 - [x] #65 round 1: keyboard icon button in IME row 1 (`<queries android.view.InputMethod>`).
@@ -14,6 +14,7 @@ Current status as of 2026-09-07 (v1.2.1 released; #69 pulse-depth tuning impleme
 - [x] README: #65 feature bullets (switch icon, dictation survives switches), stale fixes ("debug key" → release-key note, "AppCompat/Material" → plain XML UI).
 - [x] Screenshots refreshed (OPO, 1080×2400): `docs/img/ime-recording.png` (new bar with switch icon, RECORDING state, Markor background), `docs/img/settings.png` (Processing section, Raw OFF — #58 framing).
 - [x] #69: pulse floors 0.45 → 0.15 (mapper + breath), keyframe cycle with 15% floor dwell (300 ms / 2 s cycle); tests re-based + green; assembleRelease green; installed on OnePlus (f6de166c); issue comment + commit c0f00ff pushed.
+- [x] #70: README Gboard warning (prominent callout + "Works everywhere" bullet + Troubleshooting bullet); INSTALLATION.md EN-only (German section removed), AOSP keyboard added, HeliBoard marked F-Droid-only, AnySoftKeyboard example dropped; commit 4c70c45 pushed, issue closed.
 
 ## Pending
 - [ ] #67: disk snapshot of paused dictation — UNLINKED from #65 (open sub-issue would block closing); standalone deferred `enhancement` now.
