@@ -17,7 +17,7 @@ starts listening immediately — no extra tap, no learning a new typing UI.
 ## How it works
 
 1. **Switch to the Polished keyboard** → recording starts instantly
-2. **Speak naturally** — pause/resume anytime mid-sentence
+2. **Speak naturally** — pause/resume anytime mid-sentence; need to type something? Switch to your normal keyboard — the dictation waits and continues when you're back
 3. **Tap send** → audio goes to your STT provider (Whisper on GROQ, OpenAI, …)
 4. **The LLM polishes the text** using your custom prompt — fix filler words and punctuation, restructure, or translate to another language
 5. **Flawless text lands in the app you're typing in**
@@ -31,7 +31,7 @@ plain transcription — zero extra latency.
 - **Not a walled garden.** No account, no registration, no central server. Your audio goes only to the provider you configured — or nowhere at all, if you run Ollama locally.
 - **Custom prompts.** The system prompt is fully editable, with variables for source and target language. Make the LLM format markdown, translate to French, or just fix punctuation.
 - **Translation built in.** Pick a target language and dictation arrives translated. Languages are freely editable — long-press to add your own.
-- **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume — the entire recording buffers, nothing is lost.
+- **Pause & resume.** Get interrupted mid-dictation? Pause, handle it, resume — the entire recording buffers, nothing is lost. You can even switch to your typing keyboard and back: the dictation survives the round trip.
 - **Works everywhere.** Any text field, any app — no integration needed. It also registers as the system voice-input service for keyboards that delegate their mic button.
 - **Searchable model pickers.** Type to filter hundreds of models by substring, with per-provider caching. No infinite dropdown scrolling.
 - **Clean output.** LLM "reasoning/thinking" blocks are stripped automatically — only the finished text gets inserted.
@@ -77,7 +77,9 @@ fallback to free-text entry for providers that don't support it).
 ### Voice keyboard (IME)
 
 - **Instant recording** — switching to the keyboard starts the mic right away
-- **Two-line control surface** — settings gear, target language, Raw toggle on top; cancel / pause / send below
+- **Two-line control surface** — keyboard-switch icon, settings gear, target language, Raw toggle on top; cancel / pause / send below
+- **One-tap keyboard switch** — the switch icon jumps straight back to the keyboard you came from; if no typing keyboard is available it opens the keyboard settings so you can enable one
+- **Dictation survives keyboard switches** — while you type on the other keyboard the recording is preserved (paused); switching back auto-resumes and appends to the same audio
 - **Live stage display** — shows exactly what's happening: *Recording*, *Transcribing (STT)*, *Polishing (LLM)*
 - **Recording pulse** — the send button breathes with your voice
 - **Works in any app** — any text field, any app, no integration needed
@@ -116,13 +118,13 @@ Everything sensitive — keys, prompts, logs — stays on your device. See the
 
 | Command                     | Result                               |
 |-----------------------------|--------------------------------------|
-| `./gradlew assembleRelease` | Build release APK (minified, signed with debug key) |
+| `./gradlew assembleRelease` | Build release APK (minified, release-key signed when a local keystore is present) |
 | `./gradlew installRelease`  | Build + install release APK via ADB  |
 | `./gradlew test`            | Run all unit tests                   |
 
 Stack: Kotlin, Retrofit + OkHttp, AudioRecord (16 kHz mono → in-memory
-WAV), AppCompat/Material settings UI. Min SDK 30. No DI framework, no
-Room, no Compose — deliberately small and fast.
+WAV), plain XML settings UI on `Theme.DeviceDefault.DayNight`. Min SDK 30.
+No DI framework, no Room, no Compose — deliberately small and fast.
 
 Technical details (architecture, decisions, conventions, pitfalls) are
 maintained in [`docs/ai/`](docs/ai/) — start with `HANDOFF.md`.

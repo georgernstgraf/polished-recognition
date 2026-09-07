@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.inputmethodservice.InputMethodService
+import android.net.Uri
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
@@ -111,8 +113,30 @@ class PolishedVoiceInputIME : InputMethodService() {
             if (controller.state == VoiceSessionController.State.RECORDING) {
                 controller.pause()
             }
-            if (!switchToPreviousInputMethod()) {
-                getSystemService(InputMethodManager::class.java).showInputMethodPicker()
+            val selfId = currentDefaultImeId() ?: return@setOnClickListener
+            val enabled = getSystemService(InputMethodManager::class.java)
+                .enabledInputMethodList
+                .map { imi ->
+                    SwitchTargetPolicy.EnabledIme(
+                        id = imi.id,
+                        hasKeys = imi.subtypeCount == 0 ||
+                            (0 until imi.subtypeCount).any { !imi.getSubtypeAt(it).isAuxiliary }
+                    )
+                }
+            val history = SwitchTargetPolicy.parseHistory(
+                Settings.Secure.getString(
+                    contentResolver,
+                    INPUT_METHODS_SUBTYPE_HISTORY_SETTING
+                )
+            )
+            val target = SwitchTargetPolicy.targetKeyboard(history, enabled, selfId)
+            if (target == null) {
+                openKeyboardSettings()
+                return@setOnClickListener
+            }
+            switchInputMethod(target)
+            if (currentDefaultImeId() == selfId) {
+                openKeyboardSettings()
             }
         }
         rawCheckbox?.setOnCheckedChangeListener { _, isChecked ->
@@ -402,6 +426,30 @@ class PolishedVoiceInputIME : InputMethodService() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
+    private fun openKeyboardSettings() {
+        startActivity(
+            Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+
+    /**
+     * Fresh read of the current default IME id via a direct provider query. A plain
+     * Settings.Secure.getString would use the in-process cache, which can stay stale
+     * right after switchInputMethod() (change notification is async), so a successful
+     * switch could be misread as a no-op.
+     */
+    private fun currentDefaultImeId(): String? =
+        contentResolver.query(
+            Uri.withAppendedPath(Settings.Secure.CONTENT_URI, DEFAULT_INPUT_METHOD_SETTING),
+            arrayOf(Settings.NameValueTable.VALUE),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -469,5 +517,11 @@ class PolishedVoiceInputIME : InputMethodService() {
         private const val BREATH_HALF_PERIOD_MS = 1000L
         private const val RMS_LOG_TAG = "PolishedRMS"
         private const val RMS_LOG_EVERY = 10
+
+        /** Settings.Secure key holding the id of the current default IME (hidden constant). */
+        private const val DEFAULT_INPUT_METHOD_SETTING = "default_input_method"
+
+        /** Settings.Secure key holding the ordered IME/subtype usage history (hidden constant). */
+        private const val INPUT_METHODS_SUBTYPE_HISTORY_SETTING = "input_methods_subtype_history"
     }
 }

@@ -1,21 +1,22 @@
 # Architecture
 
-Living structural map of the system as of 2026-08-23.
+Living structural map of the system as of 2026-09-07.
 Overwritten when structural changes occur during a session.
 
 ## Overview
 
-Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`) that captures audio via `AudioRecord`, transcribes it via any OpenAI-compatible `/v1/audio/transcriptions` endpoint, optionally post-processces it via any `/v1/chat/completions` endpoint, and `commitText`s the result into the focused field through the standard `InputConnection`. It also ships a full-screen `VoiceRecognitionActivity` (invoked by the `RECOGNIZE_SPEECH` intent path) used historically by the bound `RecognitionService` and retained as an alternate entry point. The bound `PolishedRecognitionService` was removed in #43 — the IME is now the primary surface.
+Polished Recognition is an Android **voice IME** (`InputMethodService`) that captures audio via `AudioRecord`, transcribes it via any OpenAI-compatible `/v1/audio/transcriptions` endpoint, optionally post-processces it via any `/v1/chat/completions` endpoint, and `commitText`s the result into the focused field through the standard `InputConnection`. The bound `PolishedRecognitionService` was removed in #43 and the `VoiceRecognitionActivity` overlay in #61 — **the IME is the sole surface**.
 
 ## Components
 
 | Component | Package | Role |
 |-----------|---------|------|
 | `PolishedRecognitionApp` | root | Application class — manual DI, OkHttpClient singleton, Retrofit cache per baseUrl, global `UncaughtExceptionHandler` → `CrashDialogActivity` |
-| `PolishedVoiceInputIME` | service | `InputMethodService` — the auxiliary voice IME. Inflates `ime_voice_input.xml`, owns a `VoiceSessionController`, drives audio capture + transcription, `commitText`s results. Foreground service of type `microphone` while recording. |
-| `VoiceSessionController` | service (or sibling) | State machine for an IME voice session: IDLE → RECORDING ⇄ PAUSED → PROCESSING → IDLE. De-dups events, resets to IDLE after `Completed` (deadlock fix). Writes the recording for upload: with `compress_audio` set, transcodes WAV → `recording.ogg` via `AudioTranscoder` (WAV fallback on failure). Takes `SettingsStore` + `AudioTranscoder` as injectable constructor params (testability). |
+| `PolishedVoiceInputIME` | service | `InputMethodService` — the voice IME. Inflates `ime_voice_input.xml`, drives audio capture + transcription via the app-scoped `VoiceSessionController`, `commitText`s results. Foreground service of type `microphone` while recording. Top bar: keyboard-switch icon (`SwitchTargetPolicy`), settings gear, language spinner, Raw toggle; bottom bar: cancel / pause-resume / mic-send. |
+| `VoiceSessionController` | service (or sibling) | **App-scoped** (`PolishedRecognitionApp` lazy singleton — survives IME destruction across keyboard switches, #65). State machine: IDLE → RECORDING ⇄ PAUSED → PROCESSING → IDLE. Writes the recording for upload: with `compress_audio` set, transcodes WAV → `recording.ogg` via `AudioTranscoder` (WAV fallback on failure). Takes `SettingsStore` + `AudioTranscoder` as injectable constructor params (testability). IME `onDestroy` detaches (not cancels) a PAUSED session so dictation survives switches. |
+| `SwitchTargetPolicy` | service | Pure Kotlin decision for the keyboard-switch button (#65): parses `input_methods_subtype_history` (most-recent-first, hidden Settings.Secure key) and picks the first entry that is enabled, has keys (non-auxiliary subtypes or zero subtypes), and isn't Polished → `switchInputMethod(id)`; no target → open `Settings.ACTION_INPUT_METHOD_SETTINGS`. Fresh `default_input_method` provider query as post-switch safety net. |
 | `MicrophonePermissionActivity` | ui | Transparent trampoline `Activity` — `registerForActivityResult(RequestPermission())` for `RECORD_AUDIO`, then `finish()`. Launched by the IME with `FLAG_ACTIVITY_NEW_TASK` (a service cannot request runtime permissions directly). |
-| `VoiceRecognitionActivity` | ui | Full-screen overlay `AppCompatActivity` — audio capture + transcription, three-button layout (Cancel/Pause-Resume/Stop), `configChanges` for rotation safety. Retained as an alternate entry point. |
+| `SettingsHintActivity` | ui | Transparent, own-task (`taskAffinity=""`) launcher for the keyboard-settings screen shown when returning from the Settings detour (#59). |
 | `TranscriptionPipeline` | pipeline | Orchestrates STT → (optional) LLM flow. Resolves prompt templates at runtime. Emits `TranscriptionStage` callbacks (`RequestingStt`, `RequestingLlm(wordCount)`). |
 | `PromptStore` | pipeline | Loads prompt defaults from `assets/prompts.json`, persists edits in SharedPreferences. Single editable System Prompt; user message is an automatic `{{text}}` carrier. |
 | `OpenAiSttApiService` | api | Generic Retrofit interface: `POST audio/transcriptions` (sync `Call<T>` to dodge R8 `Continuation` stripping), `GET models` |
@@ -32,7 +33,7 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 
 ## IME Registration
 
-`AndroidManifest.xml` declares `PolishedVoiceInputIME` as a service with `BIND_INPUT_METHOD` permission, an `android.view.InputMethod` intent-filter, and `meta-data` pointing to `res/xml/voice_method.xml`. The latter defines one auxiliary voice `<subtype>` (`imeSubtypeMode="voice"`, `isAuxiliary="true"`). **Known limitation:** an auxiliary-only IME cannot be set as the primary keyboard — when it's the only enabled IME, the user can't switch back to Gboard from the nav-bar picker. Tracked as a planned fix (#46): add a second, non-auxiliary keyboard subtype to the same `<input-method>` so Polished also appears as a selectable primary keyboard, while keeping the auxiliary voice subtype for HeliBoard/Fossify integration.
+`AndroidManifest.xml` declares `PolishedVoiceInputIME` as a service with `BIND_INPUT_METHOD` permission, an `android.view.InputMethod` intent-filter, `foregroundServiceType="microphone"`, and `meta-data` pointing to `res/xml/voice_method.xml`. The latter defines two subtypes on one IME (since #46): a **non-auxiliary keyboard subtype** (makes Polished selectable as primary keyboard and the switcher render) and the original **auxiliary voice subtype** (integration for keyboards with dedicated voice-typing selectors). A `<queries>` block for `android.view.InputMethod` grants package visibility for other IME packages (needed by `switchInputMethod` on API 30+, #65).
 
 ## Data Flows
 
@@ -41,11 +42,8 @@ Polished Recognition is an Android **auxiliary voice IME** (`InputMethodService`
 - Mic tap → permission check (trampoline if missing) → `VoiceSessionController` IDLE→RECORDING → `AudioRecorder.start()` + foreground notification (type `microphone`).
 - Send/Stop → `AudioRecorder.stop()` → WAV bytes → `VoiceSessionController.prepareAudioFile()` (if `compress_audio`: emits `StageChanged(CompressingAudio)` — IME bar shows "Compressing to .ogg …" — then `WavReader` → `PcmConditioner` → `OpusOggTranscoder` → `cacheDir/recording.ogg` on `Dispatchers.IO`; any failure → original WAV) → `TranscriptionPipeline.transcribe()` (multipart media type/filename derived from file extension) → STT text → (raw: return) → resolve prompts → LLM text → `currentInputConnection.commitText()`.
 - Pause/Resume toggles `AudioRecord` start/stop while keeping the PCM buffer; Settings-gear press during RECORDING implicitly pauses before opening `SettingsActivity`.
+- **Keyboard-switch button** (#65): pause if RECORDING → `SwitchTargetPolicy` resolves the last-used enabled key keyboard from the subtype history → `switchInputMethod(id)` — this **destroys the IME service** (recording paused; app-scoped controller keeps the PCM buffer) → on re-entry `AutoStartPolicy.shouldAutoResume` continues recording, appending to the old audio. No keyboard available → `Settings.ACTION_INPUT_METHOD_SETTINGS`; fresh `default_input_method` post-check catches silent no-ops and falls back to settings as well.
 - `onFinishInputView` (IME hides, e.g. to open Settings) only pauses RECORDING — PAUSED/PROCESSING are left untouched so a paused recording survives.
-
-### Full-screen activity path (alternate)
-- `RECOGNIZE_SPEECH` intent (keyboards that use the system `voice_recognition_service`) → `VoiceRecognitionActivity` → same `AudioRecorder` + `TranscriptionPipeline` → `setResult` + `finish`.
-- Note: HeliBoard's mic uses the system `voice_recognition_service`, which was removed in #43, so HeliBoard's mic no longer routes to Polished. Use the IME path or re-add the bound service (possible follow-up).
 
 ## CI/CD Workflows
 
