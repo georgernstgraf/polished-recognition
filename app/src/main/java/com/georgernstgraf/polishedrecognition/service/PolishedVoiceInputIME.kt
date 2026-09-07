@@ -257,7 +257,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 val result = event.result
                 val text = result.getOrNull()
                 if (text != null) {
-                    currentInputConnection?.commitText(text, 1)
+                    commitWithSpacing(text)
                     requestHideSelf(0)
                 } else {
                     Toast.makeText(
@@ -274,6 +274,20 @@ class PolishedVoiceInputIME : InputMethodService() {
                 }
             is VoiceSessionController.Event.SpeechBegin -> Unit
         }
+    }
+
+    /**
+     * Commits [text] padded with surrounding spaces as needed (#66): a leading
+     * space when the cursor sits at field start or after non-whitespace, a
+     * trailing space when nothing whitespace follows. A null side from
+     * getTextBefore/AfterCursor (unsupported by some apps) counts as
+     * "no whitespace present" so the space is still added.
+     */
+    private fun commitWithSpacing(text: String) {
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(1, 0)
+        val after = ic.getTextAfterCursor(1, 0)
+        ic.commitText(InsertionSpacingPolicy.apply(text, before, after), 1)
     }
 
     private fun applyUiState() {
