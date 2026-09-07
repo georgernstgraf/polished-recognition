@@ -1,9 +1,9 @@
 # Project State
 
-Current status as of 2026-09-07 (v1.2.1 released: Play 10201 verified, MR !40029 green + linsui answered).
+Current status as of 2026-09-07 (v1.2.1 released; #69 pulse-depth tuning implemented + pushed).
 
 ## Current Focus
-**#65 complete**: keyboard-switch button with history-resolved target + keyboard-settings fallback, session preservation across switches; smoke-tested on S5, fresh README screenshots on OPO. Closing this session.
+**#69 implemented** (commit c0f00ff, on master): pulse floors 0.15 + 15% floor dwell; installed on OnePlus; S5 feel-check pending. Closing this session.
 
 ## Completed (this cycle)
 - [x] #65 round 1: keyboard icon button in IME row 1 (`<queries android.view.InputMethod>`).
@@ -13,12 +13,14 @@ Current status as of 2026-09-07 (v1.2.1 released: Play 10201 verified, MR !40029
 - [x] Device installs: S5 (d890cc9e) + OnePlus 7T (f6de166c) on the final release build.
 - [x] README: #65 feature bullets (switch icon, dictation survives switches), stale fixes ("debug key" → release-key note, "AppCompat/Material" → plain XML UI).
 - [x] Screenshots refreshed (OPO, 1080×2400): `docs/img/ime-recording.png` (new bar with switch icon, RECORDING state, Markor background), `docs/img/settings.png` (Processing section, Raw OFF — #58 framing).
+- [x] #69: pulse floors 0.45 → 0.15 (mapper + breath), keyframe cycle with 15% floor dwell (300 ms / 2 s cycle); tests re-based + green; assembleRelease green; installed on OnePlus (f6de166c); issue comment + commit c0f00ff pushed.
 
 ## Pending
 - [ ] #67: disk snapshot of paused dictation — UNLINKED from #65 (open sub-issue would block closing); standalone deferred `enhancement` now.
 - [x] #62: CLOSED not-planned (2026-09-07) — premise obsolete: HeliBoard's mic works via the auxiliary voice IME on the OnePlus (no bound service needed); PITFALLS entry corrected.
 - [ ] #64: explore parallelize/hide Ogg/Opus compression latency (measure per-stage timings on the S5 first).
 - [ ] MR !40029: updated per linsui (single 1.2.1 Build entry, old versions removed) — pipeline fully green, reply posted 2026-09-07; waiting for merge.
+- [ ] #69 feel-check on the S5 (device was not connected at implementation time); if a louder room clamps the depth, the prepared lever is the round-3 adaptive noise floor.
 
 ## Blockers
 None.
@@ -29,4 +31,4 @@ None.
 - f6de166c = OnePlus 7T (HD1903, 1080×2400) — original screenshot device; provider configured; Oplus shell restrictions apply.
 
 ## Next Session Suggestion
-MR !40029 watch (merge by linsui). Then #64 (Ogg latency timings on the S5) or #67.
+#69 S5 feel-check (plus adaptive noise floor if depth clamps in a louder room). MR !40029 watch (merge by linsui). Then #64 (Ogg latency timings on the S5) or #67.
