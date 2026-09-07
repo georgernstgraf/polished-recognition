@@ -1,25 +1,24 @@
 # Project State
 
-Current status as of 2026-09-07 (#66 whitespace padding implemented + feel-check verified, issue CLOSED; #69 pulse-depth tuning pending S5 feel-check; v1.2.1 released).
+Current status as of 2026-09-07 (#72 gear→Settings-via-keyboard-switch code complete; on-device smoke test pending; #69 S5 feel-check still open).
 
 ## Current Focus
-**#66 done** (code commit 4dbdfd7, docs commit + close this session): leading/trailing whitespace padding around committed text via `InsertionSpacingPolicy` + `commitWithSpacing()`. Feel-check passed on device 2026-09-07; canonical rules persisted in `DOMAIN.md` (evolving — refine from longer use).
+**#72**: IME settings gear now switches to the last-used key keyboard (`SwitchTargetPolicy`, shared `resolveKeyKeyboardTarget`) and opens `SettingsActivity` (`NEW_TASK or CLEAR_TOP`, launch before `switchInputMethod`) instead of the #51 hint dialog. Owner decisions: return to Polished = manual (no picker/WRITE_SECURE_SETTINGS), no-keyboard fallback = system keyboard settings, non-back/save closes = do nothing. Code + tests green; smoke test on S5 + OnePlus pending.
 
 ## Completed (this cycle)
-- [x] #66: `InsertionSpacingPolicy` (service/) + `commitWithSpacing()` in `PolishedVoiceInputIME` (1-char neighbors via `getTextBefore/AfterCursor(1,0)`) + `InsertionSpacingPolicyTest` (17 cases); null neighbors = "no whitespace" → space added; own whitespace suppresses doubling; NBSP covered (`isWhitespace || isSpaceChar`).
-- [x] #66 feel-check on device (punctuation/field-start/field-end insertion) — passed; issue closed.
-- [x] #70 (commit 4c70c45): prominent Gboard warning in README, INSTALLATION.md EN-only, keyboard list per owner.
-- [x] #69 (commit c0f00ff): pulse depth 0.15 + 15% floor dwell; installed on OnePlus.
-- [x] v1.2.1 release: Play alpha track + F-Droid MR !40029 single-Build-entry pipeline green.
+- [x] #72 implementation (`PolishedVoiceInputIME.kt` only): gear handler rewired, target resolution extracted into shared helper; `SettingsHintActivity` stays for the notification contentIntent.
+- [x] #72 issue created, plan + implementation report commented.
+- [x] `./gradlew test assembleRelease` — BUILD SUCCESSFUL.
 
 ## Pending
+- [ ] **#72 on-device smoke test** (S5 + OnePlus): (1) gear during RECORDING → keyboard switches, settings editable, session persists PAUSED; (2) Back → returns to dictation app (not stale Settings instance) → manual return → auto-resume appends; (3) no key keyboard → system keyboard settings open, Polished settings NOT opened. Then close #72.
 - [ ] #69 S5 feel-check (0.15/dwell pulse); lever if depth clamps: adaptive noise floor.
 - [ ] #67: disk snapshot of paused dictation (standalone deferred `enhancement`).
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] MR !40029: waiting for linsui merge (worktree `1127cbebe`).
 
 ## Blockers
-None.
+None (no test device connected during the #72 session — adb `devices` empty).
 
 ## Device Notes
 - d890cc9e = **S5** (SM-G900F, LineageOS 18.1, 1080×1920) — adb `ime`/`settings put secure` WORK (userdebug). f6de166c = **OnePlus 7T** (HD1903, Oplus, 1080×2400) — Settings UI only.
@@ -28,4 +27,4 @@ None.
 - Screenshot sessions on a configured device LIVE-record on field focus — cancel explicitly (#128 pattern).
 
 ## Next Session Suggestion
-#69 S5 feel-check, then #64 (Ogg latency timings) or #67.
+#72 on-device smoke test (needs a connected device), then #69 S5 feel-check, then #64 (Ogg latency timings) or #67.
