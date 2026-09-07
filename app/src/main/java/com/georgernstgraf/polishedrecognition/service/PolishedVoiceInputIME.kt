@@ -1,6 +1,8 @@
 package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
+import android.animation.Keyframe
+import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -358,13 +360,22 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun startBreathing() {
         breathAnimator?.cancel()
-        breathAnimator = ValueAnimator.ofFloat(BREATH_CEIL, BREATH_FLOOR).apply {
-            duration = BREATH_HALF_PERIOD_MS
+        // Keyframe cycle so the floor phase *dwells* (15% of the cycle) instead of being
+        // touched only momentarily — without the hold, the deep phase is barely perceptible (#69).
+        breathAnimator = ValueAnimator.ofPropertyValuesHolder(
+            PropertyValuesHolder.ofKeyframe(
+                "breathAlpha",
+                Keyframe.ofFloat(0f, BREATH_CEIL),
+                Keyframe.ofFloat(BREATH_FALL_FRACTION, BREATH_FLOOR),
+                Keyframe.ofFloat(BREATH_FALL_FRACTION + BREATH_DWELL_FRACTION, BREATH_FLOOR),
+                Keyframe.ofFloat(1f, BREATH_CEIL)
+            )
+        ).apply {
+            duration = BREATH_CYCLE_MS
             repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
             interpolator = android.view.animation.AccelerateDecelerateInterpolator()
             addUpdateListener {
-                breathAlpha = it.animatedValue as Float
+                breathAlpha = it.getAnimatedValue("breathAlpha") as Float
                 applyAlpha()
             }
             start()
@@ -512,9 +523,11 @@ class PolishedVoiceInputIME : InputMethodService() {
     companion object {
         private const val CHANNEL_ID = "voice_recognition_ime"
         private const val NOTIFICATION_ID = 1002
-        private const val BREATH_FLOOR = 0.45f
+        private const val BREATH_FLOOR = 0.15f
         private const val BREATH_CEIL = 0.9f
-        private const val BREATH_HALF_PERIOD_MS = 1000L
+        private const val BREATH_CYCLE_MS = 2000L
+        private const val BREATH_FALL_FRACTION = 0.425f
+        private const val BREATH_DWELL_FRACTION = 0.15f
         private const val RMS_LOG_TAG = "PolishedRMS"
         private const val RMS_LOG_EVERY = 10
 

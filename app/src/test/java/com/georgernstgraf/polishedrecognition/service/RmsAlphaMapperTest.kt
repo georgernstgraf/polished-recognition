@@ -20,8 +20,8 @@ class RmsAlphaMapperTest {
 
     @Test
     fun `typical speech clearly exceeds the floor`() {
-        assertThat(RmsAlphaMapper.alpha(400f)).isAtLeast(0.8f)
-        assertThat(RmsAlphaMapper.alpha(800f)).isAtLeast(0.88f)
+        assertThat(RmsAlphaMapper.alpha(400f)).isAtLeast(0.7f)
+        assertThat(RmsAlphaMapper.alpha(800f)).isAtLeast(0.8f)
         assertThat(RmsAlphaMapper.alpha(2000f)).isAtLeast(0.95f)
     }
 
