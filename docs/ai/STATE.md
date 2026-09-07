@@ -1,18 +1,18 @@
 # Project State
 
-Current status as of 2026-09-07 (#66 whitespace padding implemented + pushed; #69 pulse-depth tuning pending feel-check; #70 done; v1.2.1 released).
+Current status as of 2026-09-07 (#66 whitespace padding implemented + feel-check verified, issue CLOSED; #69 pulse-depth tuning pending S5 feel-check; v1.2.1 released).
 
 ## Current Focus
-**#66 implemented** (commit 4dbdfd7, pushed): `InsertionSpacingPolicy` pads leading/trailing whitespace around committed text — leading space at field start or after non-whitespace (letters, punctuation), trailing space when no whitespace follows. 17 unit tests; `test` + `assembleRelease` green. Issue #66 commented (feel-check on device pending → issue stays open).
+**#66 done** (code commit 4dbdfd7, docs commit + close this session): leading/trailing whitespace padding around committed text via `InsertionSpacingPolicy` + `commitWithSpacing()`. Feel-check passed on device 2026-09-07; canonical rules persisted in `DOMAIN.md` (evolving — refine from longer use).
 
 ## Completed (this cycle)
-- [x] #66: `InsertionSpacingPolicy` (service/) + `commitWithSpacing()` in `PolishedVoiceInputIME` (reads 1-char neighbors via `getTextBefore/AfterCursor(1,0)`) + `InsertionSpacingPolicyTest` (17 cases); null neighbors = "no whitespace" → space still added; whitespace inside the transcription suppresses doubling; NBSP covered via `isWhitespace || isSpaceChar`.
+- [x] #66: `InsertionSpacingPolicy` (service/) + `commitWithSpacing()` in `PolishedVoiceInputIME` (1-char neighbors via `getTextBefore/AfterCursor(1,0)`) + `InsertionSpacingPolicyTest` (17 cases); null neighbors = "no whitespace" → space added; own whitespace suppresses doubling; NBSP covered (`isWhitespace || isSpaceChar`).
+- [x] #66 feel-check on device (punctuation/field-start/field-end insertion) — passed; issue closed.
 - [x] #70 (commit 4c70c45): prominent Gboard warning in README, INSTALLATION.md EN-only, keyboard list per owner.
 - [x] #69 (commit c0f00ff): pulse depth 0.15 + 15% floor dwell; installed on OnePlus.
 - [x] v1.2.1 release: Play alpha track + F-Droid MR !40029 single-Build-entry pipeline green.
 
 ## Pending
-- [ ] **#66 feel-check on device** (installRelease on S5/OnePlus: dictation mid-text after `.`, at field start, before existing space).
 - [ ] #69 S5 feel-check (0.15/dwell pulse); lever if depth clamps: adaptive noise floor.
 - [ ] #67: disk snapshot of paused dictation (standalone deferred `enhancement`).
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
@@ -28,4 +28,4 @@ None.
 - Screenshot sessions on a configured device LIVE-record on field focus — cancel explicitly (#128 pattern).
 
 ## Next Session Suggestion
-#66 device feel-check (punctuation/field-start/field-end insertion), then #69 S5 feel-check. Then #64 (Ogg latency timings) or #67.
+#69 S5 feel-check, then #64 (Ogg latency timings) or #67.
