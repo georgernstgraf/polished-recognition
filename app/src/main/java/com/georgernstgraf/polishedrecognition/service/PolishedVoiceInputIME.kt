@@ -33,6 +33,7 @@ import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
+import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
 
 class PolishedVoiceInputIME : InputMethodService() {
@@ -106,32 +107,24 @@ class PolishedVoiceInputIME : InputMethodService() {
             if (controller.state == VoiceSessionController.State.RECORDING) {
                 controller.pause()
             }
+            val selfId = currentDefaultImeId() ?: return@setOnClickListener
+            val target = resolveKeyKeyboardTarget(selfId)
+            if (target == null) {
+                openKeyboardSettings()
+                return@setOnClickListener
+            }
             startActivity(
-                Intent(this, SettingsHintActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                Intent(this, SettingsActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
+            switchInputMethod(target)
         }
         switchKeyboardButton?.setOnClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {
                 controller.pause()
             }
             val selfId = currentDefaultImeId() ?: return@setOnClickListener
-            val enabled = getSystemService(InputMethodManager::class.java)
-                .enabledInputMethodList
-                .map { imi ->
-                    SwitchTargetPolicy.EnabledIme(
-                        id = imi.id,
-                        hasKeys = imi.subtypeCount == 0 ||
-                            (0 until imi.subtypeCount).any { !imi.getSubtypeAt(it).isAuxiliary }
-                    )
-                }
-            val history = SwitchTargetPolicy.parseHistory(
-                Settings.Secure.getString(
-                    contentResolver,
-                    INPUT_METHODS_SUBTYPE_HISTORY_SETTING
-                )
-            )
-            val target = SwitchTargetPolicy.targetKeyboard(history, enabled, selfId)
+            val target = resolveKeyKeyboardTarget(selfId)
             if (target == null) {
                 openKeyboardSettings()
                 return@setOnClickListener
@@ -456,6 +449,25 @@ class PolishedVoiceInputIME : InputMethodService() {
             Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
+    }
+
+    private fun resolveKeyKeyboardTarget(selfId: String): String? {
+        val enabled = getSystemService(InputMethodManager::class.java)
+            .enabledInputMethodList
+            .map { imi ->
+                SwitchTargetPolicy.EnabledIme(
+                    id = imi.id,
+                    hasKeys = imi.subtypeCount == 0 ||
+                        (0 until imi.subtypeCount).any { !imi.getSubtypeAt(it).isAuxiliary }
+                )
+            }
+        val history = SwitchTargetPolicy.parseHistory(
+            Settings.Secure.getString(
+                contentResolver,
+                INPUT_METHODS_SUBTYPE_HISTORY_SETTING
+            )
+        )
+        return SwitchTargetPolicy.targetKeyboard(history, enabled, selfId)
     }
 
     /**
