@@ -40,4 +40,39 @@ class AutoStartPolicyTest {
             AutoStartPolicy.shouldAutoStart(VoiceSessionController.State.PROCESSING, true)
         ).isFalse()
     }
+
+    @Test
+    fun `PAUSED with permission auto-resumes`() {
+        assertThat(
+            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.PAUSED, true)
+        ).isTrue()
+    }
+
+    @Test
+    fun `PAUSED without permission does not auto-resume`() {
+        assertThat(
+            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.PAUSED, false)
+        ).isFalse()
+    }
+
+    @Test
+    fun `IDLE never auto-resumes`() {
+        assertThat(
+            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.IDLE, true)
+        ).isFalse()
+    }
+
+    @Test
+    fun `RECORDING never auto-resumes`() {
+        assertThat(
+            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.RECORDING, true)
+        ).isFalse()
+    }
+
+    @Test
+    fun `PROCESSING never auto-resumes`() {
+        assertThat(
+            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.PROCESSING, true)
+        ).isFalse()
+    }
 }

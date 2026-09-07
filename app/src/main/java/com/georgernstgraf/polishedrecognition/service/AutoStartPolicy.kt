@@ -7,4 +7,9 @@ object AutoStartPolicy {
         state: VoiceSessionController.State,
         hasMicPermission: Boolean
     ): Boolean = state == VoiceSessionController.State.IDLE && hasMicPermission
+
+    fun shouldAutoResume(
+        state: VoiceSessionController.State,
+        hasMicPermission: Boolean
+    ): Boolean = state == VoiceSessionController.State.PAUSED && hasMicPermission
 }

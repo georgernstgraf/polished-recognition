@@ -58,7 +58,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         val app = application as PolishedRecognitionApp
-        controller = VoiceSessionController(this, app.transcriptionPipeline, app.settingsStore)
+        controller = app.voiceSessionController
+        controller.attach { handleEvent(it) }
         settings = app.settingsStore
         createNotificationChannel()
     }
@@ -133,7 +134,10 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
         refreshQuickSettings()
         applyUiState()
-        if (AutoStartPolicy.shouldAutoStart(controller.state, hasMicPermission())) {
+        if (AutoStartPolicy.shouldAutoResume(controller.state, hasMicPermission())) {
+            startMicForeground()
+            controller.resume()
+        } else if (AutoStartPolicy.shouldAutoStart(controller.state, hasMicPermission())) {
             startIfPermitted()
         }
     }
@@ -448,7 +452,11 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onDestroy() {
         breathAnimator?.cancel()
         breathAnimator = null
-        controller.cancel()
+        if (controller.state == VoiceSessionController.State.PAUSED) {
+            controller.detach()
+        } else {
+            controller.cancel()
+        }
         stopMicForeground()
         super.onDestroy()
     }

@@ -57,6 +57,14 @@ class VoiceSessionController(
         emit(Event.StateChanged(state))
     }
 
+    fun attach(onEvent: (Event) -> Unit) {
+        callback = onEvent
+    }
+
+    fun detach() {
+        callback = null
+    }
+
     fun pause() {
         if (state != State.RECORDING) return
         accumulatedMs += System.currentTimeMillis() - segStartMs

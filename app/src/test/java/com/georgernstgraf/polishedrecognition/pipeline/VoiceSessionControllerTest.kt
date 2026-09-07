@@ -136,4 +136,50 @@ class VoiceSessionControllerTest {
 
         assertThat(stages).isEmpty()
     }
+
+    @Test
+    fun `detach preserves paused session and attach resumes event delivery`() {
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { events.add(it) }
+        } catch (_: Throwable) {
+        }
+        controller.pause()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        val countAtDetach = events.size
+
+        controller.detach()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        try {
+            controller.resume()
+        } catch (_: Throwable) {
+        }
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+        assertThat(events).hasSize(countAtDetach)
+
+        controller.attach { events.add(it) }
+        controller.pause()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(events.size).isGreaterThan(countAtDetach)
+        assertThat(events.last())
+            .isEqualTo(VoiceSessionController.Event.StateChanged(VoiceSessionController.State.PAUSED))
+    }
+
+    @Test
+    fun `start resets a preserved paused session to a fresh recording`() {
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        controller.pause()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+    }
 }

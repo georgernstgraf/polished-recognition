@@ -37,3 +37,11 @@ Entries here are no longer active truth. Never delete from this file.
 - **Tradeoff**: WAV is uncompressed — larger than AAC for long recordings. Fine for short voice input (typically <30s).
 - **Origin**: DECISIONS.md
 - **Reason**: #60 added an opt-in Ogg/Opus transcode step before upload (platform MediaCodec/MediaMuxer, not FFmpeg). AudioRecord PCM capture itself remains in force; a one-line pointer stays in DECISIONS.md.
+
+## 2026-08-30 (SUPERSEDED 2026-09-07, origin: DECISIONS.md, reason: #65 — owner now wants PAUSED sessions auto-resumed on keyboard re-entry): Auto-start mic recording when the keyboard appears (#54)
+- **Choice**: `onStartInputView` calls `startIfPermitted()` when `AutoStartPolicy.shouldAutoStart(state, hasMicPermission())` — i.e. state IDLE **and** RECORD_AUDIO granted. Always-on, no setting.
+- **Reason**: User request: mic should be active and recording start automatically when Polished launches as a keyboard.
+- **Considered**: Settings toggle (owner decided against); gating on `restarting == false` (rejected — both fresh appearance and in-place restart mean "keyboard visible, user can talk"; the pre-existing cancel-on-restart for RECORDING/PROCESSING runs first, so a field switch cancels then re-enters RECORDING consistently); auto-resuming PAUSED sessions (rejected — after keyboard hide, `onFinishInputView` leaves PAUSED deliberately; user taps mic to resume).
+- **Tradeoff**: Without mic permission the normal idle UI stays (no `MicrophonePermissionActivity` spam on every keyboard show — user taps mic to grant+start as before). Hook is `onStartInputView` not `onStartInput` (the latter fires while the input view is hidden). 5 unit tests in `AutoStartPolicyTest`.
+- **Origin**: docs/ai/DECISIONS.md
+- **Reason**: The auto-start-on-IDLE policy remains in force, but the explicit rejection of auto-resuming PAUSED sessions was overturned by #65 (session preservation across keyboard switches made PAUSED-on-re-entry the normal continuation signal; owner chose "immer bei PAUSED" — see the 2026-09-07 decision).

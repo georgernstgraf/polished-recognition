@@ -11,6 +11,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
+import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -70,6 +71,10 @@ class PolishedRecognitionApp : Application() {
             settingsStore = settingsStore,
             logger = jsonLogger
         )
+    }
+
+    val voiceSessionController by lazy {
+        VoiceSessionController(this, transcriptionPipeline, settingsStore)
     }
 
     private val sttApiCache = ConcurrentHashMap<String, OpenAiSttApiService>()
