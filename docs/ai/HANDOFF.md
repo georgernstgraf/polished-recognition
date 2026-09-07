@@ -1,14 +1,14 @@
 # Hand Off
 
-**#72 CLOSED 2026-09-07: gear→keyboard-switch→Settings owner-verified on OnePlus (return = manual, owner decision). New: insertion-spacing refinement (leading blank at field start, owner-reported) — see its issue. Previously: #66 closed (whitespace padding), v1.2.1 released. Next: spacing fix, #69 S5 feel-check, MR !40029 watch, then #64/#67.**
+**#72 AND #73 CLOSED 2026-09-07: gear→keyboard-switch→Settings owner-verified (return = manual); insertion-spacing field-start blank fixed + feel-checked, rules canonical in DOMAIN.md. Next: #69 S5 feel-check, MR !40029 watch, then #64/#67.**
 
 ## Open tasks
 
-1. [ ] **Insertion-spacing refinement** (owner report 2026-09-07): leading blank at field start (position 0, Markor at least) is superfluous — the #66 rule "field start ⇒ leading space" is wrong for empty-string neighbors. Owner-decided semantics: empty `before` → NO leading blank; `null` `before` → keep blank (apps without text read); trailing rule unchanged. Update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together, then the DOMAIN.md rule text; Markor feel-check before close.
-2. [ ] **#69 — S5 feel-check of the 0.15/dwell pulse** (implemented 2026-09-07 on OnePlus; S5 not connected). Prepared follow-up: adaptive noise floor if a louder room clamps the depth.
-3. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; STANDALONE issue — no sub-issue link).
-4. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
-5. [ ] **MR !40029 watch**: all reviewer feedback addressed (linsui 2026-08-31 answered 2026-09-07); waiting for merge. Worktree at `1127cbebe`.
+1. [ ] **#69 — S5 feel-check of the 0.15/dwell pulse** (implemented 2026-09-07 on OnePlus; S5 not connected). Prepared follow-up: adaptive noise floor if a louder room clamps the depth.
+2. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; STANDALONE issue — no sub-issue link).
+3. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
+4. [ ] **MR !40029 watch**: all reviewer feedback addressed (linsui 2026-08-31 answered 2026-09-07); waiting for merge. Worktree at `1127cbebe`.
+5. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (now includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 
 ## Known on-device gotchas
 
@@ -21,4 +21,4 @@
 - Oplus/OnePlus suppresses app-level IME logcat; S5 (LineageOS) shows app lines normally. Pulse diagnostics: re-enable the commented `Log.d` block in `PolishedVoiceInputIME.onRmsChanged` (tag `PolishedRMS`).
 - IME state: pause bars = recording, ↺ = paused (interrupted sessions persist PAUSED). `distribution/*.png` remain stale; README screenshots live in `docs/img/`.
 
-Last cleared: 2026-09-07 (#72 closed after owner smoke test on OnePlus).
+Last cleared: 2026-09-07 (#72 + #73 closed after owner on-device verification).
