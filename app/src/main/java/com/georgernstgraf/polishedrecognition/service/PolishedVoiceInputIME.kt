@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.inputmethodservice.InputMethodService
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
@@ -44,6 +45,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var languageSpinner: Spinner? = null
     private var rawCheckbox: CheckBox? = null
     private var settingsGear: ImageButton? = null
+    private var switchKeyboardButton: ImageButton? = null
     private var quickSettingsDivider: View? = null
     private var stageText: TextView? = null
     private var smoothedRms = 0f
@@ -72,6 +74,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
         rawCheckbox = view.findViewById(R.id.ime_raw)
         settingsGear = view.findViewById(R.id.ime_settings_button)
+        switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard_button)
         quickSettingsDivider = view.findViewById(R.id.ime_quick_settings_divider)
         stageText = view.findViewById(R.id.ime_stage_text)
 
@@ -102,6 +105,14 @@ class PolishedVoiceInputIME : InputMethodService() {
                 Intent(this, SettingsHintActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
+        }
+        switchKeyboardButton?.setOnClickListener {
+            if (controller.state == VoiceSessionController.State.RECORDING) {
+                controller.pause()
+            }
+            if (!switchToPreviousInputMethod()) {
+                getSystemService(InputMethodManager::class.java).showInputMethodPicker()
+            }
         }
         rawCheckbox?.setOnCheckedChangeListener { _, isChecked ->
             if (silenceLangListener) return@setOnCheckedChangeListener
@@ -240,6 +251,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         val pr = pauseResumeButton ?: return
         val cb = cancelButton ?: return
         val gear = settingsGear ?: return
+        val switchButton = switchKeyboardButton ?: return
         val s = controller.state
         setFlashing(s == VoiceSessionController.State.RECORDING)
         setPausedEnlarged(s == VoiceSessionController.State.PAUSED)
@@ -253,6 +265,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.isEnabled = false
                 cb.isEnabled = true
                 gear.isEnabled = true
+                switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
@@ -265,6 +278,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.isEnabled = true
                 cb.isEnabled = true
                 gear.isEnabled = true
+                switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
@@ -277,6 +291,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.isEnabled = true
                 cb.isEnabled = true
                 gear.isEnabled = true
+                switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
@@ -289,6 +304,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.isEnabled = false
                 cb.isEnabled = false
                 gear.isEnabled = false
+                switchButton.isEnabled = false
                 setQuickSettingsEnabled(false)
                 setQuickSettingsVisible(false)
             }

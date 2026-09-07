@@ -19,6 +19,16 @@
         android:layout_marginBottom="6dp">
 
         <ImageButton
+            android:id="@+id/ime_switch_keyboard_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_keyboard"
+            android:background="@null"
+            android:contentDescription="@string/ime_switch_keyboard_desc"
+            android:scaleType="centerInside" />
+
+        <ImageButton
             android:id="@+id/ime_settings_button"
             android:layout_width="36dp"
             android:layout_height="36dp"
