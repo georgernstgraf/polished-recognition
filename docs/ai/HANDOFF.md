@@ -1,10 +1,11 @@
 # Hand Off
 
-**#72 AND #73 CLOSED 2026-09-07: gear→keyboard-switch→Settings owner-verified (return = manual); insertion-spacing field-start blank fixed + feel-checked, rules canonical in DOMAIN.md. Next: #69 S5 feel-check, MR !40029 watch, then #64/#67.**
+**#72 AND #73 CLOSED 2026-09-07; fdroiddata MR !40029 MERGED — app is in main F-Droid (package page not indexed yet). NEW: #74 — F-Droid launch marketing (Phase 0: v1.2.2 with fastlane images/description sync, demo-GIF, GitHub polish, index watch; Phase 1: post drafts incl. Play-alpha tester recruitment — Google Group self-join; personal dev account → production needs 12 testers × 14 days, target 20–30). Continue #74 in next session. Previously: #66 closed (whitespace padding), v1.2.1 released.**
 
 ## Open tasks
 
-1. [ ] **#69 — S5 feel-check of the 0.15/dwell pulse** (implemented 2026-09-07 on OnePlus; S5 not connected). Prepared follow-up: adaptive noise floor if a louder room clamps the depth.
+1. [ ] **#74 — F-Droid launch marketing Phase 0/1** (see issue for full plan + owner decisions; owner works on Play Console/Google Group setup in parallel). Next concrete step: v1.2.2 release package.
+2. [ ] **#69 — S5 feel-check of the 0.15/dwell pulse** (implemented 2026-09-07 on OnePlus; S5 not connected). Prepared follow-up: adaptive noise floor if a louder room clamps the depth.
 2. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; STANDALONE issue — no sub-issue link).
 3. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
 4. [ ] **MR !40029 watch**: all reviewer feedback addressed (linsui 2026-08-31 answered 2026-09-07); waiting for merge. Worktree at `1127cbebe`.
