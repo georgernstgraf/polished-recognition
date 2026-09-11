@@ -19,49 +19,17 @@ jobs:
         run: pip install google-auth google-api-python-client
 
       - name: Write service account key
-        run: echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > $RUNNER_TEMP/play.json
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python3 -c "import os; open(os.environ['RUNNER_TEMP']+'/play.json','w').write(os.environ['PLAY_KEY'])"
 
-      - name: Normalize key file
+      - name: Verify key parses as JSON
         run: |
           python3 - <<'EOF'
-          import json, re, os, sys
+          import json, os
           path = os.environ["RUNNER_TEMP"] + "/play.json"
-          text = open(path).read()
-          try:
-              json.loads(text); print("raw JSON OK"); sys.exit(0)
-          except Exception:
-              pass
-          items = []
-          cur = None
-          for ln in text.splitlines():
-              s = ln.strip()
-              if s in ("{", "}", ""):
-                  continue
-              m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$', s)
-              if m:
-                  k, v = m.group(1), m.group(2).rstrip(",").strip()
-                  if len(v) > 1 and v.startswith('"') and v.endswith('"'):
-                      v = v[1:-1]
-                  items.append([k, v]); cur = len(items) - 1
-              elif cur is not None:
-                  items[cur][1] += "\n" + s
-          data = dict(items)
-          pk = data.get("private_key", "")
-          if "\\n" in pk:
-              data["private_key"] = pk.replace("\\n", "\n")
-          if "BEGIN" not in data.get("private_key", ""):
-              print("private_key missing/invalid"); sys.exit(1)
-          pk = data["private_key"]
-          pk_lines = pk.splitlines()
-          print("pk: len=%d lines=%d first=%r last=%r" % (len(pk), len(pk_lines), pk_lines[0][:40], pk_lines[-1][:40]))
-          print("pk body line lengths:", [len(l) for l in pk_lines[1:-1]][:8], "… total body lines:", len(pk_lines) - 2)
-          import base64 as b64
-          body = "".join(l for l in pk_lines[1:-1] if l and not l.startswith("-----"))
-          print("body len=%d mod4=%d charset_ok=%s" % (len(body) if (body := "".join(l for l in pk_lines[1:-1] if l and not l.startswith("-----"))) else 0, len(body) % 4 if body else -1, bool(re.fullmatch(r"[A-Za-z0-9+/=]+", body or ""))))
-          open(os.environ["RUNNER_TEMP"] + "/pk.pem", "w").write(pk)
-          json.dump(data, open(path, "w"))
-          print("normalized: keys =", sorted(data.keys()))
-          print("project_id =", data.get("project_id"), "| client_email =", data.get("client_email"))
+          data = json.load(open(path))
+          print("key OK: project_id =", data.get("project_id"))
           EOF
 
       - name: Query tracks
