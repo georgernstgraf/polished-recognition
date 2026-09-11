@@ -31,14 +31,26 @@ jobs:
               json.loads(text); print("raw JSON OK"); sys.exit(0)
           except Exception:
               pass
-          t = re.sub(r",\s*$", "", text, flags=re.M)          # strip trailing commas
-          t = re.sub(r"^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)", r'\1"\2"\3', t, flags=re.M)  # quote keys
-          if not t.lstrip().startswith("{"):
-              t = "{\n" + t + "\n}"
-          try:
-              data = json.loads(t)
-          except Exception as e:
-              print("reconstruction failed:", e); sys.exit(1)
+          items = []
+          cur = None
+          for ln in text.splitlines():
+              s = ln.strip()
+              if s in ("{", "}", ""):
+                  continue
+              m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$', s)
+              if m:
+                  k, v = m.group(1), m.group(2).rstrip(",").strip()
+                  if len(v) > 1 and v.startswith('"') and v.endswith('"'):
+                      v = v[1:-1]
+                  items.append([k, v]); cur = len(items) - 1
+              elif cur is not None:
+                  items[cur][1] += "\n" + s
+          data = dict(items)
+          pk = data.get("private_key", "")
+          if "\\n" in pk:
+              data["private_key"] = pk.replace("\\n", "\n")
+          if "BEGIN" not in data.get("private_key", ""):
+              print("private_key missing/invalid"); sys.exit(1)
           json.dump(data, open(path, "w"))
           print("normalized: keys =", sorted(data.keys()))
           print("project_id =", data.get("project_id"), "| client_email =", data.get("client_email"))
