@@ -23,8 +23,6 @@ jobs:
 
       - name: Normalize key file
         run: |
-          pip install pyyaml >/dev/null 2>&1 || true
-          wc -c $RUNNER_TEMP/play.json
           python3 - <<'EOF'
           import json, re, os, sys
           path = os.environ["RUNNER_TEMP"] + "/play.json"
@@ -33,13 +31,14 @@ jobs:
               json.loads(text); print("raw JSON OK"); sys.exit(0)
           except Exception:
               pass
-          import yaml
-          cleaned = re.sub(r",\s*$", "", text, flags=re.M)
-          data = yaml.safe_load(cleaned)
-          if not isinstance(data, dict) or "type" not in data:
-              print("parsed but unexpected structure:", type(data))
-              print("keys:", list(data)[:20] if isinstance(data, dict) else data[:300])
-              sys.exit(1)
+          t = re.sub(r",\s*$", "", text, flags=re.M)          # strip trailing commas
+          t = re.sub(r"^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)", r'\1"\2"\3', t, flags=re.M)  # quote keys
+          if not t.lstrip().startswith("{"):
+              t = "{\n" + t + "\n}"
+          try:
+              data = json.loads(t)
+          except Exception as e:
+              print("reconstruction failed:", e); sys.exit(1)
           json.dump(data, open(path, "w"))
           print("normalized: keys =", sorted(data.keys()))
           print("project_id =", data.get("project_id"), "| client_email =", data.get("client_email"))
