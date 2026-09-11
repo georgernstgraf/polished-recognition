@@ -18,6 +18,9 @@ jobs:
       - name: Set up Python
         run: pip install google-auth google-api-python-client
 
+      - name: Write service account key
+        run: echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > $RUNNER_TEMP/play.json
+
       - name: Normalize key file
         run: |
           pip install pyyaml >/dev/null 2>&1 || true
