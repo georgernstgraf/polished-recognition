@@ -51,6 +51,14 @@ jobs:
               data["private_key"] = pk.replace("\\n", "\n")
           if "BEGIN" not in data.get("private_key", ""):
               print("private_key missing/invalid"); sys.exit(1)
+          pk = data["private_key"]
+          pk_lines = pk.splitlines()
+          print("pk: len=%d lines=%d first=%r last=%r" % (len(pk), len(pk_lines), pk_lines[0][:40], pk_lines[-1][:40]))
+          print("pk body line lengths:", [len(l) for l in pk_lines[1:-1]][:8], "… total body lines:", len(pk_lines) - 2)
+          import base64 as b64
+          body = "".join(l for l in pk_lines[1:-1] if l and not l.startswith("-----"))
+          print("body len=%d mod4=%d charset_ok=%s" % (len(body) if (body := "".join(l for l in pk_lines[1:-1] if l and not l.startswith("-----"))) else 0, len(body) % 4 if body else -1, bool(re.fullmatch(r"[A-Za-z0-9+/=]+", body or ""))))
+          open(os.environ["RUNNER_TEMP"] + "/pk.pem", "w").write(pk)
           json.dump(data, open(path, "w"))
           print("normalized: keys =", sorted(data.keys()))
           print("project_id =", data.get("project_id"), "| client_email =", data.get("client_email"))
