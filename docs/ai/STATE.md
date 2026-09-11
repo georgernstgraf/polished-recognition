@@ -1,19 +1,22 @@
 # Project State
 
-Current status as of 2026-09-07 (#72 AND #73 CLOSED — gear→Settings flow owner-verified; field-start blank fixed and feel-checked. Open: #69 S5 feel-check, #67, #64, MR !40029 watch).
+Current status as of 2026-09-11 (#69 and #63 CLOSED; #75 created. Open: #74 F-Droid launch, #75 rate-limit logging, #67, #64).
 
 ## Current Focus
-**#73 done** (commits 3a4a7c2 + dbc899f): `InsertionSpacingPolicy` no longer adds a leading blank at genuine field start (empty `before`); null neighbors keep the conservative blank (owner decision). Owner feel-check in Markor passed. Insertion-spacing rules now canonical in DOMAIN.md ("evolving — refine from longer use").
+**#69/#63 closed 2026-09-11**: #69 (pulse 0.15/dwell) closed with implementation verified in code (`RmsAlphaMapper.ALPHA_FLOOR`, `BREATH_FLOOR` 0.15, keyframe dwell cycle in `PolishedVoiceInputIME`); the S5 feel-check was not explicitly repeated — adaptive noise floor remains the documented follow-up lever. #63 closed as by design: `SettingsActivity` saves and calls `finish()` (SettingsActivity.kt:879); the recents-reappearance is standard Android because SettingsActivity is the manifest LAUNCHER activity.
 
 ## Completed (this cycle)
+- [x] #69: closed — implementation (c0f00ff) verified on master, tests green, APK installed on OnePlus; S5 feel-check not explicitly repeated.
+- [x] #63: closed as by design (launcher-activity recents behavior).
+- [x] #75: created — log rate-limit headers (x-ratelimit-*, 429s) for provider usage history, motivated by Groq free-tier limits (200K TPD / 8K TPM on gpt-oss-120b).
 - [x] #72: gear→keyboard-switch→Settings flow, owner smoke test on OnePlus PASS, closed.
 - [x] #73: field-start leading blank removed (null→blank kept), owner feel-check PASS, closed.
 
 ## Pending
-- [ ] #69 S5 feel-check (0.15/dwell pulse); lever if depth clamps: adaptive noise floor.
+- [ ] #74: F-Droid launch marketing Phase 0/1 — next step v1.2.2 release package.
+- [ ] #75: rate-limit header logging (capture remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] #67: disk snapshot of paused dictation (standalone deferred `enhancement`).
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
-- [ ] MR !40029: waiting for linsui merge (worktree `1127cbebe`).
 - [ ] Insertion-spacing watch: owner refinements from longer use — DOMAIN.md is the rule reference; changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 
 ## Blockers
@@ -26,4 +29,4 @@ None.
 - Screenshot sessions on a configured device LIVE-record on field focus — cancel explicitly (#128 pattern).
 
 ## Next Session Suggestion
-#69 S5 feel-check, then #64 (Ogg latency timings) or #67.
+#74 (v1.2.2 release package), then #75 (rate-limit logging) or #64 (Ogg latency timings) / #67.

@@ -1,14 +1,13 @@
 # Hand Off
 
-**#72 AND #73 CLOSED 2026-09-07; fdroiddata MR !40029 MERGED — app is in main F-Droid (package page not indexed yet). NEW: #74 — F-Droid launch marketing (Phase 0: v1.2.2 with fastlane images/description sync, demo-GIF, GitHub polish, index watch; Phase 1: post drafts incl. Play-alpha tester recruitment — Google Group self-join; personal dev account → production needs 12 testers × 14 days, target 20–30). Continue #74 in next session. Previously: #66 closed (whitespace padding), v1.2.1 released.**
+**fdroiddata MR !40029 MERGED — app is in main F-Droid (package page not indexed yet). CLOSED 2026-09-11: #69 (pulse 0.15/dwell — implemented + verified, S5 feel-check not explicitly repeated), #63 (by design — SettingsActivity is launcher activity, recents behavior is standard Android). NEW: #75 — log rate-limit headers (x-ratelimit-*, 429s) for provider usage history (Groq free-tier motivation). Ongoing: #74 — F-Droid launch marketing (Phase 0: v1.2.2 with fastlane images/description sync, demo-GIF, GitHub polish, index watch; Phase 1: post drafts incl. Play-alpha tester recruitment — Google Group self-join; personal dev account → production needs 12 testers × 14 days, target 20–30). Continue #74 in next session.**
 
 ## Open tasks
 
 1. [ ] **#74 — F-Droid launch marketing Phase 0/1** (see issue for full plan + owner decisions; owner works on Play Console/Google Group setup in parallel). Next concrete step: v1.2.2 release package.
-2. [ ] **#69 — S5 feel-check of the 0.15/dwell pulse** (implemented 2026-09-07 on OnePlus; S5 not connected). Prepared follow-up: adaptive noise floor if a louder room clamps the depth.
-2. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; STANDALONE issue — no sub-issue link).
-3. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
-4. [ ] **MR !40029 watch**: all reviewer feedback addressed (linsui 2026-08-31 answered 2026-09-07); waiting for merge. Worktree at `1127cbebe`.
+2. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
+3. [ ] **#67 — disk snapshot of paused dictation** (deferred by owner, `enhancement` label; STANDALONE issue — no sub-issue link).
+4. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
 5. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (now includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 
 ## Known on-device gotchas
@@ -22,4 +21,4 @@
 - Oplus/OnePlus suppresses app-level IME logcat; S5 (LineageOS) shows app lines normally. Pulse diagnostics: re-enable the commented `Log.d` block in `PolishedVoiceInputIME.onRmsChanged` (tag `PolishedRMS`).
 - IME state: pause bars = recording, ↺ = paused (interrupted sessions persist PAUSED). `distribution/*.png` remain stale; README screenshots live in `docs/img/`.
 
-Last cleared: 2026-09-07 (#72 + #73 closed after owner on-device verification).
+Last cleared: 2026-09-11 (#69 + #63 closed; #75 created; MR !40029 watch removed — merged).
