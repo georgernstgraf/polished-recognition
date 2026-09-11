@@ -21,6 +21,19 @@ jobs:
       - name: Write service account key
         run: echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > $RUNNER_TEMP/play.json
 
+      - name: Normalize key file
+        run: |
+          wc -c $RUNNER_TEMP/play.json
+          if ! python3 -c "import json;json.load(open('$RUNNER_TEMP/play.json'))" 2>/dev/null; then
+            echo "raw parse failed — trying base64"
+            base64 -d $RUNNER_TEMP/play.json > $RUNNER_TEMP/play64.json || true
+            wc -c $RUNNER_TEMP/play64.json
+            python3 -c "import json;json.load(open('$RUNNER_TEMP/play64.json'))" \
+              && cp $RUNNER_TEMP/play64.json $RUNNER_TEMP/play.json \
+              && echo "base64 decode OK" \
+              || { echo "neither raw nor base64 parses"; head -c 40 $RUNNER_TEMP/play.json | od -c | head -5; exit 1; }
+          fi
+
       - name: Query tracks
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play.json
