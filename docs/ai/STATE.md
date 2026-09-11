@@ -1,20 +1,24 @@
 # Project State
 
-Current status as of 2026-09-11 (#69 and #63 CLOSED; #75 created. Open: #74 F-Droid launch, #75 rate-limit logging, #67, #64).
+Current status as of 2026-09-11 (v1.2.2 RELEASED to Play alpha + GitHub; F-Droid auto-update pending — #76 open. Open: #76 watch, #74 launch marketing, #75 rate-limit logging, #67, #64).
 
 ## Current Focus
-**#69/#63 closed 2026-09-11**: #69 (pulse 0.15/dwell) closed with implementation verified in code (`RmsAlphaMapper.ALPHA_FLOOR`, `BREATH_FLOOR` 0.15, keyframe dwell cycle in `PolishedVoiceInputIME`); the S5 feel-check was not explicitly repeated — adaptive noise floor remains the documented follow-up lever. #63 closed as by design: `SettingsActivity` saves and calls `finish()` (SettingsActivity.kt:879); the recents-reappearance is standard Android because SettingsActivity is the manifest LAUNCHER activity.
+**#76 — v1.2.2 publication**: tag `v1.2.2` (bump 42ec028, versionCode 10202) pushed; `release.yml` uploaded the AAB to **Play alpha** (edit committed `07044436216605520550`, status=completed, whatsnew attached) and `fdroid-apk.yml` attached the reproducible `polished-recognition.apk` to the GitHub release. Remaining: F-Droid side — fdroidbot auto-update (`AutoUpdateMode: Version`, no manual MR) must produce the 1.2.2 metadata + build on fdroiddata. #76 stays open until then.
 
 ## Completed (this cycle)
-- [x] #69: closed — implementation (c0f00ff) verified on master, tests green, APK installed on OnePlus; S5 feel-check not explicitly repeated.
-- [x] #63: closed as by design (launcher-activity recents behavior).
-- [x] #75: created — log rate-limit headers (x-ratelimit-*, 429s) for provider usage history, motivated by Groq free-tier limits (200K TPD / 8K TPM on gpt-oss-120b).
-- [x] #72: gear→keyboard-switch→Settings flow, owner smoke test on OnePlus PASS, closed.
-- [x] #73: field-start leading blank removed (null→blank kept), owner feel-check PASS, closed.
+- [x] #76 (standalone release issue) created — split from #74 (marketing): release mechanics vs. listing assets.
+- [x] #74 body corrected: listing package → **v1.2.3** (F-Droid reads fastlane metadata from the built tag; 1.2.2 ships without listing assets); release mechanics → #76; no fdroiddata MR for updates (AutoUpdateMode).
+- [x] v1.2.2 release: `whatsnew-en-GB` refreshed (#66/#73/#72/#69 wording), bump 10202/"1.2.2", tag pushed, both tag-workflows green, GitHub release carries `app-release.aab` + `polished-recognition.apk`.
+- [x] Tests 237/237 green — after fixing local `.env`: Groq **retired `llama-3.3-70b-versatile`**, replaced with `openai/gpt-oss-120b` (gitignored; CI unaffected).
+- [x] #69: closed (pulse 0.15/dwell, verified in code; S5 feel-check not explicitly repeated).
+- [x] #63: closed as by design (SettingsActivity is launcher activity → recents behavior).
+- [x] #72: gear→keyboard-switch→Settings flow, owner smoke test PASS, closed.
+- [x] #73: field-start leading blank removed, owner feel-check PASS, closed.
 
 ## Pending
-- [ ] #74: F-Droid launch marketing Phase 0/1 — next step v1.2.2 release package.
-- [ ] #75: rate-limit header logging (capture remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
+- [ ] #76: F-Droid publication watch (fdroidbot MR "Add 1.2.2" → green → build on f-droid.org) — then close.
+- [ ] #74: F-Droid launch marketing Phase 0/1 — next step **v1.2.3 listing-assets release** (fastlane `images/` icon + phoneScreenshots, full_description rewrite, README/INSTALLATION badges, then tag v1.2.3).
+- [ ] #75: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] #67: disk snapshot of paused dictation (standalone deferred `enhancement`).
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] Insertion-spacing watch: owner refinements from longer use — DOMAIN.md is the rule reference; changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
@@ -29,4 +33,4 @@ None.
 - Screenshot sessions on a configured device LIVE-record on field focus — cancel explicitly (#128 pattern).
 
 ## Next Session Suggestion
-#74 (v1.2.2 release package), then #75 (rate-limit logging) or #64 (Ogg latency timings) / #67.
+#76 F-Droid watch (then close), then #74 v1.2.3 listing-assets release, then #75 (rate-limit logging) or #64 (Ogg latency timings) / #67.

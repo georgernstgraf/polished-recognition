@@ -3,6 +3,18 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-11: v1.2.2 ships without listing assets; listing release becomes v1.2.3 (#76)
+- **Choice**: Tagged v1.2.2 (versionCode 10202) purely as a release-mechanics effort (standalone issue #76) — bump, tag, Play alpha upload, F-Droid auto-update. The fastlane listing work (images, full_description rewrite, README badges) moves to a future **v1.2.3** tag tracked in #74.
+- **Reason**: F-Droid reads fastlane metadata from the built tag, so listing changes must ride on a fresh version. Re-tagging v1.2.2 after the first build would force-push a tag — not acceptable. Owner decision: publish current code immediately (Play alpha + F-Droid availability), polish the listing separately.
+- **Considered**: Blocking 1.2.2 until the listing assets are ready; re-tagging v1.2.2 (rejected — force-tag).
+- **Tradeoff**: F-Droid will list 1.2.2 with the v1.2.1-era listing (no screenshots/icon in fastlane) until 1.2.3 lands.
+
+## 2026-09-11: No manual fdroiddata MR for version updates (AutoUpdateMode) (#76)
+- **Choice**: Rely on F-Droid's fdroidbot automatic update (metadata has `AutoUpdateMode: Version` + `UpdateCheckMode: Tags ^v` reading versionCode/versionName from `app/build.gradle.kts`); no manual "Add 1.2.2" MR.
+- **Reason**: The manual MR (worktree pattern per DECISIONS 2026-06-09) was required for the 1.2.1 **initial inclusion** (MR !40029). Updates are auto-detected; owner has no time pressure. #76 closes only when 1.2.2 is live on both platforms, so the watch is part of the issue.
+- **Considered**: Manual MR via `~/repos/schurlix/fdroiddata-mr-*` worktree (faster but unnecessary effort).
+- **Tradeoff**: Publication timing depends on the bot's periodic run — potentially hours–days; version-bump commits must keep the `UpdateCheckData` regex format intact.
+
 ## 2026-05-29: RecognitionService over IME
 - **Choice**: Implement as `RecognitionService`, not a custom `InputMethodService` keyboard
 - **Reason**: Works with every keyboard (Gboard, SwiftKey, Samsung, OpenBoard). Users just change one system setting (Voice Input provider). Building a full keyboard requires thousands of lines for QWERTY, autocorrect, suggestions, themes, etc. — all unrelated to voice input.
