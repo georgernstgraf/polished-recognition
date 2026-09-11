@@ -1,4 +1,3 @@
-• Simpler prompts — one editable System Prompt to tune how the app behaves; translation is now its own "Target Language Clause".
-• Cleaner text — transcripts and the final output are trimmed of stray whitespace.
-• Full transparency — every transcription is logged: the exact prompt sent to the LLM, plus the raw, uncut STT and LLM responses, saved as rotating JSON you can pull via adb to see exactly what your providers returned.
-• Clearer variable names and under-the-hood polish.
+• One-step gear — the switch button now drops you to your typing keyboard and opens Settings (#72).
+• Cleaner insertions — refined whitespace padding; no stray blank line at a genuine field start (#66, #73).
+• Calmer recording bar — the pulse dives deeper with a gentler floor dwell (#69).
