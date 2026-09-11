@@ -45,7 +45,24 @@ Read this file carefully before making changes in affected areas.
 - Groq retires models without notice — `llama-3.3-70b-versatile` (used by `GroqApiIntegrationTest` via `.env` `GROQ_LLM_MODEL`) is gone (2026-09-11, HTTP 404 `model_not_found`). Symptom: the "LLM cleans up…" test fails at `assertThat(response.isSuccessful).isTrue()`. Replacement logic: `openai/gpt-oss-*` separates reasoning from content and post-processes cleanly (needs generous `max_tokens` — reasoning burns budget); `qwen/qwen3.*` leaks chain-of-thought into the content field; `groq/compound-mini` works but is agentic. `.env` is gitignored — CI unaffected, but local/pre-push test runs break silently on retirement.
 - `r0adkll/upload-google-play` step in `release.yml` runs with `continue-on-error: true` — the workflow job reports SUCCESS even when the Play upload fails. After a release, grep the "Upload to Play Console" log for "Successfully committed <edit-id>" to confirm the alpha upload actually happened.
 - NEVER write a JSON secret to a file via `run: echo "${{ secrets.X }}" > file` — bash quote-toggle eats the JSON quotes (unquoted keys/values) and destroys `\n` escapes in the private_key (PEM becomes unparseable). Write via an env var instead: `env: KEY: ${{ secrets.X }}` + `python3 -c "...os.environ..."`. Root cause of the 2026-09-11 Play-query debug session.
-- Local Play Console queries (scripts/query-play-console.py) don't work from this machine: the default-path key `~/svn/georg/private/iron-country-322716-cbf4e476a3b0.json` exists only GPG-encrypted (`.asc`) and the GPG secret key is not in the local keyring; the unencrypted `~/.config/iron-country-322716-8ab0815de79f.json` belongs to another key and gets 403 "The caller does not have permission". To check Play tracks, temporarily re-add a workflow_dispatch query workflow using the `PLAY_SERVICE_ACCOUNT_JSON` secret (pattern: checkout → write key via env var → run scripts/query-play-console.py) and delete it after use.
+- Local Play Console queries (scripts/query-play-console.py) don't work from this machine: the default-path key `~/svn/georg/private/iron-country-322716-cbf4e476a3b0.json` exists only GPG-encrypted (`.asc`) and the GPG secret key is not in the local keyring; the unencrypted `~/.config/iron-country-322716-8ab0815de79f.json` belongs to another key and gets 403 "The caller does not have permission". Trick (verified 2026-09-11): run the query via CI. Temp workflow `.github/workflows/play-query-temp.yml` (commit, push, `gh workflow run play-query-temp.yml`), pattern:
+  ```yaml
+  jobs:
+    query:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - run: pip install google-auth google-api-python-client
+        - name: Write key              # env var, NOT echo (see above)
+          env:
+            PLAY_KEY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          run: python3 -c "import os; open(os.environ['RUNNER_TEMP']+'/play.json','w').write(os.environ['PLAY_KEY'])"
+        - name: Query tracks
+          env:
+            PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play.json
+          run: python3 scripts/query-play-console.py
+  ```
+  Track output (releases, versionCodes, releaseNotes) is non-secret. DELETE the workflow afterwards; commit history shows it worked with `scripts/query-play-console.py` unchanged.
 - AGP 9.x drops the `org.jetbrains.kotlin.android` plugin — it is no longer required and must be removed from `plugins` blocks. The `kotlinOptions {}` configuration block is also unavailable in AGP 9.x; JVM target is derived from `compileOptions { targetCompatibility }`.
 - The `r0adkll/upload-google-play` GitHub Action returns a generic "Precondition check failed" error with no details when Play Console blocks a commit. Use the direct Play Developer API (via `scripts/query-play-console.py` style calls) instead to get precise error messages.
 - Android VectorDrawable (`<vector>`) does not support SVG `<filter>`, `<pattern>`, `<clipPath>`, or `<feDropShadow>` elements. Gradients, drop shadows, mesh patterns, and glow effects from a high-quality SVG cannot be directly ported — render to PNG instead.
