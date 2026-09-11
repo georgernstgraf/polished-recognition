@@ -2,11 +2,12 @@
 
 ## 1. Install from Play Store (Closed Testing)
 
-The app is currently in closed testing. The Play Store link only works after
-you have been added to the testers list:
+The app is in closed testing on Google Play — everyone is welcome!
+The Play Store link works as soon as you're on the testers list:
 
-1. Send a [request email](mailto:georg.ernst.graf@gmail.com) to be added
-2. Once added, install from the [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
+1. Drop me a short [email](mailto:georg.ernst.graf@gmail.com) and I'll add you
+   right away
+2. Then install from the [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
 
 > An APK is also built on GitHub for each release.
 

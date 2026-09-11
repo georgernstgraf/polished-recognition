@@ -49,6 +49,19 @@ See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup
 (English & German): Play Store installation, configuring providers, enabling
 the voice keyboard, and device-specific notes.
 
+## Become an Alpha Tester
+
+Polished Recognition is in closed testing on Google Play — and I'm still
+looking for testers! Just [send me an email](mailto:georg.ernst.graf@gmail.com)
+and I'll add you to the Play Store testers list (see the
+[Installation Guide](INSTALLATION.md) for details).
+
+Don't be shy with feedback — report bugs and ideas as
+[GitHub Issues](https://github.com/georgernstgraf/polished-recognition/issues),
+or open a
+[Pull Request](https://github.com/georgernstgraf/polished-recognition/pulls)
+if you've fixed something. I happily accept contributions.
+
 ## Providers
 
 Configured via presets or custom URLs — anything speaking the OpenAI API
