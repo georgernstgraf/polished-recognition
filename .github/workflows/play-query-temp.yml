@@ -18,21 +18,29 @@ jobs:
       - name: Set up Python
         run: pip install google-auth google-api-python-client
 
-      - name: Write service account key
-        run: echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > $RUNNER_TEMP/play.json
-
       - name: Normalize key file
         run: |
+          pip install pyyaml >/dev/null 2>&1 || true
           wc -c $RUNNER_TEMP/play.json
-          if ! python3 -c "import json;json.load(open('$RUNNER_TEMP/play.json'))" 2>/dev/null; then
-            echo "raw parse failed — trying base64"
-            base64 -d $RUNNER_TEMP/play.json > $RUNNER_TEMP/play64.json || true
-            wc -c $RUNNER_TEMP/play64.json
-            python3 -c "import json;json.load(open('$RUNNER_TEMP/play64.json'))" \
-              && cp $RUNNER_TEMP/play64.json $RUNNER_TEMP/play.json \
-              && echo "base64 decode OK" \
-              || { echo "neither raw nor base64 parses"; head -c 40 $RUNNER_TEMP/play.json | od -c | head -5; exit 1; }
-          fi
+          python3 - <<'EOF'
+          import json, re, os, sys
+          path = os.environ["RUNNER_TEMP"] + "/play.json"
+          text = open(path).read()
+          try:
+              json.loads(text); print("raw JSON OK"); sys.exit(0)
+          except Exception:
+              pass
+          import yaml
+          cleaned = re.sub(r",\s*$", "", text, flags=re.M)
+          data = yaml.safe_load(cleaned)
+          if not isinstance(data, dict) or "type" not in data:
+              print("parsed but unexpected structure:", type(data))
+              print("keys:", list(data)[:20] if isinstance(data, dict) else data[:300])
+              sys.exit(1)
+          json.dump(data, open(path, "w"))
+          print("normalized: keys =", sorted(data.keys()))
+          print("project_id =", data.get("project_id"), "| client_email =", data.get("client_email"))
+          EOF
 
       - name: Query tracks
         env:
