@@ -1,0 +1,27 @@
+name: Play Console Query (temp)
+
+# Temporary: query Play Console track status using the CI service account.
+# Output is not secret (track names / release info); the key itself is masked by GitHub.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        run: pip install google-auth google-api-python-client
+
+      - name: Write service account key
+        run: echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > $RUNNER_TEMP/play.json
+
+      - name: Query tracks
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play.json
+        run: python3 scripts/query-play-console.py
