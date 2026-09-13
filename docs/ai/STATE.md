@@ -1,16 +1,16 @@
 # Project State
 
-Current status as of 2026-09-13 (#77 IME paused-contrast fix committed + pushed; on-device feel-check pending by owner. #76 F-Droid watch open. Open: #76, #74, #75, #71, #67, #64).
+Current status as of 2026-09-13 (#77 IME paused-contrast fix shipped + closed on code verification; on-device feel-check delegated to owner — reopen if it fails. #76 F-Droid watch open. Open: #76, #74, #75, #71, #67, #64).
 
 ## Current Focus
-**#77 — IME full contrast when not recording**: shipped in `6546990` (`fix: keep IME fully opaque when not recording (#77)`) — new `PulseAlphaPolicy` pins row alpha to `1f` outside RECORDING; pulse (`maxOf(breathAlpha, voiceAlpha)`) only while RECORDING. `./gradlew test` 184/184 green incl. new `PulseAlphaPolicyTest`; `assembleRelease` green (R8 + lintVital). Remaining: owner runs `installRelease` on the device machine and pauses during the deep dwell phase to confirm the bar stays opaque (then #77 can close).
+**#77 — IME full contrast when not recording**: shipped in `6546990` (`fix: keep IME fully opaque when not recording (#77)`) — new `PulseAlphaPolicy` pins row alpha to `1f` outside RECORDING; pulse (`maxOf(breathAlpha, voiceAlpha)`) only while RECORDING. `./gradlew test` 184/184 green incl. new `PulseAlphaPolicyTest`; `assembleRelease` green (R8 + lintVital). Closed on code verification (precedent #69). On-device feel-check delegated to owner (`installRelease` on the device machine; pause during the deep dwell phase → bar must stay opaque) — reopen #77 if it fails.
 
 ## Completed (this cycle)
 - [x] #77 created (`enhancement`, standalone) — pause during pulse deep phase froze the IME at alpha 0.15; root-caused to `applyAlpha()` applying stale `maxOf(breathAlpha, voiceAlpha)` after animator cancel with no RMS outside RECORDING.
-- [x] #77 implemented: `service/PulseAlphaPolicy.kt` + `applyAlpha()` delegation + `PulseAlphaPolicyTest` (7 cases); tests + release build green; committed/pushed.
+- [x] #77 implemented: `service/PulseAlphaPolicy.kt` + `applyAlpha()` delegation + `PulseAlphaPolicyTest` (7 cases); tests + release build green; committed/pushed; knowledge persisted; closed.
 
 ## Pending
-- [ ] #77: owner on-device feel-check (pause mid-deep-phase → opaque; resume → pulse returns); close if PASS.
+- [ ] #77 (delegated, reopen-on-fail): owner on-device feel-check — pause mid-deep-phase → opaque; resume → pulse returns.
 - [ ] #76: F-Droid publication watch (fdroidbot MR "Add 1.2.2" → green → build on f-droid.org) — then close.
 - [ ] #74: F-Droid launch marketing Phase 0/1 — next step **v1.2.3 listing-assets release** (fastlane `images/` icon + phoneScreenshots, full_description rewrite, README/INSTALLATION badges, then tag v1.2.3).
 - [ ] #75: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
