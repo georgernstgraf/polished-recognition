@@ -407,7 +407,9 @@ class PolishedVoiceInputIME : InputMethodService() {
     private fun applyAlpha() {
         // Pulse the foreground rows only — a dimmed root background over the dark IME window
         // reads as a "pulsing background" in light mode but is invisible in dark mode (#59).
-        val a = maxOf(breathAlpha, voiceAlpha)
+        // Outside RECORDING the rows are pinned to full opacity so a pause during the deep
+        // dwell phase cannot freeze the IME near-invisible (#77).
+        val a = PulseAlphaPolicy.target(controller.state, breathAlpha, voiceAlpha)
         rowTop?.alpha = a
         rowButtons?.alpha = a
     }
