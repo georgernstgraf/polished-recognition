@@ -3,6 +3,12 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-13: IME pulse applies only while RECORDING; all other states full opacity (#77)
+- **Choice**: Extract `service/PulseAlphaPolicy.target(state, breathAlpha, voiceAlpha)` — returns `maxOf(breathAlpha, voiceAlpha)` only in `RECORDING`, else `1f`. `PolishedVoiceInputIME.applyAlpha()` delegates to it.
+- **Reason**: Pausing during the breathing cycle's deep/dwell phase cancelled the animator but left the last animated `breathAlpha` (floor 0.15) applied; since `RmsChanged` is only honored in `RECORDING`, nothing ever lifted it and the IME froze near-invisible in `PAUSED`. The pulse is a *live-recording* indicator, so it has no meaning outside `RECORDING` — full contrast everywhere else (also fixes stale dimming inherited by `IDLE`/`PROCESSING`).
+- **Considered**: PAUSED-only override (rejected — leaves `PROCESSING`/`IDLE` able to inherit stale values); resetting `breathAlpha`/`voiceAlpha` on pause (works but implicit and untestable).
+- **Tradeoff**: One new policy object + test file; `IDLE` rows now render at `1.0` (previously sat at the leftover `BREATH_CEIL = 0.9`).
+
 ## 2026-09-11: v1.2.2 ships without listing assets; listing release becomes v1.2.3 (#76)
 - **Choice**: Tagged v1.2.2 (versionCode 10202) purely as a release-mechanics effort (standalone issue #76) — bump, tag, Play alpha upload, F-Droid auto-update. The fastlane listing work (images, full_description rewrite, README badges) moves to a future **v1.2.3** tag tracked in #74.
 - **Reason**: F-Droid reads fastlane metadata from the built tag, so listing changes must ride on a fresh version. Re-tagging v1.2.2 after the first build would force-push a tag — not acceptable. Owner decision: publish current code immediately (Play alpha + F-Droid availability), polish the listing separately.
