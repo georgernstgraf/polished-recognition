@@ -12,6 +12,7 @@ Current status as of 2026-09-14 (v1.2.3 RELEASED as a patch for #77: tag `v1.2.3
 - [x] #76 closed as superseded by #78; #74 body retargeted from v1.2.3 to **v1.3.0**.
 - [x] Knowledge persisted: DECISIONS (v1.2.3 patch / v1.3.0 listing target), PITFALLS (fdroidbot lag/supersede, upstream vs fork fdroiddata, Play log evidence), CONVENTIONS/ARCHITECTURE track corrected internal→alpha, HISTORY archive.
 - [x] #77 device feel-check PASSED by owner on-device 2026-09-14 (v1.2.3) — pause during the deep phase keeps the bar fully opaque; no reopen.
+- [x] #79 implemented (`ebae932`) — `scripts/cleanup-github-assets.sh` (keep newest 7 per kind; `v*` tags never deleted) wired into `build.yml`/`release.yml`/`fdroid-apk.yml` (`actions: write`); `build.yml` now `make_latest: false`. Backlog pruned: 270→21 Actions artifacts, 58→7 `build-*` tags, 9→7 `v*` release pages (18 `v*` tags intact); `v1.2.3` restored as GitHub "Latest". CI-verified twice (`build.yml` green, prunes on every push). Docs: CONVENTIONS retention policy + PITFALLS (`head -n -7` direction trap, expired-artifact retry).
 
 ## Pending
 - [ ] #78: F-Droid watch — poll upstream `fdroiddata` until `CurrentVersion: 1.2.3 / 10203`, confirm f-droid.org serves 10203, then close.
