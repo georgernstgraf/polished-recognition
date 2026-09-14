@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-09-14 (v1.2.3 RELEASED as a patch for #77: tag `v1.2.3` pushed, Play alpha verified live 1.2.3/10203 status=completed via Play API, GitHub release has AAB + reproducible APK, workflows green. F-Droid auto-update pending — watch in #78. Listing-assets release retargeted to v1.3.0 (#74). Open: #78, #74, #75, #71, #67, #64).
+Current status as of 2026-09-14 (v1.2.3 RELEASED as a patch for #77: tag `v1.2.3` pushed, Play alpha verified live 1.2.3/10203 status=completed via Play API, GitHub release has AAB + reproducible APK, workflows green. F-Droid auto-update pending — watch in #78. Listing-assets release retargeted to v1.3.0 (#74). #77 device feel-check PASSED 2026-09-14. Open: #78, #74, #75, #71, #67, #64).
 
 ## Current Focus
 **#78 — v1.2.3 publication (patch for #77)**: commit `7175c5c` bumped `versionCode 10203` / `versionName "1.2.3"` and refreshed `distribution/whatsnew/whatsnew-en-GB`; `./gradlew test` 184/184 + `assembleRelease` green; tag `v1.2.3` pushed. `release.yml` + `fdroid-apk.yml` + `build.yml` all green. Play alpha confirmed via temp CI Play-API query: `alpha: 1.2.3 status=completed versionCodes=['10203']` with en-GB release notes; `production`/`beta` empty; `internal` still the 0.0.6/601 initial release. Upstream `fdroiddata` is at `CurrentVersion: 1.2.2 / 10202`; because the v1.2.3 tag landed before the next fdroidbot run, F-Droid will skip 1.2.2 and update to 1.2.3. #76 (v1.2.2 watch) closed as superseded.
@@ -11,10 +11,10 @@ Current status as of 2026-09-14 (v1.2.3 RELEASED as a patch for #77: tag `v1.2.3
 - [x] Play alpha 10203 verified live via the documented temp CI Play-API query (workflow created, run, deleted).
 - [x] #76 closed as superseded by #78; #74 body retargeted from v1.2.3 to **v1.3.0**.
 - [x] Knowledge persisted: DECISIONS (v1.2.3 patch / v1.3.0 listing target), PITFALLS (fdroidbot lag/supersede, upstream vs fork fdroiddata, Play log evidence), CONVENTIONS/ARCHITECTURE track corrected internal→alpha, HISTORY archive.
+- [x] #77 device feel-check PASSED by owner on-device 2026-09-14 (v1.2.3) — pause during the deep phase keeps the bar fully opaque; no reopen.
 
 ## Pending
 - [ ] #78: F-Droid watch — poll upstream `fdroiddata` until `CurrentVersion: 1.2.3 / 10203`, confirm f-droid.org serves 10203, then close.
-- [ ] #77 (delegated, reopen-on-fail): owner on-device feel-check — pause mid-deep-phase → bar stays opaque; resume → pulse returns. Shipped in v1.2.3 but never device-verified.
 - [ ] #74: F-Droid launch Phase 0/1 — next release is **v1.3.0 (minor bump)** with listing assets (fastlane `images/` icon + phoneScreenshots, full_description rewrite, README/INSTALLATION badges), Play tester infra, demo GIF.
 - [ ] #75: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] #71: REC time counter in IME bar during recording.
@@ -33,4 +33,4 @@ None.
 - The agent host (VPS) has no attached device — on-device verification is always delegated to the owner on the device machine.
 
 ## Next Session Suggestion
-#77 device feel-check (then close), #78 F-Droid watch, then #74 v1.3.0 listing-assets release, then #75 / #71 / #64 / #67.
+#78 F-Droid watch, then #74 v1.3.0 listing-assets release, then #75 / #71 / #64 / #67.
