@@ -1,0 +1,19 @@
+name: Play Query (temp)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install google-auth google-api-python-client
+      - name: Write key
+        env:
+          PLAY_KEY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python3 -c "import os; open(os.environ['RUNNER_TEMP']+'/play.json','w').write(os.environ['PLAY_KEY'])"
+      - name: Query tracks
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play.json
+        run: python3 scripts/query-play-console.py
