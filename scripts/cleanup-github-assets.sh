@@ -5,7 +5,7 @@
 #   - Actions workflow artifacts: keep newest KEEP PER artifact name
 #   - build-* releases: keep newest KEEP (delete release page AND git tag)
 #   - orphan build-* git tags (page already gone): keep newest KEEP
-#   - v* release pages: keep newest KEEP (git tags are NEVER deleted)
+#   - v* releases: NEVER pruned (F-Droid Binaries: per-version URLs + tags)
 #
 # Requires GH_TOKEN with:
 #   contents:write  -> releases + git refs
@@ -83,21 +83,11 @@ done < <(
   | sort -t- -k2,2n | head -n "-$KEEP" || true
 )
 
-# --- 4. v* release pages: keep newest KEEP (tags kept!) --------------------
-log "v* release pages: keep newest $KEEP (tags kept)"
-while IFS= read -r tag; do
-  [ -n "$tag" ] || continue
-  if dry; then
-    log "  [dry-run] delete release page $tag (tag kept)"
-  else
-    log "  delete release page $tag (tag kept)"
-    gh release delete "$tag" --yes >/dev/null 2>&1 \
-      || log "    (failed $tag)"
-  fi
-done < <(
-  gh release list --limit 1000 --json tagName,createdAt \
-    --jq 'sort_by(.createdAt) | reverse | .[] | select(.tagName | test("^v[0-9]")) | .tagName' \
-  | tail -n +$((KEEP + 1)) || true
-)
+# --- 4. v* releases: NEVER pruned ------------------------------------------
+# fdroiddata's Binaries: URL is per-version
+#   releases/download/v%v/polished-recognition.apk
+# so every v* release page must stay reachable for F-Droid's
+# reproducible-build verification. v* git tags are needed by UpdateCheckMode.
+log "v* releases: kept (never pruned — F-Droid Binaries:/tag dependency)"
 
 log "Done (KEEP=$KEEP, repo=$REPO)."
