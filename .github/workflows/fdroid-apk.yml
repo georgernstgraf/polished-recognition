@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Resolve tag
         id: tag
@@ -84,13 +85,7 @@ jobs:
           fi
           gh release upload "$TAG" polished-recognition.apk --clobber
 
-      - name: Cleanup old releases (keep newest 10 v* releases; keep git tags)
+      - name: Prune GitHub binary assets (keep newest 7)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mapfile -t old < <(gh release list --limit 100 --json tagName,createdAt \
-            --jq 'sort_by(.createdAt) | reverse | .[].tagName' | grep '^v' | tail -n +11)
-          for t in "${old[@]}"; do
-            echo "Deleting old release page: $t (git tag kept)"
-            gh release delete "$t" --yes 2>/dev/null || true
-          done
+        run: bash scripts/cleanup-github-assets.sh
