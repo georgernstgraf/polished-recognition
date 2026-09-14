@@ -1,3 +1,1 @@
-• One-step gear — the switch button now drops you to your typing keyboard and opens Settings (#72).
-• Cleaner insertions — refined whitespace padding; no stray blank line at a genuine field start (#66, #73).
-• Calmer recording bar — the pulse dives deeper with a gentler floor dwell (#69).
+• Clearer paused state — the voice bar no longer fades out when dictation is paused; the breathing pulse shows only while actually recording (#77).
