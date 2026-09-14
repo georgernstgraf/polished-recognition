@@ -73,7 +73,7 @@ Builds release APK and AAB signed with the same keystore as local builds for Git
 
 ### `release.yml` — Play Store Release (tag `v*`)
 
-Builds AAB signed with upload keystore from secrets, uploads to Play Console internal track.
+Builds AAB signed with upload keystore from secrets, uploads to Play Console alpha track.
 
 ```yaml
 ./gradlew bundleRelease --no-daemon \
@@ -85,7 +85,7 @@ Builds AAB signed with upload keystore from secrets, uploads to Play Console int
   -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 ```
 
-- `r0adkll/upload-google-play@v1` → **internal** track with `status: completed` (directly live)
+- `r0adkll/upload-google-play@v1` → **alpha** track with `status: completed` (directly live)
 - `softprops/action-gh-release@v2` → AAB artifact on GitHub Release
 - Secrets: `UPLOAD_KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON`
 - Production track is blocked by Play Console preconditions — switch `tracks` value when resolved

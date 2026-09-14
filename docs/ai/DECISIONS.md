@@ -9,11 +9,14 @@ Each entry documents WHAT was decided and WHY.
 - **Considered**: PAUSED-only override (rejected — leaves `PROCESSING`/`IDLE` able to inherit stale values); resetting `breathAlpha`/`voiceAlpha` on pause (works but implicit and untestable).
 - **Tradeoff**: One new policy object + test file; `IDLE` rows now render at `1.0` (previously sat at the leftover `BREATH_CEIL = 0.9`).
 
-## 2026-09-11: v1.2.2 ships without listing assets; listing release becomes v1.2.3 (#76)
-- **Choice**: Tagged v1.2.2 (versionCode 10202) purely as a release-mechanics effort (standalone issue #76) — bump, tag, Play alpha upload, F-Droid auto-update. The fastlane listing work (images, full_description rewrite, README badges) moves to a future **v1.2.3** tag tracked in #74.
-- **Reason**: F-Droid reads fastlane metadata from the built tag, so listing changes must ride on a fresh version. Re-tagging v1.2.2 after the first build would force-push a tag — not acceptable. Owner decision: publish current code immediately (Play alpha + F-Droid availability), polish the listing separately.
-- **Considered**: Blocking 1.2.2 until the listing assets are ready; re-tagging v1.2.2 (rejected — force-tag).
-- **Tradeoff**: F-Droid will list 1.2.2 with the v1.2.1-era listing (no screenshots/icon in fastlane) until 1.2.3 lands.
+## 2026-09-11: v1.2.2 ships without listing assets
+- Moved to HISTORY.md — the "listing release becomes v1.2.3" target was retargeted to **v1.3.0** on 2026-09-14 (#74); see the entry below.
+
+## 2026-09-14: v1.2.3 is a patch for #77; listing assets become v1.3.0 (#78)
+- **Choice**: Released v1.2.3 (versionCode 10203) as a pure patch to ship the #77 opaque-IME fix. The listing-assets release (fastlane `images/icon.png` + `phoneScreenshots/`, `full_description.txt` rewrite, README/INSTALLATION F-Droid badge) is retargeted from v1.2.3 to a **minor v1.3.0** release tracked in #74.
+- **Reason**: Owner decision 2026-09-14 — ship the pulse-contrast fix immediately without bundling the larger listing/marketing work; a listing milestone warrants a visible minor bump rather than another patch.
+- **Considered**: Bundling the listing assets into v1.2.3 (rejected — delays the fix; fastlane assets need their own built tag anyway); calling the listing release v1.2.4 (rejected — owner wants a minor bump to signal the listing/marketing milestone).
+- **Tradeoff**: v1.2.2 and v1.2.3 reach F-Droid without listing assets; because the v1.2.3 tag landed before fdroidbot's next run, F-Droid will skip 1.2.2 and serve 1.2.3 directly. #76 (v1.2.2 watch) was closed as superseded by #78.
 
 ## 2026-09-11: No manual fdroiddata MR for version updates (AutoUpdateMode) (#76)
 - **Choice**: Rely on F-Droid's fdroidbot automatic update (metadata has `AutoUpdateMode: Version` + `UpdateCheckMode: Tags ^v` reading versionCode/versionName from `app/build.gradle.kts`); no manual "Add 1.2.2" MR.

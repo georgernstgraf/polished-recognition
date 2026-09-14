@@ -61,3 +61,11 @@ Entries here are no longer active truth. Never delete from this file.
 - **Tradeoff**: One more activity; the gear tap no longer reaches Settings directly mid-session (quick settings language/raw spinner still work on the bar).
 - **Origin**: DECISIONS.md
 - **Reason**: #65's verified keyboard-switch mechanism removed the "can't type" blocker: the gear now switches to the text keyboard first (`startActivity` before `switchInputMethod`), then opens SettingsActivity (#72). The notification `contentIntent` still launches the hint.
+
+## 2026-09-11 (SUPERSEDED 2026-09-14, origin: DECISIONS.md, reason: #74/#78 — listing target moved v1.2.3 → v1.3.0): v1.2.2 ships without listing assets; listing release becomes v1.2.3 (#76)
+- **Choice**: Tagged v1.2.2 (versionCode 10202) purely as a release-mechanics effort (standalone issue #76) — bump, tag, Play alpha upload, F-Droid auto-update. The fastlane listing work (images, full_description rewrite, README badges) moves to a future **v1.2.3** tag tracked in #74.
+- **Reason**: F-Droid reads fastlane metadata from the built tag, so listing changes must ride on a fresh version. Re-tagging v1.2.2 after the first build would force-push a tag — not acceptable. Owner decision: publish current code immediately (Play alpha + F-Droid availability), polish the listing separately.
+- **Considered**: Blocking 1.2.2 until the listing assets are ready; re-tagging v1.2.2 (rejected — force-tag).
+- **Tradeoff**: F-Droid will list 1.2.2 with the v1.2.1-era listing (no screenshots/icon in fastlane) until 1.2.3 lands.
+- **Origin**: DECISIONS.md
+- **Reason**: The listing release target was retargeted to v1.3.0 (minor bump) on 2026-09-14; v1.2.3 became a pure #77 patch.

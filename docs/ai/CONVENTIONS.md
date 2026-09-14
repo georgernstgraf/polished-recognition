@@ -60,7 +60,7 @@ The transcription pipeline resolves the following template variables at runtime.
 - The debug build type sets `applicationIdSuffix = ".debug"`, creating a different application ID. The system's `voice_recognition_service` setting points to the release application ID, so the debug APK will never work as a voice input provider.
 - To ensure CI builds produce APKs with the same signature as local builds, store `~/.android/debug.keystore` (base64-encoded) plus storePassword/keyAlias/keyPassword as GitHub Secrets (`RELEASE_KEYSTORE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`). The CI workflow decodes the keystore into `app/release.keystore` and passes passwords via env vars to `assembleRelease`. The `signingConfigs.release` block in `app/build.gradle.kts` reads env vars, falling back to `android`/`androiddebugkey`.
 - Stack: AGP 9.1.1, Gradle 9.5.1, JDK 21, compileSdk/targetSdk 36, minSdk 30. No Kotlin plugin (AGP 9.x has built-in Kotlin support). JVM target derived from `compileOptions { targetCompatibility = VERSION_21 }`.
-- The `release.yml` workflow targets the `internal` track with `status: completed`. Production track is blocked by Play Console preconditions. Switch to `tracks: production` when preconditions are resolved.
+- The `release.yml` workflow targets the `alpha` track with `status: completed`. Production track is blocked by Play Console preconditions. Switch to `tracks: production` when preconditions are resolved.
 - Test framework: JUnit 4 (`@Test`, `@Before`, `@After`), no JUnit 5
 - Mocking: MockK 1.14.4 (`mockk(relaxed=true)`, `coEvery { ... } returns ...`, `slot<T>()`)
 - Assertions: Google Truth 1.4.4 (`Truth.assertThat(...)`)
