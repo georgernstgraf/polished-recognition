@@ -160,7 +160,7 @@ class SettingsActivity : Activity() {
         })
 
         findViewById<Button>(R.id.wrap_80).setOnClickListener { wrapWidthField.setText("80") }
-        findViewById<Button>(R.id.wrap_90).setOnClickListener { wrapWidthField.setText("90") }
+        findViewById<Button>(R.id.wrap_120).setOnClickListener { wrapWidthField.setText("120") }
         findViewById<Button>(R.id.wrap_200).setOnClickListener { wrapWidthField.setText("200") }
         findViewById<Button>(R.id.wrap_off).setOnClickListener { wrapWidthField.setText("0") }
     }

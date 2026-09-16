@@ -4,7 +4,7 @@ Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
 ## 2026-09-16: Configurable output line-wrap, 0 to disable, default 80 (#81)
-- **Choice**: `SettingsStore.wrapWidth` (Int, default 80, `0` = disabled) + pure `pipeline/LineWrapPolicy` greedy word-wrap applied to the final text in `TranscriptionPipeline` (both raw and LLM paths, before `InsertionSpacingPolicy` padding in the IME). Settings UI: numeric `EditText` (`inputType="number"`) + quick-set buttons 80/90/200/0-off + validation (0 or ≥10).
+- **Choice**: `SettingsStore.wrapWidth` (Int, default 80, `0` = disabled) + pure `pipeline/LineWrapPolicy` greedy word-wrap applied to the final text in `TranscriptionPipeline` (both raw and LLM paths, before `InsertionSpacingPolicy` padding in the IME). Settings UI: numeric `EditText` (`inputType="number"`) + quick-set buttons 80/120/200/0-off + validation (0 or ≥10).
 - **Reason**: Owner request — on-demand wrapping at 80/90/200 chars, fully disableable via 0, default 80.
 - **Tradeoff**: Wrapping runs before spacing padding, so the trailing space from `InsertionSpacingPolicy` can push a line 1 char over width — accepted (padding correctness beats exact width). Long single words are never hard-split (URLs survive).
 

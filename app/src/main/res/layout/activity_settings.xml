@@ -102,10 +102,10 @@
                 style="@android:style/Widget.DeviceDefault.Button.Borderless" />
 
             <Button
-                android:id="@+id/wrap_90"
+                android:id="@+id/wrap_120"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="90"
+                android:text="120"
                 style="@android:style/Widget.DeviceDefault.Button.Borderless" />
 
             <Button
