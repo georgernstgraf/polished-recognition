@@ -3,6 +3,16 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-16: #78 closed as shipped; 1.2.3 F-Droid pickup left to untracked auto-update
+- **Choice**: Closed #78 (v1.2.3 patch release) per owner as implemented — bump `10203`/`1.2.3`, tag `v1.2.3`, both workflows green, Play alpha verified live (1.2.3/10203, status=completed). F-Droid still served 1.2.2 on 2026-09-16; the 1.2.3 pickup happens via fdroidbot auto-update with no manual step, so no watch issue remains — reopen only if the pickup stalls.
+- **Reason**: The issue's only open item was the F-Droid close-watch; everything actionable is done and verified. Keeping a tracking issue for a fully automatic bot run adds no value.
+- **Tradeoff**: No notification fires when 1.2.3 goes live on F-Droid — discovery is manual (f-droid.org package page) or via the next release's routine check.
+
+## 2026-09-16: #67 closed as maybe-later (no evidence of process-death loss)
+- **Choice**: Closed #67 (disk snapshot of paused dictation) not-planned per owner — deferred since 2026-09-07 with still no feedback whether process-death PCM loss is a real problem in practice. The proposal (`AudioRecorder.snapshotPcm()/restorePcm()` + `cacheDir/session.pcm` flush on pause, restore to PAUSED on init) stays documented in the issue — reopen on demand if dictation loss is ever observed.
+- **Reason**: An in-memory-only paused session (#65) has produced no loss reports; building crash-recovery I/O on the keyboard-show path is unjustified without evidence.
+- **Tradeoff**: A process kill while paused still loses the dictation — accepted until observed.
+
 ## 2026-09-13: IME pulse applies only while RECORDING; all other states full opacity (#77)
 - **Choice**: Extract `service/PulseAlphaPolicy.target(state, breathAlpha, voiceAlpha)` — returns `maxOf(breathAlpha, voiceAlpha)` only in `RECORDING`, else `1f`. `PolishedVoiceInputIME.applyAlpha()` delegates to it.
 - **Reason**: Pausing during the breathing cycle's deep/dwell phase cancelled the animator but left the last animated `breathAlpha` (floor 0.15) applied; since `RmsChanged` is only honored in `RECORDING`, nothing ever lifted it and the IME froze near-invisible in `PAUSED`. The pulse is a *live-recording* indicator, so it has no meaning outside `RECORDING` — full contrast everywhere else (also fixes stale dimming inherited by `IDLE`/`PROCESSING`).
