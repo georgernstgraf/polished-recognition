@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-16: Configurable output line-wrap, 0 to disable, default 80 (#81)
+- **Choice**: `SettingsStore.wrapWidth` (Int, default 80, `0` = disabled) + pure `pipeline/LineWrapPolicy` greedy word-wrap applied to the final text in `TranscriptionPipeline` (both raw and LLM paths, before `InsertionSpacingPolicy` padding in the IME). Settings UI: numeric `EditText` (`inputType="number"`) + quick-set buttons 80/90/200/0-off + validation (0 or ≥10).
+- **Reason**: Owner request — on-demand wrapping at 80/90/200 chars, fully disableable via 0, default 80.
+- **Tradeoff**: Wrapping runs before spacing padding, so the trailing space from `InsertionSpacingPolicy` can push a line 1 char over width — accepted (padding correctness beats exact width). Long single words are never hard-split (URLs survive).
+
 ## 2026-09-16: #78 closed as shipped; 1.2.3 F-Droid pickup left to untracked auto-update
 - **Choice**: Closed #78 (v1.2.3 patch release) per owner as implemented — bump `10203`/`1.2.3`, tag `v1.2.3`, both workflows green, Play alpha verified live (1.2.3/10203, status=completed). F-Droid still served 1.2.2 on 2026-09-16; the 1.2.3 pickup happens via fdroidbot auto-update with no manual step, so no watch issue remains — reopen only if the pickup stalls.
 - **Reason**: The issue's only open item was the F-Droid close-watch; everything actionable is done and verified. Keeping a tracking issue for a fully automatic bot run adds no value.
