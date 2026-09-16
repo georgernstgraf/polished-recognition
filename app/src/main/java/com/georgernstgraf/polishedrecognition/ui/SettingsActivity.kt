@@ -65,6 +65,7 @@ class SettingsActivity : Activity() {
     private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
+    private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
 
     private val systemPromptField: EditText by lazy { findViewById(R.id.system_prompt) }
     private val targetLanguageClauseField: EditText by lazy { findViewById(R.id.target_language_clause) }
@@ -149,6 +150,19 @@ class SettingsActivity : Activity() {
         findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
 
         findViewById<TextView>(R.id.manage_custom_languages).setOnClickListener { showManageLanguagesDialog() }
+
+        wrapWidthField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                wrapWidthField.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        findViewById<Button>(R.id.wrap_80).setOnClickListener { wrapWidthField.setText("80") }
+        findViewById<Button>(R.id.wrap_90).setOnClickListener { wrapWidthField.setText("90") }
+        findViewById<Button>(R.id.wrap_200).setOnClickListener { wrapWidthField.setText("200") }
+        findViewById<Button>(R.id.wrap_off).setOnClickListener { wrapWidthField.setText("0") }
     }
 
     private fun togglePassword(field: EditText, toggle: ImageButton) {
@@ -182,6 +196,7 @@ class SettingsActivity : Activity() {
 
         rawModeCheckbox.isChecked = settings.rawMode
         compressAudioCheckbox.isChecked = settings.compressAudio
+        wrapWidthField.setText(settings.wrapWidth.toString())
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
         settings.targetLanguage?.let { tl ->
             if (tl.isNotBlank() && tl != CustomLanguages.NONE_TARGET_LANGUAGE && tl != CustomLanguages.BUILTIN_LANGUAGE && tl !in settings.customLanguages) {
@@ -821,6 +836,15 @@ class SettingsActivity : Activity() {
         aboutInfoText.movementMethod = LinkMovementMethod.getInstance()
     }
 
+    /**
+     * Parses the wrap-width field (#81): 0 disables wrapping, values >= 10 are
+     * valid widths. Anything else (blank, non-numeric, negative, 1-9) is null.
+     */
+    private fun parseWrapWidth(): Int? {
+        val value = wrapWidthField.text.toString().trim().toIntOrNull() ?: return null
+        return if (value == 0 || value >= 10) value else null
+    }
+
     private fun saveAndClose() {
         val sttName = sttProviderDropdown.text.toString()
         val llmName = llmProviderDropdown.text.toString()
@@ -865,6 +889,12 @@ class SettingsActivity : Activity() {
 
         settings.rawMode = rawModeCheckbox.isChecked
         settings.compressAudio = compressAudioCheckbox.isChecked
+        val wrapWidth = parseWrapWidth()
+        if (wrapWidth == null) {
+            wrapWidthField.error = getString(R.string.wrap_width_error)
+            return
+        }
+        settings.wrapWidth = wrapWidth
         val tl = targetLanguageDropdown.text.toString()
         val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl
         settings.targetLanguage = tlToSave

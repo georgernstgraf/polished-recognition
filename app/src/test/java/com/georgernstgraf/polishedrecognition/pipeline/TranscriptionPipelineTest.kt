@@ -84,6 +84,9 @@ class TranscriptionPipelineTest {
             apiToken = "gsk_test",
             model = "llama-3.3-70b-versatile"
         )
+        // Existing tests assert exact (unwrapped) text — wrapping is covered by
+        // the dedicated tests below, so disable it by default here (#81).
+        settingsStore.wrapWidth = 0
     }
 
     @After
@@ -345,5 +348,43 @@ class TranscriptionPipelineTest {
 
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 503")
+    }
+
+    @Test
+    fun `raw mode wraps output at configured width`() = runBlocking {
+        settingsStore.rawMode = true
+        settingsStore.wrapWidth = 80
+        mockSttSuccess()
+
+        val result = pipeline.transcribe(lincolnFile)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 80))
+        assertThat(result.getOrNull()).contains("\n")
+    }
+
+    @Test
+    fun `LLM mode wraps output at configured width`() = runBlocking {
+        settingsStore.rawMode = false
+        settingsStore.wrapWidth = 90
+        mockSttSuccess()
+        mockChatSuccess(lincolnGermanText)
+
+        val result = pipeline.transcribe(lincolnFile)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 90))
+    }
+
+    @Test
+    fun `wrap width zero returns output unwrapped`() = runBlocking {
+        settingsStore.rawMode = true
+        settingsStore.wrapWidth = 0
+        mockSttSuccess()
+
+        val result = pipeline.transcribe(lincolnFile)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
     }
 }

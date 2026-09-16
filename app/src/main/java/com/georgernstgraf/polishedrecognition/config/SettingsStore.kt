@@ -50,6 +50,15 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(TARGET_LANGUAGE_KEY, null)
         set(value) = prefs.edit().putString(TARGET_LANGUAGE_KEY, value).apply()
 
+    /**
+     * Output line-wrap width in characters (#81). 0 (or negative) disables
+     * wrapping entirely; otherwise the final transcription text is word-wrapped
+     * to this width. Default 80.
+     */
+    var wrapWidth: Int
+        get() = prefs.getInt(WRAP_WIDTH_KEY, DEFAULT_WRAP_WIDTH)
+        set(value) = prefs.edit().putInt(WRAP_WIDTH_KEY, value).apply()
+
     var customLanguages: List<String>
         get() = prefs.getString(CUSTOM_LANGUAGES_KEY, null)?.let {
             gson.fromJson(it, object : TypeToken<List<String>>() {}.type)
@@ -137,8 +146,12 @@ class SettingsStore(context: Context) {
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
+        private const val WRAP_WIDTH_KEY = "wrap_width"
 
         /** 6 weeks in milliseconds. */
         const val MODEL_CACHE_TTL_MS = 42L * 24 * 60 * 60 * 1000
+
+        /** Default output line-wrap width (#81); 0 disables wrapping. */
+        const val DEFAULT_WRAP_WIDTH = 80
     }
 }

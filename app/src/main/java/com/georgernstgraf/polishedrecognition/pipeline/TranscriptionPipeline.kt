@@ -75,7 +75,7 @@ class TranscriptionPipeline(
         val userPrompt = promptStore.userPromptTemplate
             .replace("{{text}}", whisper.text)
 
-        if (rawMode) return@withContext Result.success(whisper.text)
+        if (rawMode) return@withContext Result.success(LineWrapPolicy.wrap(whisper.text, settingsStore.wrapWidth))
 
         val llmConfig = settingsStore.llmProvider
             ?: return@withContext Result.failure(Exception("LLM provider not configured"))
@@ -105,7 +105,7 @@ class TranscriptionPipeline(
             return@withContext Result.failure(Exception("LLM post-processing failed: HTTP ${response.code()}"))
         }
 
-        Result.success(response.body()!!.getContent().trim())
+        Result.success(LineWrapPolicy.wrap(response.body()!!.getContent().trim(), settingsStore.wrapWidth))
     }
 
     private suspend fun runStt(audioFile: File, config: SttProviderConfig): Result<SttResult> {

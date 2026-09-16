@@ -190,4 +190,17 @@ class SettingsStoreTest {
         store.customLanguages = emptyList()
         assertThat(store.customLanguages).isEmpty()
     }
+
+    @Test
+    fun `wrapWidth defaults to 80`() {
+        assertThat(store.wrapWidth).isEqualTo(80)
+    }
+
+    @Test
+    fun `wrapWidth save and load round-trips`() {
+        store.wrapWidth = 200
+        assertThat(store.wrapWidth).isEqualTo(200)
+        store.wrapWidth = 0
+        assertThat(store.wrapWidth).isEqualTo(0)
+    }
 }

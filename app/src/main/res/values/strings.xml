@@ -21,6 +21,9 @@
     <string name="delete_language">Delete this language</string>
     <string name="edit_language">Edit this language</string>
     <string name="manage_custom_languages">Manage saved languages</string>
+    <string name="wrap_width">Line wrap width (0 disables)</string>
+    <string name="wrap_width_hint">Wrap output lines at this many characters. Suggestions: 80, 90, 200. Enter 0 to disable wrapping.</string>
+    <string name="wrap_width_error">Enter 0 to disable, or a width of 10 or more</string>
     <string name="saved_languages_title">Saved Languages</string>
     <string name="rename_language_title">Rename Language</string>
     <string name="rename_language_duplicate">This language is already in the list</string>
