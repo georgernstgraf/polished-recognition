@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-17: REC time counter in IME bar, divider-framed right of language dropdown (#71)
+- **Choice**: New `ime_rec_timer` TextView (monospace, 13sp) + `ime_rec_timer_divider` in `ime_voice_input.xml`, placed between the language spinner and the Raw checkbox (Raw stays at the right edge); pure `service/RecTimeFormatter` (`recording()` → "REC m:ss", `paused()` → frozen "m:ss"); 1 s main-handler tick in `PolishedVoiceInputIME.updateRecTimer()` fed by `VoiceSessionController.recordedDurationMs()` (active mic time only, pauses excluded). PAUSED shows option (a) from the ticket (frozen, no REC prefix); notification unchanged (IME bar only).
+- **Reason**: Owner request — deterministic recording indicator alongside the pulse; adaptive noise floor stays dropped per the earlier #71 decision.
+- **Tradeoff**: Tick granularity is 1 s (no sub-second display); format string lives in code, not in `strings.xml` (single testable source).
+
 ## 2026-09-16: Configurable output line-wrap, 0 to disable, default 80 (#81)
 - **Choice**: `SettingsStore.wrapWidth` (Int, default 80, `0` = disabled) + pure `pipeline/LineWrapPolicy` greedy word-wrap applied to the final text in `TranscriptionPipeline` (both raw and LLM paths, before `InsertionSpacingPolicy` padding in the IME). Settings UI: numeric `EditText` (`inputType="number"`) + quick-set buttons 80/120/200/0-off + validation (0 or ≥10).
 - **Reason**: Owner request — on-demand wrapping at 80/90/200 chars, fully disableable via 0, default 80.

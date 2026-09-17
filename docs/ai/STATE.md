@@ -20,7 +20,7 @@ Current status as of 2026-09-16 (#78 CLOSED as shipped per owner — implementat
 ## Pending
 - [ ] #74: F-Droid launch Phase 0/1 — next release is **v1.3.0 (minor bump)** with listing assets (fastlane `images/` icon + phoneScreenshots, full_description rewrite, README/INSTALLATION badges), Play tester infra, demo GIF.
 - [ ] #75: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
-- [ ] #71: REC time counter in IME bar during recording.
+- [x] #71 implemented (`6cfb713`) — REC time counter in IME bar (divider-framed, right of language dropdown; frozen w/o REC in PAUSE); `./gradlew test` green; issue closed 2026-09-17, on-device feel-check left as HANDOFF item for owner.
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] Insertion-spacing watch: owner refinements from longer use — DOMAIN.md is the rule reference; changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 
