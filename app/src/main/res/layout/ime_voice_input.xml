@@ -58,6 +58,25 @@
             android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp" />
 
+        <TextView
+            android:id="@+id/ime_rec_timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/recording_text_primary"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:visibility="gone" />
+
+        <View
+            android:id="@+id/ime_rec_timer_divider"
+            android:layout_width="1dp"
+            android:layout_height="20dp"
+            android:background="@color/recording_divider"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone" />
+
         <CheckBox
             android:id="@+id/ime_raw"
             android:layout_width="wrap_content"

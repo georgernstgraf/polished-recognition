@@ -52,6 +52,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var settingsGear: ImageButton? = null
     private var switchKeyboardButton: ImageButton? = null
     private var quickSettingsDivider: View? = null
+    private var recTimer: TextView? = null
+    private var recTimerDivider: View? = null
     private var stageText: TextView? = null
     private var smoothedRms = 0f
     private var voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
@@ -59,6 +61,14 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var breathAnimator: ValueAnimator? = null
     private var rmsLogCount = 0
     private var silenceLangListener = false
+    private val recTickHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val recTick = object : Runnable {
+        override fun run() {
+            if (controller.state != VoiceSessionController.State.RECORDING) return
+            recTimer?.text = RecTimeFormatter.recording(controller.recordedDurationMs())
+            recTickHandler.postDelayed(this, REC_TICK_MS)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -82,6 +92,8 @@ class PolishedVoiceInputIME : InputMethodService() {
         settingsGear = view.findViewById(R.id.ime_settings_button)
         switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard_button)
         quickSettingsDivider = view.findViewById(R.id.ime_quick_settings_divider)
+        recTimer = view.findViewById(R.id.ime_rec_timer)
+        recTimerDivider = view.findViewById(R.id.ime_rec_timer_divider)
         stageText = view.findViewById(R.id.ime_stage_text)
 
         micSendButton?.setOnClickListener {
@@ -348,7 +360,36 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
         stageText?.visibility =
             if (s == VoiceSessionController.State.PROCESSING) View.VISIBLE else View.GONE
+        updateRecTimer(s)
         updateLanguageEnabled()
+    }
+
+    /**
+     * REC time counter (#71): ticking "REC m:ss" during RECORDING (active mic
+     * time only, pauses excluded via [VoiceSessionController.recordedDurationMs]),
+     * frozen "m:ss" without the REC prefix while PAUSED, hidden otherwise.
+     */
+    private fun updateRecTimer(s: VoiceSessionController.State) {
+        when (s) {
+            VoiceSessionController.State.RECORDING -> {
+                recTimer?.text = RecTimeFormatter.recording(controller.recordedDurationMs())
+                recTimer?.visibility = View.VISIBLE
+                recTimerDivider?.visibility = View.VISIBLE
+                recTickHandler.removeCallbacks(recTick)
+                recTickHandler.postDelayed(recTick, REC_TICK_MS)
+            }
+            VoiceSessionController.State.PAUSED -> {
+                recTickHandler.removeCallbacks(recTick)
+                recTimer?.text = RecTimeFormatter.paused(controller.recordedDurationMs())
+                recTimer?.visibility = View.VISIBLE
+                recTimerDivider?.visibility = View.VISIBLE
+            }
+            else -> {
+                recTickHandler.removeCallbacks(recTick)
+                recTimer?.visibility = View.GONE
+                recTimerDivider?.visibility = View.GONE
+            }
+        }
     }
 
     private fun setFlashing(active: Boolean) {
@@ -539,6 +580,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onDestroy() {
         breathAnimator?.cancel()
         breathAnimator = null
+        recTickHandler.removeCallbacks(recTick)
         if (controller.state == VoiceSessionController.State.PAUSED) {
             controller.detach()
         } else {
@@ -558,6 +600,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         private const val BREATH_DWELL_FRACTION = 0.15f
         private const val RMS_LOG_TAG = "PolishedRMS"
         private const val RMS_LOG_EVERY = 10
+        private const val REC_TICK_MS = 1000L
 
         /** Settings.Secure key holding the id of the current default IME (hidden constant). */
         private const val DEFAULT_INPUT_METHOD_SETTING = "default_input_method"
