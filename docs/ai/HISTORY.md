@@ -69,3 +69,17 @@ Entries here are no longer active truth. Never delete from this file.
 - **Tradeoff**: F-Droid will list 1.2.2 with the v1.2.1-era listing (no screenshots/icon in fastlane) until 1.2.3 lands.
 - **Origin**: DECISIONS.md
 - **Reason**: The listing release target was retargeted to v1.3.0 (minor bump) on 2026-09-14; v1.2.3 became a pure #77 patch.
+
+## 2026-09-18 (SUPERSEDED 2026-09-18, origin: DECISIONS.md, reason: #83 follow-up — Oplus delivers the rebind ~150 ms BEFORE onConfigurationChanged, so the flag/mark never exists at decision time; cancellation now keys off field identity via ImeStartDecision): Rotation-safe voice session — freeze on rotation, cleanup only on field change (#83)
+- **Choice**: `onConfigurationChanged` flag in `PolishedVoiceInputIME` distinguishes rotation restart (`restarting == true` + flag, same field) from keyboard-switch return (restarting, no flag → #65 auto-resume) and genuine field change (`restarting == false` → cancel live session as before). On rotation the session is frozen in state: RECORDING keeps capturing (no pause in `onFinishInputView`, AudioRecord thread is view-independent), PAUSED stays paused; `onDestroy` parks RECORDING as PAUSED + detaches (never cancels a live session). PROCESSING results that complete unbound are stashed in `VoiceSessionController.pendingResult` and delivered on the next `attach()`; `cancel()` clears the stash.
+- **Reason**: Owner-reported data loss — rotation discarded the PCM buffer (`cancel()` → `bufferStream.reset()`) and could silently drop a finished transcription (`Completed` into a null callback).
+- **Tradeoff**: On devices that destroy the IME service on rotation, RECORDING still has a minimal gap (park + auto-resume) — lossless, but not literally gapless; true zero-gap holds where the service survives (the normal case).
+- **Origin**: DECISIONS.md
+- **Reason**: The instance flag dies with service recreation and the app-scoped timestamp gate is defeated by Oplus's inverted event order (rebind first, mark ~150 ms later — proven by ime-lifecycle.log, which also showed the cancel-then-fresh-`00:00`-autostart sequence). Superseded by the #83 follow-up entry (ImeStartDecision + FGS retention + snapshot + trace).
+
+## 2026-09-18 (SUPERSEDED 2026-09-18, origin: DECISIONS.md, reason: #83 follow-up — the reopen condition fired (process-death loss observed on Oplus) and the proposal was implemented as VoiceSessionController.snapshot()/restore()): #67 closed as maybe-later (no evidence of process-death loss)
+- **Choice**: Closed #67 (disk snapshot of paused dictation) not-planned per owner — deferred since 2026-09-07 with still no feedback whether process-death PCM loss is a real problem in practice. The proposal (`AudioRecorder.snapshotPcm()/restorePcm()` + `cacheDir/session.pcm` flush on pause, restore to PAUSED on init) stays documented in the issue — reopen on demand if dictation loss is ever observed.
+- **Reason**: An in-memory-only paused session (#65) has produced no loss reports; building crash-recovery I/O on the keyboard-show path is unjustified without evidence.
+- **Tradeoff**: A process kill while paused still loses the dictation — accepted until observed.
+- **Origin**: DECISIONS.md
+- **Reason**: Owner proved process death on-device (PAUSED + rotate → timer `00:00` + pre-rotation audio gone, commit aa94106 implements the snapshot exactly as proposed; #67 itself stays closed).
