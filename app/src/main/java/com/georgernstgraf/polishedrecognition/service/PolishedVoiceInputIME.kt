@@ -10,6 +10,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.provider.Settings
@@ -61,6 +62,15 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var breathAnimator: ValueAnimator? = null
     private var rmsLogCount = 0
     private var silenceLangListener = false
+    /**
+     * Set by [onConfigurationChanged], consumed by [onStartInputView]. Marks
+     * an input-view restart as a display rotation on the SAME field (#83) —
+     * as opposed to a keyboard-switch return (restarting without rotation) or
+     * a genuine field change (not restarting). While set, the session is
+     * frozen in its state: RECORDING keeps capturing without pause,
+     * PAUSED stays paused, PROCESSING keeps transcribing.
+     */
+    private var configChangeInProgress = false
     private val recTickHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val recTick = object : Runnable {
         override fun run() {
@@ -156,15 +166,28 @@ class PolishedVoiceInputIME : InputMethodService() {
         return view
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        configChangeInProgress = true
+    }
+
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        if (controller.state == VoiceSessionController.State.RECORDING ||
-            controller.state == VoiceSessionController.State.PROCESSING
-        ) {
-            controller.cancel()
+        // Rotation (#83): same field, views rebuilt — freeze the session in
+        // its state instead of tearing it down. Only a genuine field change
+        // (not restarting) discards a live session.
+        val rotation = restarting && configChangeInProgress
+        configChangeInProgress = false
+        if (!rotation) {
+            if (controller.state == VoiceSessionController.State.RECORDING ||
+                controller.state == VoiceSessionController.State.PROCESSING
+            ) {
+                controller.cancel()
+            }
         }
         refreshQuickSettings()
         applyUiState()
+        if (rotation) return
         if (AutoStartPolicy.shouldAutoResume(controller.state, hasMicPermission())) {
             startMicForeground()
             controller.resume()
@@ -175,6 +198,9 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        // Rotation (#83): the AudioRecord thread is view-independent and keeps
+        // capturing — pausing here would punch a hole into the recording.
+        if (configChangeInProgress) return
         if (controller.state == VoiceSessionController.State.RECORDING) {
             controller.pause()
         }
@@ -581,10 +607,20 @@ class PolishedVoiceInputIME : InputMethodService() {
         breathAnimator?.cancel()
         breathAnimator = null
         recTickHandler.removeCallbacks(recTick)
-        if (controller.state == VoiceSessionController.State.PAUSED) {
-            controller.detach()
-        } else {
-            controller.cancel()
+        // Rotation-safe teardown (#83): a live session is never cancelled
+        // here — RECORDING is parked as PAUSED and PROCESSING keeps running
+        // on the app scope, both detached so the next instance re-attaches
+        // (PAUSED auto-resumes; a detached PROCESSING result is delivered via
+        // pendingResult). Only an already-idle controller is cancelled.
+        // Explicit user cancel is unaffected (it runs before destroy).
+        when (controller.state) {
+            VoiceSessionController.State.RECORDING -> {
+                controller.pause()
+                controller.detach()
+            }
+            VoiceSessionController.State.PAUSED,
+            VoiceSessionController.State.PROCESSING -> controller.detach()
+            VoiceSessionController.State.IDLE -> controller.cancel()
         }
         stopMicForeground()
         super.onDestroy()

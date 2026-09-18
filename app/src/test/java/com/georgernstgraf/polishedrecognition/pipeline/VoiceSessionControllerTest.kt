@@ -19,6 +19,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.thread
 
 @RunWith(RobolectricTestRunner::class)
 class VoiceSessionControllerTest {
@@ -181,5 +183,74 @@ class VoiceSessionControllerTest {
         } catch (_: Throwable) {
         }
         assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+    }
+
+    /**
+     * Rotation during PROCESSING (#83): the UI detaches mid-transcription,
+     * the result is stashed and delivered to the next attach() instead of
+     * being dropped in emit().
+     */
+    @Test
+    fun `completed result during detach is stashed and delivered on attach`() {
+        settings.compressAudio = false
+        val gate = CountDownLatch(1)
+        coEvery { pipeline.transcribe(any(), any()) } coAnswers {
+            gate.await()
+            Result.success("hi")
+        }
+        val controller = newController()
+        val before = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { before.add(it) }
+        } catch (_: Throwable) {
+        }
+        val releaser = thread {
+            while (controller.state != VoiceSessionController.State.PROCESSING) {
+                Thread.sleep(10)
+            }
+            controller.detach()
+            gate.countDown()
+        }
+        controller.stopAndTranscribe()
+        releaser.join(5000)
+        controller.awaitIdle()
+
+        assertThat(before.filterIsInstance<VoiceSessionController.Event.Completed>()).isEmpty()
+
+        val after = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { after.add(it) }
+        val completed = after.filterIsInstance<VoiceSessionController.Event.Completed>()
+        assertThat(completed).hasSize(1)
+        assertThat(completed.single().result.getOrNull()).isEqualTo("hi")
+    }
+
+    @Test
+    fun `cancel discards a stashed result`() {
+        settings.compressAudio = false
+        val gate = CountDownLatch(1)
+        coEvery { pipeline.transcribe(any(), any()) } coAnswers {
+            gate.await()
+            Result.success("hi")
+        }
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        val releaser = thread {
+            while (controller.state != VoiceSessionController.State.PROCESSING) {
+                Thread.sleep(10)
+            }
+            controller.detach()
+            gate.countDown()
+        }
+        controller.stopAndTranscribe()
+        releaser.join(5000)
+        controller.awaitIdle()
+
+        controller.cancel()
+        val after = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { after.add(it) }
+        assertThat(after.filterIsInstance<VoiceSessionController.Event.Completed>()).isEmpty()
     }
 }

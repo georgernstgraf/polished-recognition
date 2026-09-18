@@ -43,6 +43,7 @@ class VoiceSessionController(
         private set
 
     private var callback: ((Event) -> Unit)? = null
+    private var pendingResult: Result<String>? = null
     private var accumulatedMs = 0L
     private var segStartMs = 0L
     private var transcribeJob: Job? = null
@@ -57,8 +58,18 @@ class VoiceSessionController(
         emit(Event.StateChanged(state))
     }
 
+    /**
+     * (Re-)binds the UI callback. A transcription result that completed while
+     * no UI was bound (e.g. display rotation during PROCESSING, #83) is held
+     * in [pendingResult] and delivered now, so it is committed exactly as if
+     * no rotation had happened.
+     */
     fun attach(onEvent: (Event) -> Unit) {
         callback = onEvent
+        pendingResult?.let {
+            pendingResult = null
+            emit(Event.Completed(it))
+        }
     }
 
     fun detach() {
@@ -99,7 +110,11 @@ class VoiceSessionController(
             } catch (e: Exception) {
                 Result.failure(e)
             }
-            emit(Event.Completed(result))
+            if (callback != null) {
+                emit(Event.Completed(result))
+            } else {
+                pendingResult = result
+            }
             accumulatedMs = 0L
             segStartMs = 0L
             state = State.IDLE
@@ -113,6 +128,7 @@ class VoiceSessionController(
         runCatching { recorder.cancel() }
         accumulatedMs = 0L
         segStartMs = 0L
+        pendingResult = null
         state = State.IDLE
         emit(Event.StateChanged(state))
         callback = null
