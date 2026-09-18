@@ -114,6 +114,25 @@ class AudioRecorder {
         }
     }
 
+    /**
+     * Copies the captured raw PCM bytes without disturbing the session, for
+     * the process-death snapshot (`VoiceSessionController.snapshot`, #67).
+     */
+    fun snapshotPcm(): ByteArray =
+        synchronized(bufferStream) { bufferStream.toByteArray() }
+
+    /**
+     * Restores PCM bytes captured by [snapshotPcm] after process death. The
+     * recorder stays stopped — the session resumes to PAUSED and the next
+     * `resume()` appends to the restored bytes (`resetBuffer = false`).
+     */
+    fun restorePcm(pcm: ByteArray) {
+        synchronized(bufferStream) {
+            bufferStream.reset()
+            bufferStream.write(pcm)
+        }
+    }
+
     private fun computeRms(buffer: ByteArray, bytesRead: Int): Float =
         computePcmRms(buffer, bytesRead)
 

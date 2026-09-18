@@ -81,6 +81,10 @@ class VoiceSessionController(
         accumulatedMs += System.currentTimeMillis() - segStartMs
         state = State.PAUSED
         recorder.pause()
+        // Persist the session while it is safely stopped: if the process dies
+        // (observed on Oplus across rotation), the next bind restores it via
+        // restore() instead of losing the dictation (#67).
+        snapshot()
         emit(Event.StateChanged(state))
     }
 
@@ -98,6 +102,9 @@ class VoiceSessionController(
             accumulatedMs += System.currentTimeMillis() - segStartMs
         }
         val wav = recorder.stop()
+        // The session is over — its bytes are in hand, so any process-death
+        // snapshot is stale from here on.
+        clearSnapshot()
         state = State.PROCESSING
         emit(Event.StateChanged(state))
 
@@ -126,6 +133,7 @@ class VoiceSessionController(
         transcribeJob?.cancel()
         transcribeJob = null
         runCatching { recorder.cancel() }
+        clearSnapshot()
         accumulatedMs = 0L
         segStartMs = 0L
         pendingResult = null
@@ -137,6 +145,61 @@ class VoiceSessionController(
     fun recordedDurationMs(): Long {
         val live = if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
         return accumulatedMs + live
+    }
+
+    /**
+     * Persists the live session (raw PCM + recorded duration) to `cacheDir`
+     * so a dead process can pick it up via [restore]. Best-effort and
+     * synchronous: called with the recorder stopped (pause/teardown), never
+     * mid-capture. A failure must never break the in-memory session.
+     */
+    fun snapshot() {
+        if (state != State.RECORDING && state != State.PAUSED) return
+        try {
+            val total = accumulatedMs +
+                if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
+            File(appContext.cacheDir, SNAP_PCM).writeBytes(recorder.snapshotPcm())
+            File(appContext.cacheDir, SNAP_META).writeText(total.toString())
+        } catch (_: Throwable) {
+            // Best-effort: snapshotting must never break the live session —
+            // this explicitly includes OutOfMemoryError on absurdly large
+            // buffers, not just ordinary I/O failures.
+        }
+    }
+
+    /**
+     * Restores a snapshot left by a dead process and parks the session as
+     * PAUSED (resume appends to the restored audio, the timer continues from
+     * the saved duration). Returns true when a snapshot was consumed; the
+     * files are deleted so only the first bind after death restores. Emits
+     * `StateChanged(PAUSED)` when a UI is already attached.
+     */
+    fun restore(): Boolean {
+        if (state != State.IDLE) return false
+        try {
+            val meta = File(appContext.cacheDir, SNAP_META)
+            val pcmFile = File(appContext.cacheDir, SNAP_PCM)
+            if (!meta.exists() || !pcmFile.exists()) return false
+            val total = meta.readText().trim().toLongOrNull() ?: return false
+            recorder.restorePcm(pcmFile.readBytes())
+            meta.delete()
+            pcmFile.delete()
+            accumulatedMs = total.coerceAtLeast(0L)
+            segStartMs = 0L
+            state = State.PAUSED
+            emit(Event.StateChanged(state))
+            return true
+        } catch (_: Throwable) {
+            return false
+        }
+    }
+
+    private fun clearSnapshot() {
+        try {
+            File(appContext.cacheDir, SNAP_PCM).delete()
+            File(appContext.cacheDir, SNAP_META).delete()
+        } catch (_: Throwable) {
+        }
     }
 
     private fun makeRecorderListener() = object : AudioRecorderListener {
@@ -178,5 +241,7 @@ class VoiceSessionController(
 
     companion object {
         private const val TAG = "VoiceSessionController"
+        private const val SNAP_PCM = "session.pcm"
+        private const val SNAP_META = "session.meta"
     }
 }

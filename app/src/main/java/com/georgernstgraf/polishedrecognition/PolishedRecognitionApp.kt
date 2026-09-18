@@ -77,6 +77,26 @@ class PolishedRecognitionApp : Application() {
         VoiceSessionController(this, transcriptionPipeline, settingsStore)
     }
 
+    /**
+     * Last IME rotation signal, monotonic uptime ms written by
+     * `PolishedVoiceInputIME.onConfigurationChanged` and judged by
+     * `RotationGate`. App-scoped so it survives IME service recreation on
+     * rotation (#83 follow-up) — the old instance-flag never reached the new
+     * instance on ROMs that destroy the service (Oplus), wiping the session
+     * on every rotation.
+     */
+    @Volatile
+    var imeConfigChangeMs: Long = 0L
+
+    /**
+     * Last field served by the voice IME (`packageName` + `fieldId`), judged
+     * by `RotationGate` together with [imeConfigChangeMs]. A client-app
+     * recreation on rotation keeps both, so the same field is recognized
+     * even when Oplus rebinds input with `restarting=false`.
+     */
+    @Volatile
+    var imeLastField: com.georgernstgraf.polishedrecognition.service.RotationGate.FieldId? = null
+
     private val sttApiCache = ConcurrentHashMap<String, OpenAiSttApiService>()
     private val chatApiCache = ConcurrentHashMap<String, OpenAiChatApiService>()
 

@@ -13,6 +13,7 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -63,14 +64,29 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var rmsLogCount = 0
     private var silenceLangListener = false
     /**
-     * Set by [onConfigurationChanged], consumed by [onStartInputView]. Marks
-     * an input-view restart as a display rotation on the SAME field (#83) —
-     * as opposed to a keyboard-switch return (restarting without rotation) or
-     * a genuine field change (not restarting). While set, the session is
-     * frozen in its state: RECORDING keeps capturing without pause,
-     * PAUSED stays paused, PROCESSING keeps transcribing.
+     * Set by [onConfigurationChanged], consumed by [onStartInputView]. Fast
+     * path for rotation detection when the mark arrives before the rebind;
+     * the app-scoped [RotationGate] timestamp + field identity
+     * ([PolishedRecognitionApp.imeConfigChangeMs]/`imeLastField`) cover
+     * service recreation — and [ImeStartDecision] covers the Oplus order
+     * where the rebind lands ~150 ms before the mark.
      */
     private var configChangeInProgress = false
+    /**
+     * True when [onCreate] consumed a process-death snapshot via
+     * [VoiceSessionController.restore]. Freezes the first [onStartInputView]
+     * like a rotation (no cancel, no auto-resume) so the restored PAUSED
+     * dictation is presented, not resumed or discarded; consumed there.
+     */
+    private var restoredSnapshot = false
+    /**
+     * Guards the delayed resume check posted by a [ImeStartDecision.Outcome]
+     * provisional freeze: each bind bumps [startGen], so a superseded
+     * runnable (rapid rebinds, teardown) no-ops instead of resuming against
+     * a newer decision. Invalidated in [onDestroy].
+     */
+    private var startGen = 0
+    private var pendingProvisional: Runnable? = null
     private val recTickHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val recTick = object : Runnable {
         override fun run() {
@@ -87,6 +103,11 @@ class PolishedVoiceInputIME : InputMethodService() {
         controller.attach { handleEvent(it) }
         settings = app.settingsStore
         createNotificationChannel()
+        restoredSnapshot = controller.restore()
+        ImeLifecycleTrace.log(
+            this, "onCreate",
+            "state=${controller.state} restored=$restoredSnapshot"
+        )
     }
 
     override fun onCreateInputView(): View {
@@ -169,25 +190,66 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         configChangeInProgress = true
+        // App-scoped rotation signal (#83 follow-up): the instance flag above
+        // dies with this instance when the ROM destroys the IME service on
+        // rotation (Oplus) — the timestamp survives and lets the next
+        // instance's onStartInputView recognize the rotation.
+        (application as PolishedRecognitionApp).imeConfigChangeMs = SystemClock.uptimeMillis()
+        ImeLifecycleTrace.log(this, "onConfigurationChanged")
     }
 
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        // Rotation (#83): same field, views rebuilt — freeze the session in
-        // its state instead of tearing it down. Only a genuine field change
-        // (not restarting) discards a live session.
-        val rotation = restarting && configChangeInProgress
+        // Rotation (#83 v3): same field, views rebuilt — freeze the session
+        // in its state instead of tearing it down. `restarting` alone is
+        // unreliable (Oplus rebinds with restarting=false on client-app
+        // rotation), and even the app-scoped gate can be stale here: the
+        // rebind lands ~150 ms BEFORE onConfigurationChanged writes the
+        // mark (proven by ime-lifecycle.log). So cancellation keys off field
+        // identity alone — a same-view rebind can never be a genuine field
+        // change — while [ImeStartDecision] defers only the PAUSED
+        // auto-resume until the mark has had time to arrive.
+        val app = application as PolishedRecognitionApp
+        val now = SystemClock.uptimeMillis()
+        val currentField = RotationGate.FieldId(info.packageName, info.fieldId)
+        val previousField = app.imeLastField
+        val sameField = RotationGate.isSameField(previousField, currentField)
+        val gateFresh = RotationGate.isFresh(app.imeConfigChangeMs, now)
+        val outcome = ImeStartDecision.decide(
+            controller.state, sameField, restarting && configChangeInProgress,
+            gateFresh, restoredSnapshot
+        )
         configChangeInProgress = false
-        if (!rotation) {
-            if (controller.state == VoiceSessionController.State.RECORDING ||
-                controller.state == VoiceSessionController.State.PROCESSING
-            ) {
-                controller.cancel()
-            }
+        app.imeLastField = currentField
+        ImeLifecycleTrace.log(
+            this, "onStartInputView",
+            "restarting=$restarting state=${controller.state} outcome=$outcome " +
+                "restored=$restoredSnapshot sameField=$sameField gateFresh=$gateFresh"
+        )
+        restoredSnapshot = false
+        if (outcome == ImeStartDecision.Outcome.CANCEL) {
+            controller.cancel()
         }
         refreshQuickSettings()
         applyUiState()
-        if (rotation) return
+        when (outcome) {
+            ImeStartDecision.Outcome.FREEZE -> {
+                // Re-assert foreground for a live session: the previous
+                // instance may have died or released FGS on teardown, and
+                // the session has no visible UI of its own yet — without FGS
+                // Oplus may kill the process mid-rotation.
+                if (controller.state != VoiceSessionController.State.IDLE) {
+                    startMicForeground()
+                }
+                return
+            }
+            ImeStartDecision.Outcome.PROVISIONAL_FREEZE -> {
+                scheduleProvisionalResume()
+                return
+            }
+            ImeStartDecision.Outcome.CANCEL,
+            ImeStartDecision.Outcome.PROCEED -> Unit
+        }
         if (AutoStartPolicy.shouldAutoResume(controller.state, hasMicPermission())) {
             startMicForeground()
             controller.resume()
@@ -196,11 +258,53 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
     }
 
+    /**
+     * Finalizes a [ImeStartDecision.Outcome.PROVISIONAL_FREEZE]: the bind saw
+     * PAUSED on the same field with no rotation signal yet, but the mark may
+     * simply be late (Oplus delivers the rebind ~150 ms before
+     * `onConfigurationChanged`). After [PROVISIONAL_RESUME_DELAY_MS] a still
+     * stale gate means a genuine return (hide/show, switch back — resume per
+     * #65); a fresh gate confirms rotation (stay frozen). No-ops unless still
+     * PAUSED, so user taps in the window (send/cancel/resume) always win;
+     * sequential main-thread execution makes double-resume impossible.
+     */
+    private fun scheduleProvisionalResume() {
+        pendingProvisional?.let { recTickHandler.removeCallbacks(it) }
+        startGen++
+        val gen = startGen
+        val app = application as PolishedRecognitionApp
+        val check = Runnable {
+            if (gen != startGen) return@Runnable
+            pendingProvisional = null
+            val fresh = RotationGate.isFresh(app.imeConfigChangeMs, SystemClock.uptimeMillis())
+            ImeLifecycleTrace.log(
+                this, "resumeDecision",
+                "state=${controller.state} gateFresh=$fresh"
+            )
+            if (fresh) return@Runnable
+            if (controller.state != VoiceSessionController.State.PAUSED) return@Runnable
+            if (!hasMicPermission()) return@Runnable
+            startMicForeground()
+            controller.resume()
+        }
+        pendingProvisional = check
+        recTickHandler.postDelayed(check, PROVISIONAL_RESUME_DELAY_MS)
+    }
+
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
         // Rotation (#83): the AudioRecord thread is view-independent and keeps
         // capturing — pausing here would punch a hole into the recording.
+        // The app-scoped gate covers service recreation (#83 follow-up).
+        val app = application as PolishedRecognitionApp
+        val gateFresh = RotationGate.isFresh(app.imeConfigChangeMs, SystemClock.uptimeMillis())
+        ImeLifecycleTrace.log(
+            this, "onFinishInputView",
+            "state=${controller.state} finishing=$finishingInput " +
+                "inst=$configChangeInProgress gate=$gateFresh"
+        )
         if (configChangeInProgress) return
+        if (gateFresh) return
         if (controller.state == VoiceSessionController.State.RECORDING) {
             controller.pause()
         }
@@ -607,22 +711,34 @@ class PolishedVoiceInputIME : InputMethodService() {
         breathAnimator?.cancel()
         breathAnimator = null
         recTickHandler.removeCallbacks(recTick)
-        // Rotation-safe teardown (#83): a live session is never cancelled
-        // here — RECORDING is parked as PAUSED and PROCESSING keeps running
-        // on the app scope, both detached so the next instance re-attaches
-        // (PAUSED auto-resumes; a detached PROCESSING result is delivered via
-        // pendingResult). Only an already-idle controller is cancelled.
+        pendingProvisional?.let { recTickHandler.removeCallbacks(it) }
+        pendingProvisional = null
+        startGen++
+        ImeLifecycleTrace.log(this, "onDestroy", "state=${controller.state}")
+        // Rotation-safe teardown (#83, hardened after the Oplus process-death
+        // finding): a live session is never cancelled here — RECORDING is
+        // parked as PAUSED (pause() also snapshots PCM + duration to disk)
+        // and PAUSED is snapshotted, both detached so the next instance
+        // re-attaches (a detached PROCESSING result is delivered via
+        // pendingResult). Foreground is released ONLY when idle: dropping FGS
+        // mid-session lets Oplus kill the process during rotation, wiping the
+        // in-memory session. Only an already-idle controller is cancelled.
         // Explicit user cancel is unaffected (it runs before destroy).
         when (controller.state) {
             VoiceSessionController.State.RECORDING -> {
                 controller.pause()
                 controller.detach()
             }
-            VoiceSessionController.State.PAUSED,
+            VoiceSessionController.State.PAUSED -> {
+                controller.snapshot()
+                controller.detach()
+            }
             VoiceSessionController.State.PROCESSING -> controller.detach()
-            VoiceSessionController.State.IDLE -> controller.cancel()
+            VoiceSessionController.State.IDLE -> {
+                controller.cancel()
+                stopMicForeground()
+            }
         }
-        stopMicForeground()
         super.onDestroy()
     }
 
@@ -637,6 +753,13 @@ class PolishedVoiceInputIME : InputMethodService() {
         private const val RMS_LOG_TAG = "PolishedRMS"
         private const val RMS_LOG_EVERY = 10
         private const val REC_TICK_MS = 1000L
+        /**
+         * Grace window for a provisional freeze (#83 v3): the Oplus rotation
+         * mark trails the rebind by ~150 ms, so a PAUSED same-field bind
+         * waits this long before resuming — long enough for a late mark,
+         * short enough to keep hide/show and switch-return resume snappy.
+         */
+        private const val PROVISIONAL_RESUME_DELAY_MS = 500L
 
         /** Settings.Secure key holding the id of the current default IME (hidden constant). */
         private const val DEFAULT_INPUT_METHOD_SETTING = "default_input_method"

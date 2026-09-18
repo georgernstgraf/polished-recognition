@@ -253,4 +253,84 @@ class VoiceSessionControllerTest {
         controller.attach { after.add(it) }
         assertThat(after.filterIsInstance<VoiceSessionController.Event.Completed>()).isEmpty()
     }
+
+    /**
+     * Process-death snapshot (#67, observed on Oplus across rotation): a
+     * snapshot left on disk is restored as PAUSED with the timer continuing
+     * from the saved duration. The snapshot is consumed — a second restore
+     * finds nothing.
+     *
+     * The snapshot files are hand-crafted (small PCM): under Robolectric the
+     * AudioRecord shadow fills the live recorder buffer in a tight loop, so
+     * round-tripping a real pause() snapshot would copy gigabytes and OOM
+     * the test JVM. Production pause() still writes the real buffer;
+     * snapshot() is best-effort and OOM-safe (catches Throwable).
+     */
+    @Test
+    fun `hand-crafted snapshot is restored as PAUSED with saved duration`() {
+        clearSessionFiles()
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(320))
+        File(cacheDir, "session.meta").writeText("1234")
+
+        val reborn = newController()
+        assertThat(reborn.restore()).isTrue()
+        assertThat(reborn.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(reborn.recordedDurationMs()).isEqualTo(1234L)
+        assertThat(File(cacheDir, "session.pcm").exists()).isFalse()
+        assertThat(File(cacheDir, "session.meta").exists()).isFalse()
+
+        assertThat(reborn.restore()).isFalse()
+    }
+
+    @Test
+    fun `restore with no snapshot returns false`() {
+        clearSessionFiles()
+        assertThat(newController().restore()).isFalse()
+    }
+
+    @Test
+    fun `restore with corrupt meta returns false`() {
+        clearSessionFiles()
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(320))
+        File(cacheDir, "session.meta").writeText("not-a-number")
+
+        assertThat(newController().restore()).isFalse()
+        clearSessionFiles()
+    }
+
+    @Test
+    fun `cancel clears the snapshot`() {
+        clearSessionFiles()
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(320))
+        File(cacheDir, "session.meta").writeText("1234")
+
+        newController().cancel()
+
+        assertThat(newController().restore()).isFalse()
+    }
+
+    @Test
+    fun `stopAndTranscribe clears the snapshot`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        controller.pause()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(newController().restore()).isFalse()
+    }
+
+    private fun clearSessionFiles() {
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").delete()
+        File(cacheDir, "session.meta").delete()
+    }
 }
