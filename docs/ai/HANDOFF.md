@@ -7,6 +7,7 @@
 1. [ ] **#74 — F-Droid launch marketing Phase 0/1** (now: **v1.3.0 MINOR listing-assets release** — fastlane images (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must be committed before that tag; see #74 for the full plan; owner works on Play Console/Google Group setup in parallel; #74 body already retargeted to v1.3.0).
 2. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
 3. [ ] **#71 follow-up — on-device feel-check of the REC counter** (`6cfb713`: ticking "REC m:ss" right of the language dropdown, frozen w/o REC in PAUSE; owner verifies via `installRelease` + visual; reopen #71 on findings).
+4. [ ] **#83 OPEN — on-device feel-check of the rotation-safe session** (`e07951b`: rotation during RECORDING must be gapless, in PAUSE must stay ↺, during PROCESSING the text must arrive; owner verifies via `installRelease`; close #83 when confirmed).
 4. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
 5. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (now includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 

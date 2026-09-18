@@ -23,6 +23,7 @@ Current status as of 2026-09-16 (#78 CLOSED as shipped per owner — implementat
 - [x] #71 implemented (`6cfb713`) — REC time counter in IME bar (divider-framed, right of language dropdown; frozen w/o REC in PAUSE); `./gradlew test` green; issue closed 2026-09-17, on-device feel-check left as HANDOFF item for owner.
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] Insertion-spacing watch: owner refinements from longer use — DOMAIN.md is the rule reference; changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
+- [ ] #83: rotation-safe voice session implemented (`e07951b`) — freeze on rotation in RECORDING/PAUSED/PROCESSING, cleanup only on field change; `./gradlew test` (9 controller tests) + `assembleRelease` green; issue commented, OPEN pending owner on-device feel-check.
 
 ## Blockers
 None.

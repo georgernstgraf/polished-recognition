@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-18: Rotation-safe voice session — freeze on rotation, cleanup only on field change (#83)
+- **Choice**: `onConfigurationChanged` flag in `PolishedVoiceInputIME` distinguishes rotation restart (`restarting == true` + flag, same field) from keyboard-switch return (restarting, no flag → #65 auto-resume) and genuine field change (`restarting == false` → cancel live session as before). On rotation the session is frozen in state: RECORDING keeps capturing (no pause in `onFinishInputView`, AudioRecord thread is view-independent), PAUSED stays paused; `onDestroy` parks RECORDING as PAUSED + detaches (never cancels a live session). PROCESSING results that complete unbound are stashed in `VoiceSessionController.pendingResult` and delivered on the next `attach()`; `cancel()` clears the stash.
+- **Reason**: Owner-reported data loss — rotation discarded the PCM buffer (`cancel()` → `bufferStream.reset()`) and could silently drop a finished transcription (`Completed` into a null callback).
+- **Tradeoff**: On devices that destroy the IME service on rotation, RECORDING still has a minimal gap (park + auto-resume) — lossless, but not literally gapless; true zero-gap holds where the service survives (the normal case).
+
 ## 2026-09-17: REC time counter in IME bar, divider-framed right of language dropdown (#71)
 - **Choice**: New `ime_rec_timer` TextView (monospace, 13sp) + `ime_rec_timer_divider` in `ime_voice_input.xml`, placed between the language spinner and the Raw checkbox (Raw stays at the right edge); pure `service/RecTimeFormatter` (`recording()` → "REC m:ss", `paused()` → frozen "m:ss"); 1 s main-handler tick in `PolishedVoiceInputIME.updateRecTimer()` fed by `VoiceSessionController.recordedDurationMs()` (active mic time only, pauses excluded). PAUSED shows option (a) from the ticket (frozen, no REC prefix); notification unchanged (IME bar only).
 - **Reason**: Owner request — deterministic recording indicator alongside the pulse; adaptive noise floor stays dropped per the earlier #71 decision.
