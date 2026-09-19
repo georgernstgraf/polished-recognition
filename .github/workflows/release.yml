@@ -32,6 +32,10 @@ jobs:
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+      # packages 'tools' removed from the SDK repo (setup-android#537) — AGP
+      # installs the platform/build-tools it needs once licenses are accepted.
+      with:
+        packages: platform-tools
 
     - name: Setup Gradle cache
       # validate-wrappers off: this workflow checks out the tag, and older
