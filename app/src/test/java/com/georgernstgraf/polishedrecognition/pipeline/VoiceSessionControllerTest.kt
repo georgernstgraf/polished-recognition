@@ -183,6 +183,13 @@ class VoiceSessionControllerTest {
         } catch (_: Throwable) {
         }
         assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+        // Cleanup is mandatory, not polite: under Robolectric the shadow
+        // AudioRecord.read() returns a full buffer instantly, so a live
+        // recorder spins at full speed appending to the buffer for as long
+        // as it lives. Left running, it fills gigabytes across the rest of
+        // the suite and OOMs the test worker (same hazard as the #67
+        // snapshot and #86 flush-RECORDING tests document).
+        controller.cancel()
     }
 
     /**

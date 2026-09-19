@@ -12,6 +12,7 @@ class AudioRecorder {
     private val bufferStream = ByteArrayOutputStream()
 
     fun start(resetBuffer: Boolean = true) {
+        if (isRecording) return
 
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
