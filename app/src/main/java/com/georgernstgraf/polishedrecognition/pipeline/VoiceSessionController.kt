@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 
 class VoiceSessionController(
     context: Context,
@@ -98,7 +99,12 @@ class VoiceSessionController(
         if (state == State.RECORDING) {
             accumulatedMs += System.currentTimeMillis() - segStartMs
         }
-        val wav = recorder.stop()
+        segStartMs = 0L
+        // Non-destructive stop (#84): the PCM stays buffered so a failed
+        // pipeline can park the session as PAUSED with audio + timer intact.
+        // The buffer is discarded (flushBuffer) only after a successful
+        // upload below.
+        val wav = recorder.stopPreservingBuffer()
         // The session is over — its bytes are in hand, so any process-death
         // snapshot is stale from here on.
         clearSnapshot()
@@ -111,18 +117,38 @@ class VoiceSessionController(
                 val r = pipeline.transcribe(file) { stage -> emit(Event.StageChanged(stage)) }
                 file.delete()
                 r
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Result.failure(e)
             }
-            if (callback != null) {
-                emit(Event.Completed(result))
+            if (result.isSuccess) {
+                recorder.flushBuffer()
+                if (callback != null) {
+                    emit(Event.Completed(result))
+                } else {
+                    pendingResult = result
+                }
+                accumulatedMs = 0L
+                segStartMs = 0L
+                state = State.IDLE
+                emit(Event.StateChanged(state))
             } else {
-                pendingResult = result
+                // Pipeline failure (#84): park as ordinary PAUSED — the audio
+                // stays buffered (retry re-sends, resume appends), the timer
+                // is preserved, and the snapshot is re-written so process
+                // death is covered by restore(). The IME stays visible, shows
+                // the failure Toast, and offers send/resume plus editable
+                // quick settings — as if the send had never happened.
+                state = State.PAUSED
+                snapshot()
+                emit(Event.StateChanged(state))
+                if (callback != null) {
+                    emit(Event.Completed(result))
+                } else {
+                    pendingResult = result
+                }
             }
-            accumulatedMs = 0L
-            segStartMs = 0L
-            state = State.IDLE
-            emit(Event.StateChanged(state))
         }
     }
 

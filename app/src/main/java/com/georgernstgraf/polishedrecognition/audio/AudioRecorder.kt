@@ -65,7 +65,15 @@ class AudioRecorder {
         start(resetBuffer = false)
     }
 
-    fun stop(): ByteArray {
+    fun stop(): ByteArray = stopPreservingBuffer().also { flushBuffer() }
+
+    /**
+     * Stops capture and returns the WAV without clearing the buffered PCM
+     * (#84): the buffer stays so a failed pipeline can park the session as
+     * PAUSED with the audio intact (retry re-sends, resume appends). Call
+     * [flushBuffer] (or [cancel]) to discard after a successful upload.
+     */
+    fun stopPreservingBuffer(): ByteArray {
         isRecording = false
         try {
             audioRecord?.stop()
@@ -77,7 +85,6 @@ class AudioRecorder {
         val pcmData: ByteArray
         synchronized(bufferStream) {
             pcmData = bufferStream.toByteArray()
-            bufferStream.reset()
         }
 
         return pcmToWav(pcmData, 16000, 1, 16)

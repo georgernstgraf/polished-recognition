@@ -63,11 +63,15 @@ class VoiceSessionControllerTest {
     }
 
     private fun VoiceSessionController.awaitIdle() {
+        awaitState(VoiceSessionController.State.IDLE)
+    }
+
+    private fun VoiceSessionController.awaitState(target: VoiceSessionController.State) {
         val deadline = System.currentTimeMillis() + 5000
-        while (state != VoiceSessionController.State.IDLE && System.currentTimeMillis() < deadline) {
+        while (state != target && System.currentTimeMillis() < deadline) {
             Thread.sleep(10)
         }
-        assertThat(state).isEqualTo(VoiceSessionController.State.IDLE)
+        assertThat(state).isEqualTo(target)
     }
 
     private fun uploadedFile(): File {
@@ -445,6 +449,115 @@ class VoiceSessionControllerTest {
 
         assertThat(stateAtFlush).isEqualTo(VoiceSessionController.State.PROCESSING)
         assertThat(uploadedFile().name).isEqualTo("recording.wav")
+    }
+
+    /**
+     * Pipeline failure (#84): the session parks as ordinary PAUSED — audio
+     * stays buffered, the timer is preserved, and the snapshot is re-written
+     * so process death is covered by restore(). The IME stays visible on the
+     * failure Toast with send/resume and editable quick settings.
+     */
+    @Test
+    fun `pipeline failure parks PAUSED with preserved timer and snapshot`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        coEvery { pipeline.transcribe(any(), any()) } returns Result.failure(IOException("offline"))
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { events.add(it) }
+        } catch (_: Throwable) {
+        }
+        controller.pause()
+        val before = controller.recordedDurationMs()
+
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        assertThat(controller.recordedDurationMs()).isEqualTo(before)
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        assertThat(File(cacheDir, "session.pcm").exists()).isTrue()
+        assertThat(File(cacheDir, "session.meta").exists()).isTrue()
+        assertThat(events.filterIsInstance<VoiceSessionController.Event.StateChanged>().last())
+            .isEqualTo(VoiceSessionController.Event.StateChanged(VoiceSessionController.State.PAUSED))
+        val completed = events.filterIsInstance<VoiceSessionController.Event.Completed>()
+        assertThat(completed).hasSize(1)
+        assertThat(completed.single().result.isFailure).isTrue()
+        // Leave a clean tree for other tests: discard the parked session.
+        controller.cancel()
+        clearSessionFiles()
+    }
+
+    @Test
+    fun `failure snapshot restores as PAUSED on next bind`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        coEvery { pipeline.transcribe(any(), any()) } returns Result.failure(IOException("offline"))
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        controller.pause()
+        val before = controller.recordedDurationMs()
+
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        controller.detach()
+
+        val reborn = newController()
+        assertThat(reborn.restore()).isTrue()
+        assertThat(reborn.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(reborn.recordedDurationMs()).isEqualTo(before)
+        controller.cancel()
+        reborn.cancel()
+        clearSessionFiles()
+    }
+
+    @Test
+    fun `retry after failure succeeds and clears snapshot`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        coEvery { pipeline.transcribe(any(), any()) } returns
+            Result.failure<String>(IOException("offline")) andThen Result.success("hi")
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { events.add(it) }
+        } catch (_: Throwable) {
+        }
+
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val completed = events.filterIsInstance<VoiceSessionController.Event.Completed>()
+        assertThat(completed).hasSize(2)
+        assertThat(completed[0].result.isFailure).isTrue()
+        assertThat(completed[1].result.getOrNull()).isEqualTo("hi")
+        assertThat(newController().restore()).isFalse()
+        clearSessionFiles()
+    }
+
+    @Test
+    fun `cancel after failure discards parked audio`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        coEvery { pipeline.transcribe(any(), any()) } returns Result.failure(IOException("offline"))
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        controller.cancel()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        assertThat(newController().restore()).isFalse()
+        clearSessionFiles()
     }
 
     private fun clearSessionFiles() {

@@ -66,6 +66,26 @@ class AudioRecorderTest {
     }
 
     @Test
+    fun `stop clears the buffer`() {
+        val recorder = AudioRecorder()
+        recorder.restorePcm(pcmBuffer(1000, -1000))
+        recorder.stop()
+        assertThat(recorder.snapshotPcm()).isEmpty()
+    }
+
+    @Test
+    fun `stopPreservingBuffer keeps PCM for retry after pipeline failure`() {
+        val recorder = AudioRecorder()
+        recorder.restorePcm(pcmBuffer(1000, -1000, 1000, -1000))
+
+        val wav = recorder.stopPreservingBuffer()
+
+        assertThat(wav.size).isGreaterThan(44)
+        assertThat(recorder.snapshotPcm()).isNotEmpty()
+        recorder.cancel()
+    }
+
+    @Test
     fun `flushBuffer clears restored PCM`() {
         val recorder = AudioRecorder()
         recorder.restorePcm(pcmBuffer(1000, -1000, 1000, -1000))
