@@ -1,1 +1,5 @@
-• Clearer paused state — the voice bar no longer fades out when dictation is paused; the breathing pulse shows only while actually recording (#77).
+• Rotation-proof voice sessions — recording and polished results survive screen rotation, no dictation loss (#83).
+• REC time counter in the voice bar while dictating (#71).
+• New flush button to discard the current audio buffer, keeping the session mode (#86).
+• Configurable output line-wrap (default 80, 0 to disable) (#81).
+• Recording pulse is now volume-independent — always visible while recording (#87).
