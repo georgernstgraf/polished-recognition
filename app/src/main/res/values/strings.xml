@@ -79,6 +79,8 @@
     <string name="ime_resume_desc">Resume</string>
     <string name="ime_send_desc">Send</string>
     <string name="ime_send_hint">Send — transcribe, polish and insert the text</string>
+    <string name="ime_switch_hint">Keyboard — back to your text keyboard</string>
+    <string name="ime_settings_hint">Settings — providers, language and prompts</string>
     <string name="ime_pause_resume_hint">Pause / resume — recorded audio is kept</string>
     <string name="ime_cancel_hint">Cancel — discard the recording and close</string>
     <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>

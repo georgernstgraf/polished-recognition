@@ -163,7 +163,9 @@ class PolishedVoiceInputIME : InputMethodService() {
             cancelButton to R.id.ime_cancel_button,
             flushButton to R.id.ime_flush_button,
             pauseResumeButton to R.id.ime_pause_resume_button,
-            sendButton to R.id.ime_send_button
+            sendButton to R.id.ime_send_button,
+            switchKeyboardButton to R.id.ime_switch_keyboard_button,
+            settingsGear to R.id.ime_settings_button
         ).forEach { (button, id) ->
             ImeHintPolicy.hintFor(id)?.let { hint -> attachPressHint(button, hint) }
         }

@@ -36,10 +36,22 @@ class ImeHintPolicyTest {
     }
 
     @Test
-    fun `top-row buttons and unknown views have no hint`() {
-        assertThat(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button)).isNull()
-        assertThat(ImeHintPolicy.hintFor(R.id.ime_settings_button)).isNull()
+    fun `top-row buttons map to their hints`() {
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button))
+            .isEqualTo(R.string.ime_switch_hint)
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_settings_button))
+            .isEqualTo(R.string.ime_settings_hint)
+        val ctx = RuntimeEnvironment.getApplication()
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button)!!))
+            .isEqualTo("Keyboard — back to your text keyboard")
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_settings_button)!!))
+            .isEqualTo("Settings — providers, language and prompts")
+    }
+
+    @Test
+    fun `views without help have no hint`() {
         assertThat(ImeHintPolicy.hintFor(R.id.ime_language_spinner)).isNull()
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_raw)).isNull()
         assertThat(ImeHintPolicy.hintFor(-1)).isNull()
     }
 }
