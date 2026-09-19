@@ -140,5 +140,16 @@
             android:contentDescription="@string/ime_mic_desc"
             android:scaleType="centerInside" />
 
+        <ImageButton
+            android:id="@+id/ime_flush_button"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_delete"
+            android:tint="@color/recording_icon_tint"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ime_flush_desc"
+            android:scaleType="centerInside" />
+
     </LinearLayout>
 </LinearLayout>

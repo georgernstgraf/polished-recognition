@@ -328,6 +328,118 @@ class VoiceSessionControllerTest {
         assertThat(newController().restore()).isFalse()
     }
 
+    /**
+     * Flush button (#86): discards the audio but keeps the mode — PAUSED
+     * stays paused with a zeroed timer, and the UI callback stays attached
+     * (a StateChanged event is delivered, unlike cancel() which nulls it).
+     */
+    @Test
+    fun `flush in PAUSED stays PAUSED with zeroed timer and kept callback`() {
+        clearSessionFiles()
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { events.add(it) }
+        } catch (_: Throwable) {
+        }
+        controller.pause()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+
+        controller.flush()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(controller.recordedDurationMs()).isEqualTo(0L)
+        assertThat(events.last())
+            .isEqualTo(VoiceSessionController.Event.StateChanged(VoiceSessionController.State.PAUSED))
+        assertThat(newController().restore()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
+     * Flush in RECORDING (#86): the mode is kept and the timer restarts from
+     * scratch. No sleeping while RECORDING here — under Robolectric the
+     * AudioRecord shadow fills the buffer in a tight loop, so any sleep
+     * with a live recorder risks OOMing the test JVM (same reason the #67
+     * snapshot test hand-crafts its files).
+     */
+    @Test
+    fun `flush in RECORDING stays RECORDING with restarted timer`() {
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { events.add(it) }
+        } catch (_: Throwable) {
+        }
+
+        controller.flush()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+        assertThat(controller.recordedDurationMs()).isAtMost(5000L)
+        assertThat(events.last())
+            .isEqualTo(VoiceSessionController.Event.StateChanged(VoiceSessionController.State.RECORDING))
+        controller.cancel()
+    }
+
+    @Test
+    fun `flush clears a hand-crafted snapshot`() {
+        clearSessionFiles()
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(320))
+        File(cacheDir, "session.meta").writeText("1234")
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+
+        controller.flush()
+
+        assertThat(newController().restore()).isFalse()
+        controller.cancel()
+    }
+
+    @Test
+    fun `flush in IDLE is a no-op`() {
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+
+        controller.flush()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        assertThat(events).isEmpty()
+    }
+
+    @Test
+    fun `flush in PROCESSING is a no-op`() {
+        settings.compressAudio = false
+        val gate = CountDownLatch(1)
+        coEvery { pipeline.transcribe(any(), any()) } coAnswers {
+            gate.await()
+            Result.success("hi")
+        }
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        var stateAtFlush: VoiceSessionController.State? = null
+        val releaser = thread {
+            while (controller.state != VoiceSessionController.State.PROCESSING) {
+                Thread.sleep(10)
+            }
+            controller.flush()
+            stateAtFlush = controller.state
+            gate.countDown()
+        }
+        controller.stopAndTranscribe()
+        releaser.join(5000)
+        controller.awaitIdle()
+
+        assertThat(stateAtFlush).isEqualTo(VoiceSessionController.State.PROCESSING)
+        assertThat(uploadedFile().name).isEqualTo("recording.wav")
+    }
+
     private fun clearSessionFiles() {
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
         File(cacheDir, "session.pcm").delete()

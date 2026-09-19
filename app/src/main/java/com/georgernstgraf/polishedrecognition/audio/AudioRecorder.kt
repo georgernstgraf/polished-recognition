@@ -115,6 +115,20 @@ class AudioRecorder {
     }
 
     /**
+     * Discards the captured PCM without disturbing a live session (#86,
+     * flush button): a running AudioRecord thread keeps capturing
+     * (RECORDING) or stays stopped (PAUSED) — only the buffered bytes and
+     * the speech-begin latch are reset, so the user re-records from scratch
+     * in the same mode.
+     */
+    fun flushBuffer() {
+        synchronized(bufferStream) {
+            bufferStream.reset()
+        }
+        didReportSpeechBegin = false
+    }
+
+    /**
      * Copies the captured raw PCM bytes without disturbing the session, for
      * the process-death snapshot (`VoiceSessionController.snapshot`, #67).
      */

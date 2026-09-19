@@ -49,6 +49,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var micSendButton: ImageButton? = null
     private var pauseResumeButton: ImageButton? = null
     private var cancelButton: ImageButton? = null
+    private var flushButton: ImageButton? = null
     private var languageSpinner: Spinner? = null
     private var rawCheckbox: CheckBox? = null
     private var settingsGear: ImageButton? = null
@@ -118,6 +119,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         micSendButton = view.findViewById(R.id.ime_mic_send_button)
         pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
         cancelButton = view.findViewById(R.id.ime_cancel_button)
+        flushButton = view.findViewById(R.id.ime_flush_button)
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
         rawCheckbox = view.findViewById(R.id.ime_raw)
         settingsGear = view.findViewById(R.id.ime_settings_button)
@@ -145,6 +147,20 @@ class PolishedVoiceInputIME : InputMethodService() {
         cancelButton?.setOnClickListener {
             controller.cancel()
             requestHideSelf(0)
+        }
+        flushButton?.setOnClickListener {
+            // Flush (#86): discard the audio but stay in the mode — a fresh
+            // take in RECORDING, an empty pause in PAUSED. Closing is
+            // cancel's job.
+            when (controller.state) {
+                VoiceSessionController.State.RECORDING -> {
+                    smoothedRms = 0f
+                    voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
+                    controller.flush()
+                }
+                VoiceSessionController.State.PAUSED -> controller.flush()
+                else -> Unit
+            }
         }
         settingsGear?.setOnClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {
@@ -429,6 +445,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         val ms = micSendButton ?: return
         val pr = pauseResumeButton ?: return
         val cb = cancelButton ?: return
+        val fb = flushButton ?: return
         val gear = settingsGear ?: return
         val switchButton = switchKeyboardButton ?: return
         val s = controller.state
@@ -443,6 +460,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.contentDescription = getString(R.string.ime_pause_desc)
                 pr.isEnabled = false
                 cb.isEnabled = true
+                fb.isEnabled = false
                 gear.isEnabled = true
                 switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
@@ -456,6 +474,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.contentDescription = getString(R.string.ime_pause_desc)
                 pr.isEnabled = true
                 cb.isEnabled = true
+                fb.isEnabled = true
                 gear.isEnabled = true
                 switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
@@ -469,6 +488,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.contentDescription = getString(R.string.ime_resume_desc)
                 pr.isEnabled = true
                 cb.isEnabled = true
+                fb.isEnabled = true
                 gear.isEnabled = true
                 switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
@@ -482,6 +502,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.contentDescription = getString(R.string.ime_pause_desc)
                 pr.isEnabled = false
                 cb.isEnabled = false
+                fb.isEnabled = false
                 gear.isEnabled = false
                 switchButton.isEnabled = false
                 setQuickSettingsEnabled(false)

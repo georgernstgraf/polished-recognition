@@ -142,6 +142,23 @@ class VoiceSessionController(
         callback = null
     }
 
+    /**
+     * Discards the recorded audio but keeps the session mode (#86, flush
+     * button): RECORDING keeps capturing into a fresh buffer, PAUSED stays
+     * paused with an empty buffer and a zeroed timer. Unlike [cancel], the
+     * UI callback stays attached and the IME stays open — closing the IME
+     * is cancel's job. No-op in IDLE (nothing recorded) and PROCESSING
+     * (the upload bytes are already extracted, the pipeline owns them).
+     */
+    fun flush() {
+        if (state != State.RECORDING && state != State.PAUSED) return
+        recorder.flushBuffer()
+        clearSnapshot()
+        accumulatedMs = 0L
+        if (state == State.RECORDING) segStartMs = System.currentTimeMillis()
+        emit(Event.StateChanged(state))
+    }
+
     fun recordedDurationMs(): Long {
         val live = if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
         return accumulatedMs + live

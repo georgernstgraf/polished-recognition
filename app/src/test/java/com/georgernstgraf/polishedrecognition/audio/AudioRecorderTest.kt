@@ -107,5 +107,24 @@ class AudioRecorderTest {
             .isWithin(0.01f).of(1000f)
     }
 
+    @Test
+    fun `flushBuffer clears restored PCM`() {
+        val recorder = AudioRecorder()
+        recorder.restorePcm(pcmBuffer(1000, -1000, 1000, -1000))
+
+        recorder.flushBuffer()
+
+        assertThat(recorder.snapshotPcm()).isEmpty()
+    }
+
+    @Test
+    fun `flushBuffer on empty buffer is a safe no-op`() {
+        val recorder = AudioRecorder()
+
+        recorder.flushBuffer()
+
+        assertThat(recorder.snapshotPcm()).isEmpty()
+    }
+
     private fun byteOf(v: Int): Byte = v.toByte()
 }

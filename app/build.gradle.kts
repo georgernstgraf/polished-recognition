@@ -116,7 +116,14 @@ android {
         unitTests {
             isReturnDefaultValues = true
             isIncludeAndroidResources = true
-            all { it.jvmArgs("-Xshare:off") }
+            // The suite (244 tests, Robolectric sandboxes + MockK) exceeds
+            // Gradle's 512m default Test-worker heap — the executor dies
+            // with exit value 2 once the run reaches the service package
+            // (#86). Test-only setting, no effect on release artifacts.
+            all {
+                it.jvmArgs("-Xshare:off")
+                it.maxHeapSize = "1536m"
+            }
         }
     }
 }

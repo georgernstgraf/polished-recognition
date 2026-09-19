@@ -81,6 +81,7 @@
     <string name="ime_resume_desc">Resume</string>
     <string name="ime_mic_desc">Record</string>
     <string name="ime_send_desc">Send</string>
+    <string name="ime_flush_desc">Discard recording</string>
     <string name="ime_processing">\u2026</string>
     <string name="ime_error">Transcription failed</string>
     <string name="ime_channel_name">Voice input</string>
