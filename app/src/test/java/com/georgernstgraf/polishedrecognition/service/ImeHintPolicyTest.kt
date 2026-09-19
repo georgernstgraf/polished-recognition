@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class ImeHintPolicyTest {
@@ -12,13 +13,26 @@ class ImeHintPolicyTest {
     @Test
     fun `lower-row buttons map to their fixed hints`() {
         assertThat(ImeHintPolicy.hintFor(R.id.ime_cancel_button))
-            .isEqualTo(R.string.ime_cancel_desc)
+            .isEqualTo(R.string.ime_cancel_hint)
         assertThat(ImeHintPolicy.hintFor(R.id.ime_flush_button))
-            .isEqualTo(R.string.ime_flush_desc)
+            .isEqualTo(R.string.ime_flush_hint)
         assertThat(ImeHintPolicy.hintFor(R.id.ime_pause_resume_button))
             .isEqualTo(R.string.ime_pause_resume_hint)
         assertThat(ImeHintPolicy.hintFor(R.id.ime_mic_send_button))
             .isEqualTo(R.string.ime_mic_send_hint)
+    }
+
+    @Test
+    fun `hints explain what the button ultimately does`() {
+        val ctx = RuntimeEnvironment.getApplication()
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_cancel_button)!!))
+            .isEqualTo("Cancel — discard the recording and close")
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_flush_button)!!))
+            .isEqualTo("Discard — clear audio and timer, stay here")
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_pause_resume_button)!!))
+            .isEqualTo("Pause / resume — recorded audio is kept")
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_mic_send_button)!!))
+            .isEqualTo("Record — tap again to transcribe and insert")
     }
 
     @Test

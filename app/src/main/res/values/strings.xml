@@ -81,8 +81,10 @@
     <string name="ime_resume_desc">Resume</string>
     <string name="ime_mic_desc">Record</string>
     <string name="ime_send_desc">Send</string>
-    <string name="ime_mic_send_hint">Record / Send</string>
-    <string name="ime_pause_resume_hint">Pause / Resume</string>
+    <string name="ime_mic_send_hint">Record — tap again to transcribe and insert</string>
+    <string name="ime_pause_resume_hint">Pause / resume — recorded audio is kept</string>
+    <string name="ime_cancel_hint">Cancel — discard the recording and close</string>
+    <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>
     <string name="ime_flush_desc">Discard recording</string>
     <string name="ime_processing">\u2026</string>
     <string name="ime_error">Transcription failed</string>

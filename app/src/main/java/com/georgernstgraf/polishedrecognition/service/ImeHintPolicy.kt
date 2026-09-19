@@ -11,8 +11,8 @@ import com.georgernstgraf.polishedrecognition.R
  */
 object ImeHintPolicy {
     fun hintFor(viewId: Int): Int? = when (viewId) {
-        R.id.ime_cancel_button -> R.string.ime_cancel_desc
-        R.id.ime_flush_button -> R.string.ime_flush_desc
+        R.id.ime_cancel_button -> R.string.ime_cancel_hint
+        R.id.ime_flush_button -> R.string.ime_flush_hint
         R.id.ime_pause_resume_button -> R.string.ime_pause_resume_hint
         R.id.ime_mic_send_button -> R.string.ime_mic_send_hint
         else -> null
