@@ -6,7 +6,8 @@
 
 ## Open tasks
 
-1. [ ] **#74 — F-Droid launch marketing Phase 0/1** (now: **v1.3.0 MINOR listing-assets release** — fastlane images (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must be committed before that tag; see #74 for the full plan; owner works on Play Console/Google Group setup in parallel; #74 body already retargeted to v1.3.0).
+1. [ ] **#87 feel-check (owner, on-device)** — sine blink 0.3↔1.0 @1333 ms in RECORDING, opaque everywhere else (`1cf320f` pushed, 235/235 + `assembleRelease` green); close on pass.
+2. [ ] **#74 — F-Droid launch marketing Phase 0/1** (now: **v1.3.0 MINOR listing-assets release** — fastlane images (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must be committed before that tag; see #74 for the full plan; owner works on Play Console/Google Group setup in parallel; #74 body already retargeted to v1.3.0).
 2. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
 3. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
 4. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (now includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
@@ -19,9 +20,8 @@
 - **HeliBoard's mic uses the system `voice_recognition_service`**, NOT the auxiliary IME → use the nav-bar switcher or the Polished switch-button instead.
 - The IME crashes on `?attr/` theme attrs — only platform attrs / `@null` / explicit colors in IME layouts.
 - Diagnostic logs readable via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` (stt-response/llm-prompt/llm-response rotating JSON) — no root needed. Screenshot sessions with a configured provider LIVE-record on field focus (auto-start) — cancel explicitly (#128).
-- Oplus/OnePlus suppresses app-level IME logcat; S5 (LineageOS) shows app lines normally. Pulse diagnostics: re-enable the commented `Log.d` block in `PolishedVoiceInputIME.onRmsChanged` (tag `PolishedRMS`).
 - IME state: pause bars = recording, ↺ = paused (interrupted sessions persist PAUSED). `distribution/*.png` remain stale; README screenshots live in `docs/img/`.
 - **Agent host (VPS) has no attached device** — the owner runs the on-device feel-check (`installRelease` + visual) from the machine with the connected device; leave device-only verification as an explicit HANDOFF item.
-- Pulse-contrast check (#77): while RECORDING the foreground rows breathe between 0.15 and 0.9; in IDLE/PAUSED/PROCESSING they must be fully opaque (`PulseAlphaPolicy`). The pause bug (frozen at 0.15) only reproduces when pausing during the deep dwell window of the 2 s cycle. Device-verified by owner 2026-09-14 (v1.2.3).
+- Pulse-contrast check (#87): while RECORDING the foreground rows breathe 0.3↔1.0 on a 1333 ms sine (`PulseAlphaPolicy.blinkAlpha`); in IDLE/PAUSED/PROCESSING they must be fully opaque (`PulseAlphaPolicy.target`). The pre-#87 pause bug class (frozen dim rows from a stale second alpha layer) is structurally gone — single blink value only.
 
-Last cleared: 2026-09-19 (#81 closed as implemented; the two owner-confirmed on-device feel-checks (#71 REC counter, #83 rotation-safe session) removed from the open list — #83 was already closed 2026-09-18; #86 feel-check still open; next: #74 v1.3.0 listing-assets release).
+Last cleared: 2026-09-19 (#87 implemented + pushed, feel-check pending; #81 closed as implemented; the two owner-confirmed on-device feel-checks (#71 REC counter, #83 rotation-safe session) removed from the open list — #83 was already closed 2026-09-18; next: #87 feel-check, then #74 v1.3.0 listing-assets release).

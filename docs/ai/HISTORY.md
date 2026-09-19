@@ -83,3 +83,13 @@ Entries here are no longer active truth. Never delete from this file.
 - **Tradeoff**: A process kill while paused still loses the dictation — accepted until observed.
 - **Origin**: DECISIONS.md
 - **Reason**: Owner proved process death on-device (PAUSED + rotate → timer `00:00` + pre-rotation audio gone, commit aa94106 implements the snapshot exactly as proposed; #67 itself stays closed).
+
+## 2026-09-19 (SUPERSEDED 2026-09-19, origin: PITFALLS.md, reason: #87 — the entire mic-coupled RMS pulse chain was deleted; no RMS consumer remains): Gate ambient noise before normalizing mic loudness
+- **A live microphone never reads RMS 0 — gate ambient noise before normalizing loudness.** `AudioRecord` on a quiet room mic continuously reports raw RMS ~50–200; a level mapping normalized from zero (e.g. `ln(1+rms)/ln(1+ceiling)`) therefore parks the signal near its top — the IME pulse sat at alpha ~0.8–0.95 for the whole recording and the intended 0.5 "deep gray" floor was mathematically unreachable. Fix: subtract a noise gate (`NOISE_FLOOR`, aligned with the recorder's speech-begin threshold of 200) before any normalization, and verify the mapping with realistic values (ambient ~100 → floor, speech ~400–2000 → clearly above floor). (#57, found on device.)
+- **Origin**: PITFALLS.md
+- **Reason**: #87 replaced the volume-driven pulse with a volume-independent sine blink and deleted `RmsAlphaMapper`, `Event.RmsChanged`/`SpeechBegin`, `AudioRecorderListener`, and `computePcmRms` entirely.
+
+## 2026-09-19 (SUPERSEDED 2026-09-19, origin: PITFALLS.md, reason: #87 — `computePcmRms` deleted with the RMS chain; no PCM-squaring code remains): Sign-correct 16-bit PCM samples before squaring
+- **16-bit PCM samples MUST be sign-corrected before squaring** — assembling little-endian samples unsigned (`(hi & 0xFF) shl 8) or (lo & 0xFF)` → 0..65535) makes squares of values > 46340 overflow `Int` to negative, driving the sum negative → `sqrt(negative) = NaN`. `AudioRecorder.computeRms` shipped this bug from day one; RMS was silently NaN for any speech with samples < −8192 and nobody noticed until #57 consumed the values (frozen IME pulse). Fix: `if (sample >= 32768) sample - 65536` + accumulate in `Long` (`signed.toLong() * signed`). Guard: skip non-finite RMS at the consumer. Regression tests in `AudioRecorderTest` (deep negative samples = exact trigger). (#57, found on device via `PolishedRMS` logcat.)
+- **Origin**: PITFALLS.md
+- **Reason**: Same as above — re-read both entries before re-adding any audio-coupled UI.
