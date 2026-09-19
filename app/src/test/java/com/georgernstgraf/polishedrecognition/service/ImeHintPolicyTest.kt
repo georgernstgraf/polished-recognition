@@ -18,8 +18,8 @@ class ImeHintPolicyTest {
             .isEqualTo(R.string.ime_flush_hint)
         assertThat(ImeHintPolicy.hintFor(R.id.ime_pause_resume_button))
             .isEqualTo(R.string.ime_pause_resume_hint)
-        assertThat(ImeHintPolicy.hintFor(R.id.ime_mic_send_button))
-            .isEqualTo(R.string.ime_mic_send_hint)
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_send_button))
+            .isEqualTo(R.string.ime_send_hint)
     }
 
     @Test
@@ -31,8 +31,8 @@ class ImeHintPolicyTest {
             .isEqualTo("Discard — clear audio and timer, stay here")
         assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_pause_resume_button)!!))
             .isEqualTo("Pause / resume — recorded audio is kept")
-        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_mic_send_button)!!))
-            .isEqualTo("Record — tap again to transcribe and insert")
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_send_button)!!))
+            .isEqualTo("Send — transcribe, polish and insert the text")
     }
 
     @Test

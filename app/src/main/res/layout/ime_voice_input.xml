@@ -141,14 +141,14 @@
             android:scaleType="centerInside" />
 
         <ImageButton
-            android:id="@+id/ime_mic_send_button"
+            android:id="@+id/ime_send_button"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="48dp"
-            android:src="@drawable/ic_mic"
+            android:src="@drawable/ic_send"
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/ime_mic_desc"
+            android:contentDescription="@string/ime_send_desc"
             android:scaleType="centerInside" />
 
     </LinearLayout>

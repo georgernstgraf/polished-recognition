@@ -46,7 +46,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var rootView: View? = null
     private var rowTop: View? = null
     private var rowButtons: View? = null
-    private var micSendButton: ImageButton? = null
+    private var sendButton: ImageButton? = null
     private var pauseResumeButton: ImageButton? = null
     private var cancelButton: ImageButton? = null
     private var flushButton: ImageButton? = null
@@ -114,7 +114,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         rootView = view.findViewById(R.id.ime_root)
         rowTop = view.findViewById(R.id.ime_row_top)
         rowButtons = view.findViewById(R.id.ime_row_buttons)
-        micSendButton = view.findViewById(R.id.ime_mic_send_button)
+        sendButton = view.findViewById(R.id.ime_send_button)
         pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
         cancelButton = view.findViewById(R.id.ime_cancel_button)
         flushButton = view.findViewById(R.id.ime_flush_button)
@@ -127,7 +127,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         recTimerDivider = view.findViewById(R.id.ime_rec_timer_divider)
         stageText = view.findViewById(R.id.ime_stage_text)
 
-        micSendButton?.setOnClickListener {
+        sendButton?.setOnClickListener {
             when (controller.state) {
                 VoiceSessionController.State.IDLE -> startIfPermitted()
                 VoiceSessionController.State.RECORDING,
@@ -163,7 +163,7 @@ class PolishedVoiceInputIME : InputMethodService() {
             cancelButton to R.id.ime_cancel_button,
             flushButton to R.id.ime_flush_button,
             pauseResumeButton to R.id.ime_pause_resume_button,
-            micSendButton to R.id.ime_mic_send_button
+            sendButton to R.id.ime_send_button
         ).forEach { (button, id) ->
             ImeHintPolicy.hintFor(id)?.let { hint -> attachPressHint(button, hint) }
         }
@@ -442,7 +442,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun applyUiState() {
-        val ms = micSendButton ?: return
+        val ms = sendButton ?: return
         val pr = pauseResumeButton ?: return
         val cb = cancelButton ?: return
         val fb = flushButton ?: return
@@ -453,8 +453,8 @@ class PolishedVoiceInputIME : InputMethodService() {
         setPausedEnlarged(s == VoiceSessionController.State.PAUSED)
         when (s) {
             VoiceSessionController.State.IDLE -> {
-                ms.setImageResource(R.drawable.ic_mic)
-                ms.contentDescription = getString(R.string.ime_mic_desc)
+                ms.setImageResource(R.drawable.ic_send)
+                ms.contentDescription = getString(R.string.ime_send_desc)
                 ms.isEnabled = true
                 pr.setImageResource(R.drawable.ic_pause)
                 pr.contentDescription = getString(R.string.ime_pause_desc)
@@ -545,11 +545,7 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun attachPressHint(button: ImageButton?, hintRes: Int) {
         button?.setOnLongClickListener {
-            hintToast?.cancel()
-            hintToast = Toast.makeText(this, hintRes, Toast.LENGTH_LONG).apply {
-                setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, hintYOffsetPx())
-                show()
-            }
+            showHintToast(getString(hintRes))
             // Consumed: a long-press shows help and must not also tap.
             true
         }
@@ -569,10 +565,26 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
     }
 
+    /**
+     * Single reused hint Toast (#88): creating a new Toast per long-press
+     * churns show/cancel through the notification manager and stops
+     * appearing after a few consecutive presses — one instance with
+     * setText() does not.
+     */
+    private fun showHintToast(text: String) {
+        val toast = hintToast ?: Toast.makeText(this, text, Toast.LENGTH_LONG).apply {
+            setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, hintYOffsetPx())
+            hintToast = this
+        }
+        toast.setText(text)
+        toast.show()
+    }
+
     private fun hintYOffsetPx(): Int =
         (120 * resources.displayMetrics.density).toInt()
 
-    private fun setFlashing(active: Boolean) {        if (active) {
+    private fun setFlashing(active: Boolean) {
+        if (active) {
             breathAlpha = BREATH_CEIL
             startBreathing()
         } else {
