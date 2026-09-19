@@ -10,8 +10,9 @@
 2. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
 3. [ ] **#71 follow-up — on-device feel-check of the REC counter** (`6cfb713`: ticking "REC m:ss" right of the language dropdown, frozen w/o REC in PAUSE; owner verifies via `installRelease` + visual; reopen #71 on findings).
 4. [ ] **#83 feel-check confirmation** (shipped `aa94106`, installed on the OnePlus 2026-09-18: RECORDING tick continuity + alpha/bravo content, PAUSED stays ↺, PROCESSING delivers, field-change cancels, switch-return resumes with ~0.5 s lag; pull `ime-lifecycle.log` on failure; reopen #83 on findings).
-5. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
-6. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (now includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
+5. [ ] **#86 feel-check** (shipped `9b67336` 2026-09-19: RECORDING→flush→`REC 0:00` + fresh audio sends, PAUSED→flush→`0:00` + resume appends fresh, PROCESSING→button disabled; reopen #86 on findings).
+6. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
+7. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (now includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 
 ## Known on-device gotchas
 
