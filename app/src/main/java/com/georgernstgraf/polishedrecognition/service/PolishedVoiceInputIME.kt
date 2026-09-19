@@ -13,6 +13,7 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -60,6 +61,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var breathAlpha = BREATH_CEIL
     private var breathAnimator: ValueAnimator? = null
     private var silenceLangListener = false
+    private var hintToast: Toast? = null
     /**
      * Set by [onConfigurationChanged], consumed by [onStartInputView]. Fast
      * path for rotation detection when the mark arrives before the rebind;
@@ -542,30 +544,33 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun attachPressHint(button: ImageButton?, hintRes: Int) {
+        button?.setOnLongClickListener {
+            hintToast?.cancel()
+            hintToast = Toast.makeText(this, hintRes, Toast.LENGTH_LONG).apply {
+                setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, hintYOffsetPx())
+                show()
+            }
+            // Consumed: a long-press shows help and must not also tap.
+            true
+        }
+        // Dismiss the hint the moment the finger lifts so it is visible
+        // only while pressed (#88). This listener returns false and never
+        // alters the IME layout, so single taps work exactly as before —
+        // the previous stage-line approach shifted the bar mid-tap and
+        // broke them.
         button?.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> showPressHint(getString(hintRes))
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> hidePressHint()
+            if (event.action == MotionEvent.ACTION_UP ||
+                event.action == MotionEvent.ACTION_CANCEL
+            ) {
+                hintToast?.cancel()
+                hintToast = null
             }
             false
         }
     }
 
-    /**
-     * Press-hold hint (#88): the stage line above the buttons is the only
-     * always-readable spot — framework tooltips pop up under the thumb.
-     * PROCESSING owns the stage line (live transcode/STT/LLM label), so a
-     * hint release never blanks it there.
-     */
-    private fun showPressHint(text: String) {
-        stageText?.text = text
-        stageText?.visibility = View.VISIBLE
-    }
-
-    private fun hidePressHint() {
-        if (controller.state == VoiceSessionController.State.PROCESSING) return
-        stageText?.visibility = View.GONE
-    }
+    private fun hintYOffsetPx(): Int =
+        (120 * resources.displayMetrics.density).toInt()
 
     private fun setFlashing(active: Boolean) {        if (active) {
             breathAlpha = BREATH_CEIL
@@ -732,6 +737,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onDestroy() {
         breathAnimator?.cancel()
         breathAnimator = null
+        hintToast?.cancel()
+        hintToast = null
         recTickHandler.removeCallbacks(recTick)
         pendingProvisional?.let { recTickHandler.removeCallbacks(it) }
         pendingProvisional = null
