@@ -1,12 +1,12 @@
 # Project State
 
-Current status as of 2026-09-19 (#87 implemented + pushed `1cf320f` — volume-independent sine blink, RMS chain deleted; 235/235 tests + `assembleRelease` green; issue OPEN pending owner on-device feel-check. Open: #87 (feel-check), #84, #82, #74, #75, #64).
+Current status as of 2026-09-19 (#87 CLOSED per owner — sine blink shipped `1cf320f`, on-device feel-check passed; open: #84, #82, #74, #75, #64).
 
 ## Current Focus
-**#87 feel-check, then #74 — v1.3.0 listing-assets release (minor bump)**: fastlane `images/` (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must land before the v1.3.0 tag (F-Droid reads fastlane from the built tag); Play tester infra + demo GIF in parallel. F-Droid currently serves 1.2.2 — 1.2.3 pickup via untracked auto-update.
+**#74 — v1.3.0 listing-assets release (minor bump)**: fastlane `images/` (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must land before the v1.3.0 tag (F-Droid reads fastlane from the built tag); Play tester infra + demo GIF in parallel. F-Droid currently serves 1.2.2 — 1.2.3 pickup via untracked auto-update.
 
 ## Completed (this cycle)
-- [x] #87 implemented (`1cf320f`, pushed 2026-09-19) — sine blink 0.3↔1.0 @1333 ms (`PulseAlphaPolicy.blinkAlpha`, linear phase animator); deleted `RmsAlphaMapper` + test, `Event.RmsChanged`/`SpeechBegin`, `AudioRecorderListener`, `computePcmRms` + 6 tests; `PulseAlphaPolicy.target` single-value (#77 pinning intact). 5 new sine tests, 235/235 green + `assembleRelease` green. Pitfall note: executor exit-2 recurred under 24/30 GB machine pressure despite the 1536m heap fix — clears on retry, environmental. Issue OPEN pending owner feel-check.
+- [x] #87 implemented (`1cf320f`, pushed 2026-09-19) — sine blink 0.3↔1.0 @1333 ms (`PulseAlphaPolicy.blinkAlpha`, linear phase animator); deleted `RmsAlphaMapper` + test, `Event.RmsChanged`/`SpeechBegin`, `AudioRecorderListener`, `computePcmRms` + 6 tests; `PulseAlphaPolicy.target` single-value (#77 pinning intact). 5 new sine tests, 235/235 green + `assembleRelease` green. Pitfall note: executor exit-2 recurred under 24/30 GB machine pressure despite the 1536m heap fix — clears on retry, environmental. On-device feel-check PASSED by owner 2026-09-19 — no reopen; issue CLOSED.
 - [x] #78 created (standalone) — v1.2.3 patch release to ship the #77 opaque-IME fix; owner decision: no listing assets in this release.
 - [x] #78 implemented: version bump + whatsnew, tests/build green, commit `7175c5c` + tag `v1.2.3` pushed.
 - [x] Play alpha 10203 verified live via the documented temp CI Play-API query (workflow created, run, deleted).
@@ -23,7 +23,6 @@ Current status as of 2026-09-19 (#87 implemented + pushed `1cf320f` — volume-i
 - [x] #71 implemented (`6cfb713`) — REC time counter in IME bar (divider-framed, right of language dropdown; frozen w/o REC in PAUSE); issue closed 2026-09-17; on-device feel-check confirmed by owner 2026-09-19.
 
 ## Pending
-- [ ] #87 feel-check (owner, on-device): RECORDING sine 0.3↔1.0 @1333 ms, PAUSED/IDLE/PROCESSING opaque — close on pass.
 - [ ] #74: F-Droid launch Phase 0/1 — next release is **v1.3.0 (minor bump)** with listing assets (fastlane `images/` icon + phoneScreenshots, full_description rewrite, README/INSTALLATION badges), Play tester infra, demo GIF.
 - [ ] #75: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] #64: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
@@ -41,4 +40,4 @@ None.
 - The agent host (VPS) has no attached device — on-device verification is always delegated to the owner on the device machine. (Exception 2026-09-18: the OnePlus was reachable from the agent host for `installRelease` + `ime-lifecycle.log` reads; do not assume this persists.)
 
 ## Next Session Suggestion
-#87 feel-check result, then #74 v1.3.0 listing-assets release, then #75 / #64 / the older backlog (#84, #82).
+#74 v1.3.0 listing-assets release, then #75 / #64 / the older backlog (#84, #82).
