@@ -13,6 +13,7 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
@@ -152,6 +153,17 @@ class PolishedVoiceInputIME : InputMethodService() {
                 VoiceSessionController.State.PAUSED -> controller.flush()
                 else -> Unit
             }
+        }
+        // Press-hold hints (#88): show the fixed hint in the stage-text
+        // area above the buttons while the finger is down. The listener
+        // returns false so the normal click still fires on release.
+        listOf(
+            cancelButton to R.id.ime_cancel_button,
+            flushButton to R.id.ime_flush_button,
+            pauseResumeButton to R.id.ime_pause_resume_button,
+            micSendButton to R.id.ime_mic_send_button
+        ).forEach { (button, id) ->
+            ImeHintPolicy.hintFor(id)?.let { hint -> attachPressHint(button, hint) }
         }
         settingsGear?.setOnClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {
@@ -529,8 +541,33 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
     }
 
-    private fun setFlashing(active: Boolean) {
-        if (active) {
+    private fun attachPressHint(button: ImageButton?, hintRes: Int) {
+        button?.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> showPressHint(getString(hintRes))
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> hidePressHint()
+            }
+            false
+        }
+    }
+
+    /**
+     * Press-hold hint (#88): the stage line above the buttons is the only
+     * always-readable spot — framework tooltips pop up under the thumb.
+     * PROCESSING owns the stage line (live transcode/STT/LLM label), so a
+     * hint release never blanks it there.
+     */
+    private fun showPressHint(text: String) {
+        stageText?.text = text
+        stageText?.visibility = View.VISIBLE
+    }
+
+    private fun hidePressHint() {
+        if (controller.state == VoiceSessionController.State.PROCESSING) return
+        stageText?.visibility = View.GONE
+    }
+
+    private fun setFlashing(active: Boolean) {        if (active) {
             breathAlpha = BREATH_CEIL
             startBreathing()
         } else {

@@ -116,7 +116,6 @@
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_cancel_desc"
-            android:tooltipText="@string/ime_cancel_desc"
             android:scaleType="centerInside" />
 
         <ImageButton
@@ -128,7 +127,6 @@
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_flush_desc"
-            android:tooltipText="@string/ime_flush_desc"
             android:scaleType="centerInside" />
 
         <ImageButton
@@ -140,7 +138,6 @@
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_pause_desc"
-            android:tooltipText="@string/ime_pause_resume_hint"
             android:scaleType="centerInside" />
 
         <ImageButton
@@ -152,7 +149,6 @@
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_mic_desc"
-            android:tooltipText="@string/ime_mic_send_hint"
             android:scaleType="centerInside" />
 
     </LinearLayout>
