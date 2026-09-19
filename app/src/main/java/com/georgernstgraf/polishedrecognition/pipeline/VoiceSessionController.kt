@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
-import com.georgernstgraf.polishedrecognition.audio.AudioRecorderListener
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
@@ -29,8 +28,6 @@ class VoiceSessionController(
 
     sealed class Event {
         data class StateChanged(val state: State) : Event()
-        data class RmsChanged(val rms: Float) : Event()
-        object SpeechBegin : Event()
         data class StageChanged(val stage: TranscriptionPipeline.TranscriptionStage) : Event()
         data class Completed(val result: Result<String>) : Event()
     }
@@ -54,7 +51,7 @@ class VoiceSessionController(
         accumulatedMs = 0L
         segStartMs = System.currentTimeMillis()
         state = State.RECORDING
-        recorder.start(makeRecorderListener())
+        recorder.start()
         emit(Event.StateChanged(state))
     }
 
@@ -92,7 +89,7 @@ class VoiceSessionController(
         if (state != State.PAUSED) return
         segStartMs = System.currentTimeMillis()
         state = State.RECORDING
-        recorder.resume(makeRecorderListener())
+        recorder.resume()
         emit(Event.StateChanged(state))
     }
 
@@ -217,11 +214,6 @@ class VoiceSessionController(
             File(appContext.cacheDir, SNAP_META).delete()
         } catch (_: Throwable) {
         }
-    }
-
-    private fun makeRecorderListener() = object : AudioRecorderListener {
-        override fun onRmsChanged(rms: Float) = emit(Event.RmsChanged(rms))
-        override fun onSpeechBegin() = emit(Event.SpeechBegin)
     }
 
     /**

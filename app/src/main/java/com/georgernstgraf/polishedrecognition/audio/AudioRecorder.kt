@@ -5,23 +5,13 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import java.io.ByteArrayOutputStream
 
-interface AudioRecorderListener {
-    fun onRmsChanged(rms: Float)
-    fun onSpeechBegin() {}
-}
-
 class AudioRecorder {
 
     private var audioRecord: AudioRecord? = null
     @Volatile private var isRecording = false
     private val bufferStream = ByteArrayOutputStream()
-    private var listener: AudioRecorderListener? = null
-    private var didReportSpeechBegin = false
 
-    fun start(listener: AudioRecorderListener? = null, resetBuffer: Boolean = true) {
-        if (isRecording) return
-        this.listener = listener
-        this.didReportSpeechBegin = false
+    fun start(resetBuffer: Boolean = true) {
 
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -55,12 +45,6 @@ class AudioRecorder {
                     synchronized(bufferStream) {
                         bufferStream.write(buffer, 0, bytesRead)
                     }
-                    val rms = computeRms(buffer, bytesRead)
-                    listener?.onRmsChanged(rms)
-                    if (!didReportSpeechBegin && rms > 200f) {
-                        didReportSpeechBegin = true
-                        listener?.onSpeechBegin()
-                    }
                 }
             }
         }.start()
@@ -68,7 +52,6 @@ class AudioRecorder {
 
     fun pause() {
         isRecording = false
-        listener = null
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -77,13 +60,12 @@ class AudioRecorder {
         audioRecord = null
     }
 
-    fun resume(listener: AudioRecorderListener? = null) {
-        start(listener, resetBuffer = false)
+    fun resume() {
+        start(resetBuffer = false)
     }
 
     fun stop(): ByteArray {
         isRecording = false
-        listener = null
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -102,7 +84,6 @@ class AudioRecorder {
 
     fun cancel() {
         isRecording = false
-        listener = null
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -117,15 +98,13 @@ class AudioRecorder {
     /**
      * Discards the captured PCM without disturbing a live session (#86,
      * flush button): a running AudioRecord thread keeps capturing
-     * (RECORDING) or stays stopped (PAUSED) — only the buffered bytes and
-     * the speech-begin latch are reset, so the user re-records from scratch
-     * in the same mode.
+     * (RECORDING) or stays stopped (PAUSED) — only the buffered bytes are
+     * reset, so the user re-records from scratch in the same mode.
      */
     fun flushBuffer() {
         synchronized(bufferStream) {
             bufferStream.reset()
         }
-        didReportSpeechBegin = false
     }
 
     /**
@@ -146,9 +125,6 @@ class AudioRecorder {
             bufferStream.write(pcm)
         }
     }
-
-    private fun computeRms(buffer: ByteArray, bytesRead: Int): Float =
-        computePcmRms(buffer, bytesRead)
 
     private fun pcmToWav(pcmData: ByteArray, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
         val byteRate = sampleRate * channels * bitsPerSample / 8
@@ -198,20 +174,5 @@ class AudioRecorder {
     private fun writeShortLE(buf: ByteArray, offset: Int, value: Short) {
         buf[offset] = (value.toInt() and 0xFF).toByte()
         buf[offset + 1] = ((value.toInt() shr 8) and 0xFF).toByte()
-    }
-
-    companion object {
-        fun computePcmRms(buffer: ByteArray, bytesRead: Int): Float {
-            var sum = 0L
-            var i = 0
-            while (i + 1 < bytesRead) {
-                val sample = ((buffer[i + 1].toInt() and 0xFF) shl 8) or (buffer[i].toInt() and 0xFF)
-                val signed = if (sample >= 32768) sample - 65536 else sample
-                sum += signed.toLong() * signed
-                i += 2
-            }
-            val samples = (bytesRead / 2).coerceAtLeast(1)
-            return kotlin.math.sqrt(sum.toDouble() / samples).toFloat()
-        }
     }
 }

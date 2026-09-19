@@ -1,8 +1,6 @@
 package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
-import android.animation.Keyframe
-import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -15,8 +13,8 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.Log
 import android.view.View
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -58,11 +56,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var recTimer: TextView? = null
     private var recTimerDivider: View? = null
     private var stageText: TextView? = null
-    private var smoothedRms = 0f
-    private var voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
     private var breathAlpha = BREATH_CEIL
     private var breathAnimator: ValueAnimator? = null
-    private var rmsLogCount = 0
     private var silenceLangListener = false
     /**
      * Set by [onConfigurationChanged], consumed by [onStartInputView]. Fast
@@ -153,11 +148,7 @@ class PolishedVoiceInputIME : InputMethodService() {
             // take in RECORDING, an empty pause in PAUSED. Closing is
             // cancel's job.
             when (controller.state) {
-                VoiceSessionController.State.RECORDING -> {
-                    smoothedRms = 0f
-                    voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
-                    controller.flush()
-                }
+                VoiceSessionController.State.RECORDING,
                 VoiceSessionController.State.PAUSED -> controller.flush()
                 else -> Unit
             }
@@ -419,11 +410,6 @@ class PolishedVoiceInputIME : InputMethodService() {
                 }
                 applyUiState()
             }
-            is VoiceSessionController.Event.RmsChanged ->
-                if (controller.state == VoiceSessionController.State.RECORDING) {
-                    onRmsChanged(event.rms)
-                }
-            is VoiceSessionController.Event.SpeechBegin -> Unit
         }
     }
 
@@ -545,10 +531,7 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun setFlashing(active: Boolean) {
         if (active) {
-            smoothedRms = 0f
-            voiceAlpha = RmsAlphaMapper.ALPHA_FLOOR
             breathAlpha = BREATH_CEIL
-            rmsLogCount = 0
             startBreathing()
         } else {
             breathAnimator?.cancel()
@@ -559,49 +542,30 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun startBreathing() {
         breathAnimator?.cancel()
-        // Keyframe cycle so the floor phase *dwells* (15% of the cycle) instead of being
-        // touched only momentarily — without the hold, the deep phase is barely perceptible (#69).
-        breathAnimator = ValueAnimator.ofPropertyValuesHolder(
-            PropertyValuesHolder.ofKeyframe(
-                "breathAlpha",
-                Keyframe.ofFloat(0f, BREATH_CEIL),
-                Keyframe.ofFloat(BREATH_FALL_FRACTION, BREATH_FLOOR),
-                Keyframe.ofFloat(BREATH_FALL_FRACTION + BREATH_DWELL_FRACTION, BREATH_FLOOR),
-                Keyframe.ofFloat(1f, BREATH_CEIL)
-            )
-        ).apply {
+        // Volume-independent sine blink (#87): one full 0.3↔1.0 round trip
+        // per cycle. A linear phase animator driving sin() eases in/out at
+        // the extrema naturally — no keyframes, no dwell, no mic coupling.
+        breathAnimator = ValueAnimator.ofFloat(0f, (2f * kotlin.math.PI).toFloat()).apply {
             duration = BREATH_CYCLE_MS
             repeatCount = ValueAnimator.INFINITE
-            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            repeatMode = ValueAnimator.RESTART
+            interpolator = LinearInterpolator()
             addUpdateListener {
-                breathAlpha = it.getAnimatedValue("breathAlpha") as Float
+                breathAlpha = PulseAlphaPolicy.blinkAlpha(
+                    it.animatedValue as Float, BREATH_FLOOR, BREATH_CEIL
+                )
                 applyAlpha()
             }
             start()
         }
     }
 
-    private fun onRmsChanged(rms: Float) {
-        if (!rms.isFinite()) return
-        smoothedRms = RmsAlphaMapper.smooth(smoothedRms, rms)
-        voiceAlpha = RmsAlphaMapper.alpha(smoothedRms)
-        // RMS diagnostics (removed for v1.2.0; re-enable via logcat tag "PolishedRMS"):
-        // if (rmsLogCount++ % RMS_LOG_EVERY == 0) {
-        //     Log.d(
-        //         RMS_LOG_TAG,
-        //         "rms=%.0f smoothed=%.0f voiceAlpha=%.3f breathAlpha=%.3f"
-        //             .format(rms, smoothedRms, voiceAlpha, breathAlpha)
-        //     )
-        // }
-        applyAlpha()
-    }
-
     private fun applyAlpha() {
         // Pulse the foreground rows only — a dimmed root background over the dark IME window
         // reads as a "pulsing background" in light mode but is invisible in dark mode (#59).
-        // Outside RECORDING the rows are pinned to full opacity so a pause during the deep
-        // dwell phase cannot freeze the IME near-invisible (#77).
-        val a = PulseAlphaPolicy.target(controller.state, breathAlpha, voiceAlpha)
+        // Outside RECORDING the rows are pinned to full opacity so a pause during the dim
+        // phase cannot freeze the IME near-invisible (#77).
+        val a = PulseAlphaPolicy.target(controller.state, breathAlpha)
         rowTop?.alpha = a
         rowButtons?.alpha = a
     }
@@ -766,13 +730,9 @@ class PolishedVoiceInputIME : InputMethodService() {
     companion object {
         private const val CHANNEL_ID = "voice_recognition_ime"
         private const val NOTIFICATION_ID = 1002
-        private const val BREATH_FLOOR = 0.15f
-        private const val BREATH_CEIL = 0.9f
-        private const val BREATH_CYCLE_MS = 2000L
-        private const val BREATH_FALL_FRACTION = 0.425f
-        private const val BREATH_DWELL_FRACTION = 0.15f
-        private const val RMS_LOG_TAG = "PolishedRMS"
-        private const val RMS_LOG_EVERY = 10
+        private const val BREATH_FLOOR = 0.3f
+        private const val BREATH_CEIL = 1f
+        private const val BREATH_CYCLE_MS = 1333L
         private const val REC_TICK_MS = 1000L
         /**
          * Grace window for a provisional freeze (#83 v3): the Oplus rotation
