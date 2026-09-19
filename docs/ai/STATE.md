@@ -1,11 +1,12 @@
 # Project State
 
-Current status as of 2026-09-19 (**v1.2.4 (10204) released to Play alpha + F-Droid watch open on #89**; #84 implemented, on-device feel-check pending; open issues: #88, #82, #74, #75, #64).
+Current status as of 2026-09-19 (**v1.2.4 (10204) released to Play alpha + F-Droid watch open on #89**; #84 + #88 implemented, on-device feel-checks pending; open issues: #88, #84, #82, #74, #75, #64).
 
 ## Current Focus
 **#74 — v1.3.0 listing-assets release (minor bump)**: fastlane `images/` (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must land before the v1.3.0 tag (F-Droid reads fastlane from the built tag); Play tester infra + demo GIF in parallel. **#89 watch items: F-Droid 1.2.4 pickup (page currently serves 1.2.3) + owner-side Play alpha verification.**
 
 ## Completed (this cycle)
+- [x] #88 implemented — long-press tooltips on the 4 lower-row IME buttons (`android:tooltipText`; fixed combined hints "Record / Send", "Pause / Resume" via 2 new strings; top row untouched; no Kotlin change). `ImeTooltipTest` (2 tests), full suite green + `assembleRelease` green. Open: on-device feel-check by owner.
 - [x] #84 implemented — pipeline failure parks as ordinary PAUSED with PCM + timer preserved (`stopPreservingBuffer`, re-snapshot for #83 restore path; `CancellationException` rethrown so cancel-during-PROCESSING can't resurrect); IME unchanged (failure Toast, stays visible, send/resume + editable quick settings). 6 new tests, full suite green + `assembleRelease` green. Open: on-device feel-check by owner (airplane-mode send → Toast + frozen timer → re-enable → send succeeds).
 - [x] #89 created + implemented — **v1.2.4 (10204) patch release** (owner decision: features since v1.2.3 ship as patch, v1.3.0 stays reserved for #74). Commit `8d9da93` (version bump + `whatsnew-en-GB`), tag force-moved to `1ced0c8` (CI fix), pushed; local tests + `assembleRelease` green.
 - [x] CI fix `1ced0c8` — `setup-android@v3` now `packages: platform-tools` in `release.yml` + `fdroid-apk.yml` (Google removed the legacy `tools` package from the SDK repo manifest, android-actions/setup-android#537; broke GitHub Android CI ~2026-09-14). All three workflows green after the tag move.

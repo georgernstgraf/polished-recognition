@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-19: Long-press tooltips on lower-row IME buttons, fixed combined hints (#88, OPEN)
+- **Choice**: `android:tooltipText` on the 4 lower-row buttons only (cancel/flush reuse `ime_cancel_desc`/`ime_flush_desc`; 2 new strings `ime_mic_send_hint` "Record / Send" + `ime_pause_resume_hint` "Pause / Resume"); top row untouched per owner. Framework shows the hint while pressed, hides on release. No Kotlin change (`contentDescription` keeps dynamic per-state accessibility). `ImeTooltipTest` locks the wiring (2 tests).
+- **Reason**: Owner request — help like standard keyboards, visible only while the key is pressed. `tooltipText` (API 26+, minSdk 30) is the platform-idiomatic mechanism; a Toast would linger after release.
+- **Tradeoff**: Tooltip rendering is framework behavior — verified only on-device, not in unit tests. On-device feel-check pending.
+
 ## 2026-09-19: Pipeline failure parks as ordinary PAUSED, PCM preserved (#84, OPEN)
 - **Choice**: `VoiceSessionController.stopAndTranscribe()` uses non-destructive `AudioRecorder.stopPreservingBuffer()` (new; existing `stop()` delegates to it + `flushBuffer()`); the buffer is discarded only after a successful upload. On pipeline failure the session parks as ordinary PAUSED — audio stays buffered (retry re-sends, resume appends), `accumulatedMs` preserved, disk snapshot re-written for #83 `restore()` coverage. `CancellationException` is rethrown (a user `cancel()` during PROCESSING must not resurrect as PAUSED). IME unchanged: existing failure Toast fires, no hide, PAUSED bar offers send/resume + editable language/Raw settings. Owner decisions: IME stays visible, Toast as-is, no special retry — "as if the send never happened"; inherits #83 auto-resume on field return.
 - **Reason**: Owner request — network loss discarded the dictation; now the user fixes connectivity and taps send again.
