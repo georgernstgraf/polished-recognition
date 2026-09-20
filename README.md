@@ -52,9 +52,20 @@ the voice keyboard, and device-specific notes.
 ## Become an Alpha Tester
 
 Polished Recognition is in closed testing on Google Play — and I'm still
-looking for testers! Just [send me an email](mailto:georg.ernst.graf@gmail.com)
-and I'll add you to the Play Store testers list (see the
-[Installation Guide](INSTALLATION.md) for details).
+looking for testers! Two steps, same Google account for both:
+
+1. Join the testers group: https://groups.google.com/g/polished-recognition-alpha
+2. Accept testing on the
+   [opt-in page](https://play.google.com/apps/testing/com.georgernstgraf.polishedrecognition)
+   → install from the
+   [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
+
+Prefer F-Droid? [<img src="https://fdroid.org/badge/get-it-on.png"
+alt="Get it on F-Droid" height="60">](https://f-droid.org/packages/com.georgernstgraf.polishedrecognition)
+
+Stay opted in — Google's 14-day production-eligibility clock only runs while
+at least 12 testers stay continuously opted in. Details in the
+[Installation Guide](INSTALLATION.md).
 
 Don't be shy with feedback — report bugs and ideas as
 [GitHub Issues](https://github.com/georgernstgraf/polished-recognition/issues),

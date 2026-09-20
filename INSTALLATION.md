@@ -1,17 +1,29 @@
 # Installation Guide
 
-## 1. Install from Play Store (Closed Testing)
+## 1. Install from F-Droid (recommended)
+
+[<img src="https://fdroid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/com.georgernstgraf.polishedrecognition)
+
+F-Droid handles updates automatically.
+
+## 2. Install from Play Store (Closed Testing)
 
 The app is in closed testing on Google Play — everyone is welcome!
-The Play Store link works as soon as you're on the testers list:
 
-1. Drop me a short [email](mailto:georg.ernst.graf@gmail.com) and I'll add you
-   right away
-2. Then install from the [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
+1. Join the testers group: https://groups.google.com/g/polished-recognition-alpha
+   (any Google account; confirm membership shows **Member**, not Pending)
+2. With the **same account**, open the
+   [opt-in page](https://play.google.com/apps/testing/com.georgernstgraf.polishedrecognition)
+   → **Become a tester** → install from the
+   [Play Store](https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition)
+
+> Stay opted in: Google only starts the 14-day production-eligibility clock
+> while at least 12 testers stay continuously opted in — don't leave the
+> group right after installing.
 
 > An APK is also built on GitHub for each release.
 
-## 2. Configure Providers
+## 3. Configure Providers
 
 Open the app (via the launcher, or if hidden on your device, launch settings via ADB):
 
@@ -34,7 +46,7 @@ Then:
 5. Recommended STT model: `whisper-large-v3-turbo` — runs at up to 300× real-time on Groq LPU hardware
 6. Recommended LLM model: `gpt-oss-120b` — fast, capable, free tier covers daily keyboard usage
 
-## 3. Enable the Voice Keyboard (IME)
+## 4. Enable the Voice Keyboard (IME)
 
 Polished Recognition registers as an **auxiliary voice keyboard**. Enable it once:
 
@@ -62,7 +74,7 @@ Then point your keyboard's voice input at it:
 > voice typing and cannot be redirected to a third-party voice input.
 > Samsung Keyboard likewise only allows its own or Google's voice input.
 
-## 4. Use It
+## 5. Use It
 
 1. Focus any text field
 2. Switch to the **AOSP keyboard** (LineageOS), **HeliBoard** (F-Droid),
