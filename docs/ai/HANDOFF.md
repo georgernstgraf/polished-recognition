@@ -1,8 +1,10 @@
 # Hand Off
 
-**2026-09-20: v1.3.0 (10300) TAGGED + Play upload committed (edit `07382800129640952742`, in review); #84 + #88 + #89 CLOSED** (feel-checks passed; F-Droid CurrentVersion 1.2.4 confirmed, superseded by 1.3.0). Shipped this session: listing assets (`25140f4`), 1.3.0 bump + tag (`8138990`), demo GIF (`e60b20b`), social preview + 6 marketing drafts + README 2×2 grid (`9cf6a02`, `08ae5b8`, `e81ab9c`). Next session: **#82 RecognitionService**. Open: #74 (watch/polish/drafts), #75, #64, #82.
+**2026-09-20: #82 IMPLEMENTED (`3e38bf7`, pushed, suite 253 green) — needs owner on-device feel-check before `finish`**; v1.3.0 (10300) TAGGED + Play upload committed (edit `07382800129640952742`, in review); #84 + #88 + #89 CLOSED. Next session: **`finish` #82 if feel-check passes**. Open: #82, #74 (watch/polish/drafts), #75, #64.
 
 ## Open tasks
+
+1. [ ] **#82 feel-check (owner, device machine)** — select Polished as system voice-input service, dictate in Duolingo/Corvus, confirm result returns; IME regression trio (busy-discard on live dictation, airplane-mode error → IDLE, mid-dictation settings change applies). Then `finish` #82.
 
 1. [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed, Play alpha 1.2.4 committed via CI; 1.3.0 supersedes on F-Droid (tracked in #74).
 2. [ ] **#74 watch — v1.3.0 (10300) TAGGED 2026-09-20** (`25140f4` assets + `8138990` bump, tag pushed separately; release.yml + fdroid-apk.yml were in_progress on the tag): verify Play upload committed + fdroid-apk green + GitHub AAB/APK + F-Droid 1.3.0 pickup WITH listing images. Remaining: demo GIF (agent screenrecord, owner speaks), repo polish, Phase-1 drafts.

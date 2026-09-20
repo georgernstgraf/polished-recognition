@@ -1,11 +1,12 @@
 # Project State
 
-Current status as of 2026-09-20 (**v1.3.0 (10300) tagged + Play upload committed, in review**; **#84 + #88 + #89 CLOSED**; F-Droid serves 1.2.4 (CurrentVersion confirmed), 1.3.0 pickup pending; open issues: #74 watch/polish/drafts, #82, #75, #64).
+Current status as of 2026-09-20 (**#82 implemented, `3e38bf7`, needs owner on-device feel-check**; v1.3.0 (10300) tagged + Play upload committed, in review; **#84 + #88 + #89 CLOSED**; F-Droid serves 1.2.4, 1.3.0 pickup pending; open issues: #82, #74 watch/polish/drafts, #75, #64).
 
 ## Current Focus
-**#74 watch**: `release.yml` (Play alpha upload committed?) + `fdroid-apk.yml` green + GitHub release assets (AAB+APK) + F-Droid 1.3.0 pickup **with listing images** (fdroidbot auto-update, hours–days). Remaining #74: demo GIF, repo polish, Phase-1 drafts. **#89 watch: F-Droid 1.2.4 pickup superseded by 1.3.0** (bot will serve 1.3.0 directly if the tag lands first) + owner Play alpha verification.
+**#82 feel-check (owner, device machine)**: select Polished as system voice-input service → dictate in Duolingo/Corvus → result returns; IME regression trio (busy-discard on live dictation, airplane-mode error returns to IDLE, settings change mid-dictation applies). **#74 watch**: `release.yml` (Play alpha upload committed?) + `fdroid-apk.yml` green + GitHub release assets (AAB+APK) + F-Droid 1.3.0 pickup **with listing images** (fdroidbot auto-update, hours–days).
 
 ## Completed (this cycle)
+- [x] #82 implemented (`3e38bf7`, pushed, suite 253 green + `assembleRelease` green) — bound `RecognitionService` on the shared singleton via secondary listener (`startShared()`; IME keeps primary forever); busy-discard + cancel-to-IDLE per owner; neutral notification (own channel/id 1003); manifest block verbatim pre-#43. Peter confirmed both gating answers (no own engine in Duolingo/Corvus; final-only latency OK). Open: owner on-device feel-check.
 - [x] #74 v1.3.0 shipped (`25140f4` assets + `8138990` bump, tag `v1.3.0` pushed separately; test + assembleRelease green, pre-push suites green) — 3 live OnePlus screenshots (dark RECORDING REC 0:14, Settings upper third, provider half, all 1080×2400; owner opened screens, agent shot via adb `f6de166c`), fastlane `images/` (icon 512 + 3 phoneScreenshots), full_description rewrite (IME-first + Gboard paragraph + BYOK), whatsnew-en-GB (hints #88, retry #84, F-Droid/group #74). Ships #84 + #88 to users.
 - [x] #74 tester-infra docs half (`4623642`, pushed, pre-push suite green) — Play alpha Group self-join flow replaces the email-add flow in INSTALLATION.md (§1 F-Droid first + badge, §2 Play two-step with same-account/Member-not-Pending/14-day notes, sections renumbered) + README "Become an Alpha Tester" (same two links + F-Droid badge CTA). Group `polished-recognition-alpha@googlegroups.com` created by owner + attached to alpha track; opt-in page verified live ("Become a tester" renders). No second-account self-test possible (owner has one Google account) — first external tester is the canary.
 - [x] #88 implemented — long-press tooltips on the 4 lower-row IME buttons (`android:tooltipText`; fixed combined hints "Record / Send", "Pause / Resume" via 2 new strings; top row untouched; no Kotlin change). `ImeTooltipTest` (2 tests), full suite green + `assembleRelease` green. Open: on-device feel-check by owner.
@@ -24,6 +25,7 @@ Current status as of 2026-09-20 (**v1.3.0 (10300) tagged + Play upload committed
 - [x] #79/#80 — GitHub asset retention: `scripts/cleanup-github-assets.sh` keeps newest 7 of Actions artifacts and `build-*` releases/tags; **`v*` releases/pages never pruned** (F-Droid Binaries dependency, `f7cf464`).
 
 ## Pending
+- [ ] **#82 feel-check (owner)**: Duolingo/Corvus dictation via system voice-input service + IME regression trio (busy-discard, airplane-mode → IDLE, mid-dictation settings change). Then `finish` #82.
 - [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed in fdroiddata; Play alpha 1.2.4 committed via CI. 1.3.0 supersedes on F-Droid automatically (#74 watch).
 - [ ] **#74 watch**: Play 1.3.0 review — owner reports "Changes in Review" on closed-testing-alpha (auto-publishes unless managed publishing); F-Droid 1.3.0 pickup with listing images (bot, hours–days).
 - [x] #74 demo GIF (`e60b20b`, pushed, suite green) — live OnePlus take via `scrcpy --record` (42s mp4 local-only), trimmed 19–33s → 540×1200 10fps palette GIF 904KB at `docs/img/demo.gif`, embedded in README. Arc: REC 0:16 → send → Transcribing (STT)… → polished commit.
@@ -45,4 +47,4 @@ None.
 - The agent host (VPS) has no attached device — on-device verification is always delegated to the owner on the device machine. (Exception 2026-09-18: the OnePlus was reachable from the agent host for `installRelease` + `ime-lifecycle.log` reads; do not assume this persists.)
 
 ## Next Session Suggestion
-#82 RecognitionService API (bound service alongside the IME for SpeechRecognizer-API apps) — start with the issue body + PITFALLS #62/#119 (HeliBoard auxiliary-IME detection, Oplus secure-settings blocks) + DECISIONS 2026-05-29 (RecognitionService-over-IME choice that #82 reopens). Then #75 / #64. Watch: Play 1.3.0 review + F-Droid 1.3.0 listing pickup (#74).
+`finish` #82 after the feel-check passes (or fix fallout first). Then #75 / #64. Watch: Play 1.3.0 review + F-Droid 1.3.0 listing pickup (#74).
