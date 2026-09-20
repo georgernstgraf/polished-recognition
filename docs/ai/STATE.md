@@ -1,11 +1,12 @@
 # Project State
 
-Current status as of 2026-09-20 (**v1.2.4 (10204) released to Play alpha + F-Droid watch open on #89**; #84 + #88 implemented, on-device feel-checks pending; #74 tester-infra docs half done (`4623642`); open issues: #74, #88, #84, #82, #75, #64).
+Current status as of 2026-09-20 (**v1.3.0 (10300) TAGGED on #74** — `8138990` bump + `v1.3.0` tag pushed; release.yml + fdroid-apk.yml running on the tag; #84 + #88 implemented and SHIPPED in 1.3.0; open issues: #74 watch, #89 watch, #82, #75, #64).
 
 ## Current Focus
-**#74 — v1.3.0 listing-assets release (minor bump)**: fastlane `images/` (icon + phoneScreenshots from new OnePlus captures), full_description rewrite, 10300/`1.3.0` bump + tag (F-Droid reads fastlane from the built tag); demo GIF in parallel. **Play tester infra DONE docs-side**: group `polished-recognition-alpha@googlegroups.com` created + attached to alpha track, opt-in page verified live, INSTALLATION.md/README rewritten to Group self-join flow. **#89 watch items: F-Droid 1.2.4 pickup (page currently serves 1.2.3) + owner-side Play alpha verification.**
+**#74 watch**: `release.yml` (Play alpha upload committed?) + `fdroid-apk.yml` green + GitHub release assets (AAB+APK) + F-Droid 1.3.0 pickup **with listing images** (fdroidbot auto-update, hours–days). Remaining #74: demo GIF, repo polish, Phase-1 drafts. **#89 watch: F-Droid 1.2.4 pickup superseded by 1.3.0** (bot will serve 1.3.0 directly if the tag lands first) + owner Play alpha verification.
 
 ## Completed (this cycle)
+- [x] #74 v1.3.0 shipped (`25140f4` assets + `8138990` bump, tag `v1.3.0` pushed separately; test + assembleRelease green, pre-push suites green) — 3 live OnePlus screenshots (dark RECORDING REC 0:14, Settings upper third, provider half, all 1080×2400; owner opened screens, agent shot via adb `f6de166c`), fastlane `images/` (icon 512 + 3 phoneScreenshots), full_description rewrite (IME-first + Gboard paragraph + BYOK), whatsnew-en-GB (hints #88, retry #84, F-Droid/group #74). Ships #84 + #88 to users.
 - [x] #74 tester-infra docs half (`4623642`, pushed, pre-push suite green) — Play alpha Group self-join flow replaces the email-add flow in INSTALLATION.md (§1 F-Droid first + badge, §2 Play two-step with same-account/Member-not-Pending/14-day notes, sections renumbered) + README "Become an Alpha Tester" (same two links + F-Droid badge CTA). Group `polished-recognition-alpha@googlegroups.com` created by owner + attached to alpha track; opt-in page verified live ("Become a tester" renders). No second-account self-test possible (owner has one Google account) — first external tester is the canary.
 - [x] #88 implemented — long-press tooltips on the 4 lower-row IME buttons (`android:tooltipText`; fixed combined hints "Record / Send", "Pause / Resume" via 2 new strings; top row untouched; no Kotlin change). `ImeTooltipTest` (2 tests), full suite green + `assembleRelease` green. Open: on-device feel-check by owner.
 - [x] #84 implemented — pipeline failure parks as ordinary PAUSED with PCM + timer preserved (`stopPreservingBuffer`, re-snapshot for #83 restore path; `CancellationException` rethrown so cancel-during-PROCESSING can't resurrect); IME unchanged (failure Toast, stays visible, send/resume + editable quick settings). 6 new tests, full suite green + `assembleRelease` green. Open: on-device feel-check by owner (airplane-mode send → Toast + frozen timer → re-enable → send succeeds).
@@ -23,8 +24,8 @@ Current status as of 2026-09-20 (**v1.2.4 (10204) released to Play alpha + F-Dro
 - [x] #79/#80 — GitHub asset retention: `scripts/cleanup-github-assets.sh` keeps newest 7 of Actions artifacts and `build-*` releases/tags; **`v*` releases/pages never pruned** (F-Droid Binaries dependency, `f7cf464`).
 
 ## Pending
-- [ ] **#89 watch**: F-Droid 1.2.4 pickup (poll package page; fdroidbot usually hours–days) + owner-side Play alpha verification via `scripts/query-play-console.py` (needs the machine holding the GPG key).
-- [ ] **#74 remaining**: new OnePlus screenshots (1080×2400, light mode, neutral field) → fastlane `images/` (icon + phoneScreenshots) → full_description rewrite → 10300/`1.3.0` bump + tag → Play alpha + F-Droid listing pickup; demo GIF + repo polish + Phase-1 drafts in parallel.
+- [ ] **#89 watch**: F-Droid pickup — 1.3.0 tag likely supersedes 1.2.4 (bot serves newest); owner-side Play alpha verification via `scripts/query-play-console.py`.
+- [ ] **#74 remaining**: demo GIF, repo polish (topics/description/social preview), Phase-1 drafts in `docs/marketing/`.
 - [ ] **#75**: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] **#64**: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] **#84**: keep PCM buffer on pipeline failure; **#82**: RecognitionService API work; **#88**: help texts.

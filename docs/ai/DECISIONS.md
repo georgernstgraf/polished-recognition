@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-20: v1.3.0 (10300) listing-assets release ships #84 + #88 (#74)
+- **Choice**: Minor bump (not patch) per owner 2026-09-14 — listing milestone warrants visibility. Ships: fastlane `images/` (icon 512 + 3 live OnePlus phoneScreenshots 1080×2400), full_description rewrite (IME-first, Gboard warning as own paragraph, BYOK), whatsnew-en-GB (#88 hints, #84 retry-preserved dictation, #74 F-Droid/group). Screenshots: owner opened screens, agent shot via adb (`f6de166c` reachable from agent host — second time after 2026-09-18; still do not assume persistence). Dark-mode IME shot accepted by owner over light-mode retake; shot-2 "scrolled-down" call corrected via layout order (Processing→Prompts→LLM→STT→About). Commits `25140f4` (assets) + `8138990` (bump); tag `v1.3.0` pushed separately (same-push tags can miss release.yml).
+- **Reason**: F-Droid reads fastlane from the built tag — assets had to land before the tag. #84/#88 were implemented post-1.2.4-tag, so 1.3.0 is their ship vehicle.
+- **Tradeoff**: 3 screenshots (not 2) — extra providers frame added mid-session; README table went 2→3 thumbs. #89's 1.2.4 F-Droid pickup likely superseded (bot serves newest).
+
 ## 2026-09-20: Play alpha via Google Group self-join; F-Droid first in install docs (#74)
 - **Choice**: Tester onboarding is Group self-join (`polished-recognition-alpha@googlegroups.com`, "Anyone can join", attached to the alpha track) — replaces the manual email-add flow in INSTALLATION.md + README. Install docs now order F-Droid first (badge + package link) and Play closed-testing second (group join → same-account opt-in → store install, with 14-day stay-opted-in note). Opt-in page verified live via screenshot ("Become a tester" renders with icon + GitHub-issues/group feedback channels).
 - **Reason**: Owner decisions 2026-09-07 (#74) — no manual Gmail collection; 20–30 tester buffer for the 12×14-day production gate. F-Droid-first matches the launch narrative (F-Droid merged, Play still in closed testing).
