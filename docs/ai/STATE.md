@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-09-20 (**v1.3.0 (10300) TAGGED + Play upload committed**; **#84 + #88 CLOSED** (feel-checks passed); insertion-spacing watch verified working nicely by owner; social preview ready for upload; open issues: #74 watch/polish/drafts, #89 watch, #82, #75, #64).
+Current status as of 2026-09-20 (**v1.3.0 (10300) tagged + Play upload committed, in review**; **#84 + #88 + #89 CLOSED**; F-Droid serves 1.2.4 (CurrentVersion confirmed), 1.3.0 pickup pending; open issues: #74 watch/polish/drafts, #82, #75, #64).
 
 ## Current Focus
 **#74 watch**: `release.yml` (Play alpha upload committed?) + `fdroid-apk.yml` green + GitHub release assets (AAB+APK) + F-Droid 1.3.0 pickup **with listing images** (fdroidbot auto-update, hours–days). Remaining #74: demo GIF, repo polish, Phase-1 drafts. **#89 watch: F-Droid 1.2.4 pickup superseded by 1.3.0** (bot will serve 1.3.0 directly if the tag lands first) + owner Play alpha verification.
@@ -24,7 +24,8 @@ Current status as of 2026-09-20 (**v1.3.0 (10300) TAGGED + Play upload committed
 - [x] #79/#80 — GitHub asset retention: `scripts/cleanup-github-assets.sh` keeps newest 7 of Actions artifacts and `build-*` releases/tags; **`v*` releases/pages never pruned** (F-Droid Binaries dependency, `f7cf464`).
 
 ## Pending
-- [ ] **#89 watch**: F-Droid pickup — 1.3.0 tag likely supersedes 1.2.4 (bot serves newest); owner-side Play alpha verification via `scripts/query-play-console.py`.
+- [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed in fdroiddata; Play alpha 1.2.4 committed via CI. 1.3.0 supersedes on F-Droid automatically (#74 watch).
+- [ ] **#74 watch**: Play 1.3.0 review — owner reports "Changes in Review" on closed-testing-alpha (auto-publishes unless managed publishing); F-Droid 1.3.0 pickup with listing images (bot, hours–days).
 - [x] #74 demo GIF (`e60b20b`, pushed, suite green) — live OnePlus take via `scrcpy --record` (42s mp4 local-only), trimmed 19–33s → 540×1200 10fps palette GIF 904KB at `docs/img/demo.gif`, embedded in README. Arc: REC 0:16 → send → Transcribing (STT)… → polished commit.
 - [ ] **#74 remaining**: owner-side repo polish — topics/description/homepage to apply in GitHub settings + `docs/img/social-preview.png` (1280×640, ready 2026-09-20) to upload as social preview; Phase-1 drafts in `docs/marketing/` (on request).
 - [ ] **#75**: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
