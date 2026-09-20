@@ -27,7 +27,7 @@ Current status as of 2026-09-20 (**v1.3.0 (10300) tagged + Play upload committed
 - [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed in fdroiddata; Play alpha 1.2.4 committed via CI. 1.3.0 supersedes on F-Droid automatically (#74 watch).
 - [ ] **#74 watch**: Play 1.3.0 review — owner reports "Changes in Review" on closed-testing-alpha (auto-publishes unless managed publishing); F-Droid 1.3.0 pickup with listing images (bot, hours–days).
 - [x] #74 demo GIF (`e60b20b`, pushed, suite green) — live OnePlus take via `scrcpy --record` (42s mp4 local-only), trimmed 19–33s → 540×1200 10fps palette GIF 904KB at `docs/img/demo.gif`, embedded in README. Arc: REC 0:16 → send → Transcribing (STT)… → polished commit.
-- [ ] **#74 remaining**: owner-side repo polish — topics/description/homepage to apply in GitHub settings + `docs/img/social-preview.png` (1280×640, ready 2026-09-20) to upload as social preview; Phase-1 drafts in `docs/marketing/` (on request).
+- [x] #74 repo polish APPLIED via API 2026-09-20 (description/homepage/12 topics, verified) — social-preview upload left to owner (no API). Phase-1 drafts done (`08ae5b8`): `docs/marketing/` ×6 (forum, toot, 3×reddit, kuketz DE with timing note); owner posts with own accounts.
 - [ ] **#75**: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] **#64**: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] **#82**: RecognitionService API work (external feature request).
