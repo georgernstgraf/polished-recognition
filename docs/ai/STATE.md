@@ -1,11 +1,12 @@
 # Project State
 
-Current status as of 2026-09-19 (**v1.2.4 (10204) released to Play alpha + F-Droid watch open on #89**; #84 + #88 implemented, on-device feel-checks pending; open issues: #88, #84, #82, #74, #75, #64).
+Current status as of 2026-09-20 (**v1.2.4 (10204) released to Play alpha + F-Droid watch open on #89**; #84 + #88 implemented, on-device feel-checks pending; #74 tester-infra docs half done (`4623642`); open issues: #74, #88, #84, #82, #75, #64).
 
 ## Current Focus
-**#74 — v1.3.0 listing-assets release (minor bump)**: fastlane `images/` (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must land before the v1.3.0 tag (F-Droid reads fastlane from the built tag); Play tester infra + demo GIF in parallel. **#89 watch items: F-Droid 1.2.4 pickup (page currently serves 1.2.3) + owner-side Play alpha verification.**
+**#74 — v1.3.0 listing-assets release (minor bump)**: fastlane `images/` (icon + phoneScreenshots from new OnePlus captures), full_description rewrite, 10300/`1.3.0` bump + tag (F-Droid reads fastlane from the built tag); demo GIF in parallel. **Play tester infra DONE docs-side**: group `polished-recognition-alpha@googlegroups.com` created + attached to alpha track, opt-in page verified live, INSTALLATION.md/README rewritten to Group self-join flow. **#89 watch items: F-Droid 1.2.4 pickup (page currently serves 1.2.3) + owner-side Play alpha verification.**
 
 ## Completed (this cycle)
+- [x] #74 tester-infra docs half (`4623642`, pushed, pre-push suite green) — Play alpha Group self-join flow replaces the email-add flow in INSTALLATION.md (§1 F-Droid first + badge, §2 Play two-step with same-account/Member-not-Pending/14-day notes, sections renumbered) + README "Become an Alpha Tester" (same two links + F-Droid badge CTA). Group `polished-recognition-alpha@googlegroups.com` created by owner + attached to alpha track; opt-in page verified live ("Become a tester" renders). No second-account self-test possible (owner has one Google account) — first external tester is the canary.
 - [x] #88 implemented — long-press tooltips on the 4 lower-row IME buttons (`android:tooltipText`; fixed combined hints "Record / Send", "Pause / Resume" via 2 new strings; top row untouched; no Kotlin change). `ImeTooltipTest` (2 tests), full suite green + `assembleRelease` green. Open: on-device feel-check by owner.
 - [x] #84 implemented — pipeline failure parks as ordinary PAUSED with PCM + timer preserved (`stopPreservingBuffer`, re-snapshot for #83 restore path; `CancellationException` rethrown so cancel-during-PROCESSING can't resurrect); IME unchanged (failure Toast, stays visible, send/resume + editable quick settings). 6 new tests, full suite green + `assembleRelease` green. Open: on-device feel-check by owner (airplane-mode send → Toast + frozen timer → re-enable → send succeeds).
 - [x] #89 created + implemented — **v1.2.4 (10204) patch release** (owner decision: features since v1.2.3 ship as patch, v1.3.0 stays reserved for #74). Commit `8d9da93` (version bump + `whatsnew-en-GB`), tag force-moved to `1ced0c8` (CI fix), pushed; local tests + `assembleRelease` green.
@@ -23,7 +24,7 @@ Current status as of 2026-09-19 (**v1.2.4 (10204) released to Play alpha + F-Dro
 
 ## Pending
 - [ ] **#89 watch**: F-Droid 1.2.4 pickup (poll package page; fdroidbot usually hours–days) + owner-side Play alpha verification via `scripts/query-play-console.py` (needs the machine holding the GPG key).
-- [ ] **#74**: F-Droid launch Phase 0/1 — next release is **v1.3.0 (minor bump)** with listing assets (fastlane `images/` icon + phoneScreenshots, full_description rewrite, README/INSTALLATION badges), Play tester infra, demo GIF.
+- [ ] **#74 remaining**: new OnePlus screenshots (1080×2400, light mode, neutral field) → fastlane `images/` (icon + phoneScreenshots) → full_description rewrite → 10300/`1.3.0` bump + tag → Play alpha + F-Droid listing pickup; demo GIF + repo polish + Phase-1 drafts in parallel.
 - [ ] **#75**: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] **#64**: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] **#84**: keep PCM buffer on pipeline failure; **#82**: RecognitionService API work; **#88**: help texts.

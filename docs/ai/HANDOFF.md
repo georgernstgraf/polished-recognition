@@ -5,7 +5,7 @@
 ## Open tasks
 
 1. [ ] **#89 watch** — F-Droid 1.2.4 pickup (poll the package page; hours–days) + owner Play alpha verification (run `scripts/query-play-console.py` on the machine with the GPG key; expect alpha: 1.2.4 / 10204 with en-GB notes).
-2. [ ] **#74 — F-Droid launch marketing Phase 0/1** (next: **v1.3.0 MINOR listing-assets release** — fastlane images (icon + phoneScreenshots), full_description rewrite, README/INSTALLATION badges must be committed before that tag; owner works on Play Console/Google Group setup in parallel; #74 body already retargeted to v1.3.0).
+2. [ ] **#74 — v1.3.0 MINOR listing-assets release** (tester-infra docs half DONE `4623642`: Group `polished-recognition-alpha@googlegroups.com` live + attached to alpha, opt-in page verified live, INSTALLATION.md/README on Group self-join flow. Next: **new OnePlus screenshots** (owner, 1080×2400 light mode) → fastlane `images/` (icon + phoneScreenshots) → full_description rewrite → 10300/`1.3.0` bump + tag; owner parallel: demo GIF, repo polish, Phase-1 post drafts; #74 body already retargeted to v1.3.0).
 3. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
 4. [ ] **#84 — keep PCM buffer on pipeline failure**; **#82** — RecognitionService API work; **#88** — help texts.
 5. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).

@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-20: Play alpha via Google Group self-join; F-Droid first in install docs (#74)
+- **Choice**: Tester onboarding is Group self-join (`polished-recognition-alpha@googlegroups.com`, "Anyone can join", attached to the alpha track) — replaces the manual email-add flow in INSTALLATION.md + README. Install docs now order F-Droid first (badge + package link) and Play closed-testing second (group join → same-account opt-in → store install, with 14-day stay-opted-in note). Opt-in page verified live via screenshot ("Become a tester" renders with icon + GitHub-issues/group feedback channels).
+- **Reason**: Owner decisions 2026-09-07 (#74) — no manual Gmail collection; 20–30 tester buffer for the 12×14-day production gate. F-Droid-first matches the launch narrative (F-Droid merged, Play still in closed testing).
+- **Tradeoff**: No second-account self-test possible (owner has one Google account) — first external tester doubles as the flow canary; docs carry self-diagnosis notes (same account, Member-not-Pending). Commit `4623642`, docs-only, pre-push suite green.
+
 ## 2026-09-19: Long-press overlay hint Toast, two broken attempts removed (#88, OPEN)
 - **Choice**: `service/ImeHintPolicy` maps the 4 lower-row buttons to fixed detailed hints (new `ime_cancel_hint`/`ime_flush_hint`/`ime_mic_send_hint`/`ime_pause_resume_hint`; top row has none). The IME shows the hint as a `Toast` at the top of the screen on long-press (consumed, no tap) and cancels it on finger lift — visible only while pressed, never under the thumb, never touching IME layout. Touch listener returns false so single taps are byte-for-byte the old path.
 - **Reason**: Two failed attempts per owner: (1) `android:tooltipText` pops up under the thumb — unreadable; (2) press-hold text in the stage line shifts the bar mid-tap (release lands off-button, single taps die) and forces itself into the IME layout.
