@@ -45,4 +45,4 @@ None.
 - The agent host (VPS) has no attached device — on-device verification is always delegated to the owner on the device machine. (Exception 2026-09-18: the OnePlus was reachable from the agent host for `installRelease` + `ime-lifecycle.log` reads; do not assume this persists.)
 
 ## Next Session Suggestion
-Check #89 watch items (F-Droid 1.2.4 pickup + owner Play verification), then #74 v1.3.0 listing-assets work, then #75 / #64 / #84 / #82 / #88.
+#82 RecognitionService API (bound service alongside the IME for SpeechRecognizer-API apps) — start with the issue body + PITFALLS #62/#119 (HeliBoard auxiliary-IME detection, Oplus secure-settings blocks) + DECISIONS 2026-05-29 (RecognitionService-over-IME choice that #82 reopens). Then #75 / #64. Watch: Play 1.3.0 review + F-Droid 1.3.0 listing pickup (#74).

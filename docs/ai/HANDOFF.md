@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-09-19: v1.2.4 (10204) RELEASED (#89) — feature patch since v1.2.3 (#71 REC counter, #81 line-wrap, #83 rotation-proof session, #86 flush button, #87 sine blink). Commit `8d9da93` bumped `versionCode 10204` / `versionName "1.2.4"` + refreshed `whatsnew-en-GB`; tag `v1.2.4` force-moved to `1ced0c8` (CI fix: setup-android `packages: platform-tools`, Google removed the legacy `tools` SDK package — android-actions/setup-android#537). `release.yml` green (Play upload edit `02449760292536382042` committed: alpha, completed, en-GB notes attached), `fdroid-apk.yml` green (reproducible APK), GitHub release has AAB + APK. F-Droid serves 1.2.3 (pickup confirmed working); 1.2.4 pickup is a watch item. Owner-side Play API verification pending (service-account key needs the owner's GPG key; `scripts/query-play-console.py`).**
+**2026-09-20: v1.3.0 (10300) TAGGED + Play upload committed (edit `07382800129640952742`, in review); #84 + #88 + #89 CLOSED** (feel-checks passed; F-Droid CurrentVersion 1.2.4 confirmed, superseded by 1.3.0). Shipped this session: listing assets (`25140f4`), 1.3.0 bump + tag (`8138990`), demo GIF (`e60b20b`), social preview + 6 marketing drafts + README 2×2 grid (`9cf6a02`, `08ae5b8`, `e81ab9c`). Next session: **#82 RecognitionService**. Open: #74 (watch/polish/drafts), #75, #64, #82.
 
 ## Open tasks
 
