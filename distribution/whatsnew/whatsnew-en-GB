@@ -1,5 +1,3 @@
-• Rotation-proof voice sessions — recording and polished results survive screen rotation, no dictation loss (#83).
-• REC time counter in the voice bar while dictating (#71).
-• New flush button to discard the current audio buffer, keeping the session mode (#86).
-• Configurable output line-wrap (default 80, 0 to disable) (#81).
-• Recording pulse is now volume-independent — always visible while recording (#87).
+• Long-press any voice-bar button for help — the hint shows while pressed (#88).
+• Dictation now survives network failures — fix connectivity and tap send again, nothing is lost (#84).
+• New: install via F-Droid, join the Play alpha via self-join group (#74).
