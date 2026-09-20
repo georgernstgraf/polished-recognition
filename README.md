@@ -17,9 +17,9 @@ starts listening immediately — no extra tap, no learning a new typing UI.
 > **AOSP keyboard** (LineageOS and derivatives), **HeliBoard** (F-Droid only),
 > **Fossify Keyboard**, or **OpenBoard**.
 
-| ![Voice keyboard](docs/img/ime-recording.png) | ![Settings](docs/img/settings.png) |
-|:---:|:---:|
-| The voice keyboard — recording | Your pipeline, your prompts |
+| ![Voice keyboard](docs/img/ime-recording.png) | ![Settings](docs/img/settings.png) | ![Providers](docs/img/settings-providers.png) |
+|:---:|:---:|:---:|
+| The voice keyboard — recording | Your pipeline, your prompts | Your providers, your models |
 
 ## How it works
 
