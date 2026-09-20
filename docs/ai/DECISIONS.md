@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-20: build.yml publishes signed installable APKs (#82)
+- **Choice**: `build.yml` decodes `RELEASE_KEYSTORE` + `RELEASE_*` env vars (same pattern as `fdroid-apk.yml`), so every master push publishes a signed `app-release.apk` in the `build-*` release (verified: build-287, v2 scheme, release-key cert `62f9d7b0…`). Supersedes the unsigned era — `app-release-unsigned.apk` no longer exists as an output.
+- **Reason**: Owner decision — Peter (#82) needs an installable GitHub test build, and the unsigned APK could never be installed (its "install via ADB" release note was a lie). Play (`release.yml`, own upload key) and F-Droid (`fdroid-apk.yml`, own path) are independent and unaffected.
+- **Tradeoff**: CI APKs carry the F-Droid release key — upgrade-compatible with F-Droid, but NOT with Play-track builds (different production signature): switching sources needs an uninstall first. Commit `18bd2c3`.
+
 ## 2026-09-20: #82 bound RecognitionService implemented on shared singleton (unverified on-device)
 - **Choice**: New `service/PolishedRecognitionService` drives the shared `VoiceSessionController` singleton as a *secondary* listener (`add/removeSecondaryListener`, `startShared()` — purely additive, existing single-callback API untouched). IME keeps its primary callback forever. Busy-discard on service start (mirrors the IME field-change cancel, owner decision); pipeline failure delivers the error to the client app then `cancel()`s to IDLE (no PAUSED residue, owner decision). Neutral notification (own channel/id 1003, no action buttons — no colorful Material remnants, owner decision). Manifest block restored verbatim from the pre-#43 declaration (`BIND_RECOGNITION_SERVICE`, mic FGS).
 - **Reason**: Peter confirmed both gating answers — Duolingo/Corvus honor the system default (no own engine), and final-only results with upload latency beat his 5–7 s on-device Whisper while winning on privacy. The single-callback slot cannot be shared (review finding: sharing would deafen the IME + orphan `pendingResult`s); the secondary-listener amendment preserves the Singleton pattern without that damage. Owner rejected a second controller instance and any change to tested behavior.
