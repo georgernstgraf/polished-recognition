@@ -708,3 +708,8 @@ Each entry documents WHAT was decided and WHY.
 - **Choice**: Lower-row buttons 48dp→72dp + `scaleX/Y=1.5` on all five (layout bounds unchanged); new `ime_delete_word_button` (⌫ `ic_backspace`) directly left of the trash — tap deletes trailing-ws + last token via pure `service/DeleteWordPolicy` (same whitespace predicate as `InsertionSpacingPolicy`), long-press clears the whole field (select-all + empty commit in batch edit, 9999-char surrounding-text fallback when no extracted text); always enabled in every state; no press-hint (long-press taken, locked by test). Flush uses new stroke-based `ic_delete_outline` (solid `ic_delete` untouched — shared with Settings dialogs). `setPausedEnlarged()` deleted entirely. `RecTimeFormatter.recording()` returns plain `m:ss`.
 - **Reason**: Owner UI requests; pulse already signals recording (REC redundant); trash solid too dominant; pause-enlarge broke button equality.
 - **Tradeoff**: 1.5x via view scale (not larger vectors) — ripple scales too, accepted. 261 tests green (8 new), `assembleRelease` green. Open: owner on-device visual feel-check.
+
+## 2026-09-20: #90 follow-up — outline backspace + Settings trash, solid ic_delete deleted
+- **Choice**: `ic_backspace` redrawn as stroke-based outline (same 1.6dp round stroke pattern as `ic_delete_outline`); both Settings trash usages (`item_manage_language.xml`, `item_language_dropdown.xml`) switched to `ic_delete_outline`; now-unreferenced solid `ic_delete.xml` deleted.
+- **Reason**: Owner follow-up — backspace solid was as dominant as the trash had been; Settings trash cans match the IME flush icon now.
+- **Tradeoff**: None — colors/tints unchanged, only fill→stroke. 261 green + `assembleRelease` green. Still open: owner visual feel-check before `finish` #90.
