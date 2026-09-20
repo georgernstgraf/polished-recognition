@@ -45,10 +45,47 @@ class VoiceSessionController(
     private var accumulatedMs = 0L
     private var segStartMs = 0L
     private var transcribeJob: Job? = null
+    /**
+     * Secondary observers (#82). The primary [callback] slot belongs to the
+     * IME forever; a RecognitionService session observes the shared
+     * singleton through these without deafening the keyboard. Secondary
+     * listeners receive live events only — never held [pendingResult]
+     * deliveries, which belong to the primary attach flow.
+     */
+    private val secondaryListeners = mutableSetOf<(Event) -> Unit>()
+
+    /**
+     * Registers a secondary observer without touching the primary callback
+     * slot (#82). The observer owns its registration and must call
+     * [removeSecondaryListener] when done.
+     */
+    fun addSecondaryListener(listener: (Event) -> Unit) {
+        secondaryListeners += listener
+    }
+
+    fun removeSecondaryListener(listener: (Event) -> Unit) {
+        secondaryListeners -= listener
+    }
 
     fun start(onEvent: (Event) -> Unit) {
         if (state == State.RECORDING || state == State.PROCESSING) return
         callback = onEvent
+        beginRecording()
+    }
+
+    /**
+     * Starts a session without touching the primary callback slot (#82,
+     * service entry point): same guard and recording setup as [start], but
+     * the caller observes via its secondary registration instead of
+     * becoming primary.
+     */
+    fun startShared(secondary: (Event) -> Unit) {
+        if (state == State.RECORDING || state == State.PROCESSING) return
+        addSecondaryListener(secondary)
+        beginRecording()
+    }
+
+    private fun beginRecording() {
         accumulatedMs = 0L
         segStartMs = System.currentTimeMillis()
         state = State.RECORDING
@@ -266,11 +303,18 @@ class VoiceSessionController(
         File(appContext.cacheDir, "recording.wav").apply { writeBytes(wav) }
 
     private fun emit(event: Event) {
-        val cb = callback ?: return
+        val cb = callback
+        // Snapshot: a listener removed between post and delivery must not
+        // fire — re-read inside the posted block too.
+        if (cb == null && secondaryListeners.isEmpty()) return
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            cb.invoke(event)
+            cb?.invoke(event)
+            secondaryListeners.toList().forEach { it.invoke(event) }
         } else {
-            mainHandler.post { cb.invoke(event) }
+            mainHandler.post {
+                cb?.invoke(event)
+                secondaryListeners.toList().forEach { it.invoke(event) }
+            }
         }
     }
 
