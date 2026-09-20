@@ -17,6 +17,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -49,6 +50,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var sendButton: ImageButton? = null
     private var pauseResumeButton: ImageButton? = null
     private var cancelButton: ImageButton? = null
+    private var deleteWordButton: ImageButton? = null
     private var flushButton: ImageButton? = null
     private var languageSpinner: Spinner? = null
     private var rawCheckbox: CheckBox? = null
@@ -117,6 +119,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         sendButton = view.findViewById(R.id.ime_send_button)
         pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
         cancelButton = view.findViewById(R.id.ime_cancel_button)
+        deleteWordButton = view.findViewById(R.id.ime_delete_word_button)
         flushButton = view.findViewById(R.id.ime_flush_button)
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
         rawCheckbox = view.findViewById(R.id.ime_raw)
@@ -145,6 +148,14 @@ class PolishedVoiceInputIME : InputMethodService() {
         cancelButton?.setOnClickListener {
             controller.cancel()
             requestHideSelf(0)
+        }
+        // Delete-word button (#90): tap deletes the last word from the
+        // editor, long-press clears the whole field. Deliberately no
+        // press-hold hint — the long-press gesture is taken by clear-all.
+        deleteWordButton?.setOnClickListener { deleteLastWord() }
+        deleteWordButton?.setOnLongClickListener {
+            clearEditorField()
+            true
         }
         flushButton?.setOnClickListener {
             // Flush (#86): discard the audio but stay in the mode — a fresh
@@ -430,6 +441,41 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     /**
+     * Deletes the last word before the cursor from the editor (#90):
+     * trailing whitespace plus the preceding whitespace-delimited token
+     * ([DeleteWordPolicy]). Independent of the recording session, so the
+     * button stays enabled in every state.
+     */
+    private fun deleteLastWord() {
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(DELETE_WORD_LOOKBACK, 0) ?: return
+        val n = DeleteWordPolicy.charsToDelete(before)
+        if (n > 0) ic.deleteSurroundingText(n, 0)
+    }
+
+    /**
+     * Clears the entire editor field (#90, long-press on the delete-word
+     * button). Select-all + empty commit inside a batch edit; falls back
+     * to a wide surrounding-text delete when the editor exposes no
+     * extracted text (e.g. password fields).
+     */
+    private fun clearEditorField() {
+        val ic = currentInputConnection ?: return
+        ic.beginBatchEdit()
+        try {
+            val len = ic.getExtractedText(ExtractedTextRequest(), 0)?.text?.length
+            if (len != null && len > 0) {
+                ic.setSelection(0, len)
+                ic.commitText("", 1)
+            } else if (len == null) {
+                ic.deleteSurroundingText(CLEAR_FIELD_FALLBACK, CLEAR_FIELD_FALLBACK)
+            }
+        } finally {
+            ic.endBatchEdit()
+        }
+    }
+
+    /**
      * Commits [text] padded with surrounding spaces as needed (#66): a leading
      * space when the cursor sits at field start or after non-whitespace, a
      * trailing space when nothing whitespace follows. A null side from
@@ -447,12 +493,14 @@ class PolishedVoiceInputIME : InputMethodService() {
         val ms = sendButton ?: return
         val pr = pauseResumeButton ?: return
         val cb = cancelButton ?: return
+        val dw = deleteWordButton ?: return
         val fb = flushButton ?: return
         val gear = settingsGear ?: return
         val switchButton = switchKeyboardButton ?: return
         val s = controller.state
         setFlashing(s == VoiceSessionController.State.RECORDING)
-        setPausedEnlarged(s == VoiceSessionController.State.PAUSED)
+        // Delete-word edits the editor, not the session — always enabled (#90).
+        dw.isEnabled = true
         when (s) {
             VoiceSessionController.State.IDLE -> {
                 ms.setImageResource(R.drawable.ic_send)
@@ -518,9 +566,10 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     /**
-     * REC time counter (#71): ticking "REC m:ss" during RECORDING (active mic
-     * time only, pauses excluded via [VoiceSessionController.recordedDurationMs]),
-     * frozen "m:ss" without the REC prefix while PAUSED, hidden otherwise.
+     * Time counter (#71, #90): ticking plain "m:ss" during RECORDING (active
+     * mic time only, pauses excluded via
+     * [VoiceSessionController.recordedDurationMs]) — no REC prefix, the
+     * pulse signals the state — frozen "m:ss" while PAUSED, hidden otherwise.
      */
     private fun updateRecTimer(s: VoiceSessionController.State) {
         when (s) {
@@ -624,16 +673,6 @@ class PolishedVoiceInputIME : InputMethodService() {
         val a = PulseAlphaPolicy.target(controller.state, breathAlpha)
         rowTop?.alpha = a
         rowButtons?.alpha = a
-    }
-
-    private fun setPausedEnlarged(enlarged: Boolean) {
-        val target = if (enlarged) 1.3f else 1f
-        pauseResumeButton?.animate()?.cancel()
-        pauseResumeButton?.animate()
-            ?.scaleX(target)
-            ?.scaleY(target)
-            ?.setDuration(150)
-            ?.start()
     }
 
     private fun setQuickSettingsVisible(visible: Boolean) {
@@ -792,6 +831,13 @@ class PolishedVoiceInputIME : InputMethodService() {
         private const val BREATH_CEIL = 1f
         private const val BREATH_CYCLE_MS = 1333L
         private const val REC_TICK_MS = 1000L
+        /** Chars of pre-cursor text fetched for one delete-word tap (#90). */
+        private const val DELETE_WORD_LOOKBACK = 512
+        /**
+         * Fallback clear radius when the editor exposes no extracted text
+         * (#90): the long-press intent is "clear the whole field".
+         */
+        private const val CLEAR_FIELD_FALLBACK = 9999
         /**
          * Grace window for a provisional freeze (#83 v3): the Oplus rotation
          * mark trails the rebind by ~150 ms, so a PAUSED same-field bind

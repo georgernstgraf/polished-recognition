@@ -52,6 +52,9 @@ class ImeHintPolicyTest {
     fun `views without help have no hint`() {
         assertThat(ImeHintPolicy.hintFor(R.id.ime_language_spinner)).isNull()
         assertThat(ImeHintPolicy.hintFor(R.id.ime_raw)).isNull()
+        // Delete-word button (#90): long-press clears the field, so it must
+        // never gain a press-hold hint.
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_delete_word_button)).isNull()
         assertThat(ImeHintPolicy.hintFor(-1)).isNull()
     }
 }

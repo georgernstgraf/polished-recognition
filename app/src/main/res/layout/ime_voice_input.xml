@@ -111,45 +111,66 @@
             android:id="@+id/ime_cancel_button"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:src="@drawable/ic_close"
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_cancel_desc"
-            android:scaleType="centerInside" />
+            android:scaleType="centerInside"
+            android:scaleX="1.5"
+            android:scaleY="1.5" />
+
+        <ImageButton
+            android:id="@+id/ime_delete_word_button"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="72dp"
+            android:src="@drawable/ic_backspace"
+            android:tint="@color/recording_icon_tint"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/ime_delete_word_desc"
+            android:scaleType="centerInside"
+            android:scaleX="1.5"
+            android:scaleY="1.5" />
 
         <ImageButton
             android:id="@+id/ime_flush_button"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_delete"
+            android:layout_height="72dp"
+            android:src="@drawable/ic_delete_outline"
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_flush_desc"
-            android:scaleType="centerInside" />
+            android:scaleType="centerInside"
+            android:scaleX="1.5"
+            android:scaleY="1.5" />
 
         <ImageButton
             android:id="@+id/ime_pause_resume_button"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:src="@drawable/ic_pause"
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_pause_desc"
-            android:scaleType="centerInside" />
+            android:scaleType="centerInside"
+            android:scaleX="1.5"
+            android:scaleY="1.5" />
 
         <ImageButton
             android:id="@+id/ime_send_button"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:src="@drawable/ic_send"
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_send_desc"
-            android:scaleType="centerInside" />
+            android:scaleType="centerInside"
+            android:scaleX="1.5"
+            android:scaleY="1.5" />
 
     </LinearLayout>
 </LinearLayout>
