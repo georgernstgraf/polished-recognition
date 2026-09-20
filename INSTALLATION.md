@@ -74,7 +74,37 @@ Then point your keyboard's voice input at it:
 > voice typing and cannot be redirected to a third-party voice input.
 > Samsung Keyboard likewise only allows its own or Google's voice input.
 
-## 5. Use It
+## 5. Set as System Voice Input (SpeechRecognizer)
+
+Apps without their own keyboard — Duolingo, Corvus, and other assistive tools —
+call Android's `SpeechRecognizer` API, which dispatches to the system's default
+voice-input service. Point that service at Polished Recognition once:
+
+1. **Settings → System → Language & region → Speech → Voice input**
+   (called "Languages & input → Voice input" on some ROMs)
+2. Select **Polished Recognition**
+
+If the "Voice input" menu is hidden on your ROM, set it via ADB:
+
+```bash
+adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
+```
+
+Verify:
+
+```bash
+adb shell settings get secure voice_recognition_service
+```
+
+> On Oplus ROMs (OnePlus/OPPO/Realme) adb secure-settings writes are blocked
+> (`SecurityException: uid 2000 does not have WRITE_SECURE_SETTINGS`) — use the
+> Settings screen there. If "Voice input" is not visible at all, reboot the
+> device: some ROMs enumerate recognition services at boot time.
+
+> No extra in-app setup is needed — dictation in those apps uses the same
+> STT/LLM providers you configured in §3.
+
+## 6. Use It
 
 1. Focus any text field
 2. Switch to the **AOSP keyboard** (LineageOS), **HeliBoard** (F-Droid),
@@ -86,6 +116,11 @@ Then point your keyboard's voice input at it:
 5. If no provider is configured yet, open the app from the launcher first
 
 ## Troubleshooting
+
+**Polished Recognition not listed under Voice input?**
+If **Settings → System → Language & region → Speech → Voice input** does not
+offer Polished Recognition, set it via ADB (see §5). On Oplus ROMs the adb
+write is blocked — use the Settings screen and reboot if the entry is missing.
 
 **Polished Recognition not listed under on-screen keyboards?**
 Make sure it is enabled in **Settings → On-screen keyboard**. The app's Settings

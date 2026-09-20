@@ -4,7 +4,7 @@
 
 ## Open tasks
 
-1. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` (signed, release key) with test brief (Duolingo/Corvus service path + IME regression trio + logs); owner runs the same trio on the device machine if possible. Then `finish` #82.
+1. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` (signed, release key) with test brief (Duolingo/Corvus service path + IME regression trio + logs); INSTALLATION.md §5 (ADB `voice_recognition_service` block) restored 2026-09-20 + correction comment posted — Peter retests on a #82 build. Owner runs the same trio on the device machine if possible. Then `finish` #82.
 
 1. [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed, Play alpha 1.2.4 committed via CI; 1.3.0 supersedes on F-Droid (tracked in #74).
 2. [ ] **#74 watch — v1.3.0 (10300) TAGGED 2026-09-20** (`25140f4` assets + `8138990` bump, tag pushed separately; release.yml + fdroid-apk.yml were in_progress on the tag): verify Play upload committed + fdroid-apk green + GitHub AAB/APK + F-Droid 1.3.0 pickup WITH listing images. Remaining: demo GIF (agent screenrecord, owner speaks), repo polish, Phase-1 drafts.
