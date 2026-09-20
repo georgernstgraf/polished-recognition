@@ -17,11 +17,11 @@ starts listening immediately — no extra tap, no learning a new typing UI.
 > **AOSP keyboard** (LineageOS and derivatives), **HeliBoard** (F-Droid only),
 > **Fossify Keyboard**, or **OpenBoard**.
 
-| ![Voice keyboard](docs/img/ime-recording.png) | ![Settings](docs/img/settings.png) | ![Providers](docs/img/settings-providers.png) |
-|:---:|:---:|:---:|
-| The voice keyboard — recording | Your pipeline, your prompts | Your providers, your models |
-
-<p align="center"><img src="docs/img/demo.gif" alt="Demo: dictate with filler words, tap send, polished text appears" width="270"></p>
+| <img src="docs/img/ime-recording.png" alt="Voice keyboard" width="400"> | <img src="docs/img/settings.png" alt="Settings" width="400"> |
+|:---:|:---:|
+| The voice keyboard — recording | Your pipeline, your prompts |
+| <img src="docs/img/settings-providers.png" alt="Providers" width="400"> | <img src="docs/img/demo.gif" alt="Demo: dictate with filler words, tap send, polished text appears" width="400"> |
+| Your providers, your models | Dictate, send, polished text appears |
 
 ## How it works
 
