@@ -25,7 +25,8 @@ Current status as of 2026-09-20 (**v1.3.0 (10300) TAGGED on #74** — `8138990` 
 
 ## Pending
 - [ ] **#89 watch**: F-Droid pickup — 1.3.0 tag likely supersedes 1.2.4 (bot serves newest); owner-side Play alpha verification via `scripts/query-play-console.py`.
-- [ ] **#74 remaining**: demo GIF, repo polish (topics/description/social preview), Phase-1 drafts in `docs/marketing/`.
+- [x] #74 demo GIF (`e60b20b`, pushed, suite green) — live OnePlus take via `scrcpy --record` (42s mp4 local-only), trimmed 19–33s → 540×1200 10fps palette GIF 904KB at `docs/img/demo.gif`, embedded in README. Arc: REC 0:16 → send → Transcribing (STT)… → polished commit.
+- [ ] **#74 remaining**: repo polish (topics/description/social preview), Phase-1 drafts in `docs/marketing/`.
 - [ ] **#75**: rate-limit header logging (remaining-requests/-tokens, reset headers, retry-after, 429 counts; local persistence + simple usage view in Settings).
 - [ ] **#64**: Ogg/Opus compression latency — measure per-stage transcode timings on the S5 first.
 - [ ] **#84**: keep PCM buffer on pipeline failure; **#82**: RecognitionService API work; **#88**: help texts.

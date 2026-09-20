@@ -3,6 +3,7 @@
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
 
+- **On-device screen capture for GIFs (#74):** Oplus builds ship **no `screenrecord` binary** (`adb shell screenrecord` → "inaccessible or not found") and `adb` has **no host-side video subcommand** — use `scrcpy --record=file.mp4` from the agent host (server push works over plain adb on Oplus). scrcpy 3.x renamed `--no-display` → **`--no-playback`** (old flag is a hard ERROR). Record with `setsid nohup … &`, stop via `pkill -INT` (finalizes the mp4; note the pkill may hang the shell past timeout — verify death with `pgrep` + file size instead of waiting). GIF recipe (ffmpeg 8): trim to the arc, `fps=10,scale=540:1200,palettegen=max_colors=128` + `paletteuse=dither=bayer` → ~1 MB for ~14 s. Keep the raw mp4 local-only (`/tmp`), commit only the GIF.
 - When deleting a color/resource that has a `values-night` variant, delete BOTH copies — `lintVitalRelease` fails the release build with `MissingDefaultResource` when the night qualifier has "no declaration in the base values folder" (hit in #61 with `recording_text_secondary`).
 - `gh issue view <N>` (plain) fails on this repo with a GraphQL "Projects (classic) is being deprecated" error — always use `gh issue view <N> --json ...` (see CONVENTIONS).
 - RecognitionService cannot be annotated with @AndroidEntryPoint (Hilt). Manual DI via Application class is required.
