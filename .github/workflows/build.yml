@@ -35,15 +35,26 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Decode release keystore
+        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > app/release.keystore
+
       - name: Run tests and build release APK & AAB
         run: ./gradlew test assembleRelease bundleRelease
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f app/release.keystore
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/app-release.apk
             app/build/outputs/bundle/release/app-release.aab
           retention-days: 7
 
@@ -55,7 +66,7 @@ jobs:
           make_latest: false
           fail_on_unmatched_files: true
           files: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/app-release.apk
             app/build/outputs/bundle/release/app-release.aab
           body: |
             Automated build #${{ github.run_number }} from commit ${{ github.sha }}.
