@@ -21,6 +21,8 @@ starts listening immediately — no extra tap, no learning a new typing UI.
 |:---:|:---:|:---:|
 | The voice keyboard — recording | Your pipeline, your prompts | Your providers, your models |
 
+<p align="center"><img src="docs/img/demo.gif" alt="Demo: dictate with filler words, tap send, polished text appears" width="270"></p>
+
 ## How it works
 
 1. **Switch to the Polished keyboard** → recording starts instantly
