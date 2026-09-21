@@ -1,3 +1,2 @@
-• Long-press any voice-bar button for help — the hint shows while pressed (#88).
-• Dictation now survives network failures — fix connectivity and tap send again, nothing is lost (#84).
-• New: install via F-Droid, join the Play alpha via self-join group (#74).
+• Voice input for keyboard-less apps — Duolingo, Corvus and other assistive tools can now dictate via the system voice-input service (#82).
+• Larger voice-bar buttons, new delete-last-word key (tap for a word, long-press to clear the field), quieter timer without REC prefix (#90).
