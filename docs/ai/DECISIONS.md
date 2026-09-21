@@ -713,3 +713,9 @@ Each entry documents WHAT was decided and WHY.
 - **Choice**: `ic_backspace` redrawn as stroke-based outline (same 1.6dp round stroke pattern as `ic_delete_outline`); both Settings trash usages (`item_manage_language.xml`, `item_language_dropdown.xml`) switched to `ic_delete_outline`; now-unreferenced solid `ic_delete.xml` deleted.
 - **Reason**: Owner follow-up — backspace solid was as dominant as the trash had been; Settings trash cans match the IME flush icon now.
 - **Tradeoff**: None — colors/tints unchanged, only fill→stroke. 261 green + `assembleRelease` green. Still open: owner visual feel-check before `finish` #90.
+
+## 2026-09-21: v1.3.1 (10301) patch release ships #82 + #90 (#91)
+- **Choice**: Patch bump (not minor) per owner — v1.3.0 tag predates the #82 implementation (verified: no v* tag contains `3e38bf7`), so 1.3.1 is the first release with the bound RecognitionService (+ INSTALLATION §5 ADB docs) and the full #90 IME UI batch. whatsnew-en-GB rewritten (2 bullets, EN-only). Tag `v1.3.1` pushed separately from the branch commit (`c1d8b3e`).
+- **Reason**: Owner decision — the UI batch + service entry point justify a user-visible release; patch because no listing/marketing changes ride along.
+- **Verification**: `release.yml` green (Play alpha edit `12594441127685593678` committed, status completed), `fdroid-apk.yml` green, GitHub `v1.3.1` assets (AAB + APK) present, `build.yml` green. Live Play-API check + F-Droid pickup (may serve 1.3.0 first) remain watch items on #91.
+- **Tradeoff**: #82 stays open until Peter confirms the retest on a shipped build; #90 closed (owner visual feel-check passed: "wonderful").

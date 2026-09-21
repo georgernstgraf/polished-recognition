@@ -1,11 +1,12 @@
 # Hand Off
 
-**2026-09-20: #90 IMPLEMENTED (uncommitted, suite 261 green) — needs owner visual feel-check before `finish`**; #82 IMPLEMENTED (`3e38bf7`, pushed, suite 253 green) — needs owner on-device feel-check before `finish**; v1.3.0 (10300) TAGGED + Play upload committed (edit `07382800129640952742`, in review); #84 + #88 + #89 CLOSED. Next session: **`finish` #90/#82 if feel-checks pass**. Open: #90, #82, #74 (watch/polish/drafts), #75, #64.
+**2026-09-21: v1.3.1 (10301) RELEASED (`c1d8b3e`, tag separate; Play edit `12594441127685593678` committed, all workflows green)** — first release with #82 + #90. #90 CLOSED. Next session: **watch #91** (F-Droid pickup, may serve 1.3.0 first). Open: #91 (watch), #82 (Peter retest), #74 (watch/polish/drafts), #75, #64.
 
 ## Open tasks
 
-1. [ ] **#90 feel-check (owner)** — IME UI batch implemented 2026-09-20 (uncommitted, 261 green): 1.5x lower row, no REC prefix, ⌫ delete-word left of trash, outline trash, no pause-enlarge. Owner visual check via `installRelease`, then `finish` #90.
-2. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` (signed, release key) with test brief (Duolingo/Corvus service path + IME regression trio + logs); INSTALLATION.md §5 (ADB `voice_recognition_service` block) restored 2026-09-20 + correction comment posted — Peter retests on a #82 build. Owner runs the same trio on the device machine if possible. Then `finish` #82.
+1. [ ] **#91 watch — v1.3.1 (10301) RELEASED 2026-09-21**: F-Droid pickup (bot, hours–days; may serve 1.3.0 first since that tag is newer than the bot's last run). Play alpha committed, GitHub AAB+APK present.
+2. [x] **#90 CLOSED 2026-09-21** — shipped in v1.3.1, owner visual feel-check passed ("wonderful").
+3. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` (signed, release key) with test brief (Duolingo/Corvus service path + IME regression trio + logs); INSTALLATION.md §5 (ADB `voice_recognition_service` block) restored 2026-09-20 + correction comment posted — Peter retests on a #82 build. Owner runs the same trio on the device machine if possible. Then `finish` #82.
 
 3. [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed, Play alpha 1.2.4 committed via CI; 1.3.0 supersedes on F-Droid (tracked in #74).
 4. [ ] **#74 watch — v1.3.0 (10300) TAGGED 2026-09-20** (`25140f4` assets + `8138990` bump, tag pushed separately; release.yml + fdroid-apk.yml were in_progress on the tag): verify Play upload committed + fdroid-apk green + GitHub AAB/APK + F-Droid 1.3.0 pickup WITH listing images. Remaining: demo GIF (agent screenrecord, owner speaks), repo polish, Phase-1 drafts.
