@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-21: Settings grouped by content — Output / Provider / Prompts (#92)
+- **Choice**: `activity_settings.xml` reordered into three frequency-ordered groups: **Output Control** (RAW → target language → wrap width → compress_audio, owner-confirmed placement) → **Provider Control** (STT block first, then LLM, pipeline-flow order) → **Prompts** (system + target-language-clause editors + new read-only Source Language Clause note) → unchanged footer (IME setup, save, About). `processing_section` string retitled to "Output Control"; new `provider_control_section` + `source_language_clause_title/info` strings. No Kotlin change — all 34 view IDs preserved verbatim, save/load/validation untouched.
+- **Reason**: Owner request — most-changed items at top; tokens together; prompts last with the immutable clause (`{{source_language_clause}}`, dropped on null/blank/`"unknown"`) documented in-UI since it is the only non-configurable prompt part.
+- **Tradeoff**: `stt_section`/`llm_section` headers kept as sub-headers under Provider Control (two header levels, same 18sp style). `target_language_clause` bottom margin 8dp→16dp to separate it from the new note. Tests + `assembleRelease` green (`28d3821`). Open: owner on-device visual scroll check.
+
 ## 2026-09-20: build.yml publishes signed installable APKs (#82)
 - **Choice**: `build.yml` decodes `RELEASE_KEYSTORE` + `RELEASE_*` env vars (same pattern as `fdroid-apk.yml`), so every master push publishes a signed `app-release.apk` in the `build-*` release (verified: build-287, v2 scheme, release-key cert `62f9d7b0…`). Supersedes the unsigned era — `app-release-unsigned.apk` no longer exists as an output.
 - **Reason**: Owner decision — Peter (#82) needs an installable GitHub test build, and the unsigned APK could never be installed (its "install via ADB" release note was a lie). Play (`release.yml`, own upload key) and F-Droid (`fdroid-apk.yml`, own path) are independent and unaffected.

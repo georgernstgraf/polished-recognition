@@ -7,6 +7,7 @@ Current status as of 2026-09-20 (**#82 implemented, `3e38bf7`, needs owner on-de
 
 ## Completed (this cycle)
 - [x] **#91 — v1.3.1 (10301) RELEASED 2026-09-21** (`c1d8b3e` bump, tag pushed separately): release.yml green (Play alpha edit `12594441127685593678` committed), fdroid-apk.yml green, GitHub AAB+APK present, build.yml green. First release shipping #82 + #90. Watch: F-Droid pickup (may serve 1.3.0 first).
+- [x] **#92 implemented (`28d3821`, pushed, tests + `assembleRelease` green)** — Settings grouped Output Control → Provider Control (STT, LLM) → Prompts (+ read-only Source Language Clause note). No logic change. Open: owner on-device visual scroll check, then `finish` #92.
 - [x] #90 CLOSED 2026-09-21 — shipped in v1.3.1, owner visual feel-check passed.
 - [x] #90 implemented 2026-09-20 (uncommitted) — 1.5x lower row, no REC prefix, delete-word ⌫ left of trash (tap word / long-press clear-all), outline trash, pause-enlarge removed. 261 tests green + `assembleRelease` green. Open: owner visual feel-check, then `finish` #90.
 - [x] #82 docs repair (`INSTALLATION.md` §5 restored 2026-09-20, uncommitted) — ADB `voice_recognition_service` block lost in #43 re-inserted for the re-added service; correction + retest comment posted on #82. Issue stays open pending feel-check.

@@ -4,7 +4,8 @@
 
 ## Open tasks
 
-1. [ ] **#91 watch — v1.3.1 (10301) RELEASED 2026-09-21**: F-Droid pickup (bot, hours–days; may serve 1.3.0 first since that tag is newer than the bot's last run). Play alpha committed, GitHub AAB+APK present.
+1. [ ] **#92 visual check (owner, device machine)** — Settings regroup implemented `28d3821`: scroll top→bottom confirms Output Control (RAW → language → wrap → compress) → Provider Control (STT → LLM) → Prompts (+ Source Language Clause note) → setup → save → About. Then `finish` #92.
+2. [ ] **#91 watch — v1.3.1 (10301) RELEASED 2026-09-21**: F-Droid pickup (bot, hours–days; may serve 1.3.0 first since that tag is newer than the bot's last run). Play alpha committed, GitHub AAB+APK present.
 2. [x] **#90 CLOSED 2026-09-21** — shipped in v1.3.1, owner visual feel-check passed ("wonderful").
 3. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` (signed, release key) with test brief (Duolingo/Corvus service path + IME regression trio + logs); INSTALLATION.md §5 (ADB `voice_recognition_service` block) restored 2026-09-20 + correction comment posted — Peter retests on a #82 build. Owner runs the same trio on the device machine if possible. Then `finish` #82.
 
