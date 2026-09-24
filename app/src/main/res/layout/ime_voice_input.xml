@@ -55,15 +55,6 @@
             android:visibility="gone" />
 
         <View
-            android:id="@+id/ime_rec_timer_divider"
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:background="@color/recording_divider"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:visibility="gone" />
-
-        <View
             android:id="@+id/ime_quick_settings_divider"
             android:layout_width="1dp"
             android:layout_height="20dp"

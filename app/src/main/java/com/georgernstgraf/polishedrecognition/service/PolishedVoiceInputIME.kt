@@ -58,7 +58,6 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var switchKeyboardButton: ImageButton? = null
     private var quickSettingsDivider: View? = null
     private var recTimer: TextView? = null
-    private var recTimerDivider: View? = null
     private var stageText: TextView? = null
     private var breathAlpha = BREATH_CEIL
     private var breathAnimator: ValueAnimator? = null
@@ -127,7 +126,6 @@ class PolishedVoiceInputIME : InputMethodService() {
         switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard_button)
         quickSettingsDivider = view.findViewById(R.id.ime_quick_settings_divider)
         recTimer = view.findViewById(R.id.ime_rec_timer)
-        recTimerDivider = view.findViewById(R.id.ime_rec_timer_divider)
         stageText = view.findViewById(R.id.ime_stage_text)
 
         sendButton?.setOnClickListener {
@@ -576,7 +574,6 @@ class PolishedVoiceInputIME : InputMethodService() {
             VoiceSessionController.State.RECORDING -> {
                 recTimer?.text = RecTimeFormatter.recording(controller.recordedDurationMs())
                 recTimer?.visibility = View.VISIBLE
-                recTimerDivider?.visibility = View.VISIBLE
                 recTickHandler.removeCallbacks(recTick)
                 recTickHandler.postDelayed(recTick, REC_TICK_MS)
             }
@@ -584,12 +581,10 @@ class PolishedVoiceInputIME : InputMethodService() {
                 recTickHandler.removeCallbacks(recTick)
                 recTimer?.text = RecTimeFormatter.paused(controller.recordedDurationMs())
                 recTimer?.visibility = View.VISIBLE
-                recTimerDivider?.visibility = View.VISIBLE
             }
             else -> {
                 recTickHandler.removeCallbacks(recTick)
                 recTimer?.visibility = View.GONE
-                recTimerDivider?.visibility = View.GONE
             }
         }
     }
