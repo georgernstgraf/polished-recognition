@@ -2,9 +2,9 @@ name: Build Release APK
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: write
@@ -60,7 +60,7 @@ jobs:
 
       - name: Publish release APK
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         with:
           tag_name: build-${{ github.run_number }}
           make_latest: false
@@ -73,7 +73,7 @@ jobs:
             Download the APK and install via ADB.
 
       - name: Prune GitHub binary assets (keep newest 7)
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/cleanup-github-assets.sh

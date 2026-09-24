@@ -54,7 +54,7 @@ Polished Recognition is an Android **voice IME** (`InputMethodService`) that cap
 
 ## CI/CD Workflows
 
-### `build.yml` — CI (push/PR to master)
+### `build.yml` — CI (push/PR to main)
 
 Builds release APK and AAB signed with the same keystore as local builds for GitHub distribution.
 

@@ -16,7 +16,7 @@
 <body>
 <main id="content"><p>Loading…</p></main>
 <script>
-fetch('https://raw.githubusercontent.com/georgernstgraf/polished-recognition/master/PRIVACY-POLICY.md')
+fetch('https://raw.githubusercontent.com/georgernstgraf/polished-recognition/main/PRIVACY-POLICY.md')
     .then(function(r) { return r.text(); })
     .then(function(md) { document.getElementById('content').innerHTML = marked.parse(md); })
     .catch(function() { document.getElementById('content').innerHTML = '<p>Could not load.</p>'; });

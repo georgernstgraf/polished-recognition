@@ -49,12 +49,12 @@
 function loadPage(file, el) {
     document.querySelectorAll('nav a').forEach(function(a) { a.removeAttribute('aria-current'); });
     if (el) el.setAttribute('aria-current', 'page');
-    fetch('https://raw.githubusercontent.com/georgernstgraf/polished-recognition/master/' + file)
+    fetch('https://raw.githubusercontent.com/georgernstgraf/polished-recognition/main/' + file)
         .then(function(r) { return r.text(); })
         .then(function(md) { document.getElementById('content').innerHTML = marked.parse(md); })
         .catch(function() {
             document.getElementById('content').innerHTML =
-                '<p>Could not load. View it on <a href="https://github.com/georgernstgraf/polished-recognition/blob/master/' + file + '">GitHub</a>.</p>';
+                '<p>Could not load. View it on <a href="https://github.com/georgernstgraf/polished-recognition/blob/main/' + file + '">GitHub</a>.</p>';
         });
 }
 
