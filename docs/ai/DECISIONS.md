@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-24: v1.3.3 (10303) — UI-fix release carrying the dark demo GIF to the listings (#98)
+- **Choice**: Patch release `10303`/`1.3.3` (commit `377e4a2`, whatsnew "Cleaner voice bar — removed a redundant divider next to the recording timer (#97)"), tag `v1.3.3` pushed **separately**. Sub-issue #98 of #74. release.yml (Play alpha) + fdroid-apk.yml + build.yml green; GitHub assets AAB + APK.
+- **Reason**: The only app-facing change since v1.3.2 is #97, but the release's real purpose is to put the dark `docs/img/demo.gif` (#96) into a **built tag** so F-Droid/Play read it as listing metadata (fastlane reads from the built tag). Owner confirmed the accumulated UI already justifies v1.3.3; #91 (v1.3.1 watch) was closed as superseded.
+- **Tradeoff**: Minimal user-visible delta for a version bump; justified by the listing/demo asset delivery. **Next work is marketing, not code** — #74 Phase 1 (community wave) is the active epic.
+
 ## 2026-09-24: Redundant IME timer/spinner divider removed (#97)
 - **Choice**: `ime_rec_timer_divider` deleted from `ime_voice_input.xml` and `PolishedVoiceInputIME` (property, `findViewById`, three visibility writes in `updateRecTimer`). `ime_quick_settings_divider` remains the single separator before the language spinner. Commit `0a91a8e`.
 - **Reason**: #88 (`9939418`) moved the spinner behind the timer, leaving `ime_rec_timer_divider` (added in #71 to separate the timer from the then-right Raw checkbox) directly beside `ime_quick_settings_divider` — two bars + 16dp gap between timer and spinner during RECORDING/PAUSED.

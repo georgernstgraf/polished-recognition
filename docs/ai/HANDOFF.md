@@ -1,16 +1,15 @@
 # Hand Off
 
-**2026-09-24: #97 CLOSED / #91 CLOSED** — redundant IME timer/spinner divider (`ime_rec_timer_divider`) removed (commit `0a91a8e`); release build `1.3.2 (10302)` installed on OnePlus 7T `f6de166c`. **#91 closed as superseded** — the accumulated UI changes already justify **v1.3.3**, which is now the clear next release. Latest release remains v1.3.2 (10302). Default branch `main`. Open: #82 (Peter retest), #74 (watch), #75, #64.
+**2026-09-24: #98 SHIPPED / #97 / #91 CLOSED** — v1.3.3 (10303) released (`377e4a2` + tag `v1.3.3`): release.yml (Play alpha) + fdroid-apk.yml + build.yml all green, GitHub AAB/APK present. Ships the #97 divider fix + dark `demo.gif` (#96) to F-Droid/Play. **The real remaining work is marketing** — #74 (F-Droid launch, Phase 1 community wave) is the active epic. Default branch `main`. Open: #74 (marketing), #82 (Peter retest), #75, #64.
 
 ## Open tasks
 
-1. [ ] **NEXT: cut Tag v1.3.3** — bump `10303`/`1.3.3`, short whatsnew, tag pushed **separately**. Ships the dark `demo.gif` (#96) + all accumulated UI on `main` (through #97) to F-Droid/Play. Owner has confirmed the current changes already justify v1.3.3.
-2. [ ] **v1.3.2 watch** — F-Droid pickup with listing assets (likely superseded by v1.3.3).
-3. [ ] **#82 feel-check (Peter + owner)** — retest on a #82 build; then `finish` #82.
-4. [ ] **#74 watch** — parent epic; social-preview upload left to owner.
-5. [ ] **#75 — rate-limit header logging**.
-6. [ ] **#64 — Ogg/Opus compression latency**.
-7. [ ] **Insertion-spacing watch** — passive.
+1. [ ] **NEXT: marketing wave (owner + agent)** — #74 Phase 1: agent drafts posts in `docs/marketing/`, owner posts. F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). Each post: CTA1 F-Droid + CTA2 Play-alpha two-step + feedback channel. Trigger was "F-Droid page live + GIF ready" — both now satisfied (v1.3.3 tag carries the dark GIF).
+2. [ ] **#82 feel-check (Peter + owner)** — retest on a #82 build; then `finish` #82.
+3. [ ] **#74 Play-alpha tester recruitment** — owner: Google Group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
+4. [ ] **#75 — rate-limit header logging**.
+5. [ ] **#64 — Ogg/Opus compression latency**.
+6. [ ] **Insertion-spacing watch** — passive.
 
 ## Known on-device gotchas
 
@@ -26,4 +25,4 @@
 - Pulse-contrast (#87): foreground rows breathe 0.3↔1.0 on a 1333 ms sine while RECORDING; fully opaque otherwise.
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-09-24 (#97 + #91 closed; next: cut Tag v1.3.3).
+Last cleared: 2026-09-24 (v1.3.3 shipped / #98 closed; next: marketing wave #74).
