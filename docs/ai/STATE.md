@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-09-24 (**#96 CLOSED** — `docs/img/demo.gif` re-recorded on a dark OnePlus Notes background; **v1.3.3 tag deliberately NOT cut yet** — owner wants more UI work in a later session, then the tag). v1.3.2 (10302) is the latest release. Default branch `main`. Open: #91 (v1.3.1 watch), #82, #74 (watch), #75, #64.
+Current status as of 2026-09-24 (**#97 CLOSED** — redundant IME timer/spinner divider removed; **#96 CLOSED** — `docs/img/demo.gif` re-recorded on a dark OnePlus Notes background; **v1.3.3 tag deliberately NOT cut yet** — owner wants more UI work in a later session, then the tag). v1.3.2 (10302) is the latest release. Default branch `main`. Open: #91 (v1.3.1 watch), #82, #74 (watch), #75, #64.
 
 ## Current Focus
 **Next session: more IME/UI work (owner), THEN cut Tag v1.3.3** to ship the accumulated UI + listing-asset changes (incl. the dark `demo.gif` from #96) to F-Droid. Do **not** tag before the UI work.

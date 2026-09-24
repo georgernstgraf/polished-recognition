@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-09-24: #96 CLOSED** — `docs/img/demo.gif` re-recorded on a **dark** OnePlus Notes background (commit `3391528`). **Tag v1.3.3 is deferred on purpose**: the owner wants more UI work first, then the tag. Latest release remains v1.3.2 (10302). Default branch `main`. Open: #91 (watch), #82 (Peter retest), #74 (watch), #75, #64.
+**2026-09-24: #97 CLOSED** — redundant IME timer/spinner divider (`ime_rec_timer_divider`) removed (commit `0a91a8e`); release build `1.3.2 (10302)` installed on OnePlus 7T `f6de166c`. **Tag v1.3.3 is deferred on purpose**: the owner wants more UI work first, then the tag. Latest release remains v1.3.2 (10302). Default branch `main`. Open: #91 (watch), #82 (Peter retest), #74 (watch), #75, #64.
 
 ## Open tasks
 
@@ -27,4 +27,4 @@
 - Pulse-contrast (#87): foreground rows breathe 0.3↔1.0 on a 1333 ms sine while RECORDING; fully opaque otherwise.
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-09-24 (#96 closed; next: owner UI work → then Tag v1.3.3).
+Last cleared: 2026-09-24 (#97 closed; next: owner UI work → then Tag v1.3.3).

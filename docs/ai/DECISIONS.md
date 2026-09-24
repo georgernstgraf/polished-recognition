@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-24: Redundant IME timer/spinner divider removed (#97)
+- **Choice**: `ime_rec_timer_divider` deleted from `ime_voice_input.xml` and `PolishedVoiceInputIME` (property, `findViewById`, three visibility writes in `updateRecTimer`). `ime_quick_settings_divider` remains the single separator before the language spinner. Commit `0a91a8e`.
+- **Reason**: #88 (`9939418`) moved the spinner behind the timer, leaving `ime_rec_timer_divider` (added in #71 to separate the timer from the then-right Raw checkbox) directly beside `ime_quick_settings_divider` — two bars + 16dp gap between timer and spinner during RECORDING/PAUSED.
+- **Tradeoff**: None; pure deletion. Verified `./gradlew test` green.
+
 ## 2026-09-24: demo.gif re-recorded on a dark background (#96)
 - **Choice**: `docs/img/demo.gif` re-recorded on **OnePlus Notes** (black) instead of Jota (white) per owner feedback. Clip ≈12 s: starts at recording 0:02 → flush → speak → send → "Transcribing (STT)…"/"Polishing (LLM)…" → polished text + ~2.8 s hold. 540×1200, 64 colours, 659 KB, commit `3391528`. Fastlane untouched (the GIF is README-only).
 - **Reason**: The white Jota backdrop clashed with the dark app look; OnePlus Notes matches the original v1.3.0 asset style.
