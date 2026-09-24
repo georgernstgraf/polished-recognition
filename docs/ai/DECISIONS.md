@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-09-24: demo.gif re-recorded on a dark background (#96)
+- **Choice**: `docs/img/demo.gif` re-recorded on **OnePlus Notes** (black) instead of Jota (white) per owner feedback. Clip ≈12 s: starts at recording 0:02 → flush → speak → send → "Transcribing (STT)…"/"Polishing (LLM)…" → polished text + ~2.8 s hold. 540×1200, 64 colours, 659 KB, commit `3391528`. Fastlane untouched (the GIF is README-only).
+- **Reason**: The white Jota backdrop clashed with the dark app look; OnePlus Notes matches the original v1.3.0 asset style.
+- **Tradeoff**: The scrcpy raw was VFR → normalized to CFR (`ffmpeg -vf fps=30 -c:v libx264`) before trimming, else `fps`-filter sampling drifted by seconds; the ~27 s dead pause and a trailing Telegram chat overlay were cut. The raw was kept until sign-off, then deleted. **Tag/bump deferred by owner** — more UI work comes first in a later session; only then Tag v1.3.3 (do NOT tag now).
+
 ## 2026-09-24: v1.3.2 (10302) — listing-asset refresh + feature graphic (#94)
 - **Choice**: Patch bump of the same day's #95 icon work, used as the vehicle for the listing refresh (F-Droid reads fastlane only from a built tag). New assets: 3 screenshots of the post-#90/#92/#95 UI into `docs/img/` **and** `fastlane/.../phoneScreenshots/` (byte-identical, same names), re-recorded `docs/img/demo.gif`, added `fastlane/.../images/featureGraphic.png` (1024×500, **verbatim copy** of `distribution/play-store-feature-graphic.png` per owner decision). `whatsnew-en-GB` reduced to the single #95 bullet. Commits `25a009e` (assets) + `552cb70` (bump+whatsnew), tag `v1.3.2` pushed separately.
 - **Reason**: F-Droid's live listing was still v1.3.0-era (pre-#90/#92) and had no feature graphic; the assets must ride a fresh built tag. No fdroiddata MR — screenshots must not go there.
