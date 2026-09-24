@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-09-21: v1.3.1 (10301) RELEASED (`c1d8b3e`, tag separate; Play edit `12594441127685593678` committed, all workflows green)** — first release with #82 + #90. #90 CLOSED. Next session: **watch #91** (F-Droid pickup, may serve 1.3.0 first). Open: #91 (watch), #82 (Peter retest), #74 (watch/polish/drafts), #75, #64.
+**2026-09-24: default branch renamed `master` → `main` (#93)** — CI triggers (`build.yml`), all docs references and the GitHub Pages source now point at `main`; remote `master` no longer exists (GitHub rename API keeps redirects). **2026-09-21: v1.3.1 (10301) RELEASED (`c1d8b3e`, tag separate; Play edit `12594441127685593678` committed, all workflows green)** — first release with #82 + #90. #90 CLOSED. Next session: **watch #91** (F-Droid pickup, may serve 1.3.0 first). Open: #91 (watch), #82 (Peter retest), #74 (watch/polish/drafts), #75, #64.
 
 ## Open tasks
 
@@ -14,6 +14,7 @@
 5. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
 6. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
 7. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
+8. [x] **#93 CLOSED 2026-09-24** — default branch renamed `master` → `main` via GitHub rename API (default branch, Pages source `main:/docs` and raw/blob URLs repointed; CI workflow triggers/guards updated). Note: tag-triggered `release.yml`/`fdroid-apk.yml` are branch-agnostic; re-run a workflow by pushing to `main`, not by re-tagging.
 
 ## Known on-device gotchas
 

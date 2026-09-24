@@ -6,6 +6,7 @@ Current status as of 2026-09-20 (**#82 implemented, `3e38bf7`, needs owner on-de
 **#82 feel-check (owner, device machine)**: select Polished as system voice-input service → dictate in Duolingo/Corvus → result returns; IME regression trio (busy-discard on live dictation, airplane-mode error returns to IDLE, settings change mid-dictation applies). **#74 watch**: `release.yml` (Play alpha upload committed?) + `fdroid-apk.yml` green + GitHub release assets (AAB+APK) + F-Droid 1.3.0 pickup **with listing images** (fdroidbot auto-update, hours–days).
 
 ## Completed (this cycle)
+- [x] **#93 completed 2026-09-24** — default branch `master` → `main`: GitHub rename API (default branch + Pages source `main:/docs` + redirects), `build.yml` triggers/guards, `docs/index.html` + `docs/privacy-policy.html` raw/blob URLs, and `docs/ai` references updated. Remote `master` deleted; only `main` remains.
 - [x] **#91 — v1.3.1 (10301) RELEASED 2026-09-21** (`c1d8b3e` bump, tag pushed separately): release.yml green (Play alpha edit `12594441127685593678` committed), fdroid-apk.yml green, GitHub AAB+APK present, build.yml green. First release shipping #82 + #90. Watch: F-Droid pickup (may serve 1.3.0 first).
 - [x] **#92 CLOSED 2026-09-21** — Settings grouped Output Control → Provider Control (STT, LLM) → Prompts (+ read-only Source Language Clause note); verified on-device via `installRelease` + screenshots.
 - [x] #90 CLOSED 2026-09-21 — shipped in v1.3.1, owner visual feel-check passed.
