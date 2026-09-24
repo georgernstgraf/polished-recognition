@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-09-24: #98 SHIPPED / #97 / #91 CLOSED** — v1.3.3 (10303) released (`377e4a2` + tag `v1.3.3`): release.yml (Play alpha) + fdroid-apk.yml + build.yml all green, GitHub AAB/APK present. Ships the #97 divider fix + dark `demo.gif` (#96) to F-Droid/Play. **The real remaining work is marketing** — #74 (F-Droid launch, Phase 1 community wave) is the active epic. Default branch `main`. Open: #74 (marketing), #82 (Peter retest), #75, #64.
+**2026-09-24: #98 SHIPPED / #97 / #91 CLOSED** — v1.3.3 (10303) released (`377e4a2` + tag `v1.3.3`): release.yml (Play alpha) + fdroid-apk.yml + build.yml all green, GitHub AAB/APK present. Ships the #97 divider fix + dark `demo.gif` (#96) to F-Droid/Play. **The real remaining work is marketing** — #74 (Marketing & launch, Phase 1 community wave) is the active epic. Default branch `main`. Open: #74 (marketing), #82 (Peter retest), #75, #64.
 
 ## Open tasks
 

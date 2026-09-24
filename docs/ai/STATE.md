@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-09-24 (**v1.3.3 (10303) released** — ships the #97 divider fix + dark `demo.gif` #96; all workflows green, GitHub AAB/APK present; commit `377e4a2`, tag `v1.3.3`). **#98 CLOSED. #97 / #91 CLOSED.** **The remaining work is marketing** — #74 (F-Droid launch) is the active epic; its Phase 0 (listing/demo/Play alpha) is done, Phase 1 (community wave) is next. Default branch `main`. Open: #74 (marketing), #82, #75, #64.
+Current status as of 2026-09-24 (**v1.3.3 (10303) released** — ships the #97 divider fix + dark `demo.gif` #96; all workflows green, GitHub AAB/APK present; commit `377e4a2`, tag `v1.3.3`). **#98 CLOSED. #97 / #91 CLOSED.** **The remaining work is marketing** — #74 (Marketing & launch) is the active epic; its Phase 0 (listing/demo/Play alpha) is done, Phase 1 (community wave) is next. Default branch `main`. Open: #74 (marketing), #82, #75, #64.
 
 ## Current Focus
 **Marketing wave (#74 Phase 1)** — agent drafts posts in `docs/marketing/`, owner posts: F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). CTA1 F-Droid + CTA2 Play-alpha + GitHub feedback channel. Separately, #74 Play-alpha tester recruitment (20–30 testers, ≥12 continuous for 14 days).
