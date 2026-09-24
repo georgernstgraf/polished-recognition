@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-09-20 (**#82 implemented, `3e38bf7`, needs owner on-device feel-check**; v1.3.0 (10300) tagged + Play upload committed, in review; **#84 + #88 + #89 CLOSED**; F-Droid serves 1.2.4, 1.3.0 pickup pending; open issues: #82, #74 watch/polish/drafts, #75, #64).
+Current status as of 2026-09-20 (**#82 implemented, `3e38bf7`, needs owner on-device feel-check**; v1.3.0 (10300) tagged + Play upload committed, in review; **#84 + #88 + #89 CLOSED**; F-Droid serves 1.2.4, 1.3.0 pickup pending; open issues: #94, #82, #74 watch/polish/drafts, #75, #64).
 
 ## Current Focus
 **#82 feel-check (owner, device machine)**: select Polished as system voice-input service → dictate in Duolingo/Corvus → result returns; IME regression trio (busy-discard on live dictation, airplane-mode error returns to IDLE, settings change mid-dictation applies). **#74 watch**: `release.yml` (Play alpha upload committed?) + `fdroid-apk.yml` green + GitHub release assets (AAB+APK) + F-Droid 1.3.0 pickup **with listing images** (fdroidbot auto-update, hours–days).
@@ -32,6 +32,7 @@ Current status as of 2026-09-20 (**#82 implemented, `3e38bf7`, needs owner on-de
 - [x] #79/#80 — GitHub asset retention: `scripts/cleanup-github-assets.sh` keeps newest 7 of Actions artifacts and `build-*` releases/tags; **`v*` releases/pages never pruned** (F-Droid Binaries dependency, `f7cf464`).
 
 ## Pending
+- [ ] **#94 listing assets** (sub of #74): fresh screenshots of the post-#90/#92 UI into `docs/img/` + `fastlane/.../phoneScreenshots/`, add `featureGraphic.png`, optional `video.txt`/texts; F-Droid picks them up only at the next built tag. Device-only.
 - [ ] **#82 feel-check (owner)**: Duolingo/Corvus dictation via system voice-input service + IME regression trio (busy-discard, airplane-mode → IDLE, mid-dictation settings change). Then `finish` #82.
 - [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed in fdroiddata; Play alpha 1.2.4 committed via CI. 1.3.0 supersedes on F-Droid automatically (#74 watch).
 - [ ] **#74 watch**: Play 1.3.0 review — owner reports "Changes in Review" on closed-testing-alpha (auto-publishes unless managed publishing); F-Droid 1.3.0 pickup with listing images (bot, hours–days).
