@@ -1,32 +1,27 @@
 # Hand Off
 
-**2026-09-24: default branch renamed `master` → `main` (#93)** — CI triggers (`build.yml`), all docs references and the GitHub Pages source now point at `main`; remote `master` no longer exists (GitHub rename API keeps redirects). **2026-09-21: v1.3.1 (10301) RELEASED (`c1d8b3e`, tag separate; Play edit `12594441127685593678` committed, all workflows green)** — first release with #82 + #90. #90 CLOSED. Next session: **watch #91** (F-Droid pickup, may serve 1.3.0 first). Open: #94 (listing assets, sub of #74), #91 (watch), #82 (Peter retest), #74 (watch/polish/drafts), #75, #64.
+**2026-09-24: #95 CLOSED** (IME bottom-row icons unified, feel-check "wunderbar"); **#94 IN PROGRESS** (listing-asset refresh — `featureGraphic.png` added, screenshots + `demo.gif` still to capture). Default branch `main`. **2026-09-21: v1.3.1 (10301) RELEASED** (`c1d8b3e`, tag separate; Play edit `12594441127685593678`, all workflows green). Open: #94, #91 (watch), #82 (Peter retest), #74 (watch/polish/drafts), #75, #64.
 
 ## Open tasks
 
-1. [x] **#92 CLOSED 2026-09-21** — Settings regroup verified on-device, issue finished.
-2. [ ] **#91 watch — v1.3.1 (10301) RELEASED 2026-09-21**: F-Droid pickup (bot, hours–days; may serve 1.3.0 first since that tag is newer than the bot's last run). Play alpha committed, GitHub AAB+APK present.
-2. [x] **#90 CLOSED 2026-09-21** — shipped in v1.3.1, owner visual feel-check passed ("wonderful").
-3. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` (signed, release key) with test brief (Duolingo/Corvus service path + IME regression trio + logs); INSTALLATION.md §5 (ADB `voice_recognition_service` block) restored 2026-09-20 + correction comment posted — Peter retests on a #82 build. Owner runs the same trio on the device machine if possible. Then `finish` #82.
-
-3. [x] **#89 CLOSED 2026-09-20** — F-Droid CurrentVersion 1.2.4/10204 confirmed, Play alpha 1.2.4 committed via CI; 1.3.0 supersedes on F-Droid (tracked in #74).
-4. [ ] **#74 watch — v1.3.0 (10300) TAGGED 2026-09-20** (`25140f4` assets + `8138990` bump, tag pushed separately; release.yml + fdroid-apk.yml were in_progress on the tag): verify Play upload committed + fdroid-apk green + GitHub AAB/APK + F-Droid 1.3.0 pickup WITH listing images. Remaining: demo GIF (agent screenrecord, owner speaks), repo polish, Phase-1 drafts.
-5. [ ] **#75 — log rate-limit headers** (capture `x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model from STT/LLM responses; local persistence per repo conventions, simple usage view in Settings).
-6. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage transcode timings on the S5 first, then prefer stream-transcode-during-recording over chunked parallel encode).
-7. [ ] **Insertion-spacing watch**: owner may report refinements of the padding rules from longer use — DOMAIN.md is the rule reference (includes the #73 field-start refinement); changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
-8. [x] **#93 CLOSED 2026-09-24** — default branch renamed `master` → `main` via GitHub rename API (default branch, Pages source `main:/docs` and raw/blob URLs repointed; CI workflow triggers/guards updated). Note: tag-triggered `release.yml`/`fdroid-apk.yml` are branch-agnostic; re-run a workflow by pushing to `main`, not by re-tagging.
-9. [ ] **#94 — refresh F-Droid/README listing assets to current UI** (sub-issue of #74): new screenshots of the post-#90/#92 UI → both `docs/img/` and `fastlane/metadata/android/en-US/images/phoneScreenshots/`, add `featureGraphic.png` (1024×500, reuse `distribution/play-store-feature-graphic.png`), optional `video.txt`/description texts. F-Droid reads fastlane only from the **latest built tag** → live at next release; no fdroiddata MR, screenshots must not go there. Device-only (agent host has no phone). See #94 comments for the `main`-branch/prune handoff.
+1. [ ] **#94 — finish listing-asset refresh** (sub of #74): capture **3 screenshots** of the post-#90/#92/#95 UI on the OnePlus 7T → `docs/img/` **and** `fastlane/metadata/android/en-US/images/phoneScreenshots/` (same names: `ime-recording`, `settings`, `settings-providers`); re-record `docs/img/demo.gif` (scrcpy, no `screenrecord` on Oplus); `featureGraphic.png` (1024×500) already staged. Then commit + push, bump **1.3.2 (10302)**, tag `v1.3.2` **separately**. Decide: update `whatsnew-en-GB` (short listing-refresh + #95 icon note).
+2. [x] **#95 CLOSED 2026-09-24** — IME bottom-row icons (`0882890` + `15fea5b`); see DECISIONS 2026-09-24 + PITFALLS vector-clipping entry.
+3. [ ] **#91 watch — v1.3.1 (10301) RELEASED 2026-09-21**: F-Droid pickup (bot, hours–days; may serve 1.3.0 first). Play alpha committed, GitHub AAB+APK present.
+4. [ ] **#82 feel-check (Peter + owner)** — Peter has build-287 `app-release.apk` with test brief; INSTALLATION.md §5 restored. Peter retests on a #82 build; owner runs the same trio on the device. Then `finish` #82.
+5. [ ] **#74 watch** — v1.3.0/v1.3.1 F-Droid listing pickup WITH images; Play 1.3.1 review; social-preview upload left to owner.
+6. [ ] **#75 — log rate-limit headers** (`x-ratelimit-remaining-requests`/`-tokens`, reset headers, `retry-after` + 429 counts per day/model; local persistence; simple usage view in Settings).
+7. [ ] **#64 — explore parallelize/hide Ogg/Opus compression latency** (measure per-stage on the S5 first).
+8. [ ] **Insertion-spacing watch** — passive; refine only on new reports. Rule reference: DOMAIN.md; changes must update `InsertionSpacingPolicy` + `InsertionSpacingPolicyTest` together.
 
 ## Known on-device gotchas
 
-- **Devices: d890cc9e = S5** (SM-G900F, LineageOS 18.1, `wm size` **1080×1920**); f6de166c = OnePlus 7T (HD1903, Oplus, **1080×2400**). Tap coords need REAL pixels (screencap PNGs displayed at 900×2000 → ×1.2 at OPO size).
-- **adb `ime`/`settings put secure` WORK on the S5** (LineageOS userdebug) — scripted IME enable/disable + `input_methods_subtype_history` manipulation possible; Oplus (OnePlus) blocks them all via SecurityException — there: Settings UI only. Reads still work on Oplus.
-- **HeliBoard IS installed on the S5** (`helium314.keyboard/.latin.LatinIME`) — it only disappears from `ime list -s` when disabled. The S5's own AOSP keyboard is `com.android.inputmethod.latin/.LatinIME` ("Android Keyboard (AOSP)") — a separate IME; owner uses it as the typing keyboard on the S5. HeliBoard is currently default on the OnePlus.
-- **HeliBoard's mic uses the system `voice_recognition_service`**, NOT the auxiliary IME → use the nav-bar switcher or the Polished switch-button instead.
+- **Devices: f6de166c = OnePlus 7T** (HD1903, Oplus, **1080×2400**); d890cc9e = S5 (SM-G900F, LineageOS 18.1, 1080×1920). `input tap` needs REAL pixels (`adb shell wm size`); screencap PNGs may display scaled.
+- **Oplus blocks adb IME/secure-setting writes** (`ime list/enable/set`, `settings put secure`, `pm grant`) — Settings UI only; reads (`dumpsys`) work. S5 (userdebug) allows them.
+- **HeliBoard's mic uses the auxiliary voice IME** (not the bound service) on current versions → nav-bar switcher or the Polished switch button.
 - The IME crashes on `?attr/` theme attrs — only platform attrs / `@null` / explicit colors in IME layouts.
-- Diagnostic logs readable via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` (stt-response/llm-prompt/llm-response rotating JSON + `ime-lifecycle.log`) — no root needed. Screenshot sessions with a configured provider LIVE-record on field focus (auto-start) — cancel explicitly (#128).
-- IME state: pause bars = recording, ↺ = paused (interrupted sessions persist PAUSED), ␡ flush = discard buffer keeping mode, ⌫ (left of flush) = delete last word / long-press clears field (#90). `distribution/*.png` remain stale; README screenshots live in `docs/img/`.
-- **Agent host (VPS) has no attached device** — the owner runs the on-device feel-check (`installRelease` + visual) from the machine with the connected device; leave device-only verification as an explicit HANDOFF item.
-- Pulse-contrast check (#87): while RECORDING the foreground rows breathe 0.3↔1.0 on a 1333 ms sine (`PulseAlphaPolicy.blinkAlpha`); in IDLE/PAUSED/PROCESSING they must be fully opaque (`PulseAlphaPolicy.target`).
+- Diagnostic logs via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` (stt-response/llm-prompt/llm-response rotating JSON + `ime-lifecycle.log`). Screenshot sessions with a configured provider LIVE-record on field focus — cancel explicitly (#128).
+- IME state: pause bars = recording, ↺ = paused; ␡ flush = discard buffer keeping mode, ⌫ (left of flush) = delete last word / long-press clears field (#90). **README screenshots live in `docs/img/`; `distribution/*.png` remain stale.**
+- Pulse-contrast check (#87): while RECORDING the foreground rows breathe 0.3↔1.0 on a 1333 ms sine (`PulseAlphaPolicy.blinkAlpha`); outside RECORDING fully opaque (`PulseAlphaPolicy.target`).
+- **Agent host has no attached device by default** — on-device verification is delegated to the owner; leave device-only checks as explicit items.
 
-Last cleared: 2026-09-19 (v1.2.4 released via #89; watch items in #89; next: #74 v1.3.0 listing-assets release).
+Last cleared: 2026-09-24 (after #95 close; next: finish #94 listing assets + release v1.3.2).
