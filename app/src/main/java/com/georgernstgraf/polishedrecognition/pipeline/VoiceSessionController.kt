@@ -131,7 +131,12 @@ class VoiceSessionController(
         emit(Event.StateChanged(state))
     }
 
-    fun stopAndTranscribe() {
+    /**
+     * @param callerPackage package of the app being dictated into (#100), used
+     *   to resolve the per-app line-wrap width. `null` for callers that cannot
+     *   provide one (bound service) → global width.
+     */
+    fun stopAndTranscribe(callerPackage: String? = null) {
         if (state != State.RECORDING && state != State.PAUSED) return
         if (state == State.RECORDING) {
             accumulatedMs += System.currentTimeMillis() - segStartMs
@@ -151,7 +156,9 @@ class VoiceSessionController(
         transcribeJob = scope.launch {
             val result = try {
                 val file = prepareAudioFile(wav)
-                val r = pipeline.transcribe(file) { stage -> emit(Event.StageChanged(stage)) }
+                val r = pipeline.transcribe(file, callerPackage) { stage ->
+                    emit(Event.StageChanged(stage))
+                }
                 file.delete()
                 r
             } catch (e: CancellationException) {

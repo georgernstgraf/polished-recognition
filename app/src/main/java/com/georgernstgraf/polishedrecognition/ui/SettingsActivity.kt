@@ -66,6 +66,16 @@ class SettingsActivity : Activity() {
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
     private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
+    private val appWrapDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.app_wrap_app) }
+    private val appWrapWidthField: EditText by lazy { findViewById(R.id.app_wrap_width) }
+    private val appWrapForgetButton: Button by lazy { findViewById(R.id.app_wrap_forget) }
+    private val appWrapEmptyHint: TextView by lazy { findViewById(R.id.app_wrap_empty_hint) }
+    /** Learned apps (#100), ordered most-recently-used first. */
+    private val appWrapOrder = mutableListOf<String>()
+    private val appWrapLabels = mutableMapOf<String, String>()
+    private val appWrapWidths = mutableMapOf<String, Int?>()
+    private var selectedAppPackage: String? = null
+    private var silenceAppWrapListener = false
 
     private val systemPromptField: EditText by lazy { findViewById(R.id.system_prompt) }
     private val targetLanguageClauseField: EditText by lazy { findViewById(R.id.target_language_clause) }
@@ -163,6 +173,110 @@ class SettingsActivity : Activity() {
         findViewById<Button>(R.id.wrap_120).setOnClickListener { wrapWidthField.setText("120") }
         findViewById<Button>(R.id.wrap_200).setOnClickListener { wrapWidthField.setText("200") }
         findViewById<Button>(R.id.wrap_off).setOnClickListener { wrapWidthField.setText("0") }
+
+        setupAppWrapSection()
+    }
+
+    /**
+     * Per-app line-wrap section (#100): dropdown of learned apps, a value
+     * field (empty = global) and a forget button. The dropdown uses the same
+     * tap-to-open pattern as the other Settings dropdowns.
+     */
+    private fun setupAppWrapSection() {
+        appWrapDropdown.threshold = Int.MAX_VALUE
+        appWrapDropdown.setOnClickListener { if (appWrapOrder.isNotEmpty()) appWrapDropdown.showDropDown() }
+        appWrapDropdown.setOnItemClickListener { _, _, position, _ -> selectAppForWrap(position) }
+        appWrapWidthField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                appWrapWidthField.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        appWrapForgetButton.setOnClickListener { forgetSelectedApp() }
+    }
+
+    private fun loadAppWrapSection() {
+        val entries = settings.knownAppsByRecency()
+        appWrapOrder.clear()
+        appWrapLabels.clear()
+        appWrapWidths.clear()
+        entries.forEach { (pkg, app) ->
+            appWrapOrder.add(pkg)
+            appWrapLabels[pkg] = app.label
+            appWrapWidths[pkg] = app.wrapWidth
+        }
+        selectedAppPackage = null
+        refreshAppWrapUi(appWrapOrder.firstOrNull())
+    }
+
+    private fun refreshAppWrapUi(selectPackage: String?) {
+        val labels = appWrapOrder.map { appWrapLabels[it] ?: it }
+        silenceAppWrapListener = true
+        appWrapDropdown.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, labels)
+        )
+        val hasApps = appWrapOrder.isNotEmpty()
+        appWrapEmptyHint.visibility = if (hasApps) View.GONE else View.VISIBLE
+        appWrapDropdown.isEnabled = hasApps
+        appWrapWidthField.isEnabled = hasApps
+        appWrapForgetButton.isEnabled = hasApps
+        if (selectPackage != null) {
+            showAppWrapRow(selectPackage)
+        } else {
+            selectedAppPackage = null
+            appWrapDropdown.setText("", false)
+            appWrapWidthField.setText("")
+        }
+        silenceAppWrapListener = false
+    }
+
+    private fun showAppWrapRow(packageName: String) {
+        selectedAppPackage = packageName
+        appWrapDropdown.setText(appWrapLabels[packageName] ?: packageName, false)
+        appWrapWidthField.hint = getString(R.string.app_wrap_global_hint, settings.wrapWidth)
+        appWrapWidthField.setText(appWrapWidths[packageName]?.toString() ?: "")
+        appWrapWidthField.error = null
+    }
+
+    private fun selectAppForWrap(position: Int) {
+        if (silenceAppWrapListener) return
+        val pkg = appWrapOrder.getOrNull(position) ?: return
+        appWrapDropdown.dismissDropDown()
+        if (pkg == selectedAppPackage) return
+        if (!commitAppWrapField()) return
+        showAppWrapRow(pkg)
+    }
+
+    /**
+     * Stores the currently displayed value into the working map (#100).
+     * Returns false (and shows an error) when the value is invalid, so the
+     * caller can block a selection change.
+     */
+    private fun commitAppWrapField(): Boolean {
+        val pkg = selectedAppPackage ?: return true
+        val raw = appWrapWidthField.text.toString().trim()
+        if (raw.isEmpty()) {
+            appWrapWidths[pkg] = null
+            return true
+        }
+        val value = raw.toIntOrNull()
+        if (value == null || (value != 0 && value < com.georgernstgraf.polishedrecognition.config.SettingsStore.MIN_WRAP_WIDTH)) {
+            appWrapWidthField.error = getString(R.string.wrap_width_error)
+            return false
+        }
+        appWrapWidths[pkg] = value
+        return true
+    }
+
+    private fun forgetSelectedApp() {
+        val pkg = selectedAppPackage ?: return
+        appWrapOrder.remove(pkg)
+        appWrapLabels.remove(pkg)
+        appWrapWidths.remove(pkg)
+        settings.forgetKnownApp(pkg)
+        selectedAppPackage = null
+        refreshAppWrapUi(appWrapOrder.firstOrNull())
     }
 
     private fun togglePassword(field: EditText, toggle: ImageButton) {
@@ -197,6 +311,7 @@ class SettingsActivity : Activity() {
         rawModeCheckbox.isChecked = settings.rawMode
         compressAudioCheckbox.isChecked = settings.compressAudio
         wrapWidthField.setText(settings.wrapWidth.toString())
+        loadAppWrapSection()
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
         settings.targetLanguage?.let { tl ->
             if (tl.isNotBlank() && tl != CustomLanguages.NONE_TARGET_LANGUAGE && tl != CustomLanguages.BUILTIN_LANGUAGE && tl !in settings.customLanguages) {
@@ -842,10 +957,12 @@ class SettingsActivity : Activity() {
      */
     private fun parseWrapWidth(): Int? {
         val value = wrapWidthField.text.toString().trim().toIntOrNull() ?: return null
-        return if (value == 0 || value >= 10) value else null
+        return if (value == 0 || value >= com.georgernstgraf.polishedrecognition.config.SettingsStore.MIN_WRAP_WIDTH) value else null
     }
 
     private fun saveAndClose() {
+        // Validate the per-app field before any settings are mutated (#100).
+        if (!commitAppWrapField()) return
         val sttName = sttProviderDropdown.text.toString()
         val llmName = llmProviderDropdown.text.toString()
         val sttBaseUrl = sttUrlField.text.toString()
@@ -895,6 +1012,7 @@ class SettingsActivity : Activity() {
             return
         }
         settings.wrapWidth = wrapWidth
+        settings.saveKnownAppWidths(appWrapWidths.toMap())
         val tl = targetLanguageDropdown.text.toString()
         val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl
         settings.targetLanguage = tlToSave

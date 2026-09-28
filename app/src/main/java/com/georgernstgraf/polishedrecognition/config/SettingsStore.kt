@@ -1,8 +1,11 @@
 package com.georgernstgraf.polishedrecognition.config
 
 import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
 data class SttProviderConfig(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -25,10 +28,43 @@ data class CachedModels(
     val models: List<String>
 )
 
-class SettingsStore(context: Context) {
+/**
+ * App learned by the voice input as a dictation target (#100). Persisted in
+ * the separate `known_apps` preferences file (included in the OS backup) and
+ * cached in memory for O(1) `lastSeen` checks on the hot insertion path.
+ *
+ * @param wrapWidth per-app line-wrap override: `null` = use the global width,
+ *   `0` = wrapping off, `>= SettingsStore.MIN_WRAP_WIDTH` = explicit width.
+ */
+data class KnownApp(
+    val label: String,
+    val lastSeenMs: Long,
+    val wrapWidth: Int? = null
+)
 
+class SettingsStore(
+    context: Context,
+    /**
+     * Serializes all `known_apps` persistence off the main thread (#100).
+     * Injectable so tests can run the learner synchronously.
+     */
+    private val learnerExecutor: Executor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "known-app-writer").apply { isDaemon = true }
+    }
+) {
+
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val knownAppsPrefs =
+        context.getSharedPreferences(KNOWN_APPS_PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
+
+    /**
+     * In-memory copy of the `known_apps` map, lazily loaded from disk once.
+     * Mutated only under [this] lock; volatile so readers never see a torn view.
+     */
+    @Volatile
+    private var knownAppsCache: Map<String, KnownApp>? = null
 
     var sttProvider: SttProviderConfig?
         get() = getJson(STT_PROVIDER_KEY, SttProviderConfig::class.java)
@@ -64,6 +100,98 @@ class SettingsStore(context: Context) {
             gson.fromJson(it, object : TypeToken<List<String>>() {}.type)
         } ?: emptyList()
         set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
+
+    /** Learned dictation targets (#100), most-recently-used first. */
+    fun knownAppsByRecency(): List<Pair<String, KnownApp>> =
+        loadKnownApps().entries.sortedByDescending { it.value.lastSeenMs }
+            .map { it.key to it.value }
+
+    /**
+     * Resolved line-wrap width for [packageName] (#100): the per-app override
+     * when set, otherwise the global [wrapWidth]. A `null` caller (bound
+     * service without a resolvable caller) always uses the global width.
+     */
+    fun wrapWidthFor(packageName: String?): Int =
+        if (packageName == null) wrapWidth
+        else loadKnownApps()[packageName]?.wrapWidth ?: wrapWidth
+
+    /**
+     * Learns that [packageName] is a dictation target (#100). Called on the
+     * insertion hot path, so the method itself only does an in-memory check
+     * and — only when the last dictation in this app is older than
+     * [KNOWN_APP_REWRITE_INTERVAL_MS] (or the app is new) — enqueues the
+     * persistence on [learnerExecutor]. Label resolution and the JSON write
+     * never touch the caller's thread; failures are logged only.
+     */
+    fun recordKnownApp(packageName: String) {
+        if (packageName.isBlank() || packageName == appContext.packageName) return
+        val now = System.currentTimeMillis()
+        val apps = loadKnownApps()
+        val existing = apps[packageName]
+        if (existing != null && now - existing.lastSeenMs < KNOWN_APP_REWRITE_INTERVAL_MS) return
+        learnerExecutor.execute { persistKnownApp(packageName, now) }
+    }
+
+    /** Removes a learned app (and its override) (#100); persists in background. */
+    fun forgetKnownApp(packageName: String) {
+        learnerExecutor.execute {
+            runCatching {
+                val merged = loadKnownApps() - packageName
+                knownAppsCache = merged
+                knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
+            }.onFailure { Log.w(TAG, "forgetKnownApp failed for $packageName", it) }
+        }
+    }
+
+    /**
+     * Persists per-app overrides edited in Settings (#100). Only the widths of
+     * apps in [widths] are changed; apps learned in the background are kept.
+     */
+    fun saveKnownAppWidths(widths: Map<String, Int?>) {
+        learnerExecutor.execute {
+            runCatching {
+                val merged = loadKnownApps().mapValues { (pkg, app) ->
+                    if (widths.containsKey(pkg)) app.copy(wrapWidth = widths[pkg]) else app
+                }
+                knownAppsCache = merged
+                knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
+            }.onFailure { Log.w(TAG, "saveKnownAppWidths failed", it) }
+        }
+    }
+
+    private fun persistKnownApp(packageName: String, seenAtMs: Long) {
+        runCatching {
+            val label = resolveAppLabel(packageName)
+            val current = loadKnownApps()
+            val merged = current + (packageName to KnownApp(
+                label = label,
+                lastSeenMs = seenAtMs,
+                wrapWidth = current[packageName]?.wrapWidth
+            ))
+            knownAppsCache = merged
+            knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
+        }.onFailure { Log.w(TAG, "recordKnownApp failed for $packageName", it) }
+    }
+
+    private fun resolveAppLabel(packageName: String): String = try {
+        val pm = appContext.packageManager
+        @Suppress("DEPRECATION")
+        pm.getApplicationInfo(packageName, 0).loadLabel(pm).toString()
+    } catch (_: Exception) {
+        packageName
+    }
+
+    @Synchronized
+    private fun loadKnownApps(): Map<String, KnownApp> {
+        knownAppsCache?.let { return it }
+        val loaded = knownAppsPrefs.getString(KNOWN_APPS_KEY, null)?.let { json ->
+            @Suppress("UNCHECKED_CAST")
+            gson.fromJson(json, object : TypeToken<Map<String, KnownApp>>() {}.type)
+                as? Map<String, KnownApp>
+        } ?: emptyMap()
+        knownAppsCache = loaded
+        return loaded
+    }
 
     fun setSttModels(baseUrl: String, models: List<String>) {
         setCachedModels(STT_MODEL_LISTS_KEY, baseUrl, models)
@@ -135,7 +263,19 @@ class SettingsStore(context: Context) {
     }
 
     companion object {
+        private const val TAG = "SettingsStore"
         private const val PREFS_NAME = "polished_recognition_settings"
+        /**
+         * Learned dictation targets live in their own file (#100) so the
+         * frequent learner writes and the OS backup stay isolated from the
+         * provider/prompt configuration.
+         */
+        private const val KNOWN_APPS_PREFS_NAME = "known_apps"
+        private const val KNOWN_APPS_KEY = "known_apps"
+        /** Minimum valid wrap width; 0 disables wrapping (#81/#100). */
+        const val MIN_WRAP_WIDTH = 20
+        /** The learner write task is only started after this idle period (#100). */
+        const val KNOWN_APP_REWRITE_INTERVAL_MS = 24L * 60 * 60 * 1000
         private const val STT_PROVIDER_KEY = "stt_provider"
         private const val LLM_PROVIDER_KEY = "llm_provider"
         private const val STT_MODEL_LIST_KEY = "stt_model_list"

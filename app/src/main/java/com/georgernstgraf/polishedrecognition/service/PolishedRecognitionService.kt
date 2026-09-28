@@ -17,6 +17,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
@@ -36,14 +37,23 @@ import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 class PolishedRecognitionService : RecognitionService() {
 
     private lateinit var controller: VoiceSessionController
+    private lateinit var settings: SettingsStore
     private var clientCallback: Callback? = null
     private var awaitingResult = false
+    /**
+     * Caller app of the current session (#100), resolved from
+     * [Callback.getCallingUid] — used for the per-app line-wrap width and the
+     * learned-apps list. `null` when the uid has no single package.
+     */
+    private var callerPackage: String? = null
 
     private val secondaryListener: (VoiceSessionController.Event) -> Unit = { handleEvent(it) }
 
     override fun onCreate() {
         super.onCreate()
-        controller = (application as PolishedRecognitionApp).voiceSessionController
+        val app = application as PolishedRecognitionApp
+        controller = app.voiceSessionController
+        settings = app.settingsStore
         createNotificationChannel()
     }
 
@@ -63,6 +73,7 @@ class PolishedRecognitionService : RecognitionService() {
             controller.cancel()
         }
         clientCallback = listener
+        callerPackage = resolveCallerPackage(listener)
         awaitingResult = true
         startServiceForeground()
         listener.readyForSpeech(Bundle.EMPTY)
@@ -83,7 +94,7 @@ class PolishedRecognitionService : RecognitionService() {
             finishWithError(listener, SpeechRecognizer.ERROR_CLIENT)
             return
         }
-        controller.stopAndTranscribe()
+        controller.stopAndTranscribe(callerPackage)
     }
 
     override fun onCancel(listener: Callback) {
@@ -136,6 +147,8 @@ class PolishedRecognitionService : RecognitionService() {
                     controller.removeSecondaryListener(secondaryListener)
                     event.result.fold(
                         onSuccess = { text ->
+                            // Learn the dictation target on a successful result (#100).
+                            callerPackage?.let { settings.recordKnownApp(it) }
                             cb.results(buildResultBundle(text))
                             runCatching { cb.endOfSpeech() }
                             clientCallback = null
@@ -162,6 +175,14 @@ class PolishedRecognitionService : RecognitionService() {
             finishWithError(cb, SpeechRecognizer.ERROR_CLIENT)
         }
     }
+
+    /**
+     * Resolves the caller app's package from [Callback.getCallingUid] (#100).
+     * The framework captures the client uid on the binder thread, so this is
+     * reliable even though [onStartListening] runs on the main thread.
+     */
+    private fun resolveCallerPackage(listener: Callback): String? =
+        packageForUid(packageManager, listener.callingUid)
 
     private fun finishWithError(cb: Callback, code: Int) {
         awaitingResult = false
@@ -246,6 +267,16 @@ class PolishedRecognitionService : RecognitionService() {
     companion object {
         private const val CHANNEL_ID = "voice_recognition_service"
         private const val NOTIFICATION_ID = 1003
+
+        /**
+         * Package of the client uid for the per-app line-wrap width (#100).
+         * Best-effort: shared/unknown uids and exceptions yield null.
+         */
+        internal fun packageForUid(packageManager: PackageManager, uid: Int): String? = try {
+            packageManager.getPackagesForUid(uid)?.firstOrNull()
+        } catch (_: Exception) {
+            null
+        }
 
         internal fun mapRecognitionError(message: String): Int = when {
             message.contains("network", ignoreCase = true) ->

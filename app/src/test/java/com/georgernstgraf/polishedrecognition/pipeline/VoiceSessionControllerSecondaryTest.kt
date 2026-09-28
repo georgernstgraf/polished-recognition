@@ -33,7 +33,7 @@ class VoiceSessionControllerSecondaryTest {
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         settings = SettingsStore(ctx)
         settings.compressAudio = false
-        coEvery { pipeline.transcribe(any(), any()) } returns Result.success("hi")
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
     }
 
     private fun newController(): VoiceSessionController = VoiceSessionController(

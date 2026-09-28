@@ -80,6 +80,12 @@ class PolishedVoiceInputIME : InputMethodService() {
      */
     private var restoredSnapshot = false
     /**
+     * Package of the app currently owning the input field (#100), captured in
+     * [onStartInputView]. Used to resolve the per-app line-wrap width and to
+     * learn the dictation target on successful insertion.
+     */
+    private var editorPackage: String? = null
+    /**
      * Guards the delayed resume check posted by a [ImeStartDecision.Outcome]
      * provisional freeze: each bind bumps [startGen], so a superseded
      * runnable (rapid rebinds, teardown) no-ops instead of resuming against
@@ -132,7 +138,8 @@ class PolishedVoiceInputIME : InputMethodService() {
             when (controller.state) {
                 VoiceSessionController.State.IDLE -> startIfPermitted()
                 VoiceSessionController.State.RECORDING,
-                VoiceSessionController.State.PAUSED -> controller.stopAndTranscribe()
+                VoiceSessionController.State.PAUSED ->
+                    controller.stopAndTranscribe(currentCallerPackage())
                 else -> Unit
             }
         }
@@ -242,6 +249,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         // change — while [ImeStartDecision] defers only the PAUSED
         // auto-resume until the mark has had time to arrive.
         val app = application as PolishedRecognitionApp
+        editorPackage = info.packageName
         val now = SystemClock.uptimeMillis()
         val currentField = RotationGate.FieldId(info.packageName, info.fieldId)
         val previousField = app.imeLastField
@@ -425,6 +433,8 @@ class PolishedVoiceInputIME : InputMethodService() {
                 val text = result.getOrNull()
                 if (text != null) {
                     commitWithSpacing(text)
+                    // Learn the dictation target only on a successful insertion (#100).
+                    currentCallerPackage()?.let { settings.recordKnownApp(it) }
                     requestHideSelf(0)
                 } else {
                     Toast.makeText(
@@ -472,6 +482,13 @@ class PolishedVoiceInputIME : InputMethodService() {
             ic.endBatchEdit()
         }
     }
+
+    /**
+     * Package of the app being dictated into (#100): the freshly focused
+     * field's package when available, else the package cached at bind time.
+     */
+    private fun currentCallerPackage(): String? =
+        currentInputEditorInfo?.packageName ?: editorPackage
 
     /**
      * Commits [text] padded with surrounding spaces as needed (#66): a leading

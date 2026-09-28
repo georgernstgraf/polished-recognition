@@ -1,23 +1,45 @@
 package com.georgernstgraf.polishedrecognition.config
 
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import java.util.concurrent.Executor
 
 @RunWith(RobolectricTestRunner::class)
 class SettingsStoreTest {
 
     private lateinit var store: SettingsStore
 
+    /** Runs the learner inline so assertions see the result immediately. */
+    private val directExecutor = Executor { it.run() }
+
+    private fun freshStore() = SettingsStore(RuntimeEnvironment.getApplication(), directExecutor)
+
+    private fun knownAppsPrefs() =
+        RuntimeEnvironment.getApplication().getSharedPreferences("known_apps", 0)
+
+    private fun seedKnownApp(pkg: String, lastSeenMs: Long, wrapWidth: Int? = null) {
+        val type = object : TypeToken<MutableMap<String, KnownApp>>() {}.type
+        val current: MutableMap<String, KnownApp> =
+            knownAppsPrefs().getString("known_apps", null)
+                ?.let { Gson().fromJson<MutableMap<String, KnownApp>>(it, type) }
+                ?: mutableMapOf()
+        current[pkg] = KnownApp("Seeded", lastSeenMs, wrapWidth)
+        knownAppsPrefs().edit().putString("known_apps", Gson().toJson(current)).commit()
+    }
+
     @Before
     fun setUp() {
         RuntimeEnvironment.getApplication()
             .getSharedPreferences("polished_recognition_settings", 0)
             .edit().clear().commit()
-        store = SettingsStore(RuntimeEnvironment.getApplication())
+        knownAppsPrefs().edit().clear().commit()
+        store = freshStore()
     }
 
     @Test
@@ -202,5 +224,102 @@ class SettingsStoreTest {
         assertThat(store.wrapWidth).isEqualTo(200)
         store.wrapWidth = 0
         assertThat(store.wrapWidth).isEqualTo(0)
+    }
+
+    @Test
+    fun `wrapWidthFor falls back to global for null and unknown packages`() {
+        store.wrapWidth = 35
+        assertThat(store.wrapWidthFor(null)).isEqualTo(35)
+        assertThat(store.wrapWidthFor("com.unknown.app")).isEqualTo(35)
+    }
+
+    @Test
+    fun `wrapWidthFor returns the per-app override`() {
+        store.wrapWidth = 35
+        seedKnownApp("com.microsoft.office.outlook", System.currentTimeMillis(), wrapWidth = 120)
+        val fresh = freshStore()
+        assertThat(fresh.wrapWidthFor("com.microsoft.office.outlook")).isEqualTo(120)
+        assertThat(fresh.wrapWidthFor("com.whatsapp")).isEqualTo(35)
+    }
+
+    @Test
+    fun `wrapWidthFor returns 0 to disable wrapping for an app`() {
+        seedKnownApp("com.whatsapp", System.currentTimeMillis(), wrapWidth = 0)
+        val fresh = freshStore()
+        assertThat(fresh.wrapWidthFor("com.whatsapp")).isEqualTo(0)
+    }
+
+    @Test
+    fun `recordKnownApp learns a new app with package fallback label`() {
+        store.recordKnownApp("com.example.chat")
+        val learned = store.knownAppsByRecency()
+        assertThat(learned).hasSize(1)
+        assertThat(learned[0].first).isEqualTo("com.example.chat")
+        // Not installed under Robolectric -> label falls back to the package.
+        assertThat(learned[0].second.label).isEqualTo("com.example.chat")
+    }
+
+    @Test
+    fun `recordKnownApp ignores own package and blank input`() {
+        val app = RuntimeEnvironment.getApplication()
+        store.recordKnownApp(app.packageName)
+        store.recordKnownApp("")
+        assertThat(store.knownAppsByRecency()).isEmpty()
+    }
+
+    @Test
+    fun `recordKnownApp throttles rewrites within 24 hours`() {
+        store.recordKnownApp("com.example.chat")
+        val firstSeen = store.knownAppsByRecency()[0].second.lastSeenMs
+        store.recordKnownApp("com.example.chat")
+        assertThat(store.knownAppsByRecency()[0].second.lastSeenMs).isEqualTo(firstSeen)
+    }
+
+    @Test
+    fun `recordKnownApp rewrites after 24 hours and keeps the override`() {
+        val old = System.currentTimeMillis() - SettingsStore.KNOWN_APP_REWRITE_INTERVAL_MS - 1000
+        seedKnownApp("com.example.chat", old, wrapWidth = 120)
+        val fresh = freshStore()
+        fresh.recordKnownApp("com.example.chat")
+        val learned = fresh.knownAppsByRecency()[0].second
+        assertThat(learned.lastSeenMs).isGreaterThan(old)
+        assertThat(learned.wrapWidth).isEqualTo(120)
+    }
+
+    @Test
+    fun `saveKnownAppWidths sets and clears overrides without dropping learned apps`() {
+        seedKnownApp("com.a", System.currentTimeMillis())
+        seedKnownApp("com.b", System.currentTimeMillis())
+        val fresh = freshStore()
+        fresh.saveKnownAppWidths(mapOf("com.a" to 120, "com.b" to null))
+        assertThat(fresh.wrapWidthFor("com.a")).isEqualTo(120)
+        assertThat(fresh.wrapWidthFor("com.b")).isEqualTo(fresh.wrapWidth)
+        assertThat(fresh.knownAppsByRecency()).hasSize(2)
+    }
+
+    @Test
+    fun `forgetKnownApp removes the app and its override`() {
+        seedKnownApp("com.a", System.currentTimeMillis(), wrapWidth = 120)
+        val fresh = freshStore()
+        fresh.forgetKnownApp("com.a")
+        assertThat(fresh.knownAppsByRecency()).isEmpty()
+        assertThat(fresh.wrapWidthFor("com.a")).isEqualTo(fresh.wrapWidth)
+    }
+
+    @Test
+    fun `known apps are ordered most recently used first`() {
+        val now = System.currentTimeMillis()
+        seedKnownApp("com.old", now - 10_000)
+        seedKnownApp("com.new", now)
+        val fresh = freshStore()
+        assertThat(fresh.knownAppsByRecency().map { it.first })
+            .containsExactly("com.new", "com.old").inOrder()
+    }
+
+    @Test
+    fun `known apps persist across store instances`() {
+        store.recordKnownApp("com.example.chat")
+        val fresh = freshStore()
+        assertThat(fresh.knownAppsByRecency().map { it.first }).containsExactly("com.example.chat")
     }
 }

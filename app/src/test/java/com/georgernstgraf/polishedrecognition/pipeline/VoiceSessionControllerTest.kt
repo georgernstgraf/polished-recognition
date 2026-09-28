@@ -34,7 +34,7 @@ class VoiceSessionControllerTest {
         val ctx = RuntimeEnvironment.getApplication()
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         settings = SettingsStore(ctx)
-        coEvery { pipeline.transcribe(any(), any()) } returns Result.success("hi")
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
     }
 
     private fun newController(): VoiceSessionController = VoiceSessionController(
@@ -76,8 +76,24 @@ class VoiceSessionControllerTest {
 
     private fun uploadedFile(): File {
         val fileSlot = slot<File>()
-        coVerify { pipeline.transcribe(capture(fileSlot), any()) }
+        coVerify { pipeline.transcribe(capture(fileSlot), any(), any()) }
         return fileSlot.captured
+    }
+
+    @Test
+    fun `stopAndTranscribe passes the caller package to the pipeline`() {
+        val controller = newController()
+        try {
+            controller.start {}
+        } catch (_: Throwable) {
+        }
+
+        controller.stopAndTranscribe("com.example.chat")
+        controller.awaitIdle()
+
+        val pkgSlot = slot<String>()
+        coVerify { pipeline.transcribe(any(), capture(pkgSlot), any()) }
+        assertThat(pkgSlot.captured).isEqualTo("com.example.chat")
     }
 
     @Test
@@ -205,7 +221,7 @@ class VoiceSessionControllerTest {
     fun `completed result during detach is stashed and delivered on attach`() {
         settings.compressAudio = false
         val gate = CountDownLatch(1)
-        coEvery { pipeline.transcribe(any(), any()) } coAnswers {
+        coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
             gate.await()
             Result.success("hi")
         }
@@ -239,7 +255,7 @@ class VoiceSessionControllerTest {
     fun `cancel discards a stashed result`() {
         settings.compressAudio = false
         val gate = CountDownLatch(1)
-        coEvery { pipeline.transcribe(any(), any()) } coAnswers {
+        coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
             gate.await()
             Result.success("hi")
         }
@@ -425,7 +441,7 @@ class VoiceSessionControllerTest {
     fun `flush in PROCESSING is a no-op`() {
         settings.compressAudio = false
         val gate = CountDownLatch(1)
-        coEvery { pipeline.transcribe(any(), any()) } coAnswers {
+        coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
             gate.await()
             Result.success("hi")
         }
@@ -461,7 +477,7 @@ class VoiceSessionControllerTest {
     fun `pipeline failure parks PAUSED with preserved timer and snapshot`() {
         clearSessionFiles()
         settings.compressAudio = false
-        coEvery { pipeline.transcribe(any(), any()) } returns Result.failure(IOException("offline"))
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
         val controller = newController()
         val events = mutableListOf<VoiceSessionController.Event>()
         try {
@@ -492,7 +508,7 @@ class VoiceSessionControllerTest {
     fun `failure snapshot restores as PAUSED on next bind`() {
         clearSessionFiles()
         settings.compressAudio = false
-        coEvery { pipeline.transcribe(any(), any()) } returns Result.failure(IOException("offline"))
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
         val controller = newController()
         try {
             controller.start { }
@@ -518,7 +534,7 @@ class VoiceSessionControllerTest {
     fun `retry after failure succeeds and clears snapshot`() {
         clearSessionFiles()
         settings.compressAudio = false
-        coEvery { pipeline.transcribe(any(), any()) } returns
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns
             Result.failure<String>(IOException("offline")) andThen Result.success("hi")
         val controller = newController()
         val events = mutableListOf<VoiceSessionController.Event>()
@@ -544,7 +560,7 @@ class VoiceSessionControllerTest {
     fun `cancel after failure discards parked audio`() {
         clearSessionFiles()
         settings.compressAudio = false
-        coEvery { pipeline.transcribe(any(), any()) } returns Result.failure(IOException("offline"))
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
         val controller = newController()
         try {
             controller.start { }

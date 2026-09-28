@@ -60,6 +60,7 @@ class TranscriptionPipelineTest {
         val ctx = RuntimeEnvironment.getApplication()
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         ctx.getSharedPreferences("polished_recognition_prompts", 0).edit().clear().commit()
+        ctx.getSharedPreferences("known_apps", 0).edit().clear().commit()
 
         settingsStore = SettingsStore(ctx)
         promptStore = PromptStore(ctx)
@@ -386,5 +387,36 @@ class TranscriptionPipelineTest {
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
+    }
+
+    @Test
+    fun `per-app override wins over the global wrap width`() = runBlocking {
+        settingsStore.rawMode = true
+        settingsStore.wrapWidth = 35
+        RuntimeEnvironment.getApplication().getSharedPreferences("known_apps", 0)
+            .edit()
+            .putString(
+                "known_apps",
+                """{"com.microsoft.office.outlook":{"label":"Outlook","lastSeenMs":1,"wrapWidth":120}}"""
+            )
+            .commit()
+        mockSttSuccess()
+
+        val result = pipeline.transcribe(lincolnFile, "com.microsoft.office.outlook")
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 120))
+    }
+
+    @Test
+    fun `null caller package uses the global wrap width`() = runBlocking {
+        settingsStore.rawMode = true
+        settingsStore.wrapWidth = 35
+        mockSttSuccess()
+
+        val result = pipeline.transcribe(lincolnFile, null)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 35))
     }
 }

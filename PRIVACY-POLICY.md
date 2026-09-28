@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** June 27, 2026
+**Last updated:** September 28, 2026
 
 ## Overview
 
@@ -26,6 +26,17 @@ it is used, and what control you have over it.
   device in Android SharedPreferences.
 - These credentials are **never** transmitted to any server controlled by the
   app developer.
+
+### Learned Apps
+
+- To apply a different output line-wrap width per app, the app remembers the
+  apps you have dictated into: the app's package name, its display name (when
+  available), and the last time you used it. This list is stored locally in a
+  separate Android SharedPreferences file and lets you set a per-app wrap width
+  in Settings.
+- These app names are **never** transmitted to the app developer. They are part
+  of the standard Android/Google device backup like the rest of your settings,
+  if you have device backup enabled in your Google account.
 
 ### Permissions
 

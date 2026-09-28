@@ -24,7 +24,13 @@
     <string name="manage_custom_languages">Manage saved languages</string>
     <string name="wrap_width">Line wrap width (0 disables)</string>
     <string name="wrap_width_hint">Wrap output lines at this many characters. Suggestions: 80, 120, 200. Enter 0 to disable wrapping.</string>
-    <string name="wrap_width_error">Enter 0 to disable, or a width of 10 or more</string>
+    <string name="wrap_width_error">Enter 0 to disable, or a width of 20 or more</string>
+    <string name="app_wrap_section">Line wrap per app</string>
+    <string name="app_wrap_pick">App</string>
+    <string name="app_wrap_global_hint">global (%1$d)</string>
+    <string name="app_wrap_forget">Forget</string>
+    <string name="app_wrap_empty">No apps learned yet — dictate in an app and it will appear here.</string>
+    <string name="app_wrap_hint">Override the global line-wrap width for apps you have dictated into. Leave the field empty to use the global value. 0 disables wrapping for that app.</string>
     <string name="saved_languages_title">Saved Languages</string>
     <string name="rename_language_title">Rename Language</string>
     <string name="rename_language_duplicate">This language is already in the list</string>
