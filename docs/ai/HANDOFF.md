@@ -1,17 +1,16 @@
 # Hand Off
 
-**2026-09-28: #100 SHIPPED to `main`** — per-app line-wrap width with learned apps (`b7fa292`): global `wrapWidth` stays the default, optional per-app override resolved in the pipeline from the caller package (IME `EditorInfo.packageName`, bound service `Callback.getCallingUid()`), learned apps in a separate `known_apps` prefs file with background 24 h-throttled writes, Settings "Line wrap per app" section, validation `0 or >= 20`. `./gradlew test` (277) + `assembleRelease` green. Not yet in a release. Follow-up #101 opened (should API tokens stay in Google Auto Backup?).
-
-**2026-09-24: #98 SHIPPED / #97 / #91 CLOSED** — v1.3.3 (10303) released (`377e4a2` + tag `v1.3.3`): release.yml (Play alpha) + fdroid-apk.yml + build.yml all green. **The real remaining work is marketing** — #74. Default branch `main`. Open: #74 (marketing), #101, #82 (Peter retest), #75, #64.
+**2026-09-30: #102 SHIPPED to `main`** — per-app line-wrap dropdown keeps the last-used app on top (`9c82c27`): `SettingsStore.mruOrder` bumped on every successful dictation before the 24 h throttle; `knownAppsByRecency()` = in-memory MRU first, then stored `lastSeenMs` descending; forget drops the MRU entry. No extra disk I/O, Settings UI unchanged, `./gradlew test` 280 green. Builds on **#100** (`b7fa292`). Neither is in a release yet. Open: #99, #101, #82, #75, #64, #74.
 
 ## Open tasks
 
-1. [ ] **#100 on-device feel-check (owner)** — set Outlook 120, confirm chat apps keep the global width; verify the "Line wrap per app" section renders on the OnePlus.
+1. [ ] **#100 + #102 on-device feel-check (owner)** — set Outlook 120, confirm chat apps keep the global width; verify the "Line wrap per app" section renders on the OnePlus and that the just-dictated app is at the top of the dropdown.
 2. [ ] **NEXT: marketing wave (owner + agent)** — #74 Phase 1: agent drafts posts in `docs/marketing/`, owner posts. F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). Each post: CTA1 F-Droid + CTA2 Play-alpha two-step + feedback channel.
-3. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
-4. [ ] **#82 feel-check (Peter + owner)** — retest on a #82 build; then `finish` #82.
-5. [ ] **#74 Play-alpha tester recruitment** — owner: Google Group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
-6. [ ] **#75 — rate-limit header logging**; **#64 — Ogg/Opus latency**; insertion-spacing watch — passive.
+3. [ ] **#99 (owner)** — Google overview page shows outdated application images.
+4. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
+5. [ ] **#82 feel-check (Peter + owner)** — retest on a #82 build; then `finish` #82.
+6. [ ] **#74 Play-alpha tester recruitment** — owner: Google Group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
+7. [ ] **#75 — rate-limit header logging**; **#64 — Ogg/Opus latency**; insertion-spacing watch — passive.
 
 ## Known on-device gotchas
 
@@ -27,4 +26,4 @@
 - Pulse-contrast (#87): foreground rows breathe 0.3↔1.0 on a 1333 ms sine while RECORDING; fully opaque otherwise.
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-09-28 (#100 shipped to main; next: #100 feel-check + marketing wave #74).
+Last cleared: 2026-09-30 (#102 shipped to main; next: #100/#102 feel-check + marketing wave #74 + #99).
