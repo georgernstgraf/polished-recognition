@@ -396,6 +396,11 @@ class PolishedVoiceInputIME : InputMethodService() {
 
     private fun startIfPermitted() {
         if (hasMicPermission()) {
+            // Learn the dictation target when the dictation starts, not only on
+            // insertion (#102 amendment): the currently active app must be the
+            // top/pre-selected entry of the per-app dropdown while dictating,
+            // e.g. when the gear is tapped mid-session and Settings opens.
+            currentCallerPackage()?.let { settings.recordKnownApp(it) }
             startMicForeground()
             controller.start { handleEvent(it) }
         } else {
@@ -433,7 +438,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 val text = result.getOrNull()
                 if (text != null) {
                     commitWithSpacing(text)
-                    // Learn the dictation target only on a successful insertion (#100).
+                    // Re-learn on successful insertion (#100): the session already
+                    // recorded the target at start (#102 amendment); this captures
+                    // the actual insertion target and is absorbed by the throttle.
                     currentCallerPackage()?.let { settings.recordKnownApp(it) }
                     requestHideSelf(0)
                 } else {

@@ -330,6 +330,17 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun `recording the target at dictation start makes a new app the top entry immediately`() {
+        // #102 amendment: the entry points record the target when the dictation
+        // starts, so the currently active app is on top before any insertion.
+        seedKnownApp("com.previous", System.currentTimeMillis())
+        val fresh = freshStore()
+        fresh.recordKnownApp("com.target")
+        assertThat(fresh.knownAppsByRecency().map { it.first })
+            .containsExactly("com.target", "com.previous").inOrder()
+    }
+
+    @Test
     fun `repeated use restores the last-used app to the top`() {
         val now = System.currentTimeMillis()
         seedKnownApp("com.a", now)

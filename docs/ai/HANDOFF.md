@@ -1,10 +1,10 @@
 # Hand Off
 
-**2026-09-30: #102 SHIPPED to `main`** — per-app line-wrap dropdown keeps the last-used app on top (`9c82c27`): `SettingsStore.mruOrder` bumped on every successful dictation before the 24 h throttle; `knownAppsByRecency()` = in-memory MRU first, then stored `lastSeenMs` descending; forget drops the MRU entry. No extra disk I/O, Settings UI unchanged, `./gradlew test` 280 green. Builds on **#100** (`b7fa292`). Neither is in a release yet. Open: #99, #101, #82, #75, #64, #74.
+**2026-09-30: #102 AMENDMENT on `main`** — per-app line-wrap dropdown keeps the last-used app on top (`9c82c27`) and now records the dictation target at **dictation start**, not only on insertion (amendment): IME `startIfPermitted()` + service `onStartListening()` call `recordKnownApp`, so the currently active app is top/pre-selected while dictating (e.g. gear → Settings). Insertion-time calls stay (throttled → no extra disk I/O). `SettingsStore.mruOrder`; `knownAppsByRecency()` = in-memory MRU first, then stored `lastSeenMs` descending; forget drops the MRU entry. No Settings UI change, `./gradlew test` 281 green, `assembleRelease` green. Builds on **#100** (`b7fa292`). Neither is in a release yet. Reopened #102 (owner feel-check pending). Open: #99, #101, #82, #75, #64, #74.
 
 ## Open tasks
 
-1. [ ] **#100 + #102 on-device feel-check (owner)** — set Outlook 120, confirm chat apps keep the global width; verify the "Line wrap per app" section renders on the OnePlus and that the just-dictated app is at the top of the dropdown.
+1. [ ] **#100 + #102 on-device feel-check (owner)** — set Outlook 120, confirm chat apps keep the global width; verify the "Line wrap per app" section renders on the OnePlus and that the **currently dictated** app (start a dictation into an app not on top, then tap the gear) is at the top of the dropdown.
 2. [ ] **NEXT: marketing wave (owner + agent)** — #74 Phase 1: agent drafts posts in `docs/marketing/`, owner posts. F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). Each post: CTA1 F-Droid + CTA2 Play-alpha two-step + feedback channel.
 3. [ ] **#99 (owner)** — Google overview page shows outdated application images.
 4. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
@@ -26,4 +26,4 @@
 - Pulse-contrast (#87): foreground rows breathe 0.3↔1.0 on a 1333 ms sine while RECORDING; fully opaque otherwise.
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-09-30 (#102 shipped to main; next: #100/#102 feel-check + marketing wave #74 + #99).
+Last cleared: 2026-09-30 (#102 amendment on main; next: #100/#102 feel-check + marketing wave #74 + #99).

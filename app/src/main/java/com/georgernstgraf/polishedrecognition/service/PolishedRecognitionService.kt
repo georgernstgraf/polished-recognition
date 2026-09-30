@@ -74,6 +74,10 @@ class PolishedRecognitionService : RecognitionService() {
         }
         clientCallback = listener
         callerPackage = resolveCallerPackage(listener)
+        // Learn the dictation target when the dictation starts, not only on
+        // delivery (#102 amendment): the currently active app must be the
+        // top/pre-selected entry of the per-app dropdown while dictating.
+        callerPackage?.let { settings.recordKnownApp(it) }
         awaitingResult = true
         startServiceForeground()
         listener.readyForSpeech(Bundle.EMPTY)
@@ -147,7 +151,9 @@ class PolishedRecognitionService : RecognitionService() {
                     controller.removeSecondaryListener(secondaryListener)
                     event.result.fold(
                         onSuccess = { text ->
-                            // Learn the dictation target on a successful result (#100).
+                            // Re-learn on successful delivery (#100): the session
+                            // already recorded the target at start (#102 amendment);
+                            // this captures the actual delivery and is throttled.
                             callerPackage?.let { settings.recordKnownApp(it) }
                             cb.results(buildResultBundle(text))
                             runCatching { cb.endOfSpeech() }
