@@ -317,6 +317,44 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun `recording an app moves it to the top even inside the 24 hour throttle`() {
+        val now = System.currentTimeMillis()
+        seedKnownApp("com.recent", now)
+        seedKnownApp("com.other", now - 5_000)
+        val fresh = freshStore()
+        // Both are within 24 h, so no rewrite is scheduled — the order must
+        // still reflect the just-used app (#102).
+        fresh.recordKnownApp("com.other")
+        assertThat(fresh.knownAppsByRecency().map { it.first })
+            .containsExactly("com.other", "com.recent").inOrder()
+    }
+
+    @Test
+    fun `repeated use restores the last-used app to the top`() {
+        val now = System.currentTimeMillis()
+        seedKnownApp("com.a", now)
+        seedKnownApp("com.b", now)
+        val fresh = freshStore()
+        fresh.recordKnownApp("com.a")
+        fresh.recordKnownApp("com.b")
+        fresh.recordKnownApp("com.a")
+        assertThat(fresh.knownAppsByRecency().map { it.first })
+            .containsExactly("com.a", "com.b").inOrder()
+    }
+
+    @Test
+    fun `forgetting an app also drops it from the in-memory MRU order`() {
+        val now = System.currentTimeMillis()
+        seedKnownApp("com.a", now)
+        seedKnownApp("com.b", now - 5_000)
+        val fresh = freshStore()
+        fresh.recordKnownApp("com.a")
+        fresh.forgetKnownApp("com.a")
+        assertThat(fresh.knownAppsByRecency().map { it.first })
+            .containsExactly("com.b")
+    }
+
+    @Test
     fun `known apps persist across store instances`() {
         store.recordKnownApp("com.example.chat")
         val fresh = freshStore()

@@ -66,6 +66,16 @@ class SettingsStore(
     @Volatile
     private var knownAppsCache: Map<String, KnownApp>? = null
 
+    /**
+     * In-memory most-recently-used order of learned apps (#102). Bumped on
+     * every successful dictation so the just-used app is always first, even
+     * inside the 24 h throttle window. Not persisted on its own: across a
+     * process restart the order falls back to the stored `lastSeenMs`.
+     * Immutable + volatile (copy-on-write), mirroring [knownAppsCache].
+     */
+    @Volatile
+    private var mruOrder: List<String> = emptyList()
+
     var sttProvider: SttProviderConfig?
         get() = getJson(STT_PROVIDER_KEY, SttProviderConfig::class.java)
         set(value) = setJson(STT_PROVIDER_KEY, value)
@@ -101,10 +111,20 @@ class SettingsStore(
         } ?: emptyList()
         set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
 
-    /** Learned dictation targets (#100), most-recently-used first. */
-    fun knownAppsByRecency(): List<Pair<String, KnownApp>> =
-        loadKnownApps().entries.sortedByDescending { it.value.lastSeenMs }
-            .map { it.key to it.value }
+    /**
+     * Learned dictation targets (#100), most-recently-used first. Apps used in
+     * this process come first in true MRU order (#102); the remaining apps fall
+     * back to the stored `lastSeenMs` (descending). MRU entries no longer in the
+     * known map (e.g. forgotten in the meantime) are dropped defensively.
+     */
+    fun knownAppsByRecency(): List<Pair<String, KnownApp>> {
+        val known = loadKnownApps()
+        val ordered = linkedMapOf<String, KnownApp>()
+        mruOrder.forEach { pkg -> known[pkg]?.let { ordered[pkg] = it } }
+        known.entries.sortedByDescending { it.value.lastSeenMs }
+            .forEach { (pkg, app) -> if (!ordered.containsKey(pkg)) ordered[pkg] = app }
+        return ordered.map { it.key to it.value }
+    }
 
     /**
      * Resolved line-wrap width for [packageName] (#100): the per-app override
@@ -122,9 +142,14 @@ class SettingsStore(
      * [KNOWN_APP_REWRITE_INTERVAL_MS] (or the app is new) — enqueues the
      * persistence on [learnerExecutor]. Label resolution and the JSON write
      * never touch the caller's thread; failures are logged only.
+     *
+     * Independently of the throttle, the app is always moved to the front of
+     * the in-memory MRU order (#102), so the dropdown reflects the last-used
+     * app immediately.
      */
     fun recordKnownApp(packageName: String) {
         if (packageName.isBlank() || packageName == appContext.packageName) return
+        bumpMru(packageName)
         val now = System.currentTimeMillis()
         val apps = loadKnownApps()
         val existing = apps[packageName]
@@ -134,6 +159,7 @@ class SettingsStore(
 
     /** Removes a learned app (and its override) (#100); persists in background. */
     fun forgetKnownApp(packageName: String) {
+        mruOrder = mruOrder.filterNot { it == packageName }
         learnerExecutor.execute {
             runCatching {
                 val merged = loadKnownApps() - packageName
@@ -157,6 +183,11 @@ class SettingsStore(
                 knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
             }.onFailure { Log.w(TAG, "saveKnownAppWidths failed", it) }
         }
+    }
+
+    /** Moves [packageName] to the front of the in-memory MRU list (#102). */
+    private fun bumpMru(packageName: String) {
+        mruOrder = listOf(packageName) + mruOrder.filterNot { it == packageName }
     }
 
     private fun persistKnownApp(packageName: String, seenAtMs: Long) {
