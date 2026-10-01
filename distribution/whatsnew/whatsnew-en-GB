@@ -1,1 +1,1 @@
-• Cleaner voice bar — removed a redundant divider next to the recording timer (#97).
+• Line wrap can now be set per app — narrow for chat apps, wide for mail editors. The app you last dictated into is listed first. (#100, #102)
