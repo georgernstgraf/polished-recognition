@@ -99,3 +99,8 @@ The transcription pipeline resolves the following template variables at runtime.
 - README.md is **IME-first** (since #58): the voice keyboard is the headline mode, the RecognitionService/overlay is secondary. Keep that positioning when editing.
 - README screenshots live in `docs/img/` (raw 1080×2400 `adb exec-out screencap` PNGs, embedded via relative paths). Re-capture from a current release build when UI changes; do NOT reuse `distribution/*.png` (stale pre-#48/#49 UI).
 - User-facing terminology in docs: **"Raw mode"** = skip LLM entirely (checkbox); **"Polish only"** = target-language "None" option (LLM polishes, no translation). Never conflate the two.
+
+## Marketing (#74)
+- Community posts (`docs/marketing/*.md`) are **version-free** — link `https://f-droid.org/packages/com.georgernstgraf.polishedrecognition` instead of naming a version. F-Droid serves a version only ~3–5 days after its `v*` tag, so a pinned number goes stale; the F-Droid link is stable.
+- Alpha onboarding — the Google Group **welcome message** and the **two-step Play-alpha tester instructions** — is canonical in `docs/marketing/alpha-welcome.md`. Every post quotes the two-step block verbatim; keep all copies in sync with that file.
+- Alpha-group posting is **owners/managers only** (broadcast channel); testers' feedback goes to GitHub issues.

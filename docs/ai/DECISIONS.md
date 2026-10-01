@@ -3,11 +3,20 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-01: Community posts are version-free; alpha onboarding is canonical (#74)
+- **Choice**: The community posts in `docs/marketing/` name **no app version** — they link the F-Droid page instead. The Google Group *welcome message* and the **two-step Play-alpha tester instructions** live in a single canonical file `docs/marketing/alpha-welcome.md`; every draft references it and quotes the two-step block verbatim. Alpha-group posting is restricted to owners/managers (broadcast channel); testers' feedback channel is GitHub issues.
+- **Reason**: A hard-coded version in a post goes stale immediately — F-Droid serves a version only ~3–5 days after its `v*` tag (and the current F-Droid page is what matters, not the newest tag). The F-Droid link is stable, so version-free copy cannot rot. One canonical onboarding text prevents the welcome message and the six posts from drifting apart.
+- **Also**: The 1.3.3-vs-1.3.4 status is context for us only, never post content.
+
+## 2026-10-01: Release v1.3.4 (10304) prepared — bump commit references #102, no release issue
+- **Choice**: Bump `versionCode 10303 → 10304` / `versionName 1.3.3 → 1.3.4` (`fee52fe`) with a `whatsnew-en-GB` entry describing the per-app line-wrap (#100/#102). The commit references **#102** directly; the owner opted against a dedicated release-tracking issue. The `v1.3.4` tag is pushed separately on the owner's go-ahead.
+- **Reason**: Keeps the established pattern (bump commit + whatsnew, tag pushed separately to trigger `release.yml`/`fdroid-apk.yml`/`build.yml`) without adding issue overhead. Play-alpha testers receive the release automatically; F-Droid picks it up later via `AutoUpdateMode: Version`.
+
 ## 2026-09-30: Dictation target recorded at dictation start (#102 amendment)
 - **Choice**: Both entry points call `SettingsStore.recordKnownApp(callerPackage)` when a dictation **starts** — IME `PolishedVoiceInputIME.startIfPermitted()` (send-button start + `onStartInputView` auto-start) and bound `PolishedRecognitionService.onStartListening()` (after `resolveCallerPackage`). The insertion/delivery-time calls stay as the authoritative capture/fallback and are absorbed by the 24 h throttle, so still no extra disk I/O. No `SettingsStore` API change, no Settings UI change.
 - **Reason**: The MRU/learning was only bumped on a **successful insertion**, so while dictating into an app (RECORDING/PAUSED) and opening Settings via the IME gear — which pauses and launches Settings — the previously-inserted app was still on top, violating the minimum requirement that the currently active app is on top. `currentCallerPackage()` was likewise re-resolved after focus could have moved.
 - **Semantics**: "used" now starts at dictation **start** — an app the user starts dictating into but cancels is learned (owner-approved; simpler than an MRU-only start bump that would preserve insertion-only persistence).
-- **Tests**: `SettingsStoreTest` +1 ("recording the target at dictation start makes a new app the top entry immediately"). `./gradlew test` → **281 green** (was 280); `./gradlew assembleRelease` green. Owner on-device feel-check pending.
+- **Tests**: `SettingsStoreTest` +1 ("recording the target at dictation start makes a new app the top entry immediately"). `./gradlew test` → **281 green** (was 280); `./gradlew assembleRelease` green. Owner on-device feel-check **done 2026-10-01** (daily use); #102 closed, shipping in v1.3.4 (10304).
 
 ## 2026-09-30: In-memory MRU ordering for the learned-app dropdown (#102)
 - **Choice**: `SettingsStore` keeps a `@Volatile` immutable `mruOrder: List<String>` (copy-on-write, mirroring `knownAppsCache`). `recordKnownApp()` moves the package to the front on every successful dictation **before** the 24 h throttle check; `knownAppsByRecency()` returns MRU-ordered apps first and the remaining known apps by descending `lastSeenMs` (MRU entries no longer in the known map are dropped defensively); `forgetKnownApp()` removes the package from the MRU list. Settings UI unchanged — the top entry (now the last-used app) is already auto-selected (`SettingsActivity.kt:199`).

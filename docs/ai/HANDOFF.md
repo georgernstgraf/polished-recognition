@@ -1,16 +1,17 @@
 # Hand Off
 
-**2026-09-30: #102 AMENDMENT on `main`** — per-app line-wrap dropdown keeps the last-used app on top (`9c82c27`) and now records the dictation target at **dictation start**, not only on insertion (amendment): IME `startIfPermitted()` + service `onStartListening()` call `recordKnownApp`, so the currently active app is top/pre-selected while dictating (e.g. gear → Settings). Insertion-time calls stay (throttled → no extra disk I/O). `SettingsStore.mruOrder`; `knownAppsByRecency()` = in-memory MRU first, then stored `lastSeenMs` descending; forget drops the MRU entry. No Settings UI change, `./gradlew test` 281 green, `assembleRelease` green. Builds on **#100** (`b7fa292`). Neither is in a release yet. Reopened #102 (owner feel-check pending). Open: #99, #101, #82, #75, #64, #74.
+**2026-10-01: #102 CLOSED; v1.3.4 (10304) ready on `main`, tag pending.** Release bump `fee52fe` (`versionCode 10304`, `versionName 1.3.4`, `whatsnew-en-GB` for #100/#102) is on `main`; the `v1.3.4` tag is **not yet pushed** — awaiting the owner's go-ahead. Marketing wave #74 Phase 1 is drafted and ready: `docs/marketing/` refreshed **version-free**, alpha onboarding canonical in `docs/marketing/alpha-welcome.md`; the Google Group join/post settings were verified on 2026-10-01 (join = Anyone, post = Managers), welcome message still to be pasted. Open: #99, #101, #82, #75, #64, #74.
 
 ## Open tasks
 
-1. [ ] **#100 + #102 on-device feel-check (owner)** — set Outlook 120, confirm chat apps keep the global width; verify the "Line wrap per app" section renders on the OnePlus and that the **currently dictated** app (start a dictation into an app not on top, then tap the gear) is at the top of the dropdown.
-2. [ ] **NEXT: marketing wave (owner + agent)** — #74 Phase 1: agent drafts posts in `docs/marketing/`, owner posts. F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). Each post: CTA1 F-Droid + CTA2 Play-alpha two-step + feedback channel.
-3. [ ] **#99 (owner)** — Google overview page shows outdated application images.
-4. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
-5. [ ] **#82 feel-check (Peter + owner)** — retest on a #82 build; then `finish` #82.
-6. [ ] **#74 Play-alpha tester recruitment** — owner: Google Group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
-7. [ ] **#75 — rate-limit header logging**; **#64 — Ogg/Opus latency**; insertion-spacing watch — passive.
+1. [ ] **Tag v1.3.4 (owner go-ahead)** — push the tag **separately** so the workflows trigger: `git tag v1.3.4 && git push origin v1.3.4` → `release.yml` (Play alpha), `fdroid-apk.yml` (reproducible APK), `build.yml`. F-Droid picks it up ~3–5 days later via `AutoUpdateMode: Version`.
+2. [ ] **#74 Phase 1 marketing (owner posts)** — drafts in `docs/marketing/`: F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). Each carries CTA1 F-Droid + CTA2 Play-alpha two-step + GitHub feedback. Post body is version-free.
+3. [ ] **Google Group welcome message (owner)** — paste the text from `docs/marketing/alpha-welcome.md` into the group's **Welcome message** field (currently empty). Optional: polish the group description.
+4. [ ] **#74 Play-alpha tester recruitment** — owner: group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
+5. [ ] **#99 (owner)** — Google overview page shows outdated application images.
+6. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
+7. [ ] **#82 feel-check (Peter + owner)** — retest on a #82 build; then `finish` #82.
+8. [ ] **#75 — rate-limit header logging**; **#64 — Ogg/Opus latency**; insertion-spacing watch — passive.
 
 ## Known on-device gotchas
 
@@ -24,6 +25,7 @@
 - IME state: pause bars = recording, ↺ = paused; ␡ flush = discard buffer keeping mode, ⌫ = delete last word / long-press clears field (#90/#95). **README screenshots live in `docs/img/`; `distribution/*.png` remain stale.**
 - **README/fastlane screenshots must stay byte-identical** (`docs/img/*.png` ↔ `fastlane/.../phoneScreenshots/{1,2,3}-*.png`); verify with `md5sum`.
 - Pulse-contrast (#87): foreground rows breathe 0.3↔1.0 on a 1333 ms sine while RECORDING; fully opaque otherwise.
+- **Google Groups settings page scrolls an inner container** — DevTools "Capture full size screenshot" gives only the viewport; use GoFullPage or a node screenshot (see PITFALLS).
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-09-30 (#102 amendment on main; next: #100/#102 feel-check + marketing wave #74 + #99).
+Last cleared: 2026-10-01 (#102 closed; v1.3.4 bump on `main`, tag pending; #74 marketing drafted + group verified).

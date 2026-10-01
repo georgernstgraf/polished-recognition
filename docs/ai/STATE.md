@@ -1,27 +1,25 @@
 # Project State
 
-Current status as of 2026-09-30 (**#102 AMENDMENT on `main`** — commit `9c82c27` + amendment; the per-app line-wrap dropdown keeps the last-used app at the top via an in-memory MRU list in `SettingsStore`, and both entry points now record the target at **dictation start** so the currently active app is on top while dictating; zero extra disk I/O; `./gradlew test` 281 green). This builds on **#100 per-app line-wrap** (commit `b7fa292`) — global `wrapWidth` stays the default, optional per-app override learned from the invoking app, separate `known_apps` prefs file, async 24 h-throttled writes. Neither #100 nor #102 is in a release yet. Latest release **v1.3.3 (10303)** (commit `377e4a2`, tag `v1.3.3`). **#100 CLOSED; #102 REOPENED** (amendment, owner feel-check pending). Marketing (#74), token-backup (#101), #99, and the #100/#102 on-device feel-check are open. Default branch `main`. Open: #99, #101, #82, #75, #64, #74.
+Current status as of 2026-10-01 (**#102 closed; v1.3.4 prepared**). `main` carries the release bump `fee52fe` — `versionCode 10304`, `versionName 1.3.4`, and a `whatsnew-en-GB` entry for the per-app line-wrap (#100/#102). The `v1.3.4` tag is **not yet pushed** (owner go-ahead pending); pushing it triggers `release.yml` (Play alpha), `fdroid-apk.yml`, `build.yml`. This release ships **#100 + #102** (per-app line-wrap width + last-used-app-first dropdown, dictation target recorded at dictation start). **#102 CLOSED** after the owner's feel-check (daily use). Latest public release **v1.3.3 (10303)**; F-Droid serves **1.3.3** with a complete listing (icon, 3 screenshots, full description). Marketing wave **#74 Phase 1** drafted in `docs/marketing/` (version-free), alpha onboarding canonical in `docs/marketing/alpha-welcome.md`; Google Group settings verified 2026-10-01 (join = Anyone on the web, post = Managers; welcome message still empty). Default branch `main`. Open: #99, #101, #82, #75, #64, #74.
 
 ## Current Focus
-**#100 + #102 shipped (unreleased)** — per-app line-wrap width with learned apps and last-used-first ordering. **Marketing wave (#74 Phase 1)** — agent drafts posts in `docs/marketing/`, owner posts: F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). CTA1 F-Droid + CTA2 Play-alpha + GitHub feedback channel. Separately, #74 Play-alpha tester recruitment (20–30 testers, ≥12 continuous for 14 days).
+**Release v1.3.4 (10304)** — bump on `main`, tag pending the owner's go-ahead; then F-Droid auto-pickup (~3–5 days). **Marketing wave (#74 Phase 1)** — agent drafts done, owner posts: F-Droid forum, Mastodon, Reddit (r/fossdroid / r/selfhosted / r/degoogle), kuketz (DE, second wave). CTA1 F-Droid + CTA2 Play-alpha two-step + GitHub feedback. Separately, **#74 Play-alpha tester recruitment** (20–30 testers, ≥12 continuous for 14 days).
 
 ## Completed (recent cycles)
-- [x] #102 AMENDMENT on `main` 2026-09-30 — in-memory MRU ordering for the per-app line-wrap dropdown (`9c82c27`) **plus** the amendment: `PolishedVoiceInputIME.startIfPermitted()` and `PolishedRecognitionService.onStartListening()` call `recordKnownApp` at dictation start, so the currently active app is top/pre-selected while dictating (gear → Settings); insertion-time calls stay (throttled → no extra disk I/O). `knownAppsByRecency()` = MRU first, then stored `lastSeenMs` descending; forget drops the MRU entry. No Settings UI change. 4 tests, `./gradlew test` 281 green; `assembleRelease` green. Reopened #102; owner feel-check pending.
-- [x] #100 SHIPPED to `main` 2026-09-28 — per-app line-wrap width (`b7fa292`): global default + learned per-app override resolved in the pipeline from the caller package (IME `EditorInfo.packageName`, service `Callback.getCallingUid()`), separate `known_apps` prefs file, background 24 h-throttled writes, Settings "Line wrap per app" section, validation `0 or >= 20`. Follow-up #101 (tokens in Auto Backup) opened.
-- [x] v1.3.3 (10303) RELEASED 2026-09-24 — bump `377e4a2`, whatsnew-en-GB, tag `v1.3.3` pushed separately; release.yml (Play alpha) + fdroid-apk.yml + build.yml green; GitHub assets `app-release.aab` + `polished-recognition.apk`. Sub-issue #98 of #74 closed.
-- [x] #97 CLOSED 2026-09-24 — redundant IME timer/spinner divider (`ime_rec_timer_divider`) removed (commit `0a91a8e`); included in v1.3.3.
-- [x] #91 CLOSED 2026-09-24 — v1.3.1 patch release watch, closed as superseded.
-- [x] #96 CLOSED 2026-09-24 — `docs/img/demo.gif` re-recorded on the dark OnePlus Notes background (commit `3391528`).
-- [x] #94 CLOSED 2026-09-24 — listing assets refreshed; shipped in **v1.3.2 (10302)** (`25a009e` + `552cb70`).
-- [x] #95 CLOSED 2026-09-24 — IME bottom-row icons unified (commits `0882890` + `15fea5b`).
-- [x] #93 CLOSED 2026-09-24 — default branch `master` → `main`.
-- [x] #92 / #90 / #89 / #84 / #88 / #87 / #83 / #86 / #81 / #80 / #79 — earlier; see HISTORY.md / tracker.
+- [x] #102 CLOSED 2026-10-01 — owner feel-check done (app in daily use). Final report on the issue; ships in v1.3.4 (10304). (Implementation: `9c82c27` MRU + `88dbc45` dictation-start amendment.)
+- [x] v1.3.4 (10304) PREPARED on `main` 2026-10-01 (`fee52fe`) — `versionCode 10304`, `versionName 1.3.4`, `whatsnew-en-GB` describes the per-app line-wrap (#100/#102); `./gradlew test` + `assembleRelease` green. Tag pushed separately on the owner's go-ahead.
+- [x] #74 Phase 1 marketing drafts 2026-10-01 (`65526b5`) — version-free refresh of the 6 posts, timing headers generalized off the stale 1.3.0/1.2.4 references, and new `docs/marketing/alpha-welcome.md` (Google Group welcome message + canonical two-step tester instructions). F-Droid listing verified complete.
+- [x] #102 AMENDMENT on `main` 2026-09-30 (`88dbc45`) — `recordKnownApp` at dictation start (IME + service) so the currently dictated app is top/pre-selected; in-memory MRU `mruOrder`; no extra disk I/O; `./gradlew test` 281 green.
+- [x] #100 SHIPPED to `main` 2026-09-28 (`b7fa292`) — per-app line-wrap width with learned apps, separate `known_apps` prefs, 24 h-throttled async writes, Settings "Line wrap per app" section.
+- [x] v1.3.3 (10303) RELEASED 2026-09-24 — bump `377e4a2`, whatsnew-en-GB, tag `v1.3.3`; release.yml (Play alpha) + fdroid-apk.yml + build.yml green.
+- [x] #97 / #96 / #94 / #95 / #93 / #92 / #91 and earlier — see HISTORY.md / tracker.
 
 ## Pending
-- [ ] **#100 + #102 on-device feel-check (owner)** — set a per-app width (e.g. Outlook 120), confirm chat stays global; check the Settings "Line wrap per app" section and that the **currently dictated** app (start a dictation into an app not on top, then tap the gear) is at the top (#102 amendment). Then fold into the next release.
+- [ ] **Tag v1.3.4 (owner)** — `git tag v1.3.4 && git push origin v1.3.4` (push the tag separately).
+- [ ] **#74 Phase 1 posting (owner)** — 6 drafts ready in `docs/marketing/`; paste the welcome message into the Google Group.
+- [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 continuous 14 days.
 - [ ] **#101 decision (owner)** — whether API tokens stay in Google Auto Backup.
 - [ ] **#99 (owner)** — Google overview page shows outdated application images.
-- [ ] **NEXT: #74 Phase 1 marketing wave** — agent drafts posts in `docs/marketing/`, owner posts (F-Droid forum, Mastodon, Reddit, kuketz); Play-alpha tester recruitment (20–30, ≥12 continuous 14 days).
 - [ ] **#82 feel-check (owner/Peter)** — Duolingo/Corvus via system voice-input service + IME regression trio. Then `finish` #82.
 - [ ] **#75** — rate-limit header logging.
 - [ ] **#64** — Ogg/Opus compression latency.
@@ -31,11 +29,11 @@ Current status as of 2026-09-30 (**#102 AMENDMENT on `main`** — commit `9c82c2
 None.
 
 ## Device Notes
-- f6de166c = **OnePlus 7T** (HD1903, Oplus, 1080×2400) — used 2026-09-24 for #95/#94/#96; adb IME/secure-setting writes blocked, reads work.
+- f6de166c = **OnePlus 7T** (HD1903, Oplus, 1080×2400) — adb IME/secure-setting writes blocked, reads work.
 - d890cc9e = **S5** (SM-G900F, LineageOS 18.1, 1080×1920) — adb IME/settings writes WORK.
 - **The OnePlus is also the Telegram bridge to the agent session** — incoming messages overlay scrcpy recordings. Verify the foreground before `input tap`; record long, trim; keep the raw until the GIF is signed off.
-- scrcpy output is **VFR** — normalize (`ffmpeg -vf fps=30 -c:v libx264`) before trimming/contact sheets, else `fps`-filter sampling drifts.
-- OnePlus Notes (`com.oneplus.note`) is dark; new note via the FAB (`New note`, bounds ~[866,1910][1024,2068]); the note list shows private titles — never record it.
+- scrcpy output is **VFR** — normalize (`ffmpeg -vf fps=30 -c:v libx264`) before trimming/contact sheets.
+- OnePlus Notes (`com.oneplus.note`) is dark; new note via the FAB; the note list shows private titles — never record it.
 
 ## Next Session Suggestion
-Code-side: fold #100/#102 into the next release after the owner's on-device feel-check; `finish` #82 / #75 / #64. Growth-side: draft the #74 Phase 1 posts into `docs/marketing/`; drive Play-alpha tester recruitment.
+Push `v1.3.4` on the owner's go-ahead, then watch the three workflows. Growth-side: owner posts the #74 Phase 1 wave and drives Play-alpha recruitment. Code-side: `finish` #82 / #75 / #64.
