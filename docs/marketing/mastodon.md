@@ -1,6 +1,6 @@
 # Mastodon launch toot
 
-> Post with your account. Attach docs/img/demo.gif (alt text below).
+> Post with your account. Attach **docs/marketing/mastodon-demo.gif** (alt text below) — the social cut of docs/img/demo.gif (540×700 instead of 540×1200: the 580 px empty black band between the note text and the keyboard is trimmed, so the whole UI fits a normal portrait frame; the tall README/fastlane original stays untouched).
 > Two-toot thread: toot 1 carries the GIF, then reply immediately with toot 2.
 > Optional boost request: after posting, mention @fdroidorg **once** (e.g. `@fdroidorg — freshly listed on F-Droid; happy to be boosted if it's useful for your audience.`) — polite, no ad tone, once only.
 > Alt text for the GIF: "Screen recording: a dark note app with the Polished Recognition keyboard set to translate to English. The user dictates in German, stuttering for a few seconds, taps send, and one clean English sentence appears in the note."
