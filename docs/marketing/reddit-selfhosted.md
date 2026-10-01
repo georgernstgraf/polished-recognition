@@ -1,6 +1,9 @@
 # Reddit — r/selfhosted (BYOK angle)
 
-> Post with your account. Emphasize: local models, no cloud required.
+> Post with your account. Self-promotion needs **moderator permission** — send a
+> short, honest modmail first. When posting: disclose you're the author and add
+> technical detail (showcase format, first person, ~50–400 words; links OK).
+> Emphasize: local models, no cloud required. Rewrite in your own words.
 > Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 
 ---

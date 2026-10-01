@@ -1,6 +1,10 @@
 # Reddit — r/degoogle (privacy angle)
 
-> Post with your account. Emphasize: no Google voice typing, no accounts.
+> Post with your account. Self-promotion is restricted: post in the recurring
+> weekly **"Degoogle Showcase"** thread (or ask the mods first) — NOT as a
+> standalone post, and never post the same product twice.
+> Emphasize: no Google voice typing, no accounts. Rewrite in your own words
+> (AI-written promo posts are removed in Reddit FOSS subs).
 > Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 
 ---

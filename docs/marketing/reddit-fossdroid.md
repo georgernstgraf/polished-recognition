@@ -3,6 +3,9 @@
 > Post with your account. Title suggestion below. Attach the demo GIF
 > (reddit supports GIF uploads) + link F-Droid in the body.
 > Tone: honest author seeking feedback — no marketing speak.
+> ⚠️ r/fossdroid has a **"Don't use AI to promote apps"** rule (pinned announcement).
+> The body below is a factual skeleton only — rewrite it in your own words before
+> posting, or it will be removed.
 > Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 
 ---
