@@ -3,10 +3,10 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
-## 2026-10-01: Mastodon toot describes the GIF in-body, names qwen3.8-27b + Groq free tier, two-toot thread (#74)
-- **Choice**: The Mastodon draft (`docs/marketing/mastodon.md`) now (1) **describes the demo GIF in the post body** instead of only attaching it with alt text, (2) names the polish LLM **`qwen3.8-27b`** and the owner's daily use ("I use it daily for texts and email"), (3) names **GROQ's free tier** as the zero-cost STT+LLM path with **`whisper-large-v3`**, (4) splits into a **two-toot thread** — toot 1 carries the GIF (490 chars, limit 500), toot 2 replies with the Play-alpha two-step + GitHub issues (147 chars).
-- **Reason**: The GIF carried the whole pitch but was invisible in the text; naming the model and the Groq free tier makes the "your own AI, zero cost to start" claim concrete. The added copy pushed the single toot past 500 chars, so the CTA moved to a reply (better readability anyway).
-- **Also**: The repo GIF is **English-spoken** (IME bar `English`), so toot and alt text describe English dictation; the description deliberately avoids quoting the result sentence so it survives a re-recording. `qwen3.8-27b` is a real Apache-2.0 model (Qwen3.8-27B, released 2026-08-14, runs on consumer hardware quantized); the correct Groq STT id is `whisper-large-v3` (not `whisper-v3-large`).
+## 2026-10-01: Mastodon opens as a two-toot thread; the demo GIF is described in the toot body (#74)
+- **Choice**: The Mastodon draft (`docs/marketing/mastodon.md`) is a **two-toot thread** — toot 1 carries `docs/img/demo.gif` plus the pitch, toot 2 replies with the Play-alpha two-step + GitHub issues. The GIF is now also **described in the toot body**, not only attached with alt text.
+- **Reason**: Adding the GIF description, the demo model, and the owner's daily use pushed a single toot past the 500-character limit; moving the CTA to a reply keeps the demo post tight. A GIF that carries the whole pitch should be legible without opening it.
+- **Rules**: The ongoing copy rules this implies (exact provider/model IDs, the canonical demo description, thread-vs-single, re-checking external claims) live in `CONVENTIONS.md ## Marketing (#74)`.
 
 ## 2026-10-01: F-Droid forum dropped as a launch channel; Mastodon opens the wave (#74)
 - **Choice**: The F-Droid-forum draft is removed (`docs/marketing/f-droid-forum.md` deleted). The community wave runs **Mastodon first**, then r/fossdroid, r/degoogle, r/selfhosted, and kuketz (DE, second wave), spaced 1–2 days apart.
