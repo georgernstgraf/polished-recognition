@@ -1,6 +1,6 @@
-# F-Droid forum — New apps
+# F-Droid forum — Apps category
 
-> Post at: https://community.fdroid.org/ (New apps category), with your account.
+> Post at: https://forum.f-droid.org/ (category "Apps"), with your account.
 > Attach: docs/img/demo.gif + 1-2 screenshots from docs/img/.
 > Timing: ready to post — the F-Droid listing (icon, screenshots, full
 > description) is live and verified. Keep the post body version-free; link
