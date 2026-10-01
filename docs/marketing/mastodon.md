@@ -1,7 +1,7 @@
 # Mastodon launch toot
 
 > Post with your account. Attach docs/img/demo.gif (alt text below).
-> Consider asking @fdroidorg for a boost after posting.
+> Optional boost request: after posting, mention @fdroidorg **once** (e.g. `@fdroidorg — freshly listed on F-Droid; happy to be boosted if it's useful for your audience.`) — polite, no ad tone, once only.
 > Alt text for the GIF: "Screen recording: user dictates with filler words into a notes app, taps send, and polished text without fillers appears in the field."
 > Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 

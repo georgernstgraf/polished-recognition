@@ -3,6 +3,11 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-01: F-Droid forum dropped as a launch channel; Mastodon opens the wave (#74)
+- **Choice**: The F-Droid-forum draft is removed (`docs/marketing/f-droid-forum.md` deleted). The community wave runs **Mastodon first**, then r/fossdroid, r/degoogle, r/selfhosted, and kuketz (DE, second wave), spaced 1–2 days apart.
+- **Reason**: The forum's pinned moderator notice states app **advertising is not allowed** — it is for F-Droid-related apps/issues only, and app submissions are discussed in **GitLab (MR/RFP)**, not the forum. The app is already included on F-Droid with no open MR, so a launch thread would violate the rules and serve no purpose.
+- **Also**: The same notice explicitly criticises AI-written posts. The drafts are a **factual scaffold only** — the owner rewrites each in his own voice before posting.
+
 ## 2026-10-01: Community posts are version-free; alpha onboarding is canonical (#74)
 - **Choice**: The community posts in `docs/marketing/` name **no app version** — they link the F-Droid page instead. The Google Group *welcome message* and the **two-step Play-alpha tester instructions** live in a single canonical file `docs/marketing/alpha-welcome.md`; every draft references it and quotes the two-step block verbatim. Alpha-group posting is restricted to owners/managers (broadcast channel); testers' feedback channel is GitHub issues.
 - **Reason**: A hard-coded version in a post goes stale immediately — F-Droid serves a version only ~3–5 days after its `v*` tag (and the current F-Droid page is what matters, not the newest tag). The F-Droid link is stable, so version-free copy cannot rot. One canonical onboarding text prevents the welcome message and the six posts from drifting apart.
