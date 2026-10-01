@@ -1,6 +1,7 @@
 # Reddit — r/degoogle (privacy angle)
 
 > Post with your account. Emphasize: no Google voice typing, no accounts.
+> Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 
 ---
 

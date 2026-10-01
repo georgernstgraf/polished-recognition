@@ -1,10 +1,12 @@
 # Kuketz-Forum (Deutsch — Second Wave)
 
-> **Timing-Empfehlung (oben lesen, dann posten):** Erst posten, wenn
-> (1) F-Droid die Version 1.3.0 **mit Listing-Bildern** ausliefert (Paketseite
-> prüfen — Stand 2026-09-20: 1.2.4 ohne Screenshots) und (2) die EN-Welle
-> erste FAQ-Antworten geliefert hat, die hier wiederverwendbar sind.
-> Mit eigenem Account posten; Ton: sachlich, Architektur-fokussiert.
+> **Timing-Empfehlung (oben lesen, dann posten):** Zweite Welle — erst posten,
+> wenn (1) die F-Droid-Paketseite die Listing-Bilder zeigt (Stand: erfüllt,
+> verifiziert) und (2) die EN-Welle erste FAQ-Antworten geliefert hat, die
+> hier wiederverwendbar sind. Mit eigenem Account posten; Ton: sachlich,
+> Architektur-fokussiert. Post-Inhalt ohne Versionsnummer (version-arm).
+> Alpha-Onboarding ist kanonisch in alpha-welcome.md — Zweistufen-Block
+> synchron halten.
 
 ---
 

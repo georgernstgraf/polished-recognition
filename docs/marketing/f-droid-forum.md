@@ -2,7 +2,11 @@
 
 > Post at: https://community.fdroid.org/ (New apps category), with your account.
 > Attach: docs/img/demo.gif + 1-2 screenshots from docs/img/.
-> Timing: post once F-Droid serves 1.3.0 WITH listing images (check the package page first).
+> Timing: ready to post — the F-Droid listing (icon, screenshots, full
+> description) is live and verified. Keep the post body version-free; link
+> F-Droid instead of naming a version.
+> Alpha onboarding text is canonical in alpha-welcome.md — keep the two-step
+> block in sync.
 
 ---
 

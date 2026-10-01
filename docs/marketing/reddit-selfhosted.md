@@ -1,6 +1,7 @@
 # Reddit — r/selfhosted (BYOK angle)
 
 > Post with your account. Emphasize: local models, no cloud required.
+> Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 
 ---
 
