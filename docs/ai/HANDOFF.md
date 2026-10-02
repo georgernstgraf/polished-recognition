@@ -1,11 +1,11 @@
 # Hand Off
 
-**2026-10-01: #102 CLOSED; v1.3.4 (10304) ready on `main`, tag pending.** Release bump `fee52fe` (`versionCode 10304`, `versionName 1.3.4`, `whatsnew-en-GB` for #100/#102) is on `main`; the `v1.3.4` tag is **not yet pushed** — awaiting the owner's go-ahead. Marketing wave #74 Phase 1 is drafted and ready: `docs/marketing/` refreshed **version-free**, the **Mastodon draft refined 2026-10-01** (two-toot thread, GIF described in-body, `qwen3.8-27b` + Groq free tier named — `26e6b87`), alpha onboarding canonical in `docs/marketing/alpha-welcome.md`; the Google Group join/post settings were verified on 2026-10-01 (join = Anyone, post = Managers), welcome message still to be pasted. Open: #99, #101, #82, #75, #64, #74.
+**2026-10-02: Mastodon launch POSTED; v1.3.4 (10304) on `main`, tag pending.** The Mastodon thread went live 2026-10-02 — toot 1 (demo GIF + pitch), toot 2 (thank-you to `@fdroidorg@floss.social`, esp. linsui, doubling as the boost request, + the Play-alpha CTA). The owner's profile `@schurlix` is **verified** against the project Pages via `rel="me"` (`verified_at 2026-10-02`); the GitLab MR !40029 thanks is done (owner). The `v1.3.4` tag is **not yet pushed**. Open: #99, #101, #82, #75, #64, #74.
 
 ## Open tasks
 
 1. [ ] **Tag v1.3.4 (owner go-ahead)** — push the tag **separately** so the workflows trigger: `git tag v1.3.4 && git push origin v1.3.4` → `release.yml` (Play alpha), `fdroid-apk.yml` (reproducible APK), `build.yml`. F-Droid picks it up ~3–5 days later via `AutoUpdateMode: Version`.
-2. [ ] **#74 Phase 1 marketing (owner posts)** — drafts in `docs/marketing/`: **Mastodon first** (refined 2026-10-01: two-toot thread, demo GIF described in the body as German→English, `qwen3.8-27b` + GROQ's free tier `whisper-large-v3` named, trimmed 540×700 social GIF `docs/marketing/mastodon-demo.gif`), then r/fossdroid, r/degoogle, r/selfhosted, kuketz (DE, second wave); 1–2 days apart. Each carries CTA1 F-Droid + CTA2 Play-alpha two-step + GitHub feedback; posts are version-free and rewritten in the owner's voice. Sub rules: r/fossdroid bans AI-written promo; r/degoogle = weekly "Degoogle Showcase" thread only; r/selfhosted needs a short modmail first. **F-Droid forum dropped** — its rules forbid app advertising (app already included, no open MR).
+2. [ ] **#74 Phase 1 marketing (owner posts)** — **Mastodon POSTED 2026-10-02.** Remaining drafts in `docs/marketing/`: r/fossdroid (rewrite in own words — the sub bans AI-written promo), r/degoogle (**weekly "Degoogle Showcase" thread only**), r/selfhosted (short modmail first), kuketz (DE, second wave); spaced 1–2 days apart. Each carries CTA1 F-Droid + CTA2 Play-alpha two-step + GitHub feedback; posts are version-free. **F-Droid forum dropped** — its rules forbid app advertising (app already included, no open MR).
 3. [ ] **Google Group welcome message (owner)** — paste the text from `docs/marketing/alpha-welcome.md` into the group's **Welcome message** field (currently empty). Optional: polish the group description.
 4. [ ] **#74 Play-alpha tester recruitment** — owner: group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
 5. [ ] **#99 (owner)** — Google overview page shows outdated application images.
@@ -28,4 +28,4 @@
 - **Google Groups settings page scrolls an inner container** — DevTools "Capture full size screenshot" gives only the viewport; use GoFullPage or a node screenshot (see PITFALLS).
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-10-01 (#102 closed; v1.3.4 bump on `main`, tag pending; #74 Mastodon draft refined + group verified).
+Last cleared: 2026-10-02 (#102 closed; v1.3.4 bump on `main`, tag pending; Mastodon launch posted + profile verified; next: Reddit wave).
