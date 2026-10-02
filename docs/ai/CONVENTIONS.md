@@ -104,6 +104,7 @@ The transcription pipeline resolves the following template variables at runtime.
 - Community posts (`docs/marketing/*.md`) are **version-free** — link `https://f-droid.org/packages/com.georgernstgraf.polishedrecognition` instead of naming a version. F-Droid serves a version only ~3–5 days after its `v*` tag, so a pinned number goes stale; the F-Droid link is stable.
 - Alpha onboarding — the Google Group **welcome message** and the **two-step Play-alpha tester instructions** — is canonical in `docs/marketing/alpha-welcome.md`. Every post quotes the two-step block verbatim; keep all copies in sync with that file.
 - Alpha-group posting is **owners/managers only** (broadcast channel); testers' feedback goes to GitHub issues.
+- **The official F-Droid Mastodon account is `@fdroidorg@floss.social`** (≈38k followers, verified 2026-10-02). Do **not** use `@fdroidorg@mastodon.social` — that is an empty placeholder account. Mention them for a boost at most **once** and politely.
 
 ## Project website (GitHub Pages) (#74)
 - `docs/index.html` has **no front matter**, so Jekyll serves it **verbatim** at `https://georgernstgraf.github.io/polished-recognition/`. Its footer carries `<a rel="me" href="https://mastodon.social/@schurlix">Mastodon</a>` to verify the owner's Mastodon profile via a profile-metadata field — **do not remove it**; removing it silently breaks the green check.

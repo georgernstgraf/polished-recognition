@@ -2,7 +2,7 @@
 
 > Post with your account. Attach **docs/marketing/mastodon-demo.gif** (alt text below) — the social cut of docs/img/demo.gif (540×700 instead of 540×1200: the 580 px empty black band between the note text and the keyboard is trimmed, so the whole UI fits a normal portrait frame; the tall README/fastlane original stays untouched).
 > Two-toot thread: toot 1 carries the GIF, then reply immediately with toot 2.
-> Optional boost request: after posting, mention @fdroidorg **once** (e.g. `@fdroidorg — freshly listed on F-Droid; happy to be boosted if it's useful for your audience.`) — polite, no ad tone, once only.
+> Optional boost request: after posting, mention the **official** F-Droid account once — `@fdroidorg@floss.social` (NOT `@fdroidorg@mastodon.social`, which is an empty placeholder). Example: `@fdroidorg@floss.social — Polished Recognition is an open-source Android voice keyboard, freshly listed on F-Droid: https://f-droid.org/packages/com.georgernstgraf.polishedrecognition — a boost would be much appreciated if it fits your audience.` Polite, no ad tone, once only.
 > Alt text for the GIF: "Screen recording: a dark note app with the Polished Recognition keyboard set to translate to English. The user dictates in German, stuttering for a few seconds, taps send, and one clean English sentence appears in the note."
 > Alpha onboarding is canonical in alpha-welcome.md — keep the two-step block in sync. Post body stays version-free.
 
