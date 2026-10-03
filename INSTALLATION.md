@@ -80,6 +80,11 @@ Apps without their own keyboard — Duolingo, Corvus, and other assistive tools 
 call Android's `SpeechRecognizer` API, which dispatches to the system's default
 voice-input service. Point that service at Polished Recognition once:
 
+> **Requires Android 12 (API 31) or newer.** On Android 11 the platform has no
+> `RecognitionServiceManager`, so a normal app cannot bind a third-party
+> recognition service at all — Polished hides this entry point there. On
+> Android 11 use the keyboard voice-input route in §4 instead (it works fine).
+
 1. **Settings → System → Language & region → Speech → Voice input**
    (called "Languages & input → Voice input" on some ROMs)
 2. Select **Polished Recognition**

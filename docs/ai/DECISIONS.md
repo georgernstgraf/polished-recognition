@@ -3,6 +3,14 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-03: RecognitionService scoped to Android 12+; hidden on Android 11 (#82)
+
+- **Decision (owner)**: the bound `RecognitionService` entry point is supported on **Android 12 (API 31)+ only**. `minSdk` stays 30: on Android 11 the **IME** (`PolishedVoiceInputIME`) is the dictation path and works there.
+- **Reason**: on Android 11 the caller binds the service **directly** and `android:permission="android.permission.BIND_RECOGNITION_SERVICE"` blocks every normal app (there is no `RecognitionServiceManager` to mediate — see PITFALLS). An Android-11 branch (drop the declaration, or an in-code caller check) was rejected as not worth it for an old platform.
+- **How**: the service is gated by `android:enabled="@bool/recognition_service_enabled"` — `false` in `res/values/bools.xml`, `true` in `res/values-v31/bools.xml` — so Android 11 does not offer it as a broken entry in the Voice-input picker. The `BIND_RECOGNITION_SERVICE` declaration stays.
+- **Tradeoff**: Android-11 users dictate via the keyboard/IME only, not via `SpeechRecognizer`. Verification: the built APK resolves the bool to `false` (base) / `true` (v31).
+- **Status**: #82 stays open until a real caller (Duolingo/Corvus) is verified on a healthy Android-12+ device ("path A").
+
 ## 2026-10-03: RecognitionService results delivered to secondary-only sessions (#82)
 - **Choice**: `VoiceSessionController.stopAndTranscribe` routes the finished pipeline result through a new `deliver(result)` helper: `Completed` is emitted whenever the primary (IME) callback **or** any secondary listener is attached; only when nobody listens is it parked in `pendingResult` for the next primary `attach()` (rotation path, #83). Applied to **both** the success and failure branches.
 - **Reason**: The bound `PolishedRecognitionService` is a **secondary** listener, never the primary slot. On a keyboard-less call (Duolingo/Corvus — no IME callback attached) the old `if (callback != null) else pendingResult` guard swallowed the result, and the controller then emitted `StateChanged(IDLE)`, which the service mapped to `ERROR_CLIENT` (5). The caller got an error although STT/LLM had produced the exact expected sentence — confirmed on-device: the app's `stt-response`/`llm-response` logs showed `"Viven en una casa enorme."` while Duolingo received error 5.

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The bound RecognitionService only works from Android 12 (API 31)+.
+      On Android 11 there is no RecognitionServiceManager: the caller binds the
+      service directly and the service's BIND_RECOGNITION_SERVICE requirement
+      blocks every normal app (see docs/ai/PITFALLS.md). Disabled here so it is
+      not offered as a broken entry in the Voice-input picker; the IME
+      (PolishedVoiceInputIME) is the Android-11 dictation path.
+    -->
+    <bool name="recognition_service_enabled">false</bool>
+</resources>

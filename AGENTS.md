@@ -22,7 +22,7 @@ An Android `RecognitionService` that captures voice input from any keyboard micr
 - **Storage:** SharedPreferences (provider config, prompts)
 - **UI:** AppCompat + Material (XML-based SettingsActivity)
 - **Build:** Gradle (Kotlin DSL), Java 17 target
-- **Min SDK:** 30, Target SDK: 34
+- **Min SDK:** 30 (Android 11), Target SDK: 36
 - **No Hilt, no Room, no WorkManager, no Compose** (deliberate — small, fast, no DI framework conflicts with RecognitionService)
 
 ## Knowledge Bootstrap

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ mediates RecognitionService binds through the system's
+         RecognitionServiceManager, so the service is usable there. -->
+    <bool name="recognition_service_enabled">true</bool>
+</resources>

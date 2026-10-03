@@ -14,7 +14,7 @@
 4. [ ] **#74 Play-alpha tester recruitment** — owner: group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
 5. [ ] **#99 (owner)** — Google overview page shows outdated application images.
 6. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
-7. [ ] **#82 end-to-end verification (owner) — the acceptance gate; the issue stays OPEN.** A real caller (Duolingo/Corvus) must run over our service — the `tools/testcaller/` success is protocol-level only and does NOT count. Paths: (a) **S5** — drop `BIND_RECOGNITION_SERVICE` **and** neutralise Google's `RecognitionService` so Duolingo defaults to us; (b) **OnePlus** — restore the ROM permission state that `adb install -r` perturbed (possibly factory reset). Sub-decision: keep the permission + gate to API 31+ vs. drop it (Android-11 bind analysis in `PITFALLS.md`). Harness + recipe: `tools/testcaller/README.md`.
+7. [ ] **#82 close via path A (owner) — real caller on Android 12+.** Scope decided: RecognitionService = Android 12+ only (hidden on Android 11 via `values-v31`; the **IME** covers Android 11). Remaining: Duolingo/Corvus over our service on a healthy Android-12+ device — repair the OnePlus (normal package-installer route, clear Duolingo data + re-grant mic, reboot) or another device — confirm the text arrives (not error 5), then `finish` #82. Harness + recipe: `tools/testcaller/README.md`.
 8. [ ] **#75 — rate-limit header logging**; **#64 — Ogg/Opus latency**; insertion-spacing watch — passive.
 
 ## Known on-device gotchas
@@ -32,4 +32,4 @@
 - **Google Groups settings page scrolls an inner container** — DevTools "Capture full size screenshot" gives only the viewport; use GoFullPage or a node screenshot (see PITFALLS).
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-10-03 (#82 delivery fix on `main`, **verified only at the protocol level via `tools/testcaller/` — a real Duolingo/Corvus run is STILL OPEN and #82 must not be closed without the owner's OK**; OnePlus OxygenOS caller-permission blocker + Android-11 `BIND_RECOGNITION_SERVICE` limitation documented; #103 hyphen line-wrap shipped, both unreleased; v1.3.4 bump on `main`, tag pending; Mastodon launch posted + profile verified; next: #82 end-to-end verification, Reddit wave, v1.3.4 tag).
+Last cleared: 2026-10-03 (#82 delivery fix on `main` + **scope decided: RecognitionService = Android 12+ only, hidden on Android 11 via `android:enabled`/`values-v31`, IME covers Android 11**; verified at the protocol level via `tools/testcaller/` — a real Duolingo/Corvus run on Android 12+ is STILL OPEN (`path A`) and #82 must not be closed without the owner's OK; OnePlus OxygenOS caller-permission blocker documented; #103 hyphen line-wrap shipped, both unreleased; v1.3.4 bump on `main`, tag pending; Mastodon launch posted + profile verified; next: #82 path A, Reddit wave, v1.3.4 tag).
