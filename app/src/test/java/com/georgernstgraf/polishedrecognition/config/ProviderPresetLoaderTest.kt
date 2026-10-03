@@ -43,6 +43,13 @@ class ProviderPresetLoaderTest {
     }
 
     @Test
+    fun `findLlmPreset Cortecs has base_url`() {
+        val preset = loader.findLlmPreset("Cortecs")
+        assertThat(preset).isNotNull()
+        assertThat(preset!!.base_url).isEqualTo("https://api.cortecs.ai/v1/")
+    }
+
+    @Test
     fun `findSttPreset nonexistent returns null`() {
         assertThat(loader.findSttPreset("NoSuchProvider")).isNull()
     }

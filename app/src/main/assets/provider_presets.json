@@ -32,6 +32,11 @@
             "default_model": "openai/gpt-oss-120b"
         },
         {
+            "name": "Cortecs",
+            "base_url": "https://api.cortecs.ai/v1/",
+            "models": []
+        },
+        {
             "name": "Google AI Studio",
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
             "models": []

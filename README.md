@@ -36,7 +36,7 @@ plain transcription — zero extra latency.
 
 ## Why it's different
 
-- **BYO provider — or use a free one.** 18 presets (OpenAI, GROQ, OpenRouter, Google AI, DeepSeek, xAI, Mistral, local Ollama/LM Studio, …). GROQ's free tier gives you Whisper STT plus a strong LLM — a complete STT+polish pipeline at zero cost.
+- **BYO provider — or use a free one.** 19 presets (OpenAI, GROQ, OpenRouter, Cortecs, Google AI, DeepSeek, xAI, Mistral, local Ollama/LM Studio, …). GROQ's free tier gives you Whisper STT plus a strong LLM — a complete STT+polish pipeline at zero cost.
 - **Not a walled garden.** No account, no registration, no central server. Your audio goes only to the provider you configured — or nowhere at all, if you run Ollama locally.
 - **Custom prompts.** The system prompt is fully editable, with variables for source and target language. Make the LLM format markdown, translate to French, or just fix punctuation.
 - **Translation built in.** Pick a target language and dictation arrives translated. Languages are freely editable — long-press to add your own.
@@ -88,6 +88,7 @@ contract works:
 | OpenRouter         | LLM  | `https://openrouter.ai/api/v1/`                     |
 | Google AI Studio   | LLM  | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | GROQ               | LLM  | `https://api.groq.com/openai/v1/`                   |
+| Cortecs            | LLM  | `https://api.cortecs.ai/v1/`                        |
 | DeepSeek           | LLM  | `https://api.deepseek.com/v1/`                      |
 | xAI                | LLM  | `https://api.x.ai/v1/`                              |
 | Mistral            | LLM  | `https://api.mistral.ai/v1/`                        |
