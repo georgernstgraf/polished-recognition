@@ -8,7 +8,7 @@ Each entry documents WHAT was decided and WHY.
 - **Decision (owner)**: the bound `RecognitionService` entry point is supported on **Android 12 (API 31)+ only**. `minSdk` stays 30: on Android 11 the **IME** (`PolishedVoiceInputIME`) is the dictation path and works there.
 - **Reason**: on Android 11 the caller binds the service **directly** and `android:permission="android.permission.BIND_RECOGNITION_SERVICE"` blocks every normal app (there is no `RecognitionServiceManager` to mediate — see PITFALLS). An Android-11 branch (drop the declaration, or an in-code caller check) was rejected as not worth it for an old platform.
 - **How**: the service is gated by `android:enabled="@bool/recognition_service_enabled"` — `false` in `res/values/bools.xml`, `true` in `res/values-v31/bools.xml` — so Android 11 does not offer it as a broken entry in the Voice-input picker. The `BIND_RECOGNITION_SERVICE` declaration stays.
-- **Tradeoff**: Android-11 users dictate via the keyboard/IME only, not via `SpeechRecognizer`. Verification: the built APK resolves the bool to `false` (base) / `true` (v31).
+- **Tradeoff**: Android-11 users dictate via the keyboard/IME only, not via `SpeechRecognizer`. **Verified 2026-10-03 on the LineageOS S5 (Android 11):** after installing the gated build, `cmd package query-services -a android.speech.RecognitionService` lists **only Google's** service (our entry is gone), while `PolishedVoiceInputIME` stays registered.
 - **Status**: #82 stays open until a real caller (Duolingo/Corvus) is verified on a healthy Android-12+ device ("path A").
 
 ## 2026-10-03: RecognitionService results delivered to secondary-only sessions (#82)
