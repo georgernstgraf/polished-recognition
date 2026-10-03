@@ -64,22 +64,25 @@ Permission Denial: Accessing service … requires android.permission.BIND_RECOGN
 ```
 
 So on an Android-11 device this caller only works against a build whose service
-permission has been removed. Recipe (temporary, throw-away worktree — never
-pushed):
+permission has been removed. The shipped manifest is never touched — a helper
+script builds from a throw-away git worktree:
 
 ```sh
-cd <repo>
-git worktree add /tmp/nobind HEAD
-cp keystore.properties /tmp/nobind/keystore.properties
-cp app/release.keystore    /tmp/nobind/app/release.keystore
-# remove the android:permission="android.permission.BIND_RECOGNITION_SERVICE"
-# attribute from the <service android:name=".service.PolishedRecognitionService"> block
-cd /tmp/nobind
-ANDROID_HOME=/home/georg/Android/Sdk ./gradlew assembleRelease
-adb -s $D install -r /tmp/nobind/app/build/outputs/apk/release/app-release.apk
+tools/testcaller/build-nobind-apk.sh            # builds + prints the APK path
+adb -s $D install -r /tmp/polished-nobind/app/build/outputs/apk/release/app-release.apk
 # … run the caller …
-adb -s $D install -r app/build/outputs/apk/release/app-release.apk   # restore shipped build
-git worktree remove /tmp/nobind --force
+tools/testcaller/build-nobind-apk.sh --clean    # remove the worktree (then reinstall the shipped build)
+```
+
+Manual equivalent (what the script automates):
+
+```sh
+git worktree add --detach /tmp/polished-nobind HEAD
+cp keystore.properties /tmp/polished-nobind/
+cp app/release.keystore /tmp/polished-nobind/app/
+# delete the android:permission="android.permission.BIND_RECOGNITION_SERVICE"
+# attribute in the <service android:name=".service.PolishedRecognitionService"> block
+cd /tmp/polished-nobind && ANDROID_HOME=/home/georg/Android/Sdk ./gradlew assembleRelease
 ```
 
 Because of this, the path is effectively **Android-12+ only as shipped**; the
