@@ -168,11 +168,7 @@ class VoiceSessionController(
             }
             if (result.isSuccess) {
                 recorder.flushBuffer()
-                if (callback != null) {
-                    emit(Event.Completed(result))
-                } else {
-                    pendingResult = result
-                }
+                deliver(result)
                 accumulatedMs = 0L
                 segStartMs = 0L
                 state = State.IDLE
@@ -187,11 +183,7 @@ class VoiceSessionController(
                 state = State.PAUSED
                 snapshot()
                 emit(Event.StateChanged(state))
-                if (callback != null) {
-                    emit(Event.Completed(result))
-                } else {
-                    pendingResult = result
-                }
+                deliver(result)
             }
         }
     }
@@ -308,6 +300,25 @@ class VoiceSessionController(
 
     private fun writeWavFile(wav: ByteArray): File =
         File(appContext.cacheDir, "recording.wav").apply { writeBytes(wav) }
+
+    /**
+     * Delivers a finished pipeline result to whichever consumer is attached
+     * (#82). Both the primary (IME) callback and any secondary observers get
+     * the live `Completed` event; only when nobody is listening is the result
+     * held in [pendingResult] for the next primary [attach] (rotation, #83).
+     *
+     * A secondary-only consumer — the bound `RecognitionService` — must be
+     * served here too: otherwise its session falls through to
+     * `StateChanged(IDLE)` and is reported to the caller as `ERROR_CLIENT`
+     * even though the pipeline produced a good result.
+     */
+    private fun deliver(result: Result<String>) {
+        if (callback != null || secondaryListeners.isNotEmpty()) {
+            emit(Event.Completed(result))
+        } else {
+            pendingResult = result
+        }
+    }
 
     private fun emit(event: Event) {
         val cb = callback

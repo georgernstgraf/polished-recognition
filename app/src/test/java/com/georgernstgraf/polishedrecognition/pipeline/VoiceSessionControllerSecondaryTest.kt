@@ -98,6 +98,28 @@ class VoiceSessionControllerSecondaryTest {
     }
 
     @Test
+    fun `secondary-only session receives completion without a primary callback`() {
+        val controller = newController()
+        val secondary = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.startShared { secondary.add(it) }
+        } catch (_: Throwable) {
+            // AudioRecord is not fully supported under Robolectric.
+        }
+
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.IDLE)
+
+        // Regression (#82): with no primary (IME) callback attached — exactly
+        // the Duolingo/Corvus case — the result must still reach the secondary
+        // listener. Before the fix it fell through to StateChanged(IDLE) and
+        // the caller was told ERROR_CLIENT despite a good transcription.
+        val done = secondary.filterIsInstance<VoiceSessionController.Event.Completed>()
+        assertThat(done).hasSize(1)
+        assertThat(done.single().result.getOrNull()).isEqualTo("hi")
+    }
+
+    @Test
     fun `removed secondary listener receives nothing`() {
         val controller = newController()
         val secondary = mutableListOf<VoiceSessionController.Event>()
