@@ -17,3 +17,5 @@ keystore.properties
 .env
 SCRATCH.md
 /tmp/
+/tools/testcaller/build/
+/tools/testcaller/app/build/
