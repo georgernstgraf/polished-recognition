@@ -1,5 +1,7 @@
 # Hand Off
 
+**2026-10-03: #103 hyphen line-wrap shipped to `main`** — `LineWrapPolicy` now breaks words after `-`/`–`/`—` (classic greedy, URL-safe, 4-char minimum on both sides, U+2011 excluded); `80e6687`, `LineWrapPolicyTest` +9, `./gradlew test` green. Not yet in a release.
+
 **2026-10-02: Mastodon launch POSTED; v1.3.4 (10304) on `main`, tag pending.** The Mastodon thread went live 2026-10-02 — toot 1 (demo GIF + pitch), toot 2 (thank-you to `@fdroidorg@floss.social`, esp. linsui, doubling as the boost request, + the Play-alpha CTA). The owner's profile `@schurlix` is **verified** against the project Pages via `rel="me"` (`verified_at 2026-10-02`); the GitLab MR !40029 thanks is done (owner). The `v1.3.4` tag is **not yet pushed**. Open: #99, #101, #82, #75, #64, #74.
 
 ## Open tasks
@@ -28,4 +30,4 @@
 - **Google Groups settings page scrolls an inner container** — DevTools "Capture full size screenshot" gives only the viewport; use GoFullPage or a node screenshot (see PITFALLS).
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-10-02 (#102 closed; v1.3.4 bump on `main`, tag pending; Mastodon launch posted + profile verified; next: Reddit wave).
+Last cleared: 2026-10-03 (#103 hyphen line-wrap shipped to `main`, unit-tested, unreleased; v1.3.4 bump on `main`, tag pending; Mastodon launch posted + profile verified; next: Reddit wave).
