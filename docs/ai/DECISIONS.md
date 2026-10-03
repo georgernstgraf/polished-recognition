@@ -3,6 +3,13 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-03: Line-wrap breaks at hyphens, URL-safe and orphan-free (#103)
+- **Choice**: `LineWrapPolicy` splits a word after `-`, `–` (U+2013) or `—` (U+2014) as an additional break opportunity, keeping the dash at the end of the line; the break point is chosen classically greedily (last dash that fits). A fragment shorter than `MIN_DASH_FRAGMENT = 4` on **either** side of a dash is merged with its neighbour, so no orphan fragment (`a-` / `-a`) ends up alone on a line (short fragments merge forward, a short tail backward). URL-like whitespace tokens (`^[A-Za-z][A-Za-z0-9+.-]*://` or `^www\.`, case-insensitive) are never split. U+2011 (non-breaking hyphen) is not a break point. Words without dashes and `width <= 0` are byte-for-byte unchanged; no new setting.
+- **Reason**: A long compound (e.g. `Datenschutz-Grundverordnung`) previously occupied a single over-long line because a word was never hard-split. Breaking at existing hyphens fills the configured width without touching ordinary words. The symmetric minimum prevents ugly one- or two-char orphans, and the URL guard preserves the long-standing "long tokens survive intact" property (copy-paste/clickability).
+- **Considered**: Minimal variant (split only words longer than the width, move shorter ones whole to the next line) — rejected by the owner in favour of classic greedy, which fills lines better; left-only minimum — rejected in favour of the symmetric rule; splitting URLs — rejected (breaks links); separate on/off setting — rejected as unnecessary since the change is purely additive (only breaks text that already overflowed).
+- **Also**: en/em dash were explicitly included in the break set (owner choice); U+2011 stays excluded.
+- **Tests**: `LineWrapPolicyTest` +9 (hyphen, hyphen after a preceding word, en/em dash, URL, U+2011, leading-fragment merge, trailing-fragment merge, dash-free regression, `width == 0`). `./gradlew test` green.
+
 ## 2026-10-01: Mastodon opens as a two-toot thread; the demo GIF is described in the toot body (#74)
 - **Choice**: The Mastodon draft (`docs/marketing/mastodon.md`) is a **two-toot thread** — toot 1 carries `docs/img/demo.gif` plus the pitch, toot 2 replies with the Play-alpha two-step + GitHub issues. The GIF is now also **described in the toot body**, not only attached with alt text.
 - **Reason**: Adding the GIF description, the demo model, and the owner's daily use pushed a single toot past the 500-character limit; moving the CTA to a reply keeps the demo post tight. A GIF that carries the whole pitch should be legible without opening it.

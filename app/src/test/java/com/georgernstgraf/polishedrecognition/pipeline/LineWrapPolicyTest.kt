@@ -67,4 +67,63 @@ class LineWrapPolicyTest {
         val longWord = "a".repeat(100)
         assertThat(LineWrapPolicy.wrap("hi $longWord bye", 80)).contains(longWord)
     }
+
+    @Test
+    fun `hyphenated word breaks after the hyphen`() {
+        assertThat(LineWrapPolicy.wrap("Datenschutz-Grundverordnung", 20))
+            .isEqualTo("Datenschutz-\nGrundverordnung")
+    }
+
+    @Test
+    fun `hyphenated word breaks after a preceding word`() {
+        assertThat(LineWrapPolicy.wrap("Die Datenschutz-Grundverordnung", 20))
+            .isEqualTo("Die Datenschutz-\nGrundverordnung")
+    }
+
+    @Test
+    fun `en dash and em dash are break points`() {
+        assertThat(LineWrapPolicy.wrap("alpha\u2013beta\u2014gamma", 6))
+            .isEqualTo("alpha\u2013\nbeta\u2014\ngamma")
+    }
+
+    @Test
+    fun `url like token is never split at hyphens`() {
+        val url = "https://example.com/langer-pfad-name"
+        assertThat(LineWrapPolicy.wrap(url, 12)).isEqualTo(url)
+        assertThat(LineWrapPolicy.wrap("www.example-site.com", 8)).isEqualTo("www.example-site.com")
+    }
+
+    @Test
+    fun `non-breaking hyphen is not a break point`() {
+        val word = "aaaa\u2011bbbb\u2011cccc"
+        assertThat(LineWrapPolicy.wrap(word, 8)).isEqualTo(word)
+    }
+
+    @Test
+    fun `short leading fragment is merged forward`() {
+        val wrapped = LineWrapPolicy.wrap("a-really-long-word", 12)
+        assertThat(wrapped).isEqualTo("a-really-\nlong-word")
+        wrapped.split("\n").forEach { line -> assertThat(line).isNotEqualTo("a-") }
+    }
+
+    @Test
+    fun `short trailing fragment is merged backward`() {
+        val wrapped = LineWrapPolicy.wrap("long-word-a", 8)
+        assertThat(wrapped).isEqualTo("long-\nword-a")
+        wrapped.split("\n").forEach { line -> assertThat(line.length).isAtLeast(4) }
+    }
+
+    @Test
+    fun `dash-free words wrap exactly as before`() {
+        val text = ("word ".repeat(60)).trim()
+        val wrapped = LineWrapPolicy.wrap(text, 80)
+        assertThat(wrapped.replace("\n", " ")).isEqualTo(text)
+        wrapped.split("\n").forEach { line -> assertThat(line.length).isAtMost(80) }
+    }
+
+    @Test
+    fun `zero width leaves hyphenated text unchanged`() {
+        val text = "Datenschutz-Grundverordnung und foo-bar"
+        assertThat(LineWrapPolicy.wrap(text, 0)).isEqualTo(text)
+    }
 }
