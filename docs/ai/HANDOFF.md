@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-10-03: #82 RecognitionService delivery bug fixed** — `VoiceSessionController.stopAndTranscribe` now delivers `Completed` to secondary-only consumers (the bound `RecognitionService` is never the primary IME slot), so a keyboard-less call no longer falls through to `ERROR_CLIENT` (5) despite a good transcription. `d327d43`, `VoiceSessionControllerSecondaryTest` +1, `./gradlew test` green. **On-device verification blocked**: OxygenOS on the OnePlus rejects the recognition preflight for the caller (`RECORD_AUDIO`) before any service code runs — reproduced with two recognizers and after a Duolingo reinstall (see `PITFALLS.md`). #82 stays open for a clean-ROM (S5) check.
+**2026-10-03: #82 RecognitionService delivery bug fixed & VERIFIED** — `VoiceSessionController.stopAndTranscribe` now delivers `Completed` to secondary-only consumers (the bound `RecognitionService` is never the primary IME slot), so a keyboard-less call no longer falls through to `ERROR_CLIENT` (5) despite a good transcription. `d327d43`, `VoiceSessionControllerSecondaryTest` +1, `./gradlew test` green. **On-device verification (LineageOS S5):** Duolingo routes to Google on Android 11, so a minimal explicit-component test caller was used (with the service's `BIND_RECOGNITION_SERVICE` temporarily removed) → our service recorded and delivered the text **6× `onResults`, 0 errors**. Finding: as shipped the path is **Android-12+ only** (the service permission blocks normal-app binds on Android 11 — see `PITFALLS.md`). OnePlus 7T still can't exercise it (OxygenOS caller-permission blocker).
 
 **2026-10-03: #103 hyphen line-wrap shipped to `main`** — `LineWrapPolicy` now breaks words after `-`/`–`/`—` (classic greedy, URL-safe, 4-char minimum on both sides, U+2011 excluded); `80e6687`, `LineWrapPolicyTest` +9, `./gradlew test` green. Not yet in a release.
 
@@ -14,7 +14,7 @@
 4. [ ] **#74 Play-alpha tester recruitment** — owner: group self-join + opt-in; 20–30 testers, ≥12 continuous for 14 days before Play production.
 5. [ ] **#99 (owner)** — Google overview page shows outdated application images.
 6. [ ] **#101 (owner)** — decide token storage vs Google Auto Backup.
-7. [ ] **#82 verification on a clean ROM (owner)** — delivery fix on `main` (`d327d43`); the OnePlus blocks the caller preflight. Verify Duolingo/Corvus on the LineageOS S5, then `finish` #82. (Companion item to #103's "not yet released".)
+7. [ ] **#82 follow-up decision (owner)** — RecognitionService path is Android-12+ only as shipped (Android 11: the service's `BIND_RECOGNITION_SERVICE` blocks normal-app binds; verified on the S5). Decide drop-the-permission vs. API-31 gate. Delivery fix done + verified (`d327d43`).
 8. [ ] **#75 — rate-limit header logging**; **#64 — Ogg/Opus latency**; insertion-spacing watch — passive.
 
 ## Known on-device gotchas
