@@ -784,7 +784,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private fun buildNotification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setContentTitle(getString(R.string.app_name))
         .setContentText(text)
-        .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+        .setSmallIcon(R.drawable.ic_notification_mic)
         .setOngoing(true)
         .setContentIntent(
             PendingIntent.getActivity(
