@@ -1,5 +1,6 @@
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 import java.io.File
 import java.util.Properties
 
@@ -34,6 +35,46 @@ abstract class CommitCountSource : ValueSource<String, ValueSourceParameters.Non
 
 plugins {
     id("com.android.application")
+}
+
+// --- Bundled in-app help (#107) ---------------------------------------------
+// docs/help.html is the single source of the help text: the project site serves
+// it as the "Help" page, and this task stages it (plus the images it
+// references) into a generated assets directory so it ships inside the APK.
+// Nothing is committed twice. Wired via the Variant API below.
+abstract class StageHelpAssets : DefaultTask() {
+    @get:InputFile
+    abstract val helpHtml: RegularFileProperty
+
+    @get:InputFile
+    abstract val demoGif: RegularFileProperty
+
+    @get:InputFile
+    abstract val imePng: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun stage() {
+        val out = outputDir.get().asFile
+        fun copy(src: File, relative: String) {
+            val target = out.resolve(relative)
+            target.parentFile?.mkdirs()
+            src.copyTo(target, overwrite = true)
+        }
+        copy(helpHtml.get().asFile, "help.html")
+        copy(demoGif.get().asFile, "marketing/mastodon-demo.gif")
+        copy(imePng.get().asFile, "img/ime-recording.png")
+    }
+}
+
+val stageHelpAssets = tasks.register<StageHelpAssets>("stageHelpAssets") {
+    description = "Stages docs/help.html and its images for the in-app help."
+    helpHtml.set(rootProject.file("docs/help.html"))
+    demoGif.set(rootProject.file("docs/marketing/mastodon-demo.gif"))
+    imePng.set(rootProject.file("docs/img/ime-recording.png"))
+    outputDir.set(layout.buildDirectory.dir("generated/helpAssets"))
 }
 
 android {
@@ -125,6 +166,25 @@ android {
                 it.maxHeapSize = "1536m"
             }
         }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            stageHelpAssets,
+            StageHelpAssets::outputDir
+        )
+    }
+}
+
+// Pin the build/test JVM to Java 21 (#107). Gradle otherwise uses whatever JDK
+// it runs on; on JDK 25 MockK/ASM cannot read the newer bytecode
+// ("Unsupported class file major version 69") and most tests fail. A JDK 21
+// must be installed (auto-detected); CI already provides Temurin 21.
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
 }
 
