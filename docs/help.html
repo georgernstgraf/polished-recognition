@@ -7,6 +7,7 @@
 <title>Polished Recognition — Help</title>
 <style>
     :root {
+        color-scheme: light;
         --bg: #ffffff;
         --fg: #1b1f24;
         --muted: #5b6470;
@@ -23,20 +24,19 @@
         --radius: 14px;
         --max: 900px;
     }
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg: #0e1116;
-            --fg: #e6e8ec;
-            --muted: #9aa3af;
-            --card: #171c23;
-            --border: #262c35;
-            --accent: #7aa7ff;
-            --accent-soft: #1a2436;
-            --ime-bg: #05070a;
-            --ime-fg: #eef1f5;
-            --ime-dim: #8b94a3;
-            --ime-accent: #8fb8ff;
-        }
+    :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0e1116;
+        --fg: #e6e8ec;
+        --muted: #9aa3af;
+        --card: #171c23;
+        --border: #262c35;
+        --accent: #7aa7ff;
+        --accent-soft: #1a2436;
+        --ime-bg: #05070a;
+        --ime-fg: #eef1f5;
+        --ime-dim: #8b94a3;
+        --ime-accent: #8fb8ff;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -185,6 +185,24 @@
         .gesture .bar, .gesture.long .bar { max-width: 60px; }
     }
 </style>
+<script>
+/* Theme (#107): the app passes ?theme=dark|light from the Android night mode;
+   a browser falls back to prefers-color-scheme. Setting data-theme before paint
+   avoids a flash, and it drives the CSS variables. */
+(function () {
+    var forced = new URLSearchParams(location.search).get('theme');
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    function apply(dark) {
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    }
+    if (forced === 'dark' || forced === 'light') {
+        apply(forced === 'dark');
+    } else {
+        apply(mq.matches);
+        if (mq.addEventListener) mq.addEventListener('change', function (e) { apply(e.matches); });
+    }
+})();
+</script>
 </head>
 <body>
 
