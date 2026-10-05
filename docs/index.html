@@ -4,67 +4,263 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <title>Polished Recognition</title>
+    <title>Polished Recognition — voice input for any keyboard</title>
+    <meta name="description" content="Voice input for any Android keyboard. Transcribe, clean up, and translate audio using your own OpenAI-compatible STT and LLM endpoints — no account, no central server.">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
     <style>
         :root {
-            --pico-font-family: system-ui, -apple-system, sans-serif;
+            --pico-font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --max: 1024px;
+            --accent: #2f6df6;
+            --soft: rgba(47,109,246,.09);
         }
-        header {
-            padding-block: 2rem;
+        @media (prefers-color-scheme: dark) {
+            :root { --accent: #7aa7ff; --soft: rgba(122,167,255,.12); }
         }
-        nav a[aria-current="page"] {
+        body { line-height: 1.65; }
+        a { text-underline-offset: 2px; }
+
+        /* ---- hero ---- */
+        header.hero {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 2.6rem 1.2rem 1.6rem;
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 1.8rem;
+            align-items: center;
+        }
+        header.hero h1 { margin: 0 0 .5rem; font-size: clamp(1.9rem, 4vw, 2.6rem); letter-spacing: -0.02em; }
+        header.hero .tagline { font-size: 1.05rem; opacity: .85; margin: 0 0 1.2rem; }
+        .cta { display: flex; flex-wrap: wrap; gap: .6rem; margin: 0; }
+        .btn {
+            display: inline-block;
+            padding: .55rem 1.1rem;
+            border-radius: 999px;
+            background: var(--accent);
+            color: #fff !important;
+            text-decoration: none;
             font-weight: 600;
+            font-size: .92rem;
+        }
+        .btn.ghost { background: transparent; color: var(--accent) !important; border: 1px solid var(--accent); }
+        .hero-shot { text-align: center; }
+        .hero-shot img {
+            width: 100%;
+            max-width: 300px;
+            border-radius: 16px;
+            border: 1px solid var(--pico-muted-border-color, #ccc);
+            box-shadow: 0 12px 30px rgba(0,0,0,.18);
+        }
+
+        /* ---- nav ---- */
+        nav.mainnav {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--pico-background-color, #fff);
+            border-bottom: 1px solid var(--pico-muted-border-color, #e3e3e3);
+            backdrop-filter: blur(6px);
+        }
+        nav.mainnav ul {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: .5rem 1.2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .3rem 1.4rem;
+            list-style: none;
+        }
+        nav.mainnav a {
+            text-decoration: none;
+            font-weight: 500;
+            padding: .3rem 0;
+            border-bottom: 2px solid transparent;
+        }
+        nav.mainnav a[aria-current="page"] { border-bottom-color: var(--accent); }
+
+        /* ---- layout ---- */
+        main.layout {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 1.6rem 1.2rem 4rem;
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 2.4rem;
+            align-items: start;
+        }
+        #content { min-width: 0; }
+        #content h1 { display: none; } /* page already has the hero title */
+        #content h2 { margin-top: 2.2rem; padding-bottom: .3rem; border-bottom: 1px solid var(--pico-muted-border-color, #e3e3e3); }
+        #content img { max-width: 100%; height: auto; border-radius: 10px; }
+        #content table { display: block; overflow-x: auto; }
+        #content code { font-size: .88em; }
+        #content pre { overflow-x: auto; }
+
+        /* ---- table of contents ---- */
+        .toc {
+            position: sticky;
+            top: 4rem;
+            font-size: .9rem;
+            border: 1px solid var(--pico-muted-border-color, #e3e3e3);
+            border-radius: 12px;
+            padding: .8rem 1rem;
+            background: var(--soft);
+            max-height: calc(100vh - 6rem);
+            overflow-y: auto;
+        }
+        .toc strong { display: block; margin-bottom: .4rem; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
+        .toc ul { list-style: none; margin: 0; padding: 0; }
+        .toc li { margin: .18rem 0; }
+        .toc li.sub { padding-left: .9rem; opacity: .85; }
+        .toc a { text-decoration: none; }
+
+        footer.site {
+            border-top: 1px solid var(--pico-muted-border-color, #e3e3e3);
+            margin-top: 2rem;
+        }
+        footer.site div {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 1.4rem 1.2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem 1.2rem;
+            font-size: .9rem;
+        }
+
+        @media (max-width: 820px) {
+            header.hero { grid-template-columns: 1fr; text-align: center; }
+            header.hero .cta { justify-content: center; }
+            header.hero .hero-shot { order: -1; }
+            main.layout { grid-template-columns: 1fr; gap: 1.4rem; }
+            .toc { position: static; max-height: none; }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-<header>
-    <h1>Polished Recognition</h1>
-    <p>Voice input for any Android keyboard. Transcribe, clean up, and translate audio using your own OpenAI-compatible STT and LLM endpoints — no account, no central server, no vendor lock-in.</p>
+
+<header class="hero">
+    <div class="hero-text">
+        <h1>Polished Recognition</h1>
+        <p class="tagline">Voice input for any Android keyboard. Transcribe, clean up, and translate audio using your own OpenAI-compatible STT and LLM endpoints — no account, no central server, no vendor lock-in.</p>
+        <p class="cta">
+            <a class="btn" href="https://f-droid.org/packages/com.georgernstgraf.polishedrecognition">Get it on F-Droid</a>
+            <a class="btn ghost" href="https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition">Play Store (alpha)</a>
+            <a class="btn ghost" href="https://github.com/georgernstgraf/polished-recognition">GitHub</a>
+        </p>
+    </div>
+    <div class="hero-shot">
+        <img src="img/ime-recording.png" alt="The Polished Recognition voice keyboard while recording">
+    </div>
 </header>
 
-<nav>
-    <a href="#" data-page="README.md" aria-current="page">About</a>
-    <a href="#" data-page="INSTALLATION.md">Installation</a>
-    <a href="#" data-page="PRIVACY-POLICY.md">Privacy</a>
+<nav class="mainnav" aria-label="Sections">
+    <ul>
+        <li><a href="#" data-page="README.md" aria-current="page">About</a></li>
+        <li><a href="#" data-page="INSTALLATION.md">Installation</a></li>
+        <li><a href="help.html">Help</a></li>
+        <li><a href="#" data-page="PRIVACY-POLICY.md">Privacy</a></li>
+    </ul>
 </nav>
 
-<main id="content">
-    <p>Loading…</p>
+<main class="layout">
+    <aside id="toc" class="toc" hidden></aside>
+    <article id="content">
+        <p>Loading…</p>
+    </article>
 </main>
 
-<footer>
-    <small>
+<footer class="site">
+    <div>
+        <a href="help.html">Help</a>
         <a href="privacy-policy">Privacy Policy</a>
-        &middot;
         <a href="https://github.com/georgernstgraf/polished-recognition">GitHub</a>
-        &middot;
+        <a href="https://f-droid.org/packages/com.georgernstgraf.polishedrecognition">F-Droid</a>
         <a href="https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition">Play Store</a>
-        &middot;
         <a rel="me" href="https://mastodon.social/@schurlix">Mastodon</a>
-    </small>
+    </div>
 </footer>
 
 <script>
+const RAW_BASE = 'https://raw.githubusercontent.com/georgernstgraf/polished-recognition/main/';
+const BLOB_BASE = 'https://github.com/georgernstgraf/polished-recognition/blob/main/';
+const TAB_PAGES = ['README.md', 'INSTALLATION.md', 'PRIVACY-POLICY.md'];
+
+function slug(text) {
+    return text.trim().toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-');
+}
+
+// The markdown is fetched from the repo root, but the site is served from
+// docs/ — so fix relative paths: docs/img/x -> img/x, and turn relative
+// document links into something that actually resolves.
+function fixUrls(root) {
+    root.querySelectorAll('img[src]').forEach(function (img) {
+        let src = img.getAttribute('src');
+        if (src.indexOf('docs/') === 0) img.setAttribute('src', src.slice(5));
+    });
+    root.querySelectorAll('a[href]').forEach(function (a) {
+        let href = a.getAttribute('href');
+        if (/^(https?:|mailto:|#)/.test(href)) return;
+        if (TAB_PAGES.indexOf(href) !== -1) {
+            a.addEventListener('click', function (e) { e.preventDefault(); openTab(href); });
+            a.setAttribute('href', BLOB_BASE + href);
+            return;
+        }
+        a.setAttribute('href', BLOB_BASE + href);
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener');
+    });
+}
+
+function buildToc(root) {
+    const toc = document.getElementById('toc');
+    const heads = root.querySelectorAll('h2, h3');
+    if (heads.length < 3) { toc.hidden = true; toc.innerHTML = ''; return; }
+    let html = '<strong>On this page</strong><ul>';
+    heads.forEach(function (h) {
+        const id = slug(h.textContent);
+        if (!id) return;
+        if (!h.id) h.id = id;
+        const sub = h.tagName === 'H3' ? ' class="sub"' : '';
+        html += '<li' + sub + '><a href="#' + id + '">' + h.textContent + '</a></li>';
+    });
+    html += '</ul>';
+    toc.innerHTML = html;
+    toc.hidden = false;
+}
+
 function loadPage(file, el) {
-    document.querySelectorAll('nav a').forEach(function(a) { a.removeAttribute('aria-current'); });
+    document.querySelectorAll('nav.mainnav a').forEach(function (a) { a.removeAttribute('aria-current'); });
     if (el) el.setAttribute('aria-current', 'page');
-    fetch('https://raw.githubusercontent.com/georgernstgraf/polished-recognition/main/' + file)
-        .then(function(r) { return r.text(); })
-        .then(function(md) { document.getElementById('content').innerHTML = marked.parse(md); })
-        .catch(function() {
+    fetch(RAW_BASE + file)
+        .then(function (r) { return r.text(); })
+        .then(function (md) {
+            const content = document.getElementById('content');
+            content.innerHTML = marked.parse(md);
+            fixUrls(content);
+            buildToc(content);
+            window.scrollTo(0, 0);
+        })
+        .catch(function () {
             document.getElementById('content').innerHTML =
-                '<p>Could not load. View it on <a href="https://github.com/georgernstgraf/polished-recognition/blob/main/' + file + '">GitHub</a>.</p>';
+                '<p>Could not load. View it on <a href="' + BLOB_BASE + file + '">GitHub</a>.</p>';
         });
 }
 
-document.querySelectorAll('nav a').forEach(function(a) {
-    a.addEventListener('click', function(e) { e.preventDefault(); loadPage(a.dataset.page, a); });
+function openTab(file) {
+    const el = document.querySelector('nav.mainnav a[data-page="' + file + '"]');
+    loadPage(file, el);
+}
+
+document.querySelectorAll('nav.mainnav a[data-page]').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); loadPage(a.dataset.page, a); });
 });
 
-loadPage('README.md', document.querySelector('nav a[data-page="README.md"]'));
+loadPage('README.md', document.querySelector('nav.mainnav a[data-page="README.md"]'));
 </script>
 </body>
 </html>
