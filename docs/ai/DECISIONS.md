@@ -3,6 +3,22 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-05: In-app help is one self-contained HTML page, bundled offline (#107)
+- **Choice**: The help lives in a single, self-contained `docs/help.html` (inline CSS + JS + inline-SVG icons, no external/CDN deps except the shared `marketing/mastodon-demo.gif`). The **project site** serves it as the "Help" tab, and the **app** bundles the same file and shows it in a new `HelpActivity` (`WebView`, `javaScriptEnabled = true`, only local assets). The Gradle task `stageHelpAssets` copies `docs/help.html` + its images into the APK assets (Variant API `addGeneratedSourceDirectory`), so the text is authored once. Entry points: a "Help" chip left of the About heading, and a **long-press on the IME gear**.
+- **Reason**: The help is interactive (a tap-vs-press-and-hold keyboard demo), which Markdown expresses only awkwardly — and the site injects rendered Markdown via `innerHTML`, where `<script>` tags never execute. A real HTML page is the natural medium, removes the `marked` dependency on the app side, and works fully offline in the WebView.
+- **Trade-offs**: The help is a standalone page (not a Markdown-rendered tab); authoring prose in HTML is more verbose than Markdown. The gear's long-press no longer shows the #88 press-hold hint — it opens Help instead (`ImeHintPolicy` + test updated, `ime_settings_hint` removed); the other five buttons keep their hints. The delete-word button remains the only other gesture-taken button (hold = clear field).
+- **Also**: `INSTALLATION.md` gained a dedicated **ADB Commands** section (settings launch, voice-input set/verify, mic grant, log pull); the scattered ADB blocks in §3/§5 were reduced to references. README's stale "English & German" claim corrected.
+
+## 2026-10-05: The build pins a Java 21 toolchain; the pre-push hook is required (#107)
+- **Choice**: `app/build.gradle.kts` declares `java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }`, so compile and test tasks run on a JDK 21 regardless of the host's default `java`. `AGENTS.md` marks the `pre-push` hook (`scripts/pre-push`) as **required** and documents activating it; `PITFALLS.md` records both gotchas.
+- **Reason**: The host's default JDK had moved to 25; Gradle uses the JDK it runs on, and MockK 1.14.4's bundled ASM cannot read Java 25 bytecode, so 143/292 tests failed with `Unsupported class file major version 69` while the suite is green on JDK 21. The fix belongs in the build config (persisted), not in a per-agent workaround.
+- **Trade-off**: A JDK 21 must be **installed** and is auto-detected (Gradle does not download one; no toolchain resolver was added to keep F-Droid's build offline). CI already provides Temurin 21 in every workflow.
+
+## 2026-10-05: GitHub Pages renders repo Markdown with URL rewriting; landing page overhaul (#106)
+- **Choice**: `docs/index.html` keeps fetching README/INSTALLATION/PRIVACY from `raw.githubusercontent.com` and rendering with `marked`, but (a) rewrites image `src="docs/..."` → `src="..."` and (b) turns relative document links into SPA tab switches (for the three known docs) or GitHub-blob links (otherwise). The page gets a hero (screenshot + CTA), a sticky responsive nav with a real **Help** link, an auto-generated table of contents (GitHub-style heading slugs), and typography/dark-mode polish. The unused Cayman theme was removed from `docs/_config.yml`.
+- **Reason**: The site is served from `docs/`, so the README's repo-root-relative paths (`docs/img/...`, `INSTALLATION.md`) 404'd on the page — every screenshot showed as a broken-image icon, which is what made the page look broken.
+- **Trade-off**: The URL rewriting is a client-side string/attribute fix tied to the current README conventions; a future move of the docs root would require revisiting it.
+
 ## 2026-10-03: RecognitionService scoped to Android 12+; hidden on Android 11 (#82)
 
 - **Decision (owner)**: the bound `RecognitionService` entry point is supported on **Android 12 (API 31)+ only**. `minSdk` stays 30: on Android 11 the **IME** (`PolishedVoiceInputIME`) is the dictation path and works there.
