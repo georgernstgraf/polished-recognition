@@ -71,6 +71,7 @@
     <string name="voice_input_info_message" translatable="false">Polished Recognition works with English prompts, so enter your target language in English (e.g. "German" not "Deutsch").\n\nFull setup guide:\n<a href="https://github.com/georgernstgraf/polished-recognition#readme">github.com/georgernstgraf/polished-recognition#readme</a>\n\nMade with love by Georg Graf 💙</string>
 
     <string name="about_title">About</string>
+    <string name="about_help">Help</string>
     <string name="about_version">Version: %s</string>
     <string name="about_commit">Commit: %s</string>
     <string name="quick_raw">Raw</string>
@@ -89,7 +90,6 @@
     <string name="ime_send_desc">Send</string>
     <string name="ime_send_hint">Send — transcribe, polish and insert the text</string>
     <string name="ime_switch_hint">Keyboard — back to your text keyboard</string>
-    <string name="ime_settings_hint">Settings — providers, language and prompts</string>
     <string name="ime_pause_resume_hint">Pause / resume — recorded audio is kept</string>
     <string name="ime_cancel_hint">Cancel — discard the recording and close</string>
     <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>

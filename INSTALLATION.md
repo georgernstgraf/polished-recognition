@@ -25,11 +25,8 @@ The app is in closed testing on Google Play — everyone is welcome!
 
 ## 3. Configure Providers
 
-Open the app (via the launcher, or if hidden on your device, launch settings via ADB):
-
-```bash
-adb shell am start -n "com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.ui.SettingsActivity"
-```
+Open the app via the launcher. If its icon is hidden on your device, you can
+launch Settings through ADB — see [ADB Commands](#adb-commands).
 
 Then:
 - **STT Provider** (e.g. Groq) → enter API token → Validate & Fetch Models → pick a Whisper model
@@ -89,17 +86,9 @@ voice-input service. Point that service at Polished Recognition once:
    (called "Languages & input → Voice input" on some ROMs)
 2. Select **Polished Recognition**
 
-If the "Voice input" menu is hidden on your ROM, set it via ADB:
-
-```bash
-adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
-```
-
-Verify:
-
-```bash
-adb shell settings get secure voice_recognition_service
-```
+If the "Voice input" menu is hidden on your ROM, set the service via ADB — see
+[ADB Commands](#adb-commands) for the `voice_recognition_service` set and
+verify commands.
 
 > On Oplus ROMs (OnePlus/OPPO/Realme) adb secure-settings writes are blocked
 > (`SecurityException: uid 2000 does not have WRITE_SECURE_SETTINGS`) — use the
@@ -120,12 +109,39 @@ adb shell settings get secure voice_recognition_service
    text is typed directly into the field
 5. If no provider is configured yet, open the app from the launcher first
 
+## ADB Commands
+
+Most users never need ADB. These commands help when the launcher icon is hidden,
+the system voice-input menu is missing, or you need to report a bug.
+
+> **Setup (once):** enable *Developer options → USB debugging*, connect the
+> device, and confirm it is visible with `adb devices`.
+>
+> On Oplus ROMs (OnePlus/OPPO/Realme) writes to secure settings are blocked
+> (`SecurityException: uid 2000 does not have WRITE_SECURE_SETTINGS`) — use the
+> on-device Settings screens there.
+
+| Purpose | Command |
+|---|---|
+| Open the app's Settings screen | `adb shell am start -n "com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.ui.SettingsActivity"` |
+| Set Polished as the system voice input (SpeechRecognizer, Android 12+ — see §5) | `adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService` |
+| Verify the system voice input | `adb shell settings get secure voice_recognition_service` |
+| Grant the microphone permission directly | `adb shell pm grant com.georgernstgraf.polishedrecognition android.permission.RECORD_AUDIO` |
+| Pull the on-device logs (bug reports) | `adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/ .` |
+
+The component in the `voice_recognition_service` command is fixed — it points at
+`PolishedRecognitionService`. Setting it via ADB is equivalent to picking
+**Polished Recognition** under *Settings → System → Language & region → Speech →
+Voice input* (§5); on some ROMs that menu is hidden, so the ADB route is the only
+way in.
+
 ## Troubleshooting
 
 **Polished Recognition not listed under Voice input?**
 If **Settings → System → Language & region → Speech → Voice input** does not
-offer Polished Recognition, set it via ADB (see §5). On Oplus ROMs the adb
-write is blocked — use the Settings screen and reboot if the entry is missing.
+offer Polished Recognition, set it via ADB (see [ADB Commands](#adb-commands)).
+On Oplus ROMs the adb write is blocked — use the Settings screen and reboot if
+the entry is missing.
 
 **Polished Recognition not listed under on-screen keyboards?**
 Make sure it is enabled in **Settings → On-screen keyboard**. The app's Settings

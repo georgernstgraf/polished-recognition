@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Polished Recognition — Help</title>
+<style>
+    :root {
+        --bg: #ffffff;
+        --fg: #1b1f24;
+        --muted: #5b6470;
+        --card: #f5f6f8;
+        --border: #e2e5e9;
+        --accent: #2f6df6;
+        --accent-soft: #e8efff;
+        --ime-bg: #14181d;
+        --ime-fg: #e8eaee;
+        --ime-dim: #98a0ad;
+        --ime-accent: #6ea8fe;
+        --ok: #1a9d63;
+        --long: #e08600;
+        --radius: 14px;
+        --max: 900px;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #0e1116;
+            --fg: #e6e8ec;
+            --muted: #9aa3af;
+            --card: #171c23;
+            --border: #262c35;
+            --accent: #7aa7ff;
+            --accent-soft: #1a2436;
+            --ime-bg: #05070a;
+            --ime-fg: #eef1f5;
+            --ime-dim: #8b94a3;
+            --ime-accent: #8fb8ff;
+        }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.6;
+        font-size: 17px;
+    }
+    a { color: var(--accent); }
+    header.hero {
+        padding: 2.4rem 1.2rem 1.2rem;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+    }
+    header.hero h1 { margin: 0 0 .3rem; font-size: 1.9rem; letter-spacing: -0.02em; }
+    header.hero p { margin: .2rem auto; max-width: 40rem; color: var(--muted); }
+    header.hero .back { font-size: .9rem; }
+    main { max-width: var(--max); margin: 0 auto; padding: 1.2rem 1.2rem 3rem; }
+    section { margin: 2.4rem 0; }
+    h2 {
+        font-size: 1.35rem;
+        margin: 0 0 .6rem;
+        padding-bottom: .3rem;
+        border-bottom: 1px solid var(--border);
+    }
+    h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+    code {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: .08em .35em;
+        font-size: .9em;
+    }
+    pre {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: .8rem 1rem;
+        overflow-x: auto;
+    }
+    pre code { background: none; border: none; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: .6rem 0; }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .toc {
+        display: flex; flex-wrap: wrap; gap: .4rem .9rem;
+        justify-content: center; padding: .8rem 1.2rem;
+        background: var(--card); border-bottom: 1px solid var(--border);
+        font-size: .92rem;
+    }
+    .toc a { text-decoration: none; }
+    .note {
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        border-radius: 8px;
+        padding: .7rem .9rem;
+        margin: .8rem 0;
+        font-size: .95rem;
+    }
+    .gif-wrap { text-align: center; margin: 1rem 0; }
+    .gif-wrap img { max-width: 320px; width: 100%; border-radius: 12px; border: 1px solid var(--border); }
+
+    /* ---- interactive keyboard demo ---- */
+    .demo {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem;
+        margin-top: .8rem;
+    }
+    .ime {
+        background: var(--ime-bg);
+        border-radius: 12px;
+        padding: 10px 12px 8px;
+        color: var(--ime-fg);
+        user-select: none;
+        box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+    .ime-row { display: flex; align-items: center; }
+    .ime-row.top { gap: 8px; margin-bottom: 6px; }
+    .ime-row.top .spacer { flex: 1; }
+    .chip {
+        font-size: 12px; color: var(--ime-fg);
+        border: 1px solid var(--ime-dim); border-radius: 999px;
+        padding: 2px 10px; opacity: .85;
+    }
+    .divider { width: 1px; height: 20px; background: var(--ime-dim); opacity: .5; margin: 0 4px; }
+    .timer { font-family: ui-monospace, monospace; font-size: 13px; color: var(--ime-fg); }
+    .ime-row.bottom { justify-content: space-between; gap: 6px; }
+    .key {
+        flex: 1;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 3px;
+        padding: 10px 4px;
+        border-radius: 10px;
+        cursor: pointer;
+        color: var(--ime-fg);
+        background: transparent;
+        border: 1px solid transparent;
+        transition: background .15s, border-color .15s, transform .08s;
+        position: relative;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .key:hover { background: rgba(255,255,255,.06); }
+    .key:focus-visible { outline: 2px solid var(--ime-accent); outline-offset: 2px; }
+    .key.active { border-color: var(--ime-accent); background: rgba(110,168,254,.14); }
+    .key.held { border-color: var(--long); background: rgba(224,134,0,.16); }
+    .key svg { width: 26px; height: 26px; fill: currentColor; }
+    .key .lab { font-size: 10.5px; color: var(--ime-dim); letter-spacing: .02em; }
+    .key.top { flex: 0 0 auto; width: 40px; }
+    .key .ring {
+        position: absolute; inset: 2px; border-radius: 10px;
+        border: 2px solid transparent; pointer-events: none;
+    }
+
+    .explain { margin-top: 1rem; }
+    .explain .title { font-weight: 600; margin-bottom: .5rem; }
+    .gesture {
+        display: grid; grid-template-columns: 7.5rem 1fr; gap: .3rem .8rem;
+        align-items: center;
+        padding: .45rem .6rem; border-radius: 8px;
+        border: 1px solid transparent;
+    }
+    .gesture + .gesture { margin-top: .3rem; }
+    .gesture.active { border-color: var(--accent); background: var(--accent-soft); }
+    .gesture .glabel { font-weight: 600; font-size: .92rem; }
+    .gesture .track { display: flex; align-items: center; gap: .5rem; }
+    .gesture .bar { height: 8px; border-radius: 999px; background: var(--accent); }
+    .gesture.tap .bar { width: 26px; }
+    .gesture.long .bar { width: 96px; background: var(--long); }
+    .gesture .action { color: var(--muted); font-size: .93rem; }
+    .gesture.active .action { color: var(--fg); }
+    .controls { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+    button.play {
+        font: inherit; font-size: .9rem; cursor: pointer;
+        background: var(--accent); color: #fff; border: none;
+        border-radius: 999px; padding: .5rem 1.1rem;
+    }
+    button.play.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+    .hint { color: var(--muted); font-size: .88rem; margin-top: .6rem; }
+    @media (max-width: 560px) {
+        .gesture { grid-template-columns: 5.5rem 1fr; }
+        .gesture .bar, .gesture.long .bar { max-width: 60px; }
+    }
+</style>
+</head>
+<body>
+
+<header class="hero">
+    <h1>Polished Recognition — Help</h1>
+    <p>Voice input for any Android keyboard. Tap the mic, speak, and polished text appears — using the speech and language providers <em>you</em> choose.</p>
+    <p class="back"><a href="./">← Back to the project page</a></p>
+</header>
+
+<nav class="toc">
+    <a href="#what">What it is</a>
+    <a href="#quickstart">Quick start</a>
+    <a href="#keyboard">The keyboard</a>
+    <a href="#dictating">Dictating</a>
+    <a href="#language">Language &amp; prompts</a>
+    <a href="#troubleshooting">Troubleshooting</a>
+    <a href="#adb">ADB</a>
+    <a href="#links">Links</a>
+</nav>
+
+<main>
+
+<section id="what">
+    <h2>What it is</h2>
+    <p>Polished Recognition is a <strong>voice keyboard</strong>. Switch to it, speak, and it transcribes your audio with a speech-to-text (STT) provider — then optionally cleans up, reformats, or translates the text with a language model (LLM) before inserting it into whatever app you were typing in.</p>
+    <p>You bring your own API key (or run a local model). There is no account and no central server: your audio goes only to the provider you configured — or nowhere at all if you run a local model.</p>
+    <p>It works as a normal on-screen keyboard, and it also answers the system voice input that keyboards like HeliBoard, Fossify, OpenBoard and the AOSP keyboard delegate to.</p>
+</section>
+
+<section id="quickstart">
+    <h2>Quick start</h2>
+    <ol>
+        <li><strong>Install</strong> from <a href="https://f-droid.org/packages/com.georgernstgraf.polishedrecognition">F-Droid</a> (recommended) or the <a href="https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition">Play Store</a> (closed testing).</li>
+        <li><strong>Configure a provider</strong> in the app's Settings: pick an STT provider (e.g. Groq), paste your API token, tap <em>Validate &amp; Fetch Models</em>, and choose a Whisper model. An LLM provider is optional.</li>
+        <li><strong>Enable the keyboard</strong>: <em>Settings → System → Languages &amp; input → On-screen keyboard</em> → turn on <em>Polished Recognition</em>.</li>
+        <li><strong>Use it</strong>: in any text field, switch to the Polished keyboard — recording starts instantly. Speak, then tap <strong>Send</strong>.</li>
+    </ol>
+    <p class="hint">Full step-by-step setup, including the device-specific paths and the system voice-input option, is in the <a href="https://github.com/georgernstgraf/polished-recognition/blob/main/INSTALLATION.md">Installation Guide</a>.</p>
+</section>
+
+<section id="keyboard">
+    <h2>Understanding the keyboard</h2>
+    <p>The recorder is a compact two-row bar. The key to it is that every button does one thing when you <strong>tap</strong> it and, for some buttons, something else when you <strong>press and hold</strong> it. Try it below — tap a button, or press and hold it.</p>
+
+    <div class="demo">
+        <div class="ime" id="ime">
+            <div class="ime-row top">
+                <button class="key top" data-btn="switch" aria-label="Switch keyboard">
+                    <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zM11 8h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
+                    <span class="lab">Keyboard</span>
+                </button>
+                <button class="key top" data-btn="settings" aria-label="Settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.87a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.61.22l2.39-.96c.5.39 1.04.7 1.62.94l.36 2.54c.05.24.25.42.5.42h3.84c.25 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.62-.94l2.39.96c.22.08.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+                    <span class="lab">Settings</span>
+                </button>
+                <span class="divider"></span>
+                <span class="timer">0:04</span>
+                <span class="divider"></span>
+                <span class="spacer"></span>
+                <span class="chip">Language</span>
+                <span class="chip">Raw</span>
+            </div>
+            <div class="ime-row bottom">
+                <button class="key" data-btn="cancel" aria-label="Cancel">
+                    <svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+                    <span class="lab">Cancel</span>
+                </button>
+                <button class="key" data-btn="delete" aria-label="Delete word">
+                    <svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>
+                    <span class="lab">Delete</span>
+                </button>
+                <button class="key" data-btn="flush" aria-label="Discard recording">
+                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    <span class="lab">Discard</span>
+                </button>
+                <button class="key" data-btn="pause" aria-label="Pause or resume">
+                    <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    <span class="lab">Pause</span>
+                </button>
+                <button class="key" data-btn="send" aria-label="Send">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    <span class="lab">Send</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="explain">
+            <div class="title" id="explain-title">Tap or press-and-hold a button above.</div>
+            <div class="gesture tap" id="g-tap">
+                <span class="glabel">Tap</span>
+                <span class="track"><span class="bar"></span><span class="action" id="tap-action">—</span></span>
+            </div>
+            <div class="gesture long" id="g-long">
+                <span class="glabel">Press &amp; hold</span>
+                <span class="track"><span class="bar"></span><span class="action" id="long-action">—</span></span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="play" id="play">▶ Play the difference</button>
+            <button class="play ghost" id="reset">Reset</button>
+        </div>
+        <div class="hint">On the real keyboard, pressing and holding a button (or the language field) shows a short hint at the top of the screen. The <strong>Delete</strong> button is the exception: its hold gesture clears the whole field.</div>
+    </div>
+
+    <div class="gif-wrap">
+        <img src="marketing/mastodon-demo.gif" alt="Screen recording: dictating with filler words into the Polished keyboard, tapping Send, and polished text appearing in the note">
+        <p class="hint">Dictating with filler words → tap <strong>Send</strong> → polished text appears.</p>
+    </div>
+</section>
+
+<section id="dictating">
+    <h2>Dictating</h2>
+    <h3>Pause &amp; resume</h3>
+    <p>Need a moment to think, or an interruption? Tap <strong>Pause</strong>. Everything you have recorded so far is kept; tap again to resume and keep going. You can even switch to your normal typing keyboard and back — the dictation stays paused and continues when you return.</p>
+
+    <h3>Raw mode</h3>
+    <p>With no target language set, the LLM still polishes your dictation (punctuation, structure, filler words). Flip <strong>Raw</strong> to skip the LLM entirely and insert the plain transcription — zero extra latency.</p>
+
+    <h3>Choosing your words</h3>
+    <p>Everything lands in the app you were typing in. There is no third app to copy from — the text is inserted at your cursor, spaced correctly so words never glue onto the surrounding text.</p>
+</section>
+
+<section id="language">
+    <h2>Language &amp; prompts</h2>
+    <ul>
+        <li><strong>Target language</strong> — pick one and your dictation is translated on the way in. The list accepts any language name; long-press the language field to add or edit your own.</li>
+        <li><strong>Prompts</strong> — the system prompt is fully editable, with variables for the source and target language. Make the LLM format markdown, translate, or just fix punctuation. Reset individually or all at once.</li>
+        <li><strong>Per-app line wrapping</strong> — the finished text is wrapped to a width you choose (default 80). You can override it per app you have dictated into.</li>
+    </ul>
+</section>
+
+<section id="troubleshooting">
+    <h2>Troubleshooting</h2>
+    <table>
+        <tr><th>Problem</th><th>Fix</th></tr>
+        <tr><td>Nothing is recorded / no audio</td><td>Check that the microphone permission is granted — the app asks on first use. See <em>Settings → Apps → Polished Recognition → Permissions</em>.</td></tr>
+        <tr><td>Model list is empty</td><td>Enter a valid API token and tap <em>Validate &amp; Fetch Models</em>. Some providers only allow free-text model entry.</td></tr>
+        <tr><td>Gboard's mic doesn't start it</td><td>By design — Gboard hardcodes Google's own voice typing. Switch to the AOSP keyboard (LineageOS), HeliBoard, Fossify, or OpenBoard.</td></tr>
+        <tr><td>Polished isn't listed under Voice input</td><td>Available on Android 12+. If the menu is hidden, set it via ADB — see below.</td></tr>
+    </table>
+</section>
+
+<section id="adb">
+    <h2>ADB commands</h2>
+    <p>Most users never need ADB. These help when an icon is hidden, the system voice-input menu is missing, or you want to report a bug.</p>
+    <pre><code># Open the app's Settings screen
+adb shell am start -n "com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.ui.SettingsActivity"
+
+# Set Polished as the system voice input (Android 12+)
+adb shell settings put secure voice_recognition_service com.georgernstgraf.polishedrecognition/com.georgernstgraf.polishedrecognition.service.PolishedRecognitionService
+
+# Verify it
+adb shell settings get secure voice_recognition_service
+
+# Pull the on-device logs for a bug report
+adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/ .</code></pre>
+    <p class="hint">On Oplus ROMs (OnePlus/OPPO/Realme) writes to secure settings are blocked — use the on-device Settings screens there. See the <a href="https://github.com/georgernstgraf/polished-recognition/blob/main/INSTALLATION.md#adb-commands">Installation Guide</a> for the full reference.</p>
+</section>
+
+<section id="links">
+    <h2>Links</h2>
+    <ul>
+        <li><a href="https://f-droid.org/packages/com.georgernstgraf.polishedrecognition">F-Droid</a></li>
+        <li><a href="https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition">Play Store</a> (closed testing)</li>
+        <li><a href="https://github.com/georgernstgraf/polished-recognition">GitHub</a> — report bugs and ideas as issues</li>
+        <li><a href="https://github.com/georgernstgraf/polished-recognition/blob/main/INSTALLATION.md">Installation Guide</a></li>
+    </ul>
+</section>
+
+</main>
+
+<script>
+(function () {
+    var ACTIONS = {
+        switch:   { tap: "Go back to your text keyboard (if none is available, the keyboard settings open).", long: "Show the on-screen hint." },
+        settings: { tap: "Open Settings — providers, language and prompts.", long: "Open this Help." },
+        cancel:   { tap: "Discard the recording and close the keyboard.", long: "Show the on-screen hint." },
+        delete:   { tap: "Delete the last word from the field.", long: "Clear the whole field." },
+        flush:    { tap: "Discard the audio and reset the timer, but stay recording.", long: "Show the on-screen hint." },
+        pause:    { tap: "Pause or resume — the recorded audio is kept.", long: "Show the on-screen hint." },
+        send:     { tap: "Transcribe, polish and insert the text.", long: "Show the on-screen hint." }
+    };
+    var LABELS = { switch:"Keyboard", settings:"Settings", cancel:"Cancel", delete:"Delete", flush:"Discard", pause:"Pause", send:"Send" };
+
+    var keys = Array.prototype.slice.call(document.querySelectorAll('.key'));
+    var title = document.getElementById('explain-title');
+    var tapAction = document.getElementById('tap-action');
+    var longAction = document.getElementById('long-action');
+    var gTap = document.getElementById('g-tap');
+    var gLong = document.getElementById('g-long');
+
+    var playTimers = [];
+    var holdTimer = null;
+    var longFired = false;
+
+    function clearActive() {
+        keys.forEach(function (k) { k.classList.remove('active', 'held'); });
+        gTap.classList.remove('active');
+        gLong.classList.remove('active');
+    }
+
+    function show(name, mode) {
+        var a = ACTIONS[name];
+        if (!a) return;
+        clearActive();
+        var key = keys.filter(function (k) { return k.dataset.btn === name; })[0];
+        if (key) key.classList.add(mode === 'long' ? 'held' : 'active');
+        title.textContent = LABELS[name] + ':';
+        tapAction.textContent = a.tap;
+        longAction.textContent = a.long;
+        (mode === 'long' ? gLong : gTap).classList.add('active');
+    }
+
+    keys.forEach(function (key) {
+        var name = key.dataset.btn;
+        key.addEventListener('click', function () {
+            if (longFired) { longFired = false; return; }
+            show(name, 'tap');
+        });
+        key.addEventListener('pointerdown', function () {
+            longFired = false;
+            clearTimeout(holdTimer);
+            holdTimer = setTimeout(function () { longFired = true; show(name, 'long'); }, 450);
+        });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+            key.addEventListener(ev, function () { clearTimeout(holdTimer); });
+        });
+    });
+
+    function stopPlay() {
+        playTimers.forEach(clearTimeout);
+        playTimers = [];
+    }
+
+    document.getElementById('reset').addEventListener('click', function () {
+        stopPlay(); clearTimeout(holdTimer);
+        clearActive();
+        title.textContent = 'Tap or press-and-hold a button above.';
+        tapAction.textContent = '—';
+        longAction.textContent = '—';
+    });
+
+    document.getElementById('play').addEventListener('click', function () {
+        stopPlay(); clearTimeout(holdTimer);
+        clearActive();
+        // Demonstrate the tap-vs-hold distinction on the Delete button.
+        title.textContent = 'Watching: Delete';
+        tapAction.textContent = '—';
+        longAction.textContent = '—';
+        var steps = [
+            [0,    function () { show('delete', 'tap'); }],
+            [1400, function () { show('delete', 'tap'); }],
+            [2600, function () { clearActive(); title.textContent = 'Now press and hold…'; }],
+            [3200, function () { show('delete', 'long'); }],
+            [5200, function () { clearActive(); title.textContent = 'Watching: Settings'; }],
+            [5600, function () { show('settings', 'tap'); }],
+            [7000, function () { clearActive(); title.textContent = '…hold it to open Help:'; }],
+            [7600, function () { show('settings', 'long'); }],
+            [9600, function () { clearActive(); title.textContent = 'Tap or press-and-hold a button above.'; tapAction.textContent = '—'; longAction.textContent = '—'; }]
+        ];
+        steps.forEach(function (s) { playTimers.push(setTimeout(s[1], s[0])); });
+    });
+})();
+</script>
+
+</body>
+</html>

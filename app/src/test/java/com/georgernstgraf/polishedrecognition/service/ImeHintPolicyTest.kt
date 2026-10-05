@@ -39,13 +39,12 @@ class ImeHintPolicyTest {
     fun `top-row buttons map to their hints`() {
         assertThat(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button))
             .isEqualTo(R.string.ime_switch_hint)
-        assertThat(ImeHintPolicy.hintFor(R.id.ime_settings_button))
-            .isEqualTo(R.string.ime_settings_hint)
+        // The settings gear has no press-hold hint: its long-press opens the
+        // Help screen instead (#107).
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_settings_button)).isNull()
         val ctx = RuntimeEnvironment.getApplication()
         assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button)!!))
             .isEqualTo("Keyboard — back to your text keyboard")
-        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_settings_button)!!))
-            .isEqualTo("Settings — providers, language and prompts")
     }
 
     @Test

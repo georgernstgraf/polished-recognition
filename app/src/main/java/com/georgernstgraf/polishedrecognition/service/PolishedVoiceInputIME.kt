@@ -35,6 +35,7 @@ import com.georgernstgraf.polishedrecognition.config.LanguageOptions
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.ui.HelpActivity
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
@@ -180,10 +181,22 @@ class PolishedVoiceInputIME : InputMethodService() {
             flushButton to R.id.ime_flush_button,
             pauseResumeButton to R.id.ime_pause_resume_button,
             sendButton to R.id.ime_send_button,
-            switchKeyboardButton to R.id.ime_switch_keyboard_button,
-            settingsGear to R.id.ime_settings_button
+            switchKeyboardButton to R.id.ime_switch_keyboard_button
         ).forEach { (button, id) ->
             ImeHintPolicy.hintFor(id)?.let { hint -> attachPressHint(button, hint) }
+        }
+        // Long-press the settings gear opens the Help screen (#107); it
+        // replaces the old press-hold hint, so the gear is not in the list
+        // above. A tap still opens Settings (#72/#51).
+        settingsGear?.setOnLongClickListener {
+            if (controller.state == VoiceSessionController.State.RECORDING) {
+                controller.pause()
+            }
+            startActivity(
+                Intent(this, HelpActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
         }
         settingsGear?.setOnClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {

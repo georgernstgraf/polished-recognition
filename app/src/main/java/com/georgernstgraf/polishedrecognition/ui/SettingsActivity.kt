@@ -83,6 +83,7 @@ class SettingsActivity : Activity() {
     private val aboutVersionText: TextView by lazy { findViewById(R.id.about_version) }
     private val aboutCommitText: TextView by lazy { findViewById(R.id.about_commit) }
     private val aboutInfoText: TextView by lazy { findViewById(R.id.about_info) }
+    private val aboutHelpText: TextView by lazy { findViewById(R.id.about_help) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -949,6 +950,10 @@ class SettingsActivity : Activity() {
         aboutCommitText.text = getString(R.string.about_commit, BuildConfig.GIT_HASH)
         aboutInfoText.text = Html.fromHtml(getString(R.string.voice_input_info_message), Html.FROM_HTML_MODE_LEGACY)
         aboutInfoText.movementMethod = LinkMovementMethod.getInstance()
+        // Help chip, left of the About heading (#107).
+        aboutHelpText.setOnClickListener {
+            startActivity(Intent(this, HelpActivity::class.java))
+        }
     }
 
     /**

@@ -494,14 +494,39 @@
             android:layout_marginBottom="24dp" />
 
         <!-- About Section -->
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/about_title"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="?android:attr/textColorPrimary"
-            android:layout_marginBottom="4dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/about_help"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/about_help"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/colorAccent"
+                android:background="@drawable/help_chip"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:layout_marginEnd="14dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/about_help" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/about_title"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/about_version"

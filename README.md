@@ -47,8 +47,8 @@ plain transcription — zero extra latency.
 
 ## Installation
 
-See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup
-(English & German): Play Store installation, configuring providers, enabling
+See the **[Installation Guide](INSTALLATION.md)** for step-by-step setup:
+Play Store installation, configuring providers, enabling
 the voice keyboard, and device-specific notes.
 
 ## Become an Alpha Tester
