@@ -21,7 +21,7 @@ An Android `RecognitionService` that captures voice input from any keyboard micr
 - **Audio:** AudioRecord (PCM 16kHz mono → WAV in-memory)
 - **Storage:** SharedPreferences (provider config, prompts)
 - **UI:** AppCompat + Material (XML-based SettingsActivity)
-- **Build:** Gradle (Kotlin DSL), Java 17 target
+- **Build:** Gradle (Kotlin DSL), Java 21 target (build with JDK 21)
 - **Min SDK:** 30 (Android 11), Target SDK: 36
 - **No Hilt, no Room, no WorkManager, no Compose** (deliberate — small, fast, no DI framework conflicts with RecognitionService)
 
@@ -93,6 +93,11 @@ the issue workflow.
 
 ## Build
 
+The build pins **Java 21** via the Gradle Java toolchain (`app/build.gradle.kts`);
+a JDK 21 must be installed and is auto-detected. This keeps MockK/ASM working
+even when the host's default `java` is newer (e.g. JDK 25). CI uses Temurin 21.
+The Android SDK is read from `ANDROID_HOME` or `local.properties`.
+
 ```bash
 ./gradlew assembleRelease   # Release APK (minified, signed with debug key)
 ./gradlew installRelease    # Install on connected device (always use release)
@@ -100,8 +105,18 @@ the issue workflow.
 ./gradlew clean             # Clean
 ```
 
-### Git Hooks
+### Git Hooks — REQUIRED
+
+This repository **requires** the `pre-push` hook: it runs the unit tests and
+blocks the push when they are red. A fresh clone has it **disabled** (only
+`pre-push.sample` is present), so activate it once per clone:
 
 ```bash
-ln -sf ../../scripts/pre-push .git/hooks/pre-push   # run tests before push
+ln -sf ../../scripts/pre-push .git/hooks/pre-push
+```
+
+Verify it is active:
+
+```bash
+test -x .git/hooks/pre-push && echo "pre-push hook active" || echo "MISSING — activate it!"
 ```
