@@ -64,8 +64,10 @@ Then point your keyboard's voice input at it:
 - Press the **voice / microphone key** on the keyboard while typing in any text
   field to start recording
 
-> The app also answers the standard **`RECOGNIZE_SPEECH`** intent that some
-> keyboards' mic buttons fire — no extra setup needed.
+> The keyboard picker above (the app's **voice keyboard subtype**) needs no
+> further setup. The app does **not** register the standalone
+> `ACTION_RECOGNIZE_SPEECH` activity intent — keyboard-less apps that call
+> Android's `SpeechRecognizer` API are covered in §5.
 
 > **Gboard will never use this.** Gboard's microphone is hardcoded to Google's
 > voice typing and cannot be redirected to a third-party voice input.

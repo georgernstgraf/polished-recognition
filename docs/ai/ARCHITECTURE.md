@@ -1,6 +1,6 @@
 # Architecture
 
-Living structural map of the system as of 2026-09-07.
+Living structural map of the system as of 2026-10-05.
 Overwritten when structural changes occur during a session.
 
 ## Overview
@@ -39,6 +39,8 @@ Polished Recognition is an Android **voice IME** (`InputMethodService`) that cap
 ## IME Registration
 
 `AndroidManifest.xml` declares `PolishedVoiceInputIME` as a service with `BIND_INPUT_METHOD` permission, an `android.view.InputMethod` intent-filter, `foregroundServiceType="microphone"`, and `meta-data` pointing to `res/xml/voice_method.xml`. It also declares `PolishedRecognitionService` (#82) with `android.permission.BIND_RECOGNITION_SERVICE`, an `android.speech.RecognitionService` intent-filter, and `foregroundServiceType="microphone"` (own notification channel/id, no shared state with the IME notification). The latter defines two subtypes on one IME (since #46): a **non-auxiliary keyboard subtype** (makes Polished selectable as primary keyboard and the switcher render) and the original **auxiliary voice subtype** (integration for keyboards with dedicated voice-typing selectors). A `<queries>` block for `android.view.InputMethod` grants package visibility for other IME packages (needed by `switchInputMethod` on API 30+, #65).
+
+**Entry points (do not drift):** the app registers exactly two services — `PolishedVoiceInputIME` (`android.view.InputMethod`) and `PolishedRecognitionService` (`android.speech.RecognitionService`) — plus `SettingsActivity` (`MAIN`/`LAUNCHER`). It does **not** register the standalone `android.speech.action.RECOGNIZE_SPEECH` **activity** intent: its handler `VoiceRecognitionActivity` was removed in #61. Callers of that Activity-for-result route are therefore not served (re-adding it is deferred in #110). Keyboard "voice typing" works via the **auxiliary voice IME subtype**, and keyboard-less `SpeechRecognizer` callers via the bound service (#82) — not via a `RECOGNIZE_SPEECH` Activity.
 
 ## Data Flows
 
