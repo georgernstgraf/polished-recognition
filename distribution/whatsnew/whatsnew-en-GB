@@ -1,1 +1,5 @@
 • Line wrap can now be set per app — narrow for chat apps, wide for mail editors. The app you last dictated into is listed first. (#100, #102)
+• Long hyphenated words wrap at hyphens instead of overflowing the line. (#103)
+• Improved default cleanup prompt; the polish step now knows how confident Whisper is about the spoken language. (#105, #112)
+• Self-hosted providers over plain HTTP (LAN servers) now work. (#114)
+• New Cortecs LLM provider preset. (#104)
