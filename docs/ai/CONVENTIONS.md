@@ -23,6 +23,7 @@ Follow these without question. Do not deviate unless explicitly told.
 ## API Patterns
 - Retrofit base URLs must end with `/v1/` (or the path prefix the provider uses)
 - All API calls use `Bearer <token>` authorization header
+- **Cleartext HTTP is allowed app-wide (#114):** `res/xml/network_security_config.xml` (`base-config cleartextTrafficPermitted="true"`, wired via `android:networkSecurityConfig`) — users point the app at arbitrary self-hosted OpenAI-compatible endpoints (HTTP LAN servers, HTTPS cloud), so no per-domain exceptions; keep the permissive base config.
 - STT multipart: `file` part, media type + filename **derived from the file extension** (`.ogg` → `audio/ogg`/`audio.ogg`, else `audio/wav`/`audio.wav`) — never hardcode WAV (since #60)
 - LLM request: standard `{"model": "...", "messages": [...]}` JSON body
 - `GET /v1/models` may return 404 for providers that don't support it — fall back to free-text model input
@@ -57,7 +58,7 @@ Follow these without question. Do not deviate unless explicitly told.
 ## Prompt Variables
 The transcription pipeline resolves the following template variables at runtime. The **system** prompt is the single editable instruction surface; the **user** message is an automatic, non-editable carrier containing only `{{text}}`.
 - `{{text}}` — raw Whisper transcription output (resolved into the user message; also the only content of the `user` prompt template)
-- `{{source_language_clause}}` — resolved into the **system** prompt as a full sentence (`"The STT service transcribed audio spoken in <Name>."`) or **empty** (whole sentence dropped) when Whisper returns null/blank/`"unknown"`
+- `{{source_language_clause}}` — resolved into the **system** prompt as a full sentence, or **empty** (whole sentence dropped) when Whisper returns null/blank/`"unknown"`. Two variants: with `language_probability` → `"The Whisper service detected the recognized language as <Name> with a probability of X percent."`; without → `"The STT service transcribed audio spoken in <Name>."` (#105). The `<Name>` always goes through `config/LanguageMapper` (complete Whisper `LANGUAGES` table — codes and names, case-insensitive, capitalized-words fallback), never raw `capitalizeWords`, because providers disagree on the `language` format (GROQ `"German"` vs faster-whisper `"de"`).
 - `{{target_language}}` — the user's chosen output language (resolved into the translate prompt)
 - `{{target_language_clause}}` — resolved into the **system** prompt; empty string if no translation, otherwise the resolved translate prompt
 
