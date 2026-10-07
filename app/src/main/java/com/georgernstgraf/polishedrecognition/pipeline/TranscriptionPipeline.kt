@@ -4,6 +4,7 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
+import com.georgernstgraf.polishedrecognition.config.LanguageMapper
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
@@ -26,7 +27,8 @@ class TranscriptionPipeline(
 
     data class SttResult(
         val text: String,
-        val language: String? = null
+        val language: String? = null,
+        val languageProbability: Float? = null
     )
 
     sealed class TranscriptionStage {
@@ -64,8 +66,10 @@ class TranscriptionPipeline(
 
         val sourceLanguageClause = if (isLanguageUnknown(whisper.language)) {
             ""
+        } else if (whisper.languageProbability != null) {
+            "The Whisper service detected the recognized language as ${LanguageMapper.toDisplayName(whisper.language)} with a probability of ${Math.round(whisper.languageProbability * 100)} percent."
         } else {
-            "The STT service transcribed audio spoken in ${capitalizeWords(whisper.language)}."
+            "The STT service transcribed audio spoken in ${LanguageMapper.toDisplayName(whisper.language)}."
         }
 
         val systemPrompt = promptStore.systemPrompt
@@ -131,22 +135,13 @@ class TranscriptionPipeline(
         }
 
         val body = response.body()!!
-        return Result.success(SttResult(text = body.text, language = body.language))
+        return Result.success(SttResult(text = body.text, language = body.language, languageProbability = body.languageProbability))
     }
 
     companion object {
         private fun isLanguageUnknown(raw: String?): Boolean {
             val v = raw?.trim()
             return v.isNullOrBlank() || v.equals("unknown", ignoreCase = true)
-        }
-
-        private fun capitalizeWords(input: String?): String {
-            if (input == null) return "unknown"
-            return input.trim()
-                .split(" ")
-                .joinToString(" ") { word ->
-                    word.replaceFirstChar { it.uppercase() }
-                }
         }
     }
 }

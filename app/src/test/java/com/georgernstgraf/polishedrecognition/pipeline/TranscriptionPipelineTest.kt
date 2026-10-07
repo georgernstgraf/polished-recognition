@@ -111,6 +111,16 @@ class TranscriptionPipelineTest {
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
     }
 
+    private fun mockSttSuccessWithLanguageProbability() {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "german", languageProbability = 0.87f)))
+    }
+
+    private fun mockSttSuccessIsoCodeWithProbability() {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "de", languageProbability = 0.99f)))
+    }
+
     private fun mockSttSuccessPadded() {
         every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = "  \n$lincolnGermanText\n  ", language = "german")))
@@ -233,6 +243,34 @@ class TranscriptionPipelineTest {
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).doesNotContain("transcribed audio spoken in")
         assertThat(systemMessage).doesNotContain("{{source_language_clause}}")
+    }
+
+    @Test
+    fun `source_language_clause maps ISO code to display name with probability`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccessIsoCodeWithProbability()
+
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        pipeline.transcribe(lincolnFile)
+
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).contains("The Whisper service detected the recognized language as German with a probability of 99 percent.")
+    }
+
+    @Test
+    fun `source_language_clause uses probability when provider returns full name`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccessWithLanguageProbability()
+
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        pipeline.transcribe(lincolnFile)
+
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).contains("The Whisper service detected the recognized language as German with a probability of 87 percent.")
     }
 
     @Test
