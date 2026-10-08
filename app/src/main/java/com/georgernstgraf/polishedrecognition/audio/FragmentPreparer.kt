@@ -5,9 +5,6 @@ import com.google.gson.Gson
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 /**
  * Encodes the live recording into small OGG fragments WHILE the user is
@@ -35,7 +32,9 @@ import java.util.concurrent.Future
  * the ROM), the whole session switches to WAV fragments — the already
  * encoded OGG fragments are discarded and re-encoded as WAV from the still
  * fully available PCM prefix, and chunks are then assembled as WAV files.
- * Never mixed-format chunks.
+ * Never mixed-format chunks. In [wavMode] the session writes WAV fragments
+ * from the start (#116): the live transcription path runs regardless of
+ * `compress_audio`, which only selects the fragment format.
  */
 class FragmentPreparer(
     private val pcm: PcmSource,
@@ -45,9 +44,15 @@ class FragmentPreparer(
     private val fragmentBytes: Int = DEFAULT_FRAGMENT_BYTES,
     chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
     chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
+    /**
+     * WAV-fragment mode (#116): skip the Opus transcoder entirely and write
+     * plain WAV fragments — the live transcription path runs regardless of
+     * `compress_audio`; the setting only selects the fragment format. No
+     * MediaCodec needed, robust on ROMs without an Opus encoder.
+     */
+    private val wavMode: Boolean = false,
     private val pollIntervalMs: Long = 500,
-    private val logger: RotatingJsonLogger? = null,
-    private val workerExecutor: ExecutorService = SHARED_EXECUTOR
+    private val logger: RotatingJsonLogger? = null
 ) {
 
     data class Entry(val name: String, val bytes: Long)
@@ -82,11 +87,14 @@ class FragmentPreparer(
         maxOf(1, ((chunkMaxSeconds * sampleRate * 2).toInt()) / fragmentBytes)
 
     @Volatile private var running = false
-    private var workerFuture: Future<*>? = null
+    private var workerThread: Thread? = null
 
     init {
         sessionDir.mkdirs()
         recover()
+        // WAV mode is a session property: force the flag AFTER recover so a
+        // stale OGG manifest can never mix formats into a WAV session.
+        if (wavMode) fallbackToWav = true
     }
 
     /** Fragment size in PCM bytes (7 s · 16 kHz · 16 bit · mono). */
@@ -94,10 +102,6 @@ class FragmentPreparer(
         const val FRAGMENT_SECONDS = 7.0
         const val DEFAULT_FRAGMENT_BYTES = (FRAGMENT_SECONDS * 32_000).toInt()
         private const val MANIFEST = "manifest.json"
-        private val SHARED_EXECUTOR: ExecutorService =
-            Executors.newSingleThreadExecutor { r ->
-                Thread(r, "FragmentPreparer").apply { isDaemon = true }
-            }
     }
 
     /**
@@ -129,13 +133,16 @@ class FragmentPreparer(
     }
 
     /**
-     * Starts the background worker: polls the PCM source and encodes every
-     * full fragment as soon as it becomes complete. Idempotent.
+     * Starts the background worker on a DEDICATED daemon thread: the worker
+     * loop runs (potentially forever, until [stopWorker]) — a shared
+     * single-thread executor would deadlock the NEXT session's
+     * [stopWorker] behind an abandoned predecessor's never-ending future
+     * (found in the #116 test suite). Idempotent.
      */
     fun startWorker() {
         if (running) return
         running = true
-        workerFuture = workerExecutor.submit {
+        workerThread = Thread {
             try {
                 android.os.Process.setThreadPriority(
                     android.os.Process.THREAD_PRIORITY_BACKGROUND
@@ -153,14 +160,21 @@ class FragmentPreparer(
                     }
                 }
             }
+        }.apply {
+            name = "FragmentPreparer"
+            isDaemon = true
+            start()
         }
     }
 
     /** Signals the worker to stop and waits for the in-flight fragment. */
     fun stopWorker() {
         running = false
-        workerFuture?.let { runCatching { it.get() } }
-        workerFuture = null
+        workerThread?.let {
+            it.interrupt()
+            runCatching { it.join() }
+        }
+        workerThread = null
     }
 
     /** Encodes every COMPLETE fragment currently available in the buffer. */
@@ -218,7 +232,7 @@ class FragmentPreparer(
     /** Discards all committed fragments (flush/cancel — the PCM they encoded is gone). */
     fun prune() {
         entries.clear()
-        fallbackToWav = false
+        fallbackToWav = wavMode
         nextFragment = 0
         sessionDir.listFiles()?.forEach { it.delete() }
     }
@@ -237,7 +251,7 @@ class FragmentPreparer(
         val data = pcm.copyPcmRange(start, end)
         val started = System.currentTimeMillis()
 
-        if (!fallbackToWav) {
+        if (!fallbackToWav && !wavMode) {
             val target = File(sessionDir, "frag_%06d.ogg".format(index))
             try {
                 transcoder.transcode(WavWriter.write(data, sampleRate), target)

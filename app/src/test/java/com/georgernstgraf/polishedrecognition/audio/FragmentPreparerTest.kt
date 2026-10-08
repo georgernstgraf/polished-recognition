@@ -46,12 +46,14 @@ class FragmentPreparerTest {
 
     private fun newPreparer(
         fragmentBytes: Int = 1000,
-        chunkMaxSeconds: Double = 600.0
+        chunkMaxSeconds: Double = 600.0,
+        wavMode: Boolean = false
     ): FragmentPreparer = FragmentPreparer(
         pcm = pcm,
         transcoder = transcoder,
         sessionDir = sessionDir,
         fragmentBytes = fragmentBytes,
+        wavMode = wavMode,
         chunkMaxSeconds = chunkMaxSeconds
     )
 
@@ -73,6 +75,30 @@ class FragmentPreparerTest {
         assertThat(preparer.assembleChunks().single().name).isEqualTo("recording_1.ogg")
         val fragments = sessionDir.listFiles().orEmpty().filter { it.name.startsWith("frag_") }
         assertThat(fragments.map { it.name }).containsExactly("frag_000000.ogg", "frag_000001.ogg")
+    }
+
+    /**
+     * WAV mode (#116): the fragment worker runs regardless of `compress_audio`
+     * — in wavMode the transcoder is never touched, fragments are plain WAV
+     * (canonical 44-byte header) and chunk assembly produces .wav files.
+     */
+    @Test
+    fun `wav mode writes plain wav fragments without transcoding`() {
+        val preparer = newPreparer(fragmentBytes = 1000, wavMode = true)
+        pcm.append(2500)
+
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync() // 500 B remainder
+
+        verify(exactly = 0) { transcoder.transcode(any(), any()) }
+        val fragments = sessionDir.listFiles().orEmpty().filter { it.name.startsWith("frag_") }
+        assertThat(fragments.map { it.name }).containsExactly(
+            "frag_000000.wav", "frag_000001.wav", "frag_000002.wav"
+        )
+        // canonical WAV headers, not raw PCM
+        fragments.forEach { assertThat(it.readBytes().decodeToString(0, 4)).isEqualTo("RIFF") }
+        val chunk = preparer.assembleChunks().single()
+        assertThat(chunk.name).isEqualTo("recording_1.wav")
     }
 
     @Test

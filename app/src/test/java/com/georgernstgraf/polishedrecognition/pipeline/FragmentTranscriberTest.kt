@@ -135,8 +135,8 @@ class FragmentTranscriberTest {
             Result.success(SttResponse(text = "x"))
         }
 
-        transcriber.start()
-        // each fragment = 7 s of audio; offers stack up to 14 s pending
+        // offer BOTH fragments before the worker starts (drain() starts it):
+        // pending is deterministically 14 s when processing begins
         transcriber.offer(fragment(0))
         transcriber.offer(fragment(1))
         transcriber.drain()

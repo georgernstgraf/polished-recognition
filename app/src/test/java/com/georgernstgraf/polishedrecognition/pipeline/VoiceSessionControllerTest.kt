@@ -107,6 +107,10 @@ class VoiceSessionControllerTest {
             Thread.sleep(10)
         }
         assertThat(state).isEqualTo(target)
+        // Events may have been posted from an IO thread (the live fragment
+        // worker resumed there, #116) — pump the main looper so posted
+        // runnables deliver before the caller reads its event list.
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
     private fun uploadedFile(): File {
@@ -137,14 +141,31 @@ class VoiceSessionControllerTest {
         assertThat(pkgSlot.captured).isEqualTo("com.example.chat")
     }
 
+    /**
+     * #116: the live fragment path runs regardless of `compress_audio` —
+     * with compression OFF the fragments are plain WAV (no transcoder), each
+     * one uploaded directly. Driven via a restored snapshot (the Robolectric
+     * live-capture byte count is nondeterministic).
+     */
     @Test
-    fun `compressAudio disabled uploads recording wav without transcoding`() {
+    fun `compressAudio disabled transcribes live as WAV fragments without transcoding`() {
+        clearSessionFiles()
         settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
 
-        recordAndStop()
+        val controller = newController()
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
 
-        assertThat(uploadedFile().name).isEqualTo("recording.wav")
         verify(exactly = 0) { transcoder.transcode(any(), any()) }
+        // one fragment (whole recording at the default huge test fragment size)
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
+        coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
+        clearSessionFiles()
     }
 
     /**
@@ -199,46 +220,37 @@ class VoiceSessionControllerTest {
         clearSessionFiles()
     }
 
+    /**
+     * #116: the live path emits the preparing stage in BOTH formats — the
+     * fragment worker runs regardless of `compress_audio`, which now only
+     * selects the fragment format (OGG vs WAV).
+     */
     @Test
-    fun `compressing stage is emitted when compressAudio enabled`() {
-        settings.compressAudio = true
-        every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(byteArrayOf(1)) }
+    fun `preparing stage is emitted regardless of compressAudio`() {
+        for (compress in listOf(true, false)) {
+            settings.compressAudio = compress
+            var stages = emptyList<TranscriptionPipeline.TranscriptionStage>()
+
+            recordAndStop { events ->
+                stages = events.filterIsInstance<VoiceSessionController.Event.StageChanged>()
+                    .map { it.stage }
+            }
+
+            assertThat(stages.first())
+                .isInstanceOf(TranscriptionPipeline.TranscriptionStage.CompressingAudio::class.java)
         }
-        var stages = emptyList<TranscriptionPipeline.TranscriptionStage>()
-
-        recordAndStop { events ->
-            stages = events.filterIsInstance<VoiceSessionController.Event.StageChanged>()
-                .map { it.stage }
-        }
-
-        assertThat(stages.first())
-            .isInstanceOf(TranscriptionPipeline.TranscriptionStage.CompressingAudio::class.java)
-    }
-
-    @Test
-    fun `no compressing stage when compressAudio disabled`() {
-        settings.compressAudio = false
-        var stages = emptyList<TranscriptionPipeline.TranscriptionStage>()
-
-        recordAndStop { events ->
-            stages = events.filterIsInstance<VoiceSessionController.Event.StageChanged>()
-                .map { it.stage }
-        }
-
-        assertThat(stages).isEmpty()
     }
 
     /**
-     * Chunked upload (#115, port of aitranscribe's `chunk_audio`): a
-     * recording beyond the upload limits arrives at the pipeline as several
-     * numbered chunk files instead of one. The audio is crafted by writing a
-     * hand-sized session snapshot and restoring it (the same OOM-safe pattern
-     * the #67 tests use — never drive a live Robolectric recorder for bulk
-     * bytes).
+     * Live fragments replace chunk planning (#116): a recording beyond the
+     * upload limits is uploaded as per-fragment live requests — each 7-s
+     * fragment is far below the limits, so WavChunker never runs on the live
+     * path. The audio is crafted via a hand-sized session snapshot (the same
+     * OOM-safe pattern the #67 tests use — never drive a live Robolectric
+     * recorder for bulk bytes).
      */
     @Test
-    fun `recording beyond the chunk limit arrives as multiple chunk files`() {
+    fun `recording beyond the upload limits uploads as live fragments`() {
         clearSessionFiles()
         settings.compressAudio = false
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
@@ -246,31 +258,31 @@ class VoiceSessionControllerTest {
         File(cacheDir, "session.pcm").writeBytes(pcm)
         File(cacheDir, "session.meta").writeText("1250")
 
-        val controller = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
+        val controller = newController(
+            chunkMaxBytes = 20_000,
+            chunkMaxSeconds = 600.0,
+            fragmentBytes = 10_000
+        )
         controller.restore()
 
-        // Snapshot the chunk bytes inside the pipeline stub — the controller
-        // deletes the files right after the pipeline returns.
-        val snapshots = mutableListOf<List<Pair<String, ByteArray>>>()
-        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
-            snapshots.add(firstArg<List<File>>().map { it.name to it.readBytes() })
-            Result.success("hi")
+        var uploads = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+            uploads++
+            mockSttCall(Response.success(SttResponse(text = "part $uploads", language = null)))
         }
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
 
         controller.stopAndTranscribe()
         controller.awaitIdle()
 
-        assertThat(snapshots).hasSize(1)
-        val files = snapshots.single()
-        assertThat(files.size).isAtLeast(2)
-        assertThat(files[0].first).isEqualTo("recording_1.wav")
-        assertThat(files[1].first).isEqualTo("recording_2.wav")
-        files.forEach { (_, bytes) ->
-            assertThat(bytes.size).isAtMost(44 + 20_000)
-            assertThat(bytes.sliceArray(0 until 4).decodeToString()).isEqualTo("RIFF")
-        }
-        // chunk files were cleaned up after the pipeline returned
-        files.forEach { (name, _) -> assertThat(File(cacheDir, name).exists()).isFalse() }
+        // 40 kB / 10 kB = 4 live fragment uploads — the upload limits played
+        // no role, no chunk planning happened, the batch pipeline never ran
+        assertThat(uploads).isEqualTo(4)
+        coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.chunkCount).isEqualTo(4)
+        assertThat(stt.text).isEqualTo("part 1 part 2 part 3 part 4")
         clearSessionFiles()
     }
 
@@ -336,7 +348,14 @@ class VoiceSessionControllerTest {
     fun `completed result during detach is stashed and delivered on attach`() {
         settings.compressAudio = false
         val gate = CountDownLatch(1)
+        // Gate BOTH pipeline entries: the live fragment path (#116) ends in
+        // finishTranscription, the legacy path in transcribe — and the
+        // Robolectric capture byte count decides which one runs.
         coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
+            gate.await()
+            Result.success("hi")
+        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } coAnswers {
             gate.await()
             Result.success("hi")
         }
@@ -370,7 +389,12 @@ class VoiceSessionControllerTest {
     fun `cancel discards a stashed result`() {
         settings.compressAudio = false
         val gate = CountDownLatch(1)
+        // Gate BOTH pipeline entries (see the detach/stash test above).
         coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
+            gate.await()
+            Result.success("hi")
+        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } coAnswers {
             gate.await()
             Result.success("hi")
         }
@@ -556,7 +580,12 @@ class VoiceSessionControllerTest {
     fun `flush in PROCESSING is a no-op`() {
         settings.compressAudio = false
         val gate = CountDownLatch(1)
+        // Gate BOTH pipeline entries (see the detach/stash test above).
         coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
+            gate.await()
+            Result.success("hi")
+        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } coAnswers {
             gate.await()
             Result.success("hi")
         }
@@ -579,7 +608,10 @@ class VoiceSessionControllerTest {
         controller.awaitIdle()
 
         assertThat(stateAtFlush).isEqualTo(VoiceSessionController.State.PROCESSING)
-        assertThat(uploadedFile().name).isEqualTo("recording.wav")
+        // flush in PROCESSING was a no-op: the in-flight transcription ran to
+        // completion — the live path's finishTranscription, not the batch one
+        coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
+        coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
     }
 
     /**
@@ -592,7 +624,10 @@ class VoiceSessionControllerTest {
     fun `pipeline failure parks PAUSED with preserved timer and snapshot`() {
         clearSessionFiles()
         settings.compressAudio = false
+        // Fail BOTH pipeline entries (live vs legacy path, #116)
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(Exception("LLM post-processing failed: HTTP 500"))
         val controller = newController()
         val events = mutableListOf<VoiceSessionController.Event>()
         try {
@@ -624,6 +659,8 @@ class VoiceSessionControllerTest {
         clearSessionFiles()
         settings.compressAudio = false
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(Exception("LLM post-processing failed: HTTP 500"))
         val controller = newController()
         try {
             controller.start { }
@@ -649,8 +686,11 @@ class VoiceSessionControllerTest {
     fun `retry after failure succeeds and clears snapshot`() {
         clearSessionFiles()
         settings.compressAudio = false
-        coEvery { pipeline.transcribe(any(), any(), any()) } returns
-            Result.failure<String>(IOException("offline")) andThen Result.success("hi")
+        // Fail then succeed on BOTH pipeline entries (live vs legacy, #116)
+        coEvery { pipeline.transcribe(any(), any(), any()) } returnsMany
+            listOf(Result.failure(IOException("offline")), Result.success("hi"))
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returnsMany
+            listOf(Result.failure(Exception("LLM post-processing failed: HTTP 500")), Result.success("hi"))
         val controller = newController()
         val events = mutableListOf<VoiceSessionController.Event>()
         try {
@@ -676,6 +716,8 @@ class VoiceSessionControllerTest {
         clearSessionFiles()
         settings.compressAudio = false
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(Exception("LLM post-processing failed: HTTP 500"))
         val controller = newController()
         try {
             controller.start { }
@@ -692,100 +734,59 @@ class VoiceSessionControllerTest {
     }
 
     /**
-     * Stage memoization (#115): after a pipeline failure the prepared upload
-     * files stay committed under `cacheDir/prepared/<hash>/`; a retry REUSES
-     * them instead of re-encoding — the transcoder must run exactly N times
-     * (one per chunk) across BOTH attempts, and the pipeline gets identical
-     * file paths. Success consumes the prepared dir.
+     * Stage memoization (#115), now reachable only via the legacy safety net
+     * (#116 left it for EMPTY recordings — the live fragment path handles
+     * everything else and caches its transcripts in memory instead): a
+     * pipeline failure keeps the prepared upload file committed under
+     * `cacheDir/prepared/<hash>/`; a retry REUSES it (identical file path)
+     * instead of rebuilding. Success consumes the prepared dir.
      */
     @Test
     fun `retry after failure reuses prepared files without re-encoding`() {
         clearSessionFiles()
         settings.compressAudio = false
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
-        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(0)) // empty recording → legacy path
         File(cacheDir, "session.meta").writeText("1250")
 
-        val controller = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
+        val controller = newController()
         controller.restore()
 
-        val uploads = mutableListOf<List<Pair<String, ByteArray>>>()
+        val uploadPaths = mutableListOf<String>()
         coEvery { pipeline.transcribe(any(), any(), any()) } answers {
             // snapshot eagerly: on success the controller deletes the files
-            uploads.add(firstArg<List<File>>().map { it.name to it.readBytes() })
+            uploadPaths.add(firstArg<List<File>>().single().absolutePath)
             Result.failure(IOException("offline"))
         }
         controller.stopAndTranscribe()
         controller.awaitState(VoiceSessionController.State.PAUSED)
 
-        val attemptsAfterFailure = uploads.size
-        // prepared files survive the failure, manifest + chunks on disk
         val preparedRoot = File(cacheDir, "prepared")
         val hashDirs = preparedRoot.listFiles().orEmpty()
         assertThat(hashDirs.size).isEqualTo(1)
-        val firstAttemptContents = hashDirs.single().listFiles().orEmpty()
-            .filter { it.name != "manifest.json" }
-            .associate { it.name to it.length() }
-        assertThat(firstAttemptContents.size).isAtLeast(2)
+        assertThat(uploadPaths.single()).startsWith(hashDirs.single().absolutePath)
 
-        // retry: prepared files are reused, NOT rewritten
+        // retry: the prepared file is reused, NOT rewritten
         coEvery { pipeline.transcribe(any(), any(), any()) } answers {
-            uploads.add(firstArg<List<File>>().map { it.name to it.readBytes() })
+            uploadPaths.add(firstArg<List<File>>().single().absolutePath)
             Result.success("hi")
         }
         controller.stopAndTranscribe()
         controller.awaitIdle()
 
-        assertThat(uploads.size).isEqualTo(attemptsAfterFailure + 1)
-        val secondUpload = uploads.last()
-        assertThat(secondUpload.map { it.first }.sorted())
-            .isEqualTo(firstAttemptContents.keys.toList().sorted())
-        // byte contents identical → nothing was rewritten
-        assertThat(secondUpload.map { it.second.size.toLong() }.sorted())
-            .isEqualTo(firstAttemptContents.values.sorted())
+        assertThat(uploadPaths.size).isEqualTo(2)
+        assertThat(uploadPaths[1]).isEqualTo(uploadPaths[0])
         // success consumed the prepared uploads
         assertThat(preparedRoot.exists()).isFalse()
         clearSessionFiles()
     }
 
-    /**
-     * A DIFFERENT recording (new PCM after cancel + fresh capture) must
-     * rebuild its prepared files — the old hash dir is pruned, never reused
-     * stale. Driven via hand-crafted snapshots only (no live recorder).
-     */
-    @Test
-    fun `different recording rebuilds prepared files and prunes the old dir`() {
-        clearSessionFiles()
-        settings.compressAudio = false
-        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        val pcmA = ByteArray(40_000) { i -> (i % 97).toByte() }
-        File(cacheDir, "session.pcm").writeBytes(pcmA)
-        File(cacheDir, "session.meta").writeText("1250")
-
-        val controller = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
-        controller.restore()
-        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
-        controller.stopAndTranscribe()
-        controller.awaitState(VoiceSessionController.State.PAUSED)
-
-        val firstKey = File(cacheDir, "prepared").listFiles().orEmpty().single().name
-        controller.cancel()
-
-        // an entirely different recording
-        File(cacheDir, "session.pcm").writeBytes(ByteArray(30_000) { i -> (i % 13).toByte() })
-        File(cacheDir, "session.meta").writeText("900")
-        val reborn = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
-        reborn.restore()
-        reborn.stopAndTranscribe()
-        reborn.awaitState(VoiceSessionController.State.PAUSED)
-
-        val dirs = File(cacheDir, "prepared").listFiles().orEmpty()
-        assertThat(dirs.size).isEqualTo(1)
-        assertThat(dirs.single().name).isNotEqualTo(firstKey)
-        controller.cancel()
-        clearSessionFiles()
-    }
+    // "different recording rebuilds prepared files and prunes the old dir"
+    // (#115) was retired with #116: the live fragment path handles every
+    // non-empty recording (new sessions prune other sessions' FRAGMENT dirs
+    // in startFragmentPreparation), so the prepared-dir pruning is only
+    // reachable for empty recordings — where two empty recordings hash
+    // identically and the scenario cannot arise.
 
     /**
      * Fragment retry (#116): a failed compress-on session parks PAUSED; the

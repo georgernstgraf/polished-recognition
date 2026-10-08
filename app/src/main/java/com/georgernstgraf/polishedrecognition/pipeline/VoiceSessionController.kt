@@ -129,15 +129,15 @@ class VoiceSessionController(
     }
 
     /**
-     * Fragment preparation lifecycle (#115): with `compress_audio` on, a
-     * background worker encodes 7-s OGG fragments of the append-only buffer
-     * while the user is still dictating, committing each one to
-     * `cacheDir/fragments/<sessionId>/` (owner design — the stop-time
-     * "Compressing to .ogg" of ~20 min previously blocked for minutes).
+     * Fragment preparation lifecycle (#115/#116): a background worker encodes
+     * 7-s fragments of the append-only buffer while the user is still
+     * dictating, committing each one to `cacheDir/fragments/<sessionId>/`,
+     * and the live transcription worker consumes them. Runs REGARDLESS of
+     * `compress_audio` (#116, owner decision) — the setting only selects the
+     * fragment format (`wavMode`): OGG/Opus when on, plain WAV when off.
      * A new session prunes other sessions' fragment dirs (max one live).
      */
     private fun startFragmentPreparation(newSession: Boolean) {
-        if (!settings.compressAudio) return
         val previous = preparer
         if (!newSession && previous != null) {
             // resume path: worker may be stopped after a failed pipeline run
@@ -212,6 +212,7 @@ class VoiceSessionController(
         transcoder = transcoder,
         sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sessionId),
         fragmentBytes = fragmentBytes,
+        wavMode = !settings.compressAudio,
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
         logger = logger
@@ -361,7 +362,7 @@ class VoiceSessionController(
         // The fragments encoded so far referenced the discarded audio (#115).
         discardFragmentSession()
         preparer = null
-        if (state == State.RECORDING && settings.compressAudio) startFragmentPreparation(newSession = false)
+        if (state == State.RECORDING) startFragmentPreparation(newSession = false)
         clearSnapshot()
         accumulatedMs = 0L
         if (state == State.RECORDING) segStartMs = System.currentTimeMillis()
@@ -476,10 +477,10 @@ class VoiceSessionController(
      * applies unchanged.
      */
     private suspend fun runTranscription(wav: ByteArray, callerPackage: String?): Result<String> {
-        if (settings.compressAudio) ensureFragmentPreparer()
+        ensureFragmentPreparer()
         val p = preparer
         val t = transcriber
-        if (p != null && t != null && settings.compressAudio) {
+        if (p != null && t != null) {
             p.stopWorker()
             // A retry re-attempts the finally-failed fragments (#116); the
             // retry attempt sees fresh network conditions.
@@ -548,12 +549,14 @@ class VoiceSessionController(
      * is prepared, so at most one session's uploads ever sit in cacheDir.
      */
     private suspend fun prepareAudioFiles(wav: ByteArray): List<File> {
-        // Fragment path (#115): the background worker has already encoded
-        // 7-s OGG fragments during the dictation — only the trailing partial
+        // Fragment path (#115/#116): the background worker has already encoded
+        // 7-s fragments during the dictation — only the trailing partial
         // fragment and the chained-OGG assembly remain, both sub-second.
-        if (settings.compressAudio) ensureFragmentPreparer()
+        // Reached only for empty recordings now (the live path handles
+        // everything else); kept as the legacy safety net.
+        ensureFragmentPreparer()
         val p = preparer
-        if (p != null && settings.compressAudio) {
+        if (p != null) {
             p.stopWorker()
             emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
             val files = withContext(Dispatchers.IO) {

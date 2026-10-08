@@ -1,18 +1,25 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
+import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
+import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okhttp3.ResponseBody
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import retrofit2.Call
+import retrofit2.Response
 
 /**
  * Secondary-listener support (#82): the IME keeps its primary callback
@@ -25,6 +32,7 @@ class VoiceSessionControllerSecondaryTest {
 
     private val pipeline: TranscriptionPipeline = mockk(relaxed = true)
     private val transcoder: AudioTranscoder = mockk(relaxed = true)
+    private val sttApi: OpenAiSttApiService = mockk(relaxed = true)
     private lateinit var settings: SettingsStore
 
     @Before
@@ -33,7 +41,23 @@ class VoiceSessionControllerSecondaryTest {
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         settings = SettingsStore(ctx)
         settings.compressAudio = false
+        // Live fragment worker parity with VoiceSessionControllerTest (#116).
+        settings.sttProvider = SttProviderConfig(
+            displayName = "LAN",
+            baseUrl = "http://10.8.0.16:11437/v1/",
+            apiToken = "token",
+            model = "large-v3"
+        )
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
+        coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
+    }
+
+    private fun mockSttCall(response: Response<SttResponse>): Call<SttResponse> {
+        val call = mockk<Call<SttResponse>>()
+        every { call.execute() } returns response
+        return call
     }
 
     private fun newController(): VoiceSessionController = VoiceSessionController(
@@ -41,7 +65,8 @@ class VoiceSessionControllerSecondaryTest {
         pipeline,
         settings,
         transcoder,
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+        sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
     )
 
     private fun VoiceSessionController.awaitState(target: VoiceSessionController.State) {
@@ -50,6 +75,10 @@ class VoiceSessionControllerSecondaryTest {
             Thread.sleep(10)
         }
         assertThat(state).isEqualTo(target)
+        // Events may have been posted from an IO thread (the live fragment
+        // worker resumed there, #116) — pump the main looper so posted
+        // runnables deliver before the caller reads its event list.
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
     @Test
