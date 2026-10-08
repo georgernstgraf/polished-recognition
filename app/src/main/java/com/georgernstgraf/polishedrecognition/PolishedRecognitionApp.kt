@@ -53,9 +53,13 @@ class PolishedRecognitionApp : Application() {
     val okHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(ResponseLoggerInterceptor(jsonLogger))
+            // Read/write 600 s = OpenAI-SDK parity with aitranscribe (#115):
+            // a CPU-only LAN Whisper server can need several minutes per
+            // 10-min chunk; the old 120 s read timeout aborted the call and
+            // parked the session as PAUSED while the server was still working.
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(600, TimeUnit.SECONDS)
+            .writeTimeout(600, TimeUnit.SECONDS)
             .build()
     }
 

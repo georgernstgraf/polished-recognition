@@ -156,6 +156,26 @@ class TranscriptionPipeline(
             val modelPart = config.model.toRequestBody("text/plain".toMediaTypeOrNull())
             val responseFormatPart = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
 
+            // Upload evidence (#115): on a read-timeout no response ever
+            // arrives, so the interceptor's stt-response rotation shows
+            // nothing — this record proves the request WAS sent (and with
+            // which size), which is how the first long-dictation timeout
+            // would have been attributable in the logs.
+            logger?.log(
+                "stt-upload",
+                GsonBuilder().setPrettyPrinting().create().toJson(
+                    SttUploadLog(
+                        chunk = index + 1,
+                        chunkCount = audioFiles.size,
+                        file = audioFile.name,
+                        bytes = audioFile.length(),
+                        mediaType = mediaType,
+                        model = config.model,
+                        baseUrl = config.baseUrl
+                    )
+                )
+            )
+
             val response = getSttApi(config.baseUrl).transcribeAudioSync(
                 authorization = "Bearer ${config.apiToken}",
                 file = filePart,
@@ -196,6 +216,17 @@ class TranscriptionPipeline(
         val languageProbability: Float?,
         val textLength: Int,
         val text: String
+    )
+
+    /** Serializable per-upload record written to `stt-upload.json` (#115). */
+    private data class SttUploadLog(
+        val chunk: Int,
+        val chunkCount: Int,
+        val file: String,
+        val bytes: Long,
+        val mediaType: String,
+        val model: String,
+        val baseUrl: String
     )
 
     private fun isOgg(audioFile: File): Boolean =

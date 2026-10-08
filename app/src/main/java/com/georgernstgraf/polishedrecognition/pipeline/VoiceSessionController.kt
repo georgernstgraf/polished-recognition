@@ -164,7 +164,10 @@ class VoiceSessionController(
                 val r = pipeline.transcribe(files, callerPackage) { stage ->
                     emit(Event.StageChanged(stage))
                 }
-                files.forEach { runCatching { it.delete() } }
+                // On success the prepared uploads are consumed; on failure
+                // they stay committed so the retry reuses them instead of
+                // re-encoding (#115 stage memoization).
+                if (r.isSuccess) clearPrepared()
                 r
             } catch (e: CancellationException) {
                 throw e
@@ -294,8 +297,26 @@ class VoiceSessionController(
      * each chunk is compressed (or falls back to WAV) individually.
      * Recordings within both limits keep the legacy single-file names
      * `recording.{wav,ogg}`.
+     *
+     * **Stage memoization (#115, owner request after the first on-device
+     * long dictation):** every prepared upload file is committed under
+     * `cacheDir/prepared/<sha256-of-wav>/` with a `manifest.json`. A failed
+     * pipeline parks the session as PAUSED (the ↺ bar) and a retry recomputes
+     * only the hash — matching prepared files are REUSED instead of being
+     * re-encoded (a 3×400 s Opus transcode costs minutes of CPU; re-doing it
+     * on every retry was pure waste). Files are reused only when the PCM is
+     * byte-identical (resume appends change the hash → rebuild, which is
+     * correct since chunk boundaries shift). The prepared dir is deleted
+     * after a successful pipeline run and pruned when a different recording
+     * is prepared, so at most one session's uploads ever sit in cacheDir.
      */
     private suspend fun prepareAudioFiles(wav: ByteArray): List<File> {
+        val prepared = preparedDirFor(wav)
+        if (prepared.reused) {
+            Log.i(TAG, "Prepared upload reused from cache: ${prepared.dir.name} (${prepared.manifest.size} files)")
+            return prepared.manifest.map { File(prepared.dir, it.name) }
+        }
+
         val chunks = try {
             WavChunker.chunk(wav, chunkMaxBytes, chunkMaxSeconds)
         } catch (e: Exception) {
@@ -304,7 +325,9 @@ class VoiceSessionController(
         }
 
         if (chunks.size <= 1) {
-            return listOf(prepareSingleAudioFile(wav))
+            val file = prepareSingleAudioFile(wav, prepared.dir)
+            prepared.writeManifest(listOf(file))
+            return listOf(file)
         }
 
         Log.w(
@@ -315,42 +338,123 @@ class VoiceSessionController(
         if (settings.compressAudio) {
             emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
         }
-        return chunks.mapIndexed { index, chunkWav ->
-            val target = File(appContext.cacheDir, "recording_%d.%s".format(index + 1, if (settings.compressAudio) "ogg" else "wav"))
-            if (!settings.compressAudio) {
-                target.apply { writeBytes(chunkWav) }
-            } else {
-                withContext(Dispatchers.IO) {
-                    try {
-                        val ogg = transcoder.transcode(chunkWav, target)
-                        Log.i(TAG, "Chunk %d/%d compressed: wav=%dB ogg=%dB".format(index + 1, chunks.size, chunkWav.size, ogg.length()))
-                        ogg
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Chunk %d/%d Opus transcoding failed, falling back to WAV".format(index + 1, chunks.size), e)
-                        File(appContext.cacheDir, "recording_%d.wav".format(index + 1)).apply { writeBytes(chunkWav) }
-                    }
-                }
+        val files = mutableListOf<File>()
+        chunks.forEachIndexed { index, chunkWav ->
+            files.add(prepareChunkFile(chunkWav, index, chunks.size, prepared.dir))
+        }
+        prepared.writeManifest(files)
+        return files
+    }
+
+    private suspend fun prepareChunkFile(chunkWav: ByteArray, index: Int, total: Int, dir: File): File {
+        val target = File(dir, "recording_%d.%s".format(index + 1, if (settings.compressAudio) "ogg" else "wav"))
+        if (!settings.compressAudio) {
+            return target.apply { writeBytes(chunkWav) }
+        }
+        return withContext(Dispatchers.IO) {
+            try {
+                val ogg = transcoder.transcode(chunkWav, target)
+                Log.i(TAG, "Chunk %d/%d compressed: wav=%dB ogg=%dB".format(index + 1, total, chunkWav.size, ogg.length()))
+                ogg
+            } catch (e: Exception) {
+                Log.w(TAG, "Chunk %d/%d Opus transcoding failed, falling back to WAV".format(index + 1, total), e)
+                File(dir, "recording_%d.wav".format(index + 1)).apply { writeBytes(chunkWav) }
             }
         }
     }
 
-    private suspend fun prepareSingleAudioFile(wav: ByteArray): File {
-        if (!settings.compressAudio) return writeWavFile(wav)
+    private suspend fun prepareSingleAudioFile(wav: ByteArray, dir: File): File {
+        if (!settings.compressAudio) return writeWavFile(wav, dir)
         emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
         return try {
             withContext(Dispatchers.IO) {
-                val ogg = transcoder.transcode(wav, File(appContext.cacheDir, "recording.ogg"))
+                val ogg = transcoder.transcode(wav, File(dir, "recording.ogg"))
                 Log.i(TAG, "Audio compressed: wav=${wav.size}B ogg=${ogg.length()}B")
                 ogg
             }
         } catch (e: Exception) {
             Log.w(TAG, "Opus transcoding failed, falling back to WAV", e)
-            writeWavFile(wav)
+            writeWavFile(wav, dir)
         }
     }
 
-    private fun writeWavFile(wav: ByteArray): File =
-        File(appContext.cacheDir, "recording.wav").apply { writeBytes(wav) }
+    private fun writeWavFile(wav: ByteArray, dir: File): File =
+        File(dir, "recording.wav").apply { writeBytes(wav) }
+
+    /** Upload manifest entry: file name + size, validated against disk on reuse. */
+    private data class ManifestEntry(val name: String, val bytes: Long)
+
+    /** A committed preparation: its directory, the upload manifest, and whether it was reused. */
+    private class Prepared(
+        val dir: File,
+        val manifest: List<ManifestEntry>,
+        val reused: Boolean
+    ) {
+        fun writeManifest(files: List<File>) {
+            val entries = files.map { ManifestEntry(it.name, it.length()) }
+            try {
+                File(dir, MANIFEST).writeText(
+                    com.google.gson.Gson().toJson(mapOf("files" to entries.map { mapOf("name" to it.name, "bytes" to it.bytes) }))
+                )
+            } catch (_: Throwable) {
+            }
+        }
+
+        companion object {
+            const val MANIFEST = "manifest.json"
+        }
+    }
+
+    /**
+     * Returns the prepared dir for `wav`: reused (manifest valid, all files
+     * present with the recorded sizes) when the PCM is byte-identical to a
+     * previous preparation, freshly created (previous dirs pruned) otherwise.
+     */
+    private fun preparedDirFor(wav: ByteArray): Prepared {
+        val key = try {
+            sha256Hex(wav).substring(0, 16)
+        } catch (_: Throwable) {
+            "fallback${System.currentTimeMillis()}"
+        }
+        val root = File(appContext.cacheDir, PREPARED_DIR)
+        val dir = File(root, key)
+        if (dir.isDirectory) {
+            val entries = readManifest(dir)
+            if (entries != null && entries.all { File(dir, it.name).let { f -> f.exists() && f.length() == it.bytes } }) {
+                return Prepared(dir, entries, reused = true)
+            }
+            // stale or broken: rebuild in place
+            dir.deleteRecursively()
+        } else {
+            // bound the cache to one session: prune other recordings' dirs
+            root.listFiles()?.forEach { if (it.name != key) it.deleteRecursively() }
+        }
+        dir.mkdirs()
+        return Prepared(dir, emptyList(), reused = false)
+    }
+
+    private fun readManifest(dir: File): List<ManifestEntry>? = try {
+        val raw = File(dir, Prepared.MANIFEST).readText()
+        @Suppress("UNCHECKED_CAST")
+        val parsed = com.google.gson.Gson().fromJson(raw, Map::class.java) as Map<String, Any>
+        (parsed["files"] as List<Map<String, Any>>).map { entry ->
+            ManifestEntry(entry["name"] as String, (entry["bytes"] as Double).toLong())
+        }
+    } catch (_: Throwable) {
+        null
+    }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+
+    /** Deletes the prepared-upload dir after a successful pipeline run. */
+    private fun clearPrepared() {
+        try {
+            File(appContext.cacheDir, PREPARED_DIR).deleteRecursively()
+        } catch (_: Throwable) {
+        }
+    }
 
     /**
      * Delivers a finished pipeline result to whichever consumer is attached
@@ -391,5 +495,6 @@ class VoiceSessionController(
         private const val TAG = "VoiceSessionController"
         private const val SNAP_PCM = "session.pcm"
         private const val SNAP_META = "session.meta"
+        private const val PREPARED_DIR = "prepared"
     }
 }

@@ -556,4 +556,36 @@ class TranscriptionPipelineTest {
         assertThat((parsed["chunkLengths"] as List<Double>).map { it.toInt() }).containsExactly(9, 9)
         assertThat(parsed["text"] as String).isEqualTo("Part one. Part two.")
     }
+
+    /**
+     * Upload evidence (#115): each chunk upload records file name + size +
+     * model + endpoint to `stt-upload.json` (rotated) — on a read-timeout no
+     * response ever arrives, so this is the only proof the request was sent.
+     */
+    @Test
+    fun `each chunk upload is logged with its size and endpoint`() = runBlocking {
+        settingsStore.rawMode = true
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+            callIndex++
+            mockCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
+        }
+
+        val logDir = tmp.newFolder("uploadlogs")
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
+        val file1 = File(tmp.root, "recording_1.ogg").apply { writeBytes(ByteArray(8)) }
+        val file2 = File(tmp.root, "recording_2.ogg").apply { writeBytes(ByteArray(8)) }
+
+        loggingPipeline.transcribe(listOf(file1, file2))
+
+        val second = com.google.gson.Gson().fromJson(File(logDir, "stt-upload.json").readText(), Map::class.java)
+        val first = com.google.gson.Gson().fromJson(File(logDir, "stt-upload_1.json").readText(), Map::class.java)
+        assertThat(second["chunk"]).isEqualTo(2.0)
+        assertThat(first["chunk"]).isEqualTo(1.0)
+        assertThat(first["file"]).isEqualTo("recording_1.ogg")
+        assertThat(first["bytes"]).isEqualTo(8.0)
+        assertThat(first["mediaType"]).isEqualTo("audio/ogg")
+        assertThat(first["model"]).isEqualTo("whisper-large-v3-turbo")
+        assertThat(first["baseUrl"]).isEqualTo("https://api.groq.com/openai/v1/")
+    }
 }

@@ -633,6 +633,103 @@ class VoiceSessionControllerTest {
         clearSessionFiles()
     }
 
+    /**
+     * Stage memoization (#115): after a pipeline failure the prepared upload
+     * files stay committed under `cacheDir/prepared/<hash>/`; a retry REUSES
+     * them instead of re-encoding — the transcoder must run exactly N times
+     * (one per chunk) across BOTH attempts, and the pipeline gets identical
+     * file paths. Success consumes the prepared dir.
+     */
+    @Test
+    fun `retry after failure reuses prepared files without re-encoding`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText("1250")
+
+        val controller = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
+        controller.restore()
+
+        val uploads = mutableListOf<List<Pair<String, Long>>>()
+        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
+            // snapshot eagerly: on success the controller deletes the files
+            uploads.add(firstArg<List<File>>().map { it.name to it.length() })
+            Result.failure(IOException("offline"))
+        }
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        val attemptsAfterFailure = uploads.size
+        // prepared files survive the failure, manifest + chunks on disk
+        val preparedRoot = File(cacheDir, "prepared")
+        val hashDirs = preparedRoot.listFiles().orEmpty()
+        assertThat(hashDirs.size).isEqualTo(1)
+        val firstAttemptContents = hashDirs.single().listFiles().orEmpty()
+            .filter { it.name != "manifest.json" }
+            .associate { it.name to it.length() }
+        assertThat(firstAttemptContents.size).isAtLeast(2)
+
+        // retry: prepared files are reused, NOT re-encoded
+        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
+            uploads.add(firstArg<List<File>>().map { it.name to it.length() })
+            Result.success("hi")
+        }
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(uploads.size).isEqualTo(attemptsAfterFailure + 1)
+        verify(exactly = firstAttemptContents.size) { transcoder.transcode(any(), any()) }
+        val secondUpload = uploads.last()
+        assertThat(secondUpload.sortedBy { it.first })
+            .isEqualTo(firstAttemptContents.map { (n, b) -> n to b }.sortedBy { it.first })
+        // success consumed the prepared uploads
+        assertThat(preparedRoot.exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
+     * A DIFFERENT recording (new PCM after cancel + fresh capture) must
+     * rebuild its prepared files — the old hash dir is pruned, never reused
+     * stale. Driven via hand-crafted snapshots only (no live recorder).
+     */
+    @Test
+    fun `different recording rebuilds prepared files and prunes the old dir`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcmA = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcmA)
+        File(cacheDir, "session.meta").writeText("1250")
+
+        val controller = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
+        controller.restore()
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        val firstKey = File(cacheDir, "prepared").listFiles().orEmpty().single().name
+        controller.cancel()
+
+        // an entirely different recording
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(30_000) { i -> (i % 13).toByte() })
+        File(cacheDir, "session.meta").writeText("900")
+        val reborn = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
+        reborn.restore()
+        reborn.stopAndTranscribe()
+        reborn.awaitState(VoiceSessionController.State.PAUSED)
+
+        val dirs = File(cacheDir, "prepared").listFiles().orEmpty()
+        assertThat(dirs.size).isEqualTo(1)
+        assertThat(dirs.single().name).isNotEqualTo(firstKey)
+        controller.cancel()
+        clearSessionFiles()
+    }
+
     private fun clearSessionFiles() {
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
         File(cacheDir, "session.pcm").delete()
