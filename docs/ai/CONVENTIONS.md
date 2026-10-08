@@ -32,6 +32,7 @@ Follow these without question. Do not deviate unless explicitly told.
 - `compress_audio` setting (default false): when set, `VoiceSessionController` transcodes the recording to `cacheDir/recording.ogg` via `AudioTranscoder` on `Dispatchers.IO`; **any transcoder failure falls back to the original WAV** — a recording must never be lost over transcoding
 - `OpusOggTranscoder` throws on any failure and deletes partial output; callers catch and fall back
 - Keep WAV upload as the always-working baseline; Ogg/Opus is strictly opt-in
+- **Chunking (#115, aitranscribe port):** recordings beyond the upload limits (**25 MB / 600 s**, `WavChunker.MAX_CHUNK_BYTES`/`MAX_CHUNK_SECONDS` — the sister project's defaults) are split at sample boundaries BEFORE compression into numbered chunk files (`recording_N.{ogg,wav}`), each transcoded (or written) individually with its own per-chunk fallback; `TranscriptionPipeline.transcribe(List<File>)` runs one STT call per chunk and joins chunk texts with a single space before the single LLM pass. Chunks ≥ limits are impossible by construction; within-limits recordings take the legacy single-file path untouched. Chunk limits on `VoiceSessionController` are constructor params (tests inject small values); never add a Settings UI for them — this mirrors aitranscribe's fixed constants.
 
 ## Configuration
 - Provider configs serialized as JSON objects in SharedPreferences

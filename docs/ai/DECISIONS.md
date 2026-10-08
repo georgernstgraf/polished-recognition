@@ -849,3 +849,14 @@ Each entry documents WHAT was decided and WHY.
 - **Reason**: Owner decision — the UI batch + service entry point justify a user-visible release; patch because no listing/marketing changes ride along.
 - **Verification**: `release.yml` green (Play alpha edit `12594441127685593678` committed, status completed), `fdroid-apk.yml` green, GitHub `v1.3.1` assets (AAB + APK) present, `build.yml` green. Live Play-API check + F-Droid pickup (may serve 1.3.0 first) remain watch items on #91.
 - **Tradeoff**: #82 stays open until Peter confirms the retest on a shipped build; #90 closed (owner visual feel-check passed: "wonderful").
+
+## 2026-10-08: #115 — chunk BEFORE compression, not via Ogg sample copy; injectable limits, no Settings UI
+- **Choice**: Port aitranscribe's `core.py:chunk_audio` as a pure-JVM `WavChunker` operating on the raw recording WAV (sample-exact splits at 25 MB / 600 s, `max(60, ...)` segment floor); `VoiceSessionController` splits BEFORE transcoding and compresses each chunk separately. `TranscriptionPipeline` takes `List<File>` (one STT call per chunk, single-space join, single LLM pass, language from first chunk — aitranscribe `run_pipeline` parity).
+- **Reason**: A finished Ogg cannot be split without a full decode+re-encode (no MediaMuxer OGG sample-copy path; FFmpegKit is banned — PITFALLS). Chunk-then-compress also keeps the compressed uploads tiny (`recording_N.ogg`) and reuses the existing WAV→Ogg transcoder unchanged.
+- **Tradeoff**: The per-chunk `PcmConditioner` run resets the high-pass state at each chunk edge (negligible for speech); the core.py 60 s floor is additionally capped at the size-derived budget so a small byte limit can never be exceeded (documented deviation); short dicts are fully unaffected (single-file path byte-identical). Chunk-max limits are `VoiceSessionController` constructor params (mirroring aitranscribe's hard-coded constants) — no Settings UI by design.
+- **Verification**: `test` green (312; incl. new `WavChunkerTest` 8 cases, pipeline join/failure tests, controller multi-chunk handoff test), `assembleRelease` green, pushed (`0f43035`). On-device verify pending (owner, #115).
+
+## 2026-10-08: Cross-repo sub-issues ARE permitted (#115 ↔ aitranscribe#81)
+- **Choice**: aitranscribe#81 (prompt sync in the sister repo) was formally linked as a sub-issue of polished-recognition#115 via `POST /repos/georgernstgraf/polished-recognition/issues/115/sub_issues` — GitHub accepted the cross-repository child.
+- **Reason**: The sync ticket spans both repos; the parent's progress summary now tracks the sister-repo work.
+- **Tradeoff**: Sister-repo commits cannot reference the parent number in their commit messages (different repo) — the body reference + formal link carries it.
