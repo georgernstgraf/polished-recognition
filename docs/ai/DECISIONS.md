@@ -860,3 +860,9 @@ Each entry documents WHAT was decided and WHY.
 - **Choice**: aitranscribe#81 (prompt sync in the sister repo) was formally linked as a sub-issue of polished-recognition#115 via `POST /repos/georgernstgraf/polished-recognition/issues/115/sub_issues` — GitHub accepted the cross-repository child.
 - **Reason**: The sync ticket spans both repos; the parent's progress summary now tracks the sister-repo work.
 - **Tradeoff**: Sister-repo commits cannot reference the parent number in their commit messages (different repo) — the body reference + formal link carries it.
+
+## 2026-10-08: #115 — stt-text.json evidence log alongside the interceptor's stt-response.json
+- **Choice**: `TranscriptionPipeline` writes a compact `stt-text.json` (chunkCount + per-chunk text lengths + detected language/probability + joined text) on every transcription in BOTH modes; the existing `ResponseLoggerInterceptor` rotation (`stt-response.json`, raw per-upload HTTP bodies) stays untouched.
+- **Reason**: Raw mode never reaches the `llm-prompt` log, so a raw-mode long dictation would leave no single-file session summary — the interceptor rotation spreads one session's chunks across `stt-response.json`/`_1.json`/… mixed with older sessions. One summary file per session makes the owner's on-device verify (chunk count? cutoff?) a single `adb cat`. Both logs are needed because Oplus suppresses app logcat from the IME process.
+- **Tradeoff**: The joined text is logged twice per session (here + llm-prompt user message) — accepted, logs are local-only rotating files, same as before.
+- **Verification**: `test` green (314; incl. `raw mode writes stt-text log but no llm-prompt log`, `stt-text log carries chunk evidence and language`, `chunked upload logs per-chunk evidence in stt-text`), pushed (`5df67b4`), `installRelease` on f6de166c 18:33. On-device long-dictation verify pending (owner).
