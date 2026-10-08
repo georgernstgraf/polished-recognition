@@ -34,6 +34,13 @@ class VoiceSessionController(
     private val chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
     /** PCM bytes per background-encoded fragment (#115); tests inject huge values. */
     private val fragmentBytes: Int = FragmentPreparer.DEFAULT_FRAGMENT_BYTES,
+    /**
+     * Overrides the pipeline's shared [SttRequestRunner] for the live
+     * fragment worker (#116); tests inject a fast-backoff runner. `null` in
+     * production — the runner comes from the pipeline (same Retrofit cache
+     * and evidence logger).
+     */
+    private val sttRunnerOverride: SttRequestRunner? = null,
     /** adb-readable encode evidence (fragment cadence), null in unit tests. */
     private val logger: RotatingJsonLogger? = null
 ) {
@@ -54,6 +61,13 @@ class VoiceSessionController(
     /** Session-scoped fragment preparation (#115), only with `compress_audio` on. */
     private var preparer: FragmentPreparer? = null
     private var sessionId: String? = null
+
+    /**
+     * Live fragment transcription (#116), only with `compress_audio` on:
+     * transcribes each committed fragment while the user is still dictating
+     * and caches the transcripts for a cheap retry after a parked failure.
+     */
+    private var transcriber: FragmentTranscriber? = null
 
     var state: State = State.IDLE
         private set
@@ -128,9 +142,13 @@ class VoiceSessionController(
         if (!newSession && previous != null) {
             // resume path: worker may be stopped after a failed pipeline run
             previous.startWorker()
+            attachTranscriber(previous)
             return
         }
         previous?.stopWorker()
+        // A new session discards the previous transcripts with the audio (#116).
+        transcriber?.cancel()
+        transcriber = null
         if (newSession || sessionId == null) {
             sessionId = UUID.randomUUID().toString()
             // bound the fragment cache to one session: prune other sessions
@@ -138,8 +156,41 @@ class VoiceSessionController(
             root.mkdirs()
             root.listFiles()?.forEach { if (it.name != sessionId) it.deleteRecursively() }
         }
-        preparer = buildPreparer().also { it.startWorker() }
+        val p = buildPreparer()
+        preparer = p
+        attachTranscriber(p)
+        p.startWorker()
     }
+
+    /**
+     * Wires the preparer's per-fragment commit hook into the live
+     * transcription worker (#116) and reconciles any fragments already
+     * committed before the wiring (fresh sessions have none; restored
+     * sessions have the manifest prefix recovered by [FragmentPreparer]).
+     */
+    private fun attachTranscriber(p: FragmentPreparer) {
+        val t = transcriber ?: buildTranscriber().also { transcriber = it }
+        p.onFragmentCommitted = { index, file ->
+            t.offer(FragmentTranscriber.CommittedFragment(index, file))
+        }
+        p.committedFragments().forEach { (index, file) ->
+            t.offer(FragmentTranscriber.CommittedFragment(index, file))
+        }
+        t.start()
+    }
+
+    private fun buildTranscriber(): FragmentTranscriber = FragmentTranscriber(
+        sttRunner = sttRunnerOverride ?: pipeline.sttRequestRunner,
+        configProvider = { settings.sttProvider },
+        scope = scope,
+        onProgress = { pendingSeconds ->
+            if (pendingSeconds > 0) {
+                emit(Event.StageChanged(
+                    TranscriptionPipeline.TranscriptionStage.RequestingSttProgress(pendingSeconds)
+                ))
+            }
+        }
+    )
 
     /**
      * Creates the preparer without starting the worker — used on the
@@ -151,7 +202,9 @@ class VoiceSessionController(
         if (preparer != null) return
         if (sessionId == null) sessionId = UUID.randomUUID().toString()
         File(appContext.cacheDir, FRAGMENTS_DIR).mkdirs()
-        preparer = buildPreparer()
+        val p = buildPreparer()
+        preparer = p
+        attachTranscriber(p)
     }
 
     private fun buildPreparer(): FragmentPreparer = FragmentPreparer(
@@ -166,6 +219,9 @@ class VoiceSessionController(
 
     /** Drop the session's committed fragments (flush/cancel — audio discarded). */
     private fun discardFragmentSession() {
+        // In-flight fragment transcriptions belong to the discarded audio (#116).
+        transcriber?.cancel()
+        transcriber = null
         preparer?.let {
             it.stopWorker()
             it.prune()
@@ -243,20 +299,16 @@ class VoiceSessionController(
 
         transcribeJob = scope.launch {
             val result = try {
-                val files = prepareAudioFiles(wav)
-                val r = pipeline.transcribe(files, callerPackage) { stage ->
-                    emit(Event.StageChanged(stage))
-                }
-                // On success the prepared uploads are consumed; on failure
-                // they stay committed so the retry reuses them instead of
-                // re-encoding (#115 stage memoization).
-                if (r.isSuccess) clearPrepared()
-                r
+                runTranscription(wav, callerPackage)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Result.failure(e)
             }
+            // On success the prepared uploads are consumed; on failure
+            // they stay committed so the retry reuses them instead of
+            // re-encoding (#115 stage memoization).
+            if (result.isSuccess) clearPrepared()
             if (result.isSuccess) {
                 recorder.flushBuffer()
                 deliver(result)
@@ -407,6 +459,69 @@ class VoiceSessionController(
         } catch (_: Throwable) {
         }
     }
+
+    /**
+     * Runs the transcription for a stopped session (#116). With the fragment
+     * pipeline active, the live worker has already transcribed the committed
+     * fragments DURING dictation — only the tail fragment is encoded now
+     * (sub-second) and the ordered transcripts drain. The single
+     * full-context LLM pass then runs over the joined raw text (owner
+     * decision: the polish always sees the transcript in one piece).
+     *
+     * Fragment failure semantics: the lowest-order finally-failed fragment
+     * fails the session — EXCEPT in raw mode, where the partial joined text
+     * is still delivered (the Raw toggle is the user's rescue path when the
+     * polish pass fails, and it must not require a clean STT run). Without
+     * fragments (compress off, or an empty recording) the legacy batch path
+     * applies unchanged.
+     */
+    private suspend fun runTranscription(wav: ByteArray, callerPackage: String?): Result<String> {
+        if (settings.compressAudio) ensureFragmentPreparer()
+        val p = preparer
+        val t = transcriber
+        if (p != null && t != null && settings.compressAudio) {
+            p.stopWorker()
+            // A retry re-attempts the finally-failed fragments (#116); the
+            // retry attempt sees fresh network conditions.
+            t.resetFailures()
+            emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
+            withContext(Dispatchers.IO) { p.prepareTailSync() }
+            emit(Event.StageChanged(
+                TranscriptionPipeline.TranscriptionStage.RequestingSttProgress(t.pendingAudioSeconds())
+            ))
+            val drained = t.drain()
+            if (drained.chunkCount > 0) {
+                drained.failure?.let { failure ->
+                    val where = "fragment ${drained.failedIndex!! + 1}/${drained.chunkCount}"
+                    if (!settings.rawMode) {
+                        return Result.failure(Exception("$where: ${failure.message}"))
+                    }
+                    logger?.log(
+                        "prepare",
+                        gson.toJson(mapOf("rawRescue" to true, "failed" to where, "error" to failure.message))
+                    )
+                }
+                return pipeline.finishTranscription(
+                    Result.success(drained.toSttResult()),
+                    callerPackage
+                ) { stage -> emit(Event.StageChanged(stage)) }
+            }
+            // empty recording → legacy single-file path below
+        }
+
+        val files = prepareAudioFiles(wav)
+        return pipeline.transcribe(files, callerPackage) { stage ->
+            emit(Event.StageChanged(stage))
+        }
+    }
+
+    private fun FragmentTranscriber.Drained.toSttResult() = TranscriptionPipeline.SttResult(
+        text = text,
+        language = language,
+        languageProbability = languageProbability,
+        chunkCount = chunkCount,
+        chunkLengths = chunkLengths
+    )
 
     /**
      * Prepares the recording(s) for upload. With `compress_audio` enabled the

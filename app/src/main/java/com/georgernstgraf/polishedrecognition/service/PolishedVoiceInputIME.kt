@@ -437,13 +437,16 @@ class PolishedVoiceInputIME : InputMethodService() {
                 }
             }
             is VoiceSessionController.Event.StageChanged -> {
-                stageText?.text = when (event.stage) {
+                stageText?.text = when (val stage = event.stage) {
                     is TranscriptionPipeline.TranscriptionStage.CompressingAudio ->
                         getString(R.string.ime_stage_compressing)
                     is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                         getString(R.string.ime_stage_stt)
+                    // #116: live drain progress — "56s → STT", then "120 words → LLM".
+                    is TranscriptionPipeline.TranscriptionStage.RequestingSttProgress ->
+                        getString(R.string.ime_stage_stt_seconds, stage.pendingAudioSeconds)
                     is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
-                        getString(R.string.ime_stage_llm)
+                        getString(R.string.ime_stage_llm_words, stage.wordCount)
                 }
             }
             is VoiceSessionController.Event.Completed -> {

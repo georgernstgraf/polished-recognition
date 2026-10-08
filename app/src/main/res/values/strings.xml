@@ -80,7 +80,9 @@
     <string name="voice_subtype_label" translatable="false">Polished Recognition voice</string>
     <string name="ime_stage_compressing">Compressing to .ogg\u2026</string>
     <string name="ime_stage_stt">Transcribing (STT)\u2026</string>
-    <string name="ime_stage_llm">Polishing (LLM)\u2026</string>
+    <!-- #116: live drain progress — pending audio seconds during the fragment STT drain, word count during the single LLM pass. -->
+    <string name="ime_stage_stt_seconds">%1$ds \u2192 STT</string>
+    <string name="ime_stage_llm_words">%1$d words \u2192 LLM</string>
     <string name="ime_settings_desc">Settings</string>
     <string name="ime_switch_keyboard_desc">Switch keyboard</string>
     <string name="ime_cancel">Cancel</string>

@@ -4,6 +4,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.google.gson.Gson
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -53,9 +54,22 @@ class FragmentPreparer(
     data class ManifestState(val fallbackToWav: Boolean, val fragments: List<Entry>)
 
     private val gson = Gson()
-    private val entries = mutableListOf<Entry>()
+
+    // CopyOnWriteArrayList: mutated by the encoder thread (add on commit,
+    // clear on fallback/prune), read concurrently by [committedFragments]
+    // from the controller coroutine (#116) — snapshot iteration without locks.
+    private val entries = CopyOnWriteArrayList<Entry>()
     private var fallbackToWav = false
     private var nextFragment = 0
+
+    /**
+     * Per-fragment commit hook (#116): fired (best-effort, on the encoder
+     * thread) after a fragment is committed to disk + manifest — the live
+     * transcription worker consumes fragments through this as they close.
+     * `index` is the fragment's position in the stream, `file` the committed
+     * OGG/WAV fragment file.
+     */
+    var onFragmentCommitted: ((index: Int, file: File) -> Unit)? = null
 
     /**
      * Upload chunk = this many fragments. Derived so a full chunk stays
@@ -209,6 +223,13 @@ class FragmentPreparer(
         sessionDir.listFiles()?.forEach { it.delete() }
     }
 
+    /**
+     * (index, file) of every committed fragment, in commit order (#116).
+     * Safe to call while the encoder thread runs — COW snapshot semantics.
+     */
+    fun committedFragments(): List<Pair<Int, File>> =
+        entries.mapIndexed { index, entry -> index to File(sessionDir, entry.name) }
+
     private fun encodeFragment(index: Int) {
         val start = index.toLong() * fragmentBytes
         val end = minOf(start + fragmentBytes, pcm.pcmSize())
@@ -252,11 +273,20 @@ class FragmentPreparer(
             // OGG path already appended its entry above
                 writeManifest()
             logFragment(index, data.size, started)
+            notifyCommitted(index, "frag_%06d.ogg".format(index))
             return
         }
         entries.add(Entry(file.name, file.length()))
         writeManifest()
         logFragment(index, data.size, started)
+        notifyCommitted(index, file.name)
+    }
+
+    private fun notifyCommitted(index: Int, name: String) {
+        try {
+            onFragmentCommitted?.invoke(index, File(sessionDir, name))
+        } catch (_: Throwable) {
+        }
     }
 
     private fun logFragment(index: Int, bytes: Int, started: Long) {

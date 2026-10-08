@@ -200,13 +200,16 @@ class PolishedRecognitionService : RecognitionService() {
     }
 
     private fun stageText(stage: TranscriptionPipeline.TranscriptionStage): String =
-        when (stage) {
+        when (val s = stage) {
             is TranscriptionPipeline.TranscriptionStage.CompressingAudio ->
                 getString(R.string.ime_stage_compressing)
             is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                 getString(R.string.ime_stage_stt)
+            // #116: same live drain progress as the IME stage line.
+            is TranscriptionPipeline.TranscriptionStage.RequestingSttProgress ->
+                getString(R.string.ime_stage_stt_seconds, s.pendingAudioSeconds)
             is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
-                getString(R.string.ime_stage_llm)
+                getString(R.string.ime_stage_llm_words, s.wordCount)
         }
 
     private fun hasMicPermission(): Boolean =

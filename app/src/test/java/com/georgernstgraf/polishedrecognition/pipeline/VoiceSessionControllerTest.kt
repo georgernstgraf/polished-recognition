@@ -1,5 +1,7 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
+import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
+import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
@@ -13,11 +15,14 @@ import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okhttp3.ResponseBody
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import retrofit2.Call
+import retrofit2.Response
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.CountDownLatch
@@ -28,6 +33,7 @@ class VoiceSessionControllerTest {
 
     private val pipeline: TranscriptionPipeline = mockk(relaxed = true)
     private val transcoder: AudioTranscoder = mockk(relaxed = true)
+    private val sttApi: OpenAiSttApiService = mockk(relaxed = true)
     private lateinit var settings: SettingsStore
 
     @Before
@@ -35,7 +41,24 @@ class VoiceSessionControllerTest {
         val ctx = RuntimeEnvironment.getApplication()
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         settings = SettingsStore(ctx)
+        // The live fragment worker (#116) resolves the provider itself.
+        settings.sttProvider = com.georgernstgraf.polishedrecognition.config.SttProviderConfig(
+            displayName = "LAN",
+            baseUrl = "http://10.8.0.16:11437/v1/",
+            apiToken = "token",
+            model = "large-v3"
+        )
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
+        // The live fragment path (#116) ends in finishTranscription.
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
+        coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
+    }
+
+    private fun mockSttCall(response: Response<SttResponse>): Call<SttResponse> {
+        val call = mockk<Call<SttResponse>>()
+        every { call.execute() } returns response
+        return call
     }
 
     private fun newController(
@@ -51,7 +74,10 @@ class VoiceSessionControllerTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
-        fragmentBytes = fragmentBytes
+        fragmentBytes = fragmentBytes,
+        // real live-fragment engine (#116) over the mocked STT endpoint,
+        // with zero backoff so failure-path tests stay fast
+        sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
     )
 
     private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
@@ -121,35 +147,56 @@ class VoiceSessionControllerTest {
         verify(exactly = 0) { transcoder.transcode(any(), any()) }
     }
 
+    /**
+     * #116: with `compress_audio` on, the recording is transcribed through
+     * the LIVE fragment worker — one STT request per committed fragment, no
+     * assembled chunk file reaches the batch pipeline. Driven via a restored
+     * snapshot (Robolectric cannot capture real mic bytes — an empty live
+     * recording falls through to the legacy path).
+     */
     @Test
-    fun `compressAudio enabled uploads transcoded recording ogg`() {
+    fun `compressAudio enabled transcribes through the live fragment worker`() {
+        clearSessionFiles()
         settings.compressAudio = true
         every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(byteArrayOf(1, 2, 3)) }
+            secondArg<File>().apply { writeBytes(firstArg()) }
         }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
 
-        recordAndStop()
+        val controller = newController()
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
 
-        // The upload file's name depends on the chunking path (single-file
-        // legacy vs fragment-assembled): under Robolectric the shadow
-        // capture may or may not have produced bytes, so assert the
-        // ESSENCE — the upload is a single OGG part — not the exact name.
-        val name = uploadedFile().name
-        assertThat(name).startsWith("recording")
-        assertThat(name).endsWith(".ogg")
+        coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
+        coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
+        // one fragment (whole recording at the default huge test fragment size)
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
         verify(exactly = 1) { transcoder.transcode(any(), any()) }
+        clearSessionFiles()
     }
 
     @Test
-    fun `transcoder failure falls back to recording wav`() {
+    fun `transcoder failure falls back to wav fragments and still transcribes`() {
+        clearSessionFiles()
         settings.compressAudio = true
         every { transcoder.transcode(any(), any()) } throws IOException("no encoder")
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
 
-        recordAndStop()
+        val controller = newController()
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
 
-        val name = uploadedFile().name
-        assertThat(name).startsWith("recording")
-        assertThat(name).endsWith(".wav")
+        // The session-level WAV fallback (#115) must not kill the
+        // transcription: the fragment uploads as audio/wav instead (#116).
+        coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        clearSessionFiles()
     }
 
     @Test
@@ -741,12 +788,13 @@ class VoiceSessionControllerTest {
     }
 
     /**
-     * Fragment retry (#115): a failed compress-on pipeline parks PAUSED; the
-     * retry reuses the committed fragments — the transcoder must NOT run
-     * again (all encoding happened once, before the first attempt).
+     * Fragment retry (#116): a failed compress-on session parks PAUSED; the
+     * retry re-drains the CACHED transcripts — the transcoder must NOT run
+     * again (all encoding happened once, before the first attempt) and no
+     * STT request may be re-sent for already-transcribed fragments.
      */
     @Test
-    fun `fragment retry after failure reuses committed fragments without re-encoding`() {
+    fun `fragment retry after failure reuses cached transcripts without re-encoding or re-uploading`() {
         clearSessionFiles()
         settings.compressAudio = true
         every { transcoder.transcode(any(), any()) } answers {
@@ -760,37 +808,31 @@ class VoiceSessionControllerTest {
         val controller = newController(fragmentBytes = 10_000)
         controller.restore()
 
-        val uploads = mutableListOf<List<Pair<String, Long>>>()
-        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
-            uploads.add(firstArg<List<File>>().map { it.name to it.length() })
-            Result.failure(IOException("offline"))
-        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(Exception("LLM post-processing failed: HTTP 500"))
         controller.stopAndTranscribe()
         controller.awaitState(VoiceSessionController.State.PAUSED)
-        // 4 fragments committed for the 40 kB buffer
+        // 4 fragments committed for the 40 kB buffer, each transcribed once
         verify(exactly = 4) { transcoder.transcode(any(), any()) }
-        assertThat(uploads.single().single().first).isEqualTo("recording_1.ogg")
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
 
-        // retry: nothing new to encode, same chunk assembled
-        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
-            uploads.add(firstArg<List<File>>().map { it.name to it.length() })
-            Result.success("hi")
-        }
+        // retry: the LLM pass succeeds now; the fragments re-drain from cache
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
         controller.stopAndTranscribe()
         controller.awaitIdle()
 
         verify(exactly = 4) { transcoder.transcode(any(), any()) }
-        assertThat(uploads.size).isEqualTo(2)
-        assertThat(uploads[1].single().first).isEqualTo("recording_1.ogg")
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
         // success consumed the fragment session
         assertThat(File(cacheDir, "fragments").exists()).isFalse()
         clearSessionFiles()
     }
 
     /**
-     * Process death (#115): the restored session id ties the snapshot to the
-     * committed fragment dir — fragments already on disk are reused, only
-     * the missing ones are encoded.
+     * Process death (#115/#116): the restored session id ties the snapshot
+     * to the committed fragment dir — fragments already on disk are reused,
+     * only the missing ones are encoded, and ALL of them flow through the
+     * live worker into one ordered [TranscriptionPipeline.SttResult].
      */
     @Test
     fun `restored session reuses fragments committed before process death`() {
@@ -818,12 +860,91 @@ class VoiceSessionControllerTest {
         val controller = newController(fragmentBytes = 10_000)
         controller.restore()
 
-        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+            callIndex++
+            mockSttCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
+        }
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
         controller.stopAndTranscribe()
         controller.awaitIdle()
 
         // only fragments 2 and 3 were encoded fresh; 0 and 1 were reused
         verify(exactly = 2) { transcoder.transcode(any(), any()) }
+        // all four fragments transcribed, joined in fragment order
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.text).isEqualTo("part 1 part 2 part 3 part 4")
+        assertThat(stt.chunkCount).isEqualTo(4)
+        assertThat(File(cacheDir, "fragments").exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
+     * Raw rescue (#116, owner decision): when a fragment finally fails,
+     * polish mode fails the session naming the LOWEST-ORDER failed fragment
+     * — in raw mode the retry re-attempts the failed fragment and delivers
+     * the (complete) raw text without re-transcribing the cached fragments
+     * (the Raw toggle is the user's rescue path when the polish fails).
+     */
+    @Test
+    fun `fragment failure fails in polish mode and delivers partial text in raw mode`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+
+        // fragment 1 (0-based) fails permanently (HTTP 400 = non-transient)
+        val http400 =
+            @Suppress("DEPRECATION")
+            Response.error<SttResponse>(400, ResponseBody.create(null, "bad request"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
+                mockSttCall(http400),
+                mockSttCall(Response.success(SttResponse(text = "three", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "four", language = null)))
+            )
+
+        val controller = newController(fragmentBytes = 10_000)
+        controller.restore()
+        // attach (not start): the restored session is PAUSED — a start() here
+        // would re-begin recording and reset the restored buffer.
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+
+        // polish mode: the session fails, the lowest-order failure is named
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        // the result is delivered via a main-looper post (the pipeline flow
+        // resumed on an IO worker) — pump the looper before reading events
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        val failed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last().result
+        assertThat(failed.exceptionOrNull()!!.message).contains("fragment 2/4")
+        assertThat(failed.exceptionOrNull()!!.message).contains("HTTP 400")
+        coVerify(exactly = 0) { pipeline.finishTranscription(any(), any(), any()) }
+
+        // raw mode retry: the failed fragment is RE-ATTEMPTED (fresh attempt
+        // succeeds now), the cached fragments are not re-transcribed, and
+        // the raw text comes from finishTranscription
+        settings.rawMode = true
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+            mockSttCall(Response.success(SttResponse(text = "two", language = null)))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.text).isEqualTo("one two three four")
+        assertThat(stt.chunkCount).isEqualTo(4)
+        verify(exactly = 5) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
         assertThat(File(cacheDir, "fragments").exists()).isFalse()
         clearSessionFiles()
     }

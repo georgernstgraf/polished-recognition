@@ -34,8 +34,13 @@ class TranscriptionPipeline(
     sealed class TranscriptionStage {
         object CompressingAudio : TranscriptionStage()
         object RequestingStt : TranscriptionStage()
+        /** Live drain progress (#116): audio seconds still awaiting STT. */
+        data class RequestingSttProgress(val pendingAudioSeconds: Int) : TranscriptionStage()
         data class RequestingLlm(val wordCount: Int) : TranscriptionStage()
     }
+
+    /** The shared per-request STT engine (#116) — the live fragment worker runs on it too. */
+    val sttRequestRunner: SttRequestRunner get() = sttRunner
 
     suspend fun transcribe(
         audioFiles: List<File>,
@@ -45,17 +50,32 @@ class TranscriptionPipeline(
         val sttConfig = settingsStore.sttProvider
             ?: return@withContext Result.failure(Exception("STT provider not configured"))
 
-        val rawMode = settingsStore.rawMode
-        val targetLanguage = settingsStore.targetLanguage
-        val wrapWidth = settingsStore.wrapWidthFor(callerPackage)
-
         onStageChange?.invoke(TranscriptionStage.RequestingStt)
-        val sttResult = runStt(audioFiles, sttConfig)
+        finishTranscription(runStt(audioFiles, sttConfig), callerPackage, onStageChange)
+    }
+
+    /**
+     * The post-STT half of [transcribe], exposed for the live fragment
+     * worker path (#116): the worker has already transcribed the committed
+     * fragments DURING dictation and the controller hands in the ordered
+     * joined [SttResult] — what remains here is the stt-text evidence, the
+     * language clauses, the raw-mode branch and the single full-context LLM
+     * pass (owner decision: the polish always sees the whole transcript in
+     * one piece).
+     */
+    suspend fun finishTranscription(
+        sttResult: Result<SttResult>,
+        callerPackage: String? = null,
+        onStageChange: ((TranscriptionStage) -> Unit)? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
         if (sttResult.isFailure) return@withContext Result.failure(
             Exception("STT transcription failed: ${sttResult.exceptionOrNull()?.message}")
         )
 
         val raw = sttResult.getOrThrow()
+        val rawMode = settingsStore.rawMode
+        val targetLanguage = settingsStore.targetLanguage
+        val wrapWidth = settingsStore.wrapWidthFor(callerPackage)
         val whisper = raw.copy(text = raw.text.trim())
 
         // Persistent STT evidence (#115): chunk count + per-chunk text
