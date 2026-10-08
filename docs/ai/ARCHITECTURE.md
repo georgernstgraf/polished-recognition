@@ -1,6 +1,6 @@
 # Architecture
 
-Living structural map of the system as of 2026-10-08.
+Living structural map of the system as of 2026-10-08 (fragment streaming).
 Overwritten when structural changes occur during a session.
 
 ## Overview
@@ -28,8 +28,9 @@ Polished Recognition is an Android **voice IME** (`InputMethodService`) that cap
 | `OpenAiChatApiService` | api | Generic Retrofit interface: `POST chat/completions` (sync `Call<T>`), `GET models` |
 | `AudioRecorder` | audio | AudioRecord wrapper: PCM 16kHz mono → WAV ByteArray |
 | `WavReader` | audio | Fail-fast parser for the recorder's canonical 44-byte-header WAV → PCM + sample rate |
-| `WavWriter` | audio | Encodes PCM into the canonical 44-byte-header WAV (extracted from `AudioRecorder.pcmToWav`, #115) — used by the recorder and by the chunker |
-| `WavChunker` | audio | Pure-JVM chunk planner (#115, aitranscribe `chunk_audio` port): recordings beyond the upload limits (25 MB / 600 s) are split at sample boundaries before compression; segment = min(size-derived, duration-derived even split), floored at 60 s; within-limits recordings come back unsplit |
+| `WavWriter` | audio | Encodes PCM into the canonical 44-byte-header WAV (extracted from `AudioRecorder.pcmToWav`, #115) — used by the recorder, the chunker and the fragment preparer |
+| `WavChunker` | audio | Pure-JVM chunk planner (#115, aitranscribe `chunk_audio` port, **fixed 600-s boundaries** since the fragment streaming rework): recordings beyond the upload limits (25 MB / 600 s) are split at sample boundaries before compression; within-limits recordings come back unsplit |
+| `FragmentPreparer` | audio | Streaming fragment encoder (#115, owner design): with `compress_audio` on, a background single-thread worker encodes 7-s OGG fragments of the append-only PCM buffer during dictation, committing each to `cacheDir/fragments/<sessionId>/` + manifest; chunk assembly = byte concatenation (OGG chaining); resumable across process death via the snapshot meta session id; session-level WAV fallback on encoder failure; `PcmSource` abstraction keeps it pure-JVM testable |
 | `PcmConditioner` | audio | Pure-JVM DSP over 16-bit LE PCM: one-pole 80 Hz high-pass + amplify-only peak normalization (target ~0.8 FS, gain cap 10x, silence guard at peak 200) |
 | `AudioTranscoder` / `OpusOggTranscoder` | audio | WAV → Ogg/Opus 24 kbps via platform `MediaCodec` encoder + `MediaMuxer MUXER_OUTPUT_OGG` (API 30 = minSdk). Throws on any failure and deletes partial output — callers fall back to WAV |
 | `SettingsStore` | config | SharedPreferences: provider configs, raw mode, target language, cached model lists. Also owns the **learned dictation targets** (#100) in the separate `known_apps` prefs file (`KnownApp(label, lastSeenMs, wrapWidth: Int?)`) with an in-memory cache, `wrapWidthFor(packageName)` (per-app override else global), and the injectable single-thread `learnerExecutor` (writes only when the app is new or `lastSeen > 24 h`, errors only `Log.w`). `knownAppsByRecency()` returns the in-memory most-recently-used order (`mruOrder`, #102) first, then the remaining apps by stored `lastSeenMs` descending. |

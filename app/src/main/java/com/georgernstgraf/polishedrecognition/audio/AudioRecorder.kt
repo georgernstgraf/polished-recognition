@@ -5,7 +5,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import java.io.ByteArrayOutputStream
 
-class AudioRecorder {
+class AudioRecorder : PcmSource {
 
     private var audioRecord: AudioRecord? = null
     @Volatile private var isRecording = false
@@ -132,5 +132,26 @@ class AudioRecorder {
             bufferStream.reset()
             bufferStream.write(pcm)
         }
+    }
+
+    /**
+     * [PcmSource] access for the fragment preparer (#115): the buffer is
+     * append-only while a session lives. `toByteArray()` snapshots the whole
+     * buffer under the capture lock (the capture thread may be reallocating
+     * the internal array at any moment) — one full copy per fragment is
+     * cheap against a 7-s encode cadence.
+     */
+    override fun pcmSize(): Long =
+        synchronized(bufferStream) { bufferStream.size().toLong() }
+
+    override fun copyPcmRange(start: Long, end: Long): ByteArray {
+        require(start >= 0 && end >= start) { "invalid PCM range [$start, $end)" }
+        val target = ByteArray((end - start).toInt())
+        synchronized(bufferStream) {
+            val bytes = bufferStream.toByteArray()
+            require(end <= bytes.size) { "PCM range [$start, $end) beyond buffer (${bytes.size}B)" }
+            System.arraycopy(bytes, start.toInt(), target, 0, target.size)
+        }
+        return target
     }
 }

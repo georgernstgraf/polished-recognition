@@ -78,7 +78,7 @@ class PolishedRecognitionApp : Application() {
     }
 
     val voiceSessionController by lazy {
-        VoiceSessionController(this, transcriptionPipeline, settingsStore)
+        VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger)
     }
 
     /**

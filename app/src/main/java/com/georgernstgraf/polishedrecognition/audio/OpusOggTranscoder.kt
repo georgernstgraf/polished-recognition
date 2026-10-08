@@ -59,9 +59,20 @@ class OpusOggTranscoder(
             var outputDone = false
             val bufferInfo = MediaCodec.BufferInfo()
 
+            /**
+             * Canonical drain loop (#115 on-device diagnosis: the previous
+             * ping-pong loop waited up to 10 ms per dequeue — ~30 000 Opus
+             * frames × 2 dequeues ≈ 8 min wall clock for 10 min of audio,
+             * i.e. the encode ran at barely 1.25× real time. This loop
+             * never waits for OUTPUT right after queueing INPUT: it feeds
+             * greedily, drains every available output buffer at 0-timeout,
+             * and only blocks (briefly) when BOTH queues came up empty.
+             */
             while (!outputDone) {
+                // 1. Feed one input buffer if one is free (non-blocking).
+                var fed = false
                 if (!inputDone) {
-                    val inIndex = codec.dequeueInputBuffer(TIMEOUT_US)
+                    val inIndex = codec.dequeueInputBuffer(0)
                     if (inIndex >= 0) {
                         val inBuffer: ByteBuffer = requireNotNull(codec.getInputBuffer(inIndex))
                         inBuffer.clear()
@@ -75,17 +86,28 @@ class OpusOggTranscoder(
                             inIndex, 0, chunk, ptsUs,
                             if (isLast) MediaCodec.BUFFER_FLAG_END_OF_STREAM else 0
                         )
-                        inputDone = isLast
+                        if (isLast) inputDone = true
+                        fed = true
                     }
                 }
 
-                when (val outIndex = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                // 2. Drain output. Wait strategy: never wait right after
+                //    feeding (output catches up next cycle); brief 2 ms
+                //    block when ALL input buffers are in flight; full
+                //    TIMEOUT_US block once input is exhausted.
+                val waitUs = when {
+                    !inputDone && fed -> 0L
+                    !inputDone -> 2_000L
+                    else -> TIMEOUT_US
+                }
+                val outIndex = codec.dequeueOutputBuffer(bufferInfo, waitUs)
+                when {
+                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
+                    outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         trackIndex = muxer.addTrack(codec.outputFormat)
                         muxer.start()
                     }
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
-                    else -> if (outIndex >= 0) {
+                    outIndex >= 0 -> {
                         if (bufferInfo.size > 0 &&
                             bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0 &&
                             trackIndex >= 0

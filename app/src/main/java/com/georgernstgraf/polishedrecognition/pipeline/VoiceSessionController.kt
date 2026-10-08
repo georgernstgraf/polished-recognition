@@ -6,9 +6,12 @@ import android.os.Looper
 import android.util.Log
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
+import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
+import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
 class VoiceSessionController(
@@ -27,7 +31,11 @@ class VoiceSessionController(
     /** Upload-size limit per chunk in bytes (#115). */
     private val chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
     /** Upload-duration limit per chunk in seconds (#115). */
-    private val chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS
+    private val chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
+    /** PCM bytes per background-encoded fragment (#115); tests inject huge values. */
+    private val fragmentBytes: Int = FragmentPreparer.DEFAULT_FRAGMENT_BYTES,
+    /** adb-readable encode evidence (fragment cadence), null in unit tests. */
+    private val logger: RotatingJsonLogger? = null
 ) {
 
     enum class State { IDLE, RECORDING, PAUSED, PROCESSING }
@@ -41,6 +49,11 @@ class VoiceSessionController(
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
     private val recorder = AudioRecorder()
+    private val gson = Gson()
+
+    /** Session-scoped fragment preparation (#115), only with `compress_audio` on. */
+    private var preparer: FragmentPreparer? = null
+    private var sessionId: String? = null
 
     var state: State = State.IDLE
         private set
@@ -94,8 +107,74 @@ class VoiceSessionController(
         accumulatedMs = 0L
         segStartMs = System.currentTimeMillis()
         state = State.RECORDING
+        // Fragment preparation starts BEFORE the capture so a recorder
+        // failure can never leave the session without its preparer (#115).
+        startFragmentPreparation(newSession = true)
         recorder.start()
         emit(Event.StateChanged(state))
+    }
+
+    /**
+     * Fragment preparation lifecycle (#115): with `compress_audio` on, a
+     * background worker encodes 7-s OGG fragments of the append-only buffer
+     * while the user is still dictating, committing each one to
+     * `cacheDir/fragments/<sessionId>/` (owner design — the stop-time
+     * "Compressing to .ogg" of ~20 min previously blocked for minutes).
+     * A new session prunes other sessions' fragment dirs (max one live).
+     */
+    private fun startFragmentPreparation(newSession: Boolean) {
+        if (!settings.compressAudio) return
+        val previous = preparer
+        if (!newSession && previous != null) {
+            // resume path: worker may be stopped after a failed pipeline run
+            previous.startWorker()
+            return
+        }
+        previous?.stopWorker()
+        if (newSession || sessionId == null) {
+            sessionId = UUID.randomUUID().toString()
+            // bound the fragment cache to one session: prune other sessions
+            val root = File(appContext.cacheDir, FRAGMENTS_DIR)
+            root.mkdirs()
+            root.listFiles()?.forEach { if (it.name != sessionId) it.deleteRecursively() }
+        }
+        preparer = buildPreparer().also { it.startWorker() }
+    }
+
+    /**
+     * Creates the preparer without starting the worker — used on the
+     * restore→send path (#115): a restored PAUSED session goes straight to
+     * `stopAndTranscribe` without ever resuming recording, and must still
+     * reuse the fragments committed before the process died.
+     */
+    private fun ensureFragmentPreparer() {
+        if (preparer != null) return
+        if (sessionId == null) sessionId = UUID.randomUUID().toString()
+        File(appContext.cacheDir, FRAGMENTS_DIR).mkdirs()
+        preparer = buildPreparer()
+    }
+
+    private fun buildPreparer(): FragmentPreparer = FragmentPreparer(
+        pcm = recorder,
+        transcoder = transcoder,
+        sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sessionId),
+        fragmentBytes = fragmentBytes,
+        chunkMaxBytes = chunkMaxBytes,
+        chunkMaxSeconds = chunkMaxSeconds,
+        logger = logger
+    )
+
+    /** Drop the session's committed fragments (flush/cancel — audio discarded). */
+    private fun discardFragmentSession() {
+        preparer?.let {
+            it.stopWorker()
+            it.prune()
+            return
+        }
+        // restored-but-not-yet-prepared session: the dir exists on disk only
+        sessionId?.let { sid ->
+            File(appContext.cacheDir, "$FRAGMENTS_DIR/$sid").deleteRecursively()
+        }
     }
 
     /**
@@ -133,6 +212,10 @@ class VoiceSessionController(
         segStartMs = System.currentTimeMillis()
         state = State.RECORDING
         recorder.resume()
+        // Fragment encoding resumes with the capture (#115); on a restored
+        // session there is no preparer yet — it is created here, recovering
+        // whatever the manifest already committed before the process died.
+        startFragmentPreparation(newSession = false)
         emit(Event.StateChanged(state))
     }
 
@@ -199,6 +282,9 @@ class VoiceSessionController(
     fun cancel() {
         transcribeJob?.cancel()
         transcribeJob = null
+        discardFragmentSession()
+        preparer = null
+        sessionId = null
         runCatching { recorder.cancel() }
         clearSnapshot()
         accumulatedMs = 0L
@@ -220,6 +306,10 @@ class VoiceSessionController(
     fun flush() {
         if (state != State.RECORDING && state != State.PAUSED) return
         recorder.flushBuffer()
+        // The fragments encoded so far referenced the discarded audio (#115).
+        discardFragmentSession()
+        preparer = null
+        if (state == State.RECORDING && settings.compressAudio) startFragmentPreparation(newSession = false)
         clearSnapshot()
         accumulatedMs = 0L
         if (state == State.RECORDING) segStartMs = System.currentTimeMillis()
@@ -243,11 +333,39 @@ class VoiceSessionController(
             val total = accumulatedMs +
                 if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
             File(appContext.cacheDir, SNAP_PCM).writeBytes(recorder.snapshotPcm())
-            File(appContext.cacheDir, SNAP_META).writeText(total.toString())
+            // The session id ties the snapshot to its committed fragment dir
+            // (#115): after process death the restored session reuses the
+            // already-encoded fragments instead of re-encoding everything.
+            File(appContext.cacheDir, SNAP_META).writeText(
+                gson.toJson(SessionMeta(total, sessionId))
+            )
         } catch (_: Throwable) {
             // Best-effort: snapshotting must never break the live session —
             // this explicitly includes OutOfMemoryError on absurdly large
             // buffers, not just ordinary I/O failures.
+        }
+    }
+
+    /** Persisted session snapshot metadata (JSON since #115; was a bare duration). */
+    private data class SessionMeta(val durationMs: Long, val sessionId: String?)
+
+    private fun parseSnapshotMeta(raw: String): SessionMeta? {
+        val text = raw.trim()
+        if (text.isEmpty()) return null
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val map = gson.fromJson(text, Map::class.java) as? Map<String, Any>
+            if (map != null && map.containsKey("durationMs")) {
+                SessionMeta(
+                    durationMs = (map["durationMs"] as Double).toLong(),
+                    sessionId = map["sessionId"] as String?
+                )
+            } else {
+                // legacy format: bare duration
+                text.toLongOrNull()?.let { SessionMeta(it, null) }
+            }
+        } catch (_: Throwable) {
+            text.toLongOrNull()?.let { SessionMeta(it, null) }
         }
     }
 
@@ -264,12 +382,16 @@ class VoiceSessionController(
             val meta = File(appContext.cacheDir, SNAP_META)
             val pcmFile = File(appContext.cacheDir, SNAP_PCM)
             if (!meta.exists() || !pcmFile.exists()) return false
-            val total = meta.readText().trim().toLongOrNull() ?: return false
+            val parsed = parseSnapshotMeta(meta.readText()) ?: return false
             recorder.restorePcm(pcmFile.readBytes())
             meta.delete()
             pcmFile.delete()
-            accumulatedMs = total.coerceAtLeast(0L)
+            accumulatedMs = parsed.durationMs.coerceAtLeast(0L)
             segStartMs = 0L
+            sessionId = parsed.sessionId
+            // Fragment state is recovered lazily: the preparer comes alive
+            // on resume()/stopAndTranscribe() and picks the manifest up.
+            preparer = null
             state = State.PAUSED
             emit(Event.StateChanged(state))
             return true
@@ -311,6 +433,22 @@ class VoiceSessionController(
      * is prepared, so at most one session's uploads ever sit in cacheDir.
      */
     private suspend fun prepareAudioFiles(wav: ByteArray): List<File> {
+        // Fragment path (#115): the background worker has already encoded
+        // 7-s OGG fragments during the dictation — only the trailing partial
+        // fragment and the chained-OGG assembly remain, both sub-second.
+        if (settings.compressAudio) ensureFragmentPreparer()
+        val p = preparer
+        if (p != null && settings.compressAudio) {
+            p.stopWorker()
+            emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
+            val files = withContext(Dispatchers.IO) {
+                p.prepareTailSync()
+                p.assembleChunks()
+            }
+            if (files.isNotEmpty()) return files
+            // empty recording → legacy single-file path below
+        }
+
         val prepared = preparedDirFor(wav)
         if (prepared.reused) {
             Log.i(TAG, "Prepared upload reused from cache: ${prepared.dir.name} (${prepared.manifest.size} files)")
@@ -448,10 +586,11 @@ class VoiceSessionController(
         java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
 
-    /** Deletes the prepared-upload dir after a successful pipeline run. */
+    /** Deletes the prepared-upload dirs after a successful pipeline run. */
     private fun clearPrepared() {
         try {
             File(appContext.cacheDir, PREPARED_DIR).deleteRecursively()
+            File(appContext.cacheDir, FRAGMENTS_DIR).deleteRecursively()
         } catch (_: Throwable) {
         }
     }
@@ -496,5 +635,6 @@ class VoiceSessionController(
         private const val SNAP_PCM = "session.pcm"
         private const val SNAP_META = "session.meta"
         private const val PREPARED_DIR = "prepared"
+        private const val FRAGMENTS_DIR = "fragments"
     }
 }
