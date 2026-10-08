@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
+import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
@@ -37,12 +38,17 @@ class VoiceSessionControllerTest {
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
     }
 
-    private fun newController(): VoiceSessionController = VoiceSessionController(
+    private fun newController(
+        chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
+        chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS
+    ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
         pipeline,
         settings,
         transcoder,
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+        chunkMaxBytes = chunkMaxBytes,
+        chunkMaxSeconds = chunkMaxSeconds
     )
 
     private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
@@ -75,7 +81,13 @@ class VoiceSessionControllerTest {
     }
 
     private fun uploadedFile(): File {
-        val fileSlot = slot<File>()
+        val fileSlot = slot<List<File>>()
+        coVerify { pipeline.transcribe(capture(fileSlot), any(), any()) }
+        return fileSlot.captured.single()
+    }
+
+    private fun uploadedFiles(): List<File> {
+        val fileSlot = slot<List<File>>()
         coVerify { pipeline.transcribe(capture(fileSlot), any(), any()) }
         return fileSlot.captured
     }
@@ -157,6 +169,51 @@ class VoiceSessionControllerTest {
         }
 
         assertThat(stages).isEmpty()
+    }
+
+    /**
+     * Chunked upload (#115, port of aitranscribe's `chunk_audio`): a
+     * recording beyond the upload limits arrives at the pipeline as several
+     * numbered chunk files instead of one. The audio is crafted by writing a
+     * hand-sized session snapshot and restoring it (the same OOM-safe pattern
+     * the #67 tests use — never drive a live Robolectric recorder for bulk
+     * bytes).
+     */
+    @Test
+    fun `recording beyond the chunk limit arrives as multiple chunk files`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText("1250")
+
+        val controller = newController(chunkMaxBytes = 20_000, chunkMaxSeconds = 600.0)
+        controller.restore()
+
+        // Snapshot the chunk bytes inside the pipeline stub — the controller
+        // deletes the files right after the pipeline returns.
+        val snapshots = mutableListOf<List<Pair<String, ByteArray>>>()
+        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
+            snapshots.add(firstArg<List<File>>().map { it.name to it.readBytes() })
+            Result.success("hi")
+        }
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(snapshots).hasSize(1)
+        val files = snapshots.single()
+        assertThat(files.size).isAtLeast(2)
+        assertThat(files[0].first).isEqualTo("recording_1.wav")
+        assertThat(files[1].first).isEqualTo("recording_2.wav")
+        files.forEach { (_, bytes) ->
+            assertThat(bytes.size).isAtMost(44 + 20_000)
+            assertThat(bytes.sliceArray(0 until 4).decodeToString()).isEqualTo("RIFF")
+        }
+        // chunk files were cleaned up after the pipeline returned
+        files.forEach { (name, _) -> assertThat(File(cacheDir, name).exists()).isFalse() }
+        clearSessionFiles()
     }
 
     @Test

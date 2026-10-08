@@ -7,6 +7,7 @@ import android.util.Log
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
+import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,11 @@ class VoiceSessionController(
     private val pipeline: TranscriptionPipeline,
     private val settings: SettingsStore,
     private val transcoder: AudioTranscoder = OpusOggTranscoder(),
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    /** Upload-size limit per chunk in bytes (#115). */
+    private val chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
+    /** Upload-duration limit per chunk in seconds (#115). */
+    private val chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS
 ) {
 
     enum class State { IDLE, RECORDING, PAUSED, PROCESSING }
@@ -155,11 +160,11 @@ class VoiceSessionController(
 
         transcribeJob = scope.launch {
             val result = try {
-                val file = prepareAudioFile(wav)
-                val r = pipeline.transcribe(file, callerPackage) { stage ->
+                val files = prepareAudioFiles(wav)
+                val r = pipeline.transcribe(files, callerPackage) { stage ->
                     emit(Event.StageChanged(stage))
                 }
-                file.delete()
+                files.forEach { runCatching { it.delete() } }
                 r
             } catch (e: CancellationException) {
                 throw e
@@ -279,11 +284,57 @@ class VoiceSessionController(
     }
 
     /**
-     * Writes the recording for upload. With `compress_audio` enabled the WAV is
-     * transcoded to Ogg/Opus; any transcoder failure falls back to the original
-     * WAV so a recording is never lost over transcoding.
+     * Prepares the recording(s) for upload. With `compress_audio` enabled the
+     * WAV is transcoded to Ogg/Opus; any transcoder failure falls back to the
+     * original WAV so a recording is never lost over transcoding.
+     *
+     * Chunking (#115, port of aitranscribe's `chunk_audio`): uploads beyond
+     * the STT limits (25 MB / 600 s) are split at sample boundaries BEFORE
+     * compression — an Ogg is never split (impossible without re-encode),
+     * each chunk is compressed (or falls back to WAV) individually.
+     * Recordings within both limits keep the legacy single-file names
+     * `recording.{wav,ogg}`.
      */
-    private suspend fun prepareAudioFile(wav: ByteArray): File {
+    private suspend fun prepareAudioFiles(wav: ByteArray): List<File> {
+        val chunks = try {
+            WavChunker.chunk(wav, chunkMaxBytes, chunkMaxSeconds)
+        } catch (e: Exception) {
+            Log.w(TAG, "Chunk planning failed; using the full recording for upload", e)
+            listOf(wav)
+        }
+
+        if (chunks.size <= 1) {
+            return listOf(prepareSingleAudioFile(wav))
+        }
+
+        Log.w(
+            TAG,
+            "Recording exceeds upload limits, splitting into ${chunks.size} chunks " +
+                "(largest ${chunks.maxOf { it.size } / 1024} kB)"
+        )
+        if (settings.compressAudio) {
+            emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
+        }
+        return chunks.mapIndexed { index, chunkWav ->
+            val target = File(appContext.cacheDir, "recording_%d.%s".format(index + 1, if (settings.compressAudio) "ogg" else "wav"))
+            if (!settings.compressAudio) {
+                target.apply { writeBytes(chunkWav) }
+            } else {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val ogg = transcoder.transcode(chunkWav, target)
+                        Log.i(TAG, "Chunk %d/%d compressed: wav=%dB ogg=%dB".format(index + 1, chunks.size, chunkWav.size, ogg.length()))
+                        ogg
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Chunk %d/%d Opus transcoding failed, falling back to WAV".format(index + 1, chunks.size), e)
+                        File(appContext.cacheDir, "recording_%d.wav".format(index + 1)).apply { writeBytes(chunkWav) }
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun prepareSingleAudioFile(wav: ByteArray): File {
         if (!settings.compressAudio) return writeWavFile(wav)
         emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
         return try {

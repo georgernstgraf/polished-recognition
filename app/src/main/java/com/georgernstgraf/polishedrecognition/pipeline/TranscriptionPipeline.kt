@@ -38,7 +38,7 @@ class TranscriptionPipeline(
     }
 
     suspend fun transcribe(
-        audioFile: File,
+        audioFiles: List<File>,
         callerPackage: String? = null,
         onStageChange: ((TranscriptionStage) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
@@ -50,7 +50,7 @@ class TranscriptionPipeline(
         val wrapWidth = settingsStore.wrapWidthFor(callerPackage)
 
         onStageChange?.invoke(TranscriptionStage.RequestingStt)
-        val sttResult = runStt(audioFile, sttConfig)
+        val sttResult = runStt(audioFiles, sttConfig)
         if (sttResult.isFailure) return@withContext Result.failure(
             Exception("STT transcription failed: ${sttResult.exceptionOrNull()?.message}")
         )
@@ -114,29 +114,51 @@ class TranscriptionPipeline(
         Result.success(LineWrapPolicy.wrap(response.body()!!.getContent().trim(), wrapWidth))
     }
 
-    private suspend fun runStt(audioFile: File, config: SttProviderConfig): Result<SttResult> {
-        val isOgg = audioFile.extension.equals("ogg", ignoreCase = true)
-        val mediaType = if (isOgg) "audio/ogg" else "audio/wav"
-        val uploadName = if (isOgg) "audio.ogg" else "audio.wav"
-        val requestFile = audioFile.asRequestBody(mediaType.toMediaTypeOrNull())
-        val filePart = MultipartBody.Part.createFormData("file", uploadName, requestFile)
-        val modelPart = config.model.toRequestBody("text/plain".toMediaTypeOrNull())
-        val responseFormatPart = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
+    /**
+     * Transcribes one or more chunk files. Chunks (see `WavChunker`, #115)
+     * are uploaded sequentially and their texts joined with a single space —
+     * mirroring the sister project aitranscribe's `run_pipeline` in
+     * `main.py`. A single LLM pass runs over the joined raw text, and the
+     * language clause comes from the first chunk that reported a language.
+     */
+    private suspend fun runStt(audioFiles: List<File>, config: SttProviderConfig): Result<SttResult> {
+        val transcripts = mutableListOf<String>()
+        var language: String? = null
+        var languageProbability: Float? = null
+        audioFiles.forEachIndexed { index, audioFile ->
+            val mediaType = if (isOgg(audioFile)) "audio/ogg" else "audio/wav"
+            val uploadName = if (isOgg(audioFile)) "audio.ogg" else "audio.wav"
+            val requestFile = audioFile.asRequestBody(mediaType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("file", uploadName, requestFile)
+            val modelPart = config.model.toRequestBody("text/plain".toMediaTypeOrNull())
+            val responseFormatPart = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
 
-        val response = getSttApi(config.baseUrl).transcribeAudioSync(
-            authorization = "Bearer ${config.apiToken}",
-            file = filePart,
-            model = modelPart,
-            responseFormat = responseFormatPart
-        ).execute()
+            val response = getSttApi(config.baseUrl).transcribeAudioSync(
+                authorization = "Bearer ${config.apiToken}",
+                file = filePart,
+                model = modelPart,
+                responseFormat = responseFormatPart
+            ).execute()
 
-        if (!response.isSuccessful || response.body() == null) {
-            return Result.failure(Exception("HTTP ${response.code()}"))
+            if (!response.isSuccessful || response.body() == null) {
+                val chunkInfo = if (audioFiles.size > 1) "chunk ${index + 1}/${audioFiles.size}: " else ""
+                return Result.failure(Exception(chunkInfo + "HTTP ${response.code()}"))
+            }
+
+            val body = response.body()!!
+            transcripts.add(body.text)
+            if (language == null && !body.language.isNullOrBlank()) {
+                language = body.language
+                languageProbability = body.languageProbability
+            }
         }
 
-        val body = response.body()!!
-        return Result.success(SttResult(text = body.text, language = body.language, languageProbability = body.languageProbability))
+        val text = transcripts.filter { it.isNotBlank() }.joinToString(" ").trim()
+        return Result.success(SttResult(text = text, language = language, languageProbability = languageProbability))
     }
+
+    private fun isOgg(audioFile: File): Boolean =
+        audioFile.extension.equals("ogg", ignoreCase = true)
 
     companion object {
         private fun isLanguageUnknown(raw: String?): Boolean {

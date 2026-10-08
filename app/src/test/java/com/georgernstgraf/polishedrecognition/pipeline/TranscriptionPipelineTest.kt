@@ -16,6 +16,7 @@ import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -141,7 +142,7 @@ class TranscriptionPipelineTest {
         settingsStore.rawMode = true
         mockSttSuccess()
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
@@ -152,7 +153,7 @@ class TranscriptionPipelineTest {
         settingsStore.rawMode = true
         mockSttSuccessPadded()
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
@@ -165,7 +166,7 @@ class TranscriptionPipelineTest {
 
         val logDir = tmp.newFolder("rawlogs")
         val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
-        loggingPipeline.transcribe(lincolnFile)
+        loggingPipeline.transcribe(listOf(lincolnFile))
 
         val jsonFiles = logDir.listFiles().orEmpty().filter { it.extension == "json" }
         assertThat(jsonFiles).isEmpty()
@@ -180,7 +181,7 @@ class TranscriptionPipelineTest {
 
         val logDir = tmp.newFolder("llmlogs")
         val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
-        loggingPipeline.transcribe(lincolnFile)
+        loggingPipeline.transcribe(listOf(lincolnFile))
 
         val logged = File(logDir, "llm-prompt.json").readText()
         assertThat(logged).isEqualTo(GsonBuilder().setPrettyPrinting().create().toJson(requestSlot.captured))
@@ -196,7 +197,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
         assertThat(userMessage).isEqualTo(lincolnGermanText)
@@ -208,7 +209,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
         mockChatSuccess("Cleaned text")
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo("Cleaned text")
@@ -222,7 +223,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).contains("The STT service transcribed audio spoken in German.")
@@ -238,7 +239,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).doesNotContain("transcribed audio spoken in")
@@ -253,7 +254,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).contains("The Whisper service detected the recognized language as German with a probability of 99 percent.")
@@ -267,7 +268,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).contains("The Whisper service detected the recognized language as German with a probability of 87 percent.")
@@ -282,7 +283,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).contains("IMPORTANT: Write your output in English")
@@ -297,7 +298,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).doesNotContain("IMPORTANT: Write your output in")
@@ -312,7 +313,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
         assertThat(userMessage).isEqualTo(lincolnGermanText)
@@ -326,7 +327,7 @@ class TranscriptionPipelineTest {
         val requestSlot = slot<ChatRequest>()
         mockChatSuccessWithCapture(requestSlot)
 
-        pipeline.transcribe(lincolnFile)
+        pipeline.transcribe(listOf(lincolnFile))
 
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
         assertThat(systemMessage).contains("post-process voice dictation")
@@ -339,7 +340,7 @@ class TranscriptionPipelineTest {
             @Suppress("DEPRECATION")
             mockCall(Response.error(500, ResponseBody.create(null, "Server Error")))
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 500")
@@ -354,7 +355,7 @@ class TranscriptionPipelineTest {
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
         val oggFile = File(tmp.root, "recording.ogg").apply { writeBytes(ByteArray(8)) }
 
-        pipeline.transcribe(oggFile)
+        pipeline.transcribe(listOf(oggFile))
 
         assertThat(partSlot.captured.body.contentType()).isEqualTo("audio/ogg".toMediaTypeOrNull())
         assertThat(partSlot.captured.headers.toString()).contains("filename=\"audio.ogg\"")
@@ -369,7 +370,7 @@ class TranscriptionPipelineTest {
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
         val wavFile = File(tmp.root, "recording.wav").apply { writeBytes(ByteArray(8)) }
 
-        pipeline.transcribe(wavFile)
+        pipeline.transcribe(listOf(wavFile))
 
         assertThat(partSlot.captured.body.contentType()).isEqualTo("audio/wav".toMediaTypeOrNull())
         assertThat(partSlot.captured.headers.toString()).contains("filename=\"audio.wav\"")
@@ -383,7 +384,7 @@ class TranscriptionPipelineTest {
             @Suppress("DEPRECATION")
             mockCall(Response.error(503, ResponseBody.create(null, "Unavailable")))
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 503")
@@ -395,7 +396,7 @@ class TranscriptionPipelineTest {
         settingsStore.wrapWidth = 80
         mockSttSuccess()
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 80))
@@ -409,7 +410,7 @@ class TranscriptionPipelineTest {
         mockSttSuccess()
         mockChatSuccess(lincolnGermanText)
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 90))
@@ -421,7 +422,7 @@ class TranscriptionPipelineTest {
         settingsStore.wrapWidth = 0
         mockSttSuccess()
 
-        val result = pipeline.transcribe(lincolnFile)
+        val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
@@ -440,7 +441,7 @@ class TranscriptionPipelineTest {
             .commit()
         mockSttSuccess()
 
-        val result = pipeline.transcribe(lincolnFile, "com.microsoft.office.outlook")
+        val result = pipeline.transcribe(listOf(lincolnFile), "com.microsoft.office.outlook")
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 120))
@@ -452,9 +453,62 @@ class TranscriptionPipelineTest {
         settingsStore.wrapWidth = 35
         mockSttSuccess()
 
-        val result = pipeline.transcribe(lincolnFile, null)
+        val result = pipeline.transcribe(listOf(lincolnFile), null)
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(LineWrapPolicy.wrap(lincolnGermanText, 35))
+    }
+
+    /**
+     * Chunked uploads (#115): each chunk gets its own STT call, chunk texts
+     * join with a single space, one LLM call runs over the joined text, and
+     * the language clause comes from the first chunk reporting a language.
+     */
+    @Test
+    fun `chunked files are transcribed per chunk and joined`() = runBlocking {
+        settingsStore.rawMode = false
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+            callIndex++
+            val text = if (callIndex == 1) "Part one." else "Part two."
+            val language = if (callIndex == 1) "german" else null
+            mockCall(Response.success(SttResponse(text = text, language = language)))
+        }
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        val file1 = File(tmp.root, "chunk1.mp3").apply { writeBytes(ByteArray(8)) }
+        val file2 = File(tmp.root, "chunk2.mp3").apply { writeBytes(ByteArray(8)) }
+
+        val result = pipeline.transcribe(listOf(file1, file2))
+
+        assertThat(result.isSuccess).isTrue()
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
+        assertThat(userMessage).isEqualTo("Part one. Part two.")
+        val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
+        assertThat(systemMessage).contains("The STT service transcribed audio spoken in German.")
+    }
+
+    @Test
+    fun `chunked STT failure names the failing chunk`() = runBlocking {
+        settingsStore.rawMode = true
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockCall(Response.success(SttResponse(text = "part one", language = null))),
+                mockCall(
+                    @Suppress("DEPRECATION")
+                    Response.error(500, ResponseBody.create(null, "Server Error"))
+                )
+            )
+
+        val file1 = File(tmp.root, "chunk1.mp3").apply { writeBytes(ByteArray(8)) }
+        val file2 = File(tmp.root, "chunk2.mp3").apply { writeBytes(ByteArray(8)) }
+
+        val result = pipeline.transcribe(listOf(file1, file2))
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()!!.message!!).contains("chunk 2/2")
+        assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 500")
     }
 }
