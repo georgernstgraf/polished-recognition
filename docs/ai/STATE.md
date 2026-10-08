@@ -25,7 +25,7 @@ Code-side: **#115 owner on-device verify** (long dictation → ≥2 chunk upload
 - [ ] **#101 decision (owner)** — whether API tokens stay in Google Auto Backup.
 - [ ] **#99 (owner)** — Google overview page shows outdated application images.
 - [ ] **#75** — rate-limit header logging.
-- [ ] **#64** — Ogg/Opus compression latency.
+- [ ] **#64 (repurposed 2026-10-08)** — parallelize chunk uploads for slow STT servers (compression latency resolved by #115 streaming).
 - [ ] Insertion-spacing watch — passive.
 
 ## Blockers
