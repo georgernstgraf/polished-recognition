@@ -7,6 +7,7 @@ import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
 import com.georgernstgraf.polishedrecognition.api.dto.ChatResponse
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
+import com.georgernstgraf.polishedrecognition.audio.WavWriter
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
@@ -65,7 +66,12 @@ class TranscriptionPipelineTest {
 
         settingsStore = SettingsStore(ctx)
         promptStore = PromptStore(ctx)
-        pipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore)
+        // Fast-backoff runner: the #116 retry policy (1 s / 2 s) must not
+        // slow the failure-path tests; production keeps the real default.
+        pipeline = TranscriptionPipeline(
+            getSttApi, getChatApi, promptStore, settingsStore,
+            sttRunner = SttRequestRunner(getSttApi, backoffMs = listOf(0L, 0L))
+        )
 
         val mp3Resource = javaClass.classLoader?.getResource("lincoln.mp3")
         val tempFile = File.createTempFile("lincoln", ".mp3")
@@ -587,5 +593,71 @@ class TranscriptionPipelineTest {
         assertThat(first["mediaType"]).isEqualTo("audio/ogg")
         assertThat(first["model"]).isEqualTo("whisper-large-v3-turbo")
         assertThat(first["baseUrl"]).isEqualTo("https://api.groq.com/openai/v1/")
+    }
+
+    /**
+     * #116: a transient HTTP 500 is retried inside the pipeline (1 attempt
+     * here thanks to the fast-backoff test runner) and the second call wins.
+     */
+    @Test
+    fun `transient STT failure retries then succeeds through the pipeline`() = runBlocking {
+        settingsStore.rawMode = true
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockCall(
+                    @Suppress("DEPRECATION")
+                    Response.error(500, ResponseBody.create(null, "Server Error"))
+                ),
+                mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
+            )
+
+        val result = pipeline.transcribe(listOf(lincolnFile))
+
+        assertThat(result.isSuccess).isTrue()
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+    }
+
+    /**
+     * #116: per-attempt completion records land in the dedicated
+     * `stt-latency.json` stream — `durationMs` from the WAV header, HTTP
+     * code and attempt number; the pre-send `stt-upload.json` entry stays
+     * unchanged (#115 semantics).
+     */
+    @Test
+    fun `stt latency log records duration and http code per attempt`() = runBlocking {
+        settingsStore.rawMode = true
+        val wav = File(tmp.root, "chunk.wav")
+            .apply { writeBytes(WavWriter.write(ByteArray(16_000), sampleRate = 16_000)) }
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockCall(
+                    @Suppress("DEPRECATION")
+                    Response.error(500, ResponseBody.create(null, "Server Error"))
+                ),
+                mockCall(Response.success(SttResponse(text = "ok", language = null)))
+            )
+
+        val logDir = tmp.newFolder("latencylogs")
+        val loggingPipeline = TranscriptionPipeline(
+            getSttApi, getChatApi, promptStore, settingsStore,
+            RotatingJsonLogger(logDir),
+            SttRequestRunner(getSttApi, RotatingJsonLogger(logDir), backoffMs = listOf(0L, 0L))
+        )
+
+        val result = loggingPipeline.transcribe(listOf(wav))
+
+        assertThat(result.isSuccess).isTrue()
+        val latest = com.google.gson.Gson()
+            .fromJson(File(logDir, "stt-latency.json").readText(), Map::class.java)
+        assertThat(latest["event"]).isEqualTo("complete")
+        assertThat((latest["durationMs"] as Double).toLong()).isEqualTo(500L)
+        assertThat((latest["httpCode"] as Double).toInt()).isEqualTo(200)
+        assertThat((latest["attempt"] as Double).toInt()).isEqualTo(2)
+        val first = com.google.gson.Gson()
+            .fromJson(File(logDir, "stt-latency_1.json").readText(), Map::class.java)
+        assertThat((first["httpCode"] as Double).toInt()).isEqualTo(500)
+        // the upload stream keeps its legacy shape
+        assertThat(File(logDir, "stt-upload.json").readText()).contains("chunk")
+        assertThat(File(logDir, "stt-upload.json").readText()).doesNotContain("durationMs")
     }
 }

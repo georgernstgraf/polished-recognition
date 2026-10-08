@@ -11,9 +11,6 @@ import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 
@@ -22,7 +19,8 @@ class TranscriptionPipeline(
     private val getChatApi: (String) -> OpenAiChatApiService,
     private val promptStore: PromptStore,
     private val settingsStore: SettingsStore,
-    private val logger: RotatingJsonLogger? = null
+    private val logger: RotatingJsonLogger? = null,
+    private val sttRunner: SttRequestRunner = SttRequestRunner(getSttApi, logger)
 ) {
 
     data class SttResult(
@@ -143,52 +141,27 @@ class TranscriptionPipeline(
      * mirroring the sister project aitranscribe's `run_pipeline` in
      * `main.py`. A single LLM pass runs over the joined raw text, and the
      * language clause comes from the first chunk that reported a language.
+     *
+     * Each upload runs through [SttRequestRunner] (#116): retry ×3 on
+     * transient failures only (1 s / 2 s backoff), per-attempt completion
+     * records in `stt-latency.json`. The first (lowest-order) failing chunk
+     * aborts the run, so the reported failure is always the lowest-order one.
      */
     private suspend fun runStt(audioFiles: List<File>, config: SttProviderConfig): Result<SttResult> {
         val transcripts = mutableListOf<String>()
         var language: String? = null
         var languageProbability: Float? = null
         audioFiles.forEachIndexed { index, audioFile ->
-            val mediaType = if (isOgg(audioFile)) "audio/ogg" else "audio/wav"
-            val uploadName = if (isOgg(audioFile)) "audio.ogg" else "audio.wav"
-            val requestFile = audioFile.asRequestBody(mediaType.toMediaTypeOrNull())
-            val filePart = MultipartBody.Part.createFormData("file", uploadName, requestFile)
-            val modelPart = config.model.toRequestBody("text/plain".toMediaTypeOrNull())
-            val responseFormatPart = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
-
-            // Upload evidence (#115): on a read-timeout no response ever
-            // arrives, so the interceptor's stt-response rotation shows
-            // nothing — this record proves the request WAS sent (and with
-            // which size), which is how the first long-dictation timeout
-            // would have been attributable in the logs.
-            logger?.log(
-                "stt-upload",
-                GsonBuilder().setPrettyPrinting().create().toJson(
-                    SttUploadLog(
-                        chunk = index + 1,
-                        chunkCount = audioFiles.size,
-                        file = audioFile.name,
-                        bytes = audioFile.length(),
-                        mediaType = mediaType,
-                        model = config.model,
-                        baseUrl = config.baseUrl
-                    )
-                )
+            val result = sttRunner.run(
+                audioFile = audioFile,
+                config = config,
+                chunk = index + 1,
+                chunkCount = audioFiles.size
             )
-
-            val response = getSttApi(config.baseUrl).transcribeAudioSync(
-                authorization = "Bearer ${config.apiToken}",
-                file = filePart,
-                model = modelPart,
-                responseFormat = responseFormatPart
-            ).execute()
-
-            if (!response.isSuccessful || response.body() == null) {
+            val body = result.getOrElse { error ->
                 val chunkInfo = if (audioFiles.size > 1) "chunk ${index + 1}/${audioFiles.size}: " else ""
-                return Result.failure(Exception(chunkInfo + "HTTP ${response.code()}"))
+                return Result.failure(Exception(chunkInfo + (error.message ?: "unknown error")))
             }
-
-            val body = response.body()!!
             transcripts.add(body.text)
             if (language == null && !body.language.isNullOrBlank()) {
                 language = body.language
@@ -217,20 +190,6 @@ class TranscriptionPipeline(
         val textLength: Int,
         val text: String
     )
-
-    /** Serializable per-upload record written to `stt-upload.json` (#115). */
-    private data class SttUploadLog(
-        val chunk: Int,
-        val chunkCount: Int,
-        val file: String,
-        val bytes: Long,
-        val mediaType: String,
-        val model: String,
-        val baseUrl: String
-    )
-
-    private fun isOgg(audioFile: File): Boolean =
-        audioFile.extension.equals("ogg", ignoreCase = true)
 
     companion object {
         private fun isLanguageUnknown(raw: String?): Boolean {
