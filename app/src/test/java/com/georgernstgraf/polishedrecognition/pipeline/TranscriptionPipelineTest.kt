@@ -160,7 +160,7 @@ class TranscriptionPipelineTest {
     }
 
     @Test
-    fun `raw mode writes no prompt log`() = runBlocking {
+    fun `raw mode writes stt-text log but no llm-prompt log`() = runBlocking {
         settingsStore.rawMode = true
         mockSttSuccess()
 
@@ -168,8 +168,28 @@ class TranscriptionPipelineTest {
         val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
         loggingPipeline.transcribe(listOf(lincolnFile))
 
-        val jsonFiles = logDir.listFiles().orEmpty().filter { it.extension == "json" }
-        assertThat(jsonFiles).isEmpty()
+        val llmFiles = logDir.listFiles().orEmpty().filter { it.name.startsWith("llm-prompt") }
+        assertThat(llmFiles).isEmpty()
+        val sttLog = File(logDir, "stt-text.json").readText()
+        assertThat(sttLog).contains("\"chunkCount\": 1")
+        assertThat(sttLog).contains(lincolnGermanText.trim())
+    }
+
+    @Test
+    fun `stt-text log carries chunk evidence and language`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccessWithLanguageProbability()
+        mockChatSuccess()
+
+        val logDir = tmp.newFolder("sttlogs")
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
+        loggingPipeline.transcribe(listOf(lincolnFile))
+
+        val sttLog = File(logDir, "stt-text.json").readText()
+        assertThat(sttLog).contains("\"chunkCount\": 1")
+        assertThat(sttLog).contains("\"language\": \"german\"")
+        assertThat(sttLog).contains("0.87")
+        assertThat(sttLog).contains(lincolnGermanText.trim())
     }
 
     @Test
@@ -510,5 +530,30 @@ class TranscriptionPipelineTest {
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()!!.message!!).contains("chunk 2/2")
         assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 500")
+    }
+
+    @Test
+    fun `chunked upload logs per-chunk evidence in stt-text`() = runBlocking {
+        settingsStore.rawMode = true
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+            callIndex++
+            val text = if (callIndex == 1) "Part one." else "Part two."
+            mockCall(Response.success(SttResponse(text = text, language = null)))
+        }
+
+        val logDir = tmp.newFolder("chunklogs")
+        val loggingPipeline = TranscriptionPipeline(getSttApi, getChatApi, promptStore, settingsStore, RotatingJsonLogger(logDir))
+        val file1 = File(tmp.root, "chunk1.mp3").apply { writeBytes(ByteArray(8)) }
+        val file2 = File(tmp.root, "chunk2.mp3").apply { writeBytes(ByteArray(8)) }
+
+        loggingPipeline.transcribe(listOf(file1, file2))
+
+        val sttLog = File(logDir, "stt-text.json").readText()
+        @Suppress("UNCHECKED_CAST")
+        val parsed = com.google.gson.Gson().fromJson(sttLog, Map::class.java) as Map<String, Any>
+        assertThat((parsed["chunkCount"] as Double).toInt()).isEqualTo(2)
+        assertThat((parsed["chunkLengths"] as List<Double>).map { it.toInt() }).containsExactly(9, 9)
+        assertThat(parsed["text"] as String).isEqualTo("Part one. Part two.")
     }
 }

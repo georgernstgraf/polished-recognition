@@ -28,7 +28,9 @@ class TranscriptionPipeline(
     data class SttResult(
         val text: String,
         val language: String? = null,
-        val languageProbability: Float? = null
+        val languageProbability: Float? = null,
+        val chunkCount: Int = 1,
+        val chunkLengths: List<Int> = listOf(text.length)
     )
 
     sealed class TranscriptionStage {
@@ -57,6 +59,27 @@ class TranscriptionPipeline(
 
         val raw = sttResult.getOrThrow()
         val whisper = raw.copy(text = raw.text.trim())
+
+        // Persistent STT evidence (#115): chunk count + per-chunk text
+        // lengths + detected language land in `stt-text.json` (rotated like
+        // `llm-prompt.json`) in BOTH modes — raw mode never reaches the
+        // llm-prompt log, so without this a raw-mode long dictation would
+        // leave no adb-readable trace of how many uploads happened.
+        // `Log.i` is not enough: Oplus suppresses app logcat from the IME
+        // process, but the /sdcard JSON logs stay adb-readable.
+        logger?.log(
+            "stt-text",
+            GsonBuilder().setPrettyPrinting().create().toJson(
+                SttLog(
+                    chunkCount = raw.chunkCount,
+                    chunkLengths = raw.chunkLengths,
+                    language = raw.language,
+                    languageProbability = raw.languageProbability,
+                    textLength = whisper.text.length,
+                    text = whisper.text
+                )
+            )
+        )
 
         val targetLanguageClause = if (targetLanguage != null) {
             promptStore.targetLanguageClauseTemplate.replace("{{target_language}}", targetLanguage)
@@ -154,8 +177,26 @@ class TranscriptionPipeline(
         }
 
         val text = transcripts.filter { it.isNotBlank() }.joinToString(" ").trim()
-        return Result.success(SttResult(text = text, language = language, languageProbability = languageProbability))
+        return Result.success(
+            SttResult(
+                text = text,
+                language = language,
+                languageProbability = languageProbability,
+                chunkCount = audioFiles.size,
+                chunkLengths = transcripts.map { it.length }
+            )
+        )
     }
+
+    /** Serializable STT evidence written to `stt-text.json` (#115). */
+    private data class SttLog(
+        val chunkCount: Int,
+        val chunkLengths: List<Int>,
+        val language: String?,
+        val languageProbability: Float?,
+        val textLength: Int,
+        val text: String
+    )
 
     private fun isOgg(audioFile: File): Boolean =
         audioFile.extension.equals("ogg", ignoreCase = true)
