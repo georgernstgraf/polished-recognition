@@ -1,44 +1,49 @@
 # Project State
 
-Current status as of 2026-10-09 (**#117 fragment seam quality IMPLEMENTED — silence-aligned cuts + prompt carry-over + shadow comparison; on-device verify pending**): commit `400d13f`, 376 tests green, `assembleRelease` green, pushed. **Problem (owner observation):** words consistently dropped at the fixed 7-s fragment seams vs gregor — hard cuts split words mid-word and every fragment was transcribed cold. **Fixes:** (1) new `audio/SilenceCutter` + reworked `FragmentPreparer`: cut points search forward (default 2 s) for a ≥40 ms silence run and cut at its center (hard-cut fallback on continuous speech; encoder waits for the window rather than splitting a word; streams stay gapless; manifest entries carry PCM `end` offsets, legacy manifests wiped + re-encoded once; chunk assembly byte-capped via `min(25 MB, 600 s)`). (2) `FragmentTranscriber` conditions each fragment on the previous transcript tail (~200 tokens) via the multipart `prompt` field — no dedup needed; HTTP 400 on a prompted request retries once without it + disables prompts for the session. (3) **`stt-shadow.json`**: on LAN/local STT endpoints a fire-and-forget full-context STT of the assembled recording logs `fragmentText` vs `fullText` after result delivery (evidence off — Phase 2 measurement streams unpolluted). Phase 2 per-provider auto-sizer compatibility guaranteed (nominal size is a parameter, cap is size-based, completion records carry `promptChars`).
+Current status as of 2026-10-09 late (**#117 verified on-device; shadow comparison WORKS; owner decided the next round: 21-s fragments + 1-s pre-roll overlap — implementation pending, plan in #117**).
 
-Release state unchanged from 2026-10-08: **v1.3.6 (10306) released**; F-Droid pickup watch open. **#115 CLOSED** (owner on-device test PASSED); **#105 + #114 CLOSED**; #112 restore-tap pending; #113 freeze needs recurrence data (PROCESSING now shrinks to tail+LLM, defusing its prime suspect).
+**#117 shipped & verified** (`400d13f` + `5ef704f` + `8b7f191`, pushed): silence-aligned fragment cuts + transcript prompt carry-over + shadow comparison. On-device verification (OnePlus vs gregor, 25-fragment ~3-min dictation):
+- Core fixes work: `silenceAligned: true` + `pcmEnd` in `prepare.json`; `promptChars` in `stt-latency.json`; gregor forwards the prompt as faster-whisper `initial_prompt` (server code verified; `vad_filter=True` hardcoded server-side).
+- Three verification bugs found & fixed: (1) shadow chunks deleted by `clearPrepared()` before the queued coroutine read them → dedicated `cacheDir/shadow/`; (2) silent crash swallow → error records + gate breadcrumb in `stt-shadow.json`; (3) **`NetworkOnMainThreadException`** — the shadow called `SttRequestRunner` without `Dispatchers.IO` (the runner runs on the CALLER's dispatcher; Robolectric can't catch this).
+- **Quantified seam quality** (shadow: fragment-joined 406 vs full-context 415 words): ~4–5% seam loss remains despite the prompt — 9-word + 5-word phrase drops at seams, "Pest"→"Best" degradation, 6× "…" hallucinations. Prompt is a text bias; it cannot add acoustic context.
+
+**Owner decisions 2026-10-09 (NOT yet implemented — plan detailed in the #117 comment "On-device verification result (2026-10-09) + owner decisions"):**
+1. **Minimum fragment 21 s** (was 7 s) — ~3× fewer seams; stop-tail worst ≈ 23 s → gregor ≈ 1.2 s, avg ≈ 1.0 s (accepted vs < 1.3 s target); live cadence ~2.9 RPM.
+2. **1-s acoustic pre-roll overlap** on fragment uploads (fragment files stay gapless; echoed text trimmed via known-tail token match; conservative = keep duplicates rather than lose words).
+3. Phase 2: 40–60-s fragments for fast providers + **full-context-at-stop strategy** (shadow text authoritative where the profile says the provider is fast — GROQ ≈ 200× realtime → < 1 s for 10-min recordings; eliminates seams entirely for cloud).
+
+Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open. #112 restore-tap pending; #113 recurrence data pending.
 
 ## Current Focus
-**#117 on-device verification (owner, OnePlus f6de166c):** `installRelease`, long dictation vs gregor → read `logs/stt-shadow.json` (joined fragment transcripts should match the full-context text — no seam drops); `prepare.json` shows `silenceAligned` cuts + `pcmEnd` offsets; stage line `Ns → STT` ≤1.3 s after stop-tap unchanged. This verify also covers #116 Phase 1's checklist. Then #116 Phase 2 (per-provider profiles: robust `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds = clamp((T − 0.3 − 1.5a)/b, 7, 60)` + concurrency auto-detect — the #117 groundwork keeps it unblocked).
+**Next session: implement the owner's #117 round 2** (21-s fragments + pre-roll overlap) — full implementation plan in the #117 comment. Then one on-device shadow round to compare seam quality against today's baseline (406/415 words). Then Phase 2.
 
 ## Completed (recent cycles)
-- [x] **#117 seam fix implemented 2026-10-09** (`400d13f`): SilenceCutter + silence-aligned FragmentPreparer cuts + prompt carry-over (400-fallback) + byte-capped chunk assembly + LAN-gated shadow comparison in `stt-shadow.json`. 376 tests green (+19 net: SilenceCutterTest ×7, FragmentPreparerTest ×7, FragmentTranscriberTest ×3, SttRequestRunnerTest ×3, minus test-shape updates). **On-device verify pending (owner).**
-- [x] **#116 Phase 1 implemented 2026-10-08** (`bd9ba63` + `e9799df` + `04d17d4`): STT retry ×3 + `stt-latency.json` completion records (`AudioDuration`); live fragment worker (C=1, ordered, failure-isolated, cached transcripts, `resetFailures`); controller stop flow = tail → drain → LLM; stage lines `Ns → STT` / `N words → LLM`; raw rescue. **On-device verify pending (owner).**
-- [x] #64 CLOSED BY MEASUREMENT 2026-10-08 — parallel chunk uploads rejected: gregor serializes, GROQ already ~200×. Evidence comment on #64; no code.
-- [x] #115 fragment streaming (`5363a38`), owner on-device verify 20:46 PASSED; #115 CLOSED.
-- [x] #114/#105/#112 shipped 2026-10-07 (`686b653`/`beed16d`/`64f3eec`); v1.3.5 (10305) released same day; v1.3.6 (10306) released 2026-10-08.
+- [x] **#117 verified on-device 2026-10-09** (`400d13f` + `5ef704f` + `8b7f191`): shadow comparison works end-to-end; seam quality quantified; residual loss → owner decisions recorded. Trunk clean at `8b7f191` (the 21-s constant edit was reverted before persistence — do NOT assume it is applied).
+- [x] **#116 Phase 1 implemented 2026-10-08** (`bd9ba63` + `e9799df` + `04d17d4`): live fragment worker, stage lines, raw rescue. On-device checklist covered by the #117 verify rounds.
+- [x] #64 CLOSED BY MEASUREMENT 2026-10-08; #115 CLOSED (owner verify PASSED); #114/#105 CLOSED; v1.3.5 + v1.3.6 released.
 - [x] Earlier — see HISTORY.md / tracker.
 
 ## Pending
-- [ ] **#117 + #116 Phase 1 on-device verify (owner)** — one combined round: `stt-shadow.json` diff (seam quality), fragment-cadence `stt-upload.json`, `stt-latency.json` `durationMs` records, `Ns → STT` ≤1.3 s after stop-tap; then Phase 2 profiles.
-- [ ] **F-Droid 1.3.6 pickup watch (automatic)** — ~3–5 days after the tag; reopen only if it stalls.
-- [ ] **#112 verify (owner)** — tap "Restore Default Prompts" in Settings, confirm the crafted prompt appears.
-- [ ] **#113 freeze recurrence (owner)** — if it happens again: stage-line content, X-tap vs system-back, plus `ime-lifecycle.log` + STT/LLM log timestamps. (#116 shrinks PROCESSING to tail+LLM, defusing the prime suspect.)
-- [ ] **#109 visual check (owner)** — notification mic icon variant B on the OnePlus, both paths.
-- [ ] **#74 Phase 1 posting (owner)** — Mastodon ✅ (2026-10-02); remaining: r/fossdroid, r/degoogle (Showcase thread), r/selfhosted (modmail), kuketz, **Facebook (#108)**. Also paste the welcome message into the Google Group.
-- [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 continuous 14 days.
-- [ ] **#101 decision (owner)** — whether API tokens stay in Google Auto Backup.
-- [ ] **#99 (owner)** — Google overview page shows outdated application images.
-- [ ] **#75** — rate-limit header logging.
-- [ ] Insertion-spacing watch — passive.
+- [ ] **#117 round 2 (agent)** — implement 21-s minimum + 1-s pre-roll overlap per the #117 plan; tests green; `installRelease`; on-device shadow comparison vs baseline.
+- [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` (40–60 s for fast providers) + concurrency; **full-context-at-stop strategy** for fast providers (shadow mechanism exists, becomes authoritative).
+- [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
+- [ ] **#113 freeze recurrence (owner)** — capture: stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps.
+- [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
+- [ ] **#74 Phase 1 posting (owner)** — r/fossdroid, r/degoogle (Showcase), r/selfhosted (modmail), kuketz, Facebook (#108); welcome message into the Google Group.
+- [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 × 14 days.
+- [ ] **#109 visual check (owner)** — notification mic icon variant B.
+- [ ] **#99, #101 (owner decisions)**; **#75** rate-limit header logging; insertion-spacing watch — passive.
 
 ## Blockers
 None.
 
 ## Device Notes
 - f6de166c = **OnePlus 7T** (HD1903, Oplus, 1080×2400) — adb IME/secure-setting writes blocked, reads work.
-- d890cc9e = **S5** (SM-G900F, LineageOS 18.1, 1080×1920) — adb IME/settings writes WORK.
-- **The OnePlus is also the Telegram bridge to the agent session** — incoming messages overlay scrcpy recordings. Verify the foreground before `input tap`; record long, trim; keep the raw until the GIF is signed off.
-- scrcpy output is **VFR** — normalize (`ffmpeg -vf fps=30 -c:v libx264`) before trimming/contact sheets.
-- OnePlus Notes (`com.oneplus.note`) is dark; new note via the FAB; the note list shows private titles — never record it.
-- Owner runs a **local LAN STT server** (`http://10.8.0.16:11437/v1/` on gregor, `hwdsl2/whisper-server:cuda`, model `large-v3`, API token via `sudo docker inspect` on gregor) alongside GROQ LLM (`qwen/qwen3.8-27b`); see PITFALLS for its latency/serialization characteristics.
-- Chunked upload on-device: watch `logs/` JSON for multiple `recording_N.*` paths per session (#115). **#116 adds `stt-latency.json`** (per-attempt records with `durationMs` + `promptChars` since #117); **#117 adds `stt-shadow.json`** (fragmentText vs fullText — only active for LAN/local STT endpoints). Fragment cadence = one `stt-upload.json` entry per ~7 s of dictation.
+- d890cc9e = **S5** (SM-G900F, LineageOS 18.1) — adb writes WORK.
+- **The OnePlus is also the Telegram bridge** — verify the foreground before `input tap`; scrcpy output is VFR — normalize before trimming.
+- Owner runs the **local LAN STT server** gregor (`http://10.8.0.16:11437/v1/`, `hwdsl2/whisper-server:cuda`, `large-v3`, SSH alias `gregor`, container name `whisper` — logs via `sudo docker logs whisper`; server code at `/opt/src/api_server.py` in the container; **VAD hardcoded on**, prompt forwarded as `initial_prompt`). Owner watches gregor's GPU spikes: 7–9-s bursts = live fragment cadence, one long spike at stop = the shadow pass.
+- Log evidence via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` — `adb pull` is BLOCKED (scoped storage); use `adb shell cat` per file (mind stdin-eating in loops, `\r` stripping, and the exact package name). Streams: `stt-upload`, `stt-latency` (per-attempt, `durationMs` + `promptChars`), `prepare` (fragment cadence, `pcmEnd`, `silenceAligned`), `stt-shadow` (gate breadcrumb + fragmentText vs fullText + crash records), `stt-text`, `llm-prompt`/`llm-response`, `ime-lifecycle.log`.
+- Owner dictates with **Raw mode on** (no LLM pass — llm-prompt stays stale; don't misread that as a pipeline failure).
 
 ## Next Session Suggestion
-Owner on-device verify of #117 + #116 Phase 1 on the OnePlus (acceptance: `stt-shadow.json` fragment vs full-context texts agree — no seam drops; `prepare.json` silence-aligned boundaries; `Ns → STT` ≤1.3 s). If green → Phase 2 (per-provider profiles: robust `t(S) ≈ a + b·S` fit over `stt-latency.json` records → auto `fragmentSeconds` + concurrency auto-detect, bootstrap 7 s/C=1 until ≥12 samples, stepwise adaptation ±50 %/step with revert, manual override "auto").
+Implement the #117 round-2 plan (21-s fragments + pre-roll overlap) from the issue comment; unit tests first (FragmentPreparer pre-roll files + recover keep-set, FragmentTranscriber composition + trim), then on-device shadow comparison vs the 406/415 baseline. Owner watch signal: gregor GPU spikes every ~21–23 s during dictation.
