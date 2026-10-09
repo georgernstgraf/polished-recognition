@@ -1,8 +1,8 @@
 # Project State
 
-Current status as of 2026-10-10 (early): **#117 CLOSED — round 2 (21-s fragments + 1-s acoustic pre-roll + echo trim, `5c49cc5`) verified on-device: 0 dropped words (round-1 baseline −9), 0 "…" hallucinations (baseline 6×), fragment text ⊇ full text, noisy-condition run accepted as a scenario. Next: #116 Phase 2 (owns fragment sizing — fixes the 2.2-s gregor tail) + flake instrumentation.**
+Current status as of 2026-10-10 (later): **#116 Phase 2 CORE SHIPPED (`f152cd9` + `9453658`) — Theil–Sen per-provider latency profiles, auto fragment sizing (stepwise ±50 %), full-context-at-stop with the gregor-safe gate, Settings override field. #117 CLOSED; the #117 test-flake watch item ROOT-CAUSED and FIXED (real ordering bug: failure branch published PAUSED before the snapshot). Next: owner on-device verify of Phase 2 + C=1-vs-concurrency decision.**
 
-**Closure verdicts (2026-10-10):** duplicated "Panikmache" phrase at the fragment 1→2 seam — owner cannot confirm; accepted harmless by construction (real repetition kept verbatim → LLM polish dedupes in polish mode; raw mode is verbatim by design; trim correctly never fired, `echoTokens=0`). Stop→raw ≈ 2.2 s measured = the tail chunk's round-trip (only chunk paid at send; tail bounded ~23 s, near-worst case this session; gregor variance 0.7–2.3 s for identical lengths) — accepted; Phase 2 auto-sizing would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s).
+**Closure verdicts (2026-10-10):** duplicated "Panikmache" phrase at the fragment 1→2 seam — owner cannot confirm; accepted harmless by construction (real repetition kept verbatim → LLM polish dedupes in polish mode; raw mode is verbatim by design; trim correctly never fired, `echoTokens=0`). Stop→raw ≈ 2.2 s measured = the tail chunk's round-trip (only chunk paid at send; tail bounded ~23 s, near-worst case this session; gregor variance 0.7–2.3 s for identical lengths) — accepted; Phase 2 auto-sizing owns the fix.
 
 **Round-2 on-device verification** (report in the #117 comment 2026-10-09/10):
 - 4 fragments / ~85 s under TV audio: 3 hard cuts at exactly 672 000 B (background RMS defeats silence search → graceful fallback, expected) + 1 silence-aligned cut (21.76 s).
@@ -22,7 +22,7 @@ Long-form stress test of the round-2 pipeline (owner played a ~15-min movie into
 - IME: **no freeze during the movie session**; a FREEZE recurrence was captured at 22:18:36 CEST in the earlier dictation session (evidence posted to #113).
 
 ## Current Focus
-**#116 Phase 2** (per-provider auto-sizing — fixes the 2.2-s gregor tail with the freshly measured samples; full-context-at-stop for fast providers) and the **VoiceSessionControllerTest flake instrumentation**. #117 closed. **2026-10-10 movie-session caveat: the full-context shadow pass collapsed on gregor VAD at 588/383-s uploads (fragment concat 2310 chars vs 1021) — Phase 2 must treat gregor as fragments-only for long recordings (see the data block above + PITFALLS).**
+**#116 Phase 2 verification** — the core is shipped (profile fit + auto sizing + full-context-at-stop + override UI, see DECISIONS 2026-10-10); what remains is the owner on-device verify and the C=1-vs-concurrency decision (prompt carry-over conflict, flagged on the issue). The test-flake watch item is CLOSED (root-caused, fixed, relocated to HISTORY).
 
 ## Completed (recent cycles)
 - [x] **#117 CLOSED 2026-10-10** — round 2 implemented (`5c49cc5`) + verified on-device (noisy-condition A/B: 0 dropped words, 0 hallucinations, fragment ⊇ full); verdicts resolved (duplicated phrase harmless by construction; 2.2-s tail latency accepted, Phase 2 owns sizing). Full history: `400d13f` + `5ef704f` + `8b7f191` + `5c49cc5`.
@@ -30,10 +30,10 @@ Long-form stress test of the round-2 pipeline (owner played a ~15-min movie into
 - [x] #116 Phase 1 implemented 2026-10-08; #64 CLOSED BY MEASUREMENT; #115 CLOSED; #114/#105 CLOSED; v1.3.5 + v1.3.6 released.
 
 ## Pending
-- [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct" it). Real 21-s gregor samples now exist; the fit would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s).
-- [ ] **VoiceSessionControllerTest flake instrumentation (agent)** — the watch item recurred twice in the round-2 session incl. a CLASS-LEVEL run (`pipeline failure parks PAUSED…`, compress-OFF path); both re-runs green. Instrument the failure branch (see PITFALLS).
+- [ ] **#116 Phase 2 on-device verify (owner)** — core shipped (`f152cd9` + `9453658`); auto-sizing engages after ≥ 12 samples (~4 min dictation at 21 s; profiles start EMPTY, no retro-fit of old logs). Acceptance: `stt-upload` cadence at the auto-derived size, stop→raw ≤ 1.3 s (gregor) / ≤ 1 s (GROQ), Settings field round-trip (blank = auto, 7–60 s), `stt-shadow` `fullContextAtStop` records on fast-provider sessions. Watch: the derived gregor size may differ from the predicted 12–14 s — the fit decides.
+- [ ] **C=1 vs concurrency (owner decision, on #116)** — concurrency auto-detection was NOT implemented: prompt carry-over + echo trim need fragment i−1's transcript at upload time (serial-worker guarantee); raising C breaks seam conditioning unless prompts are disabled. Flagged on the issue.
 - [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
-- [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps. **Recurrence captured 2026-10-09 22:18:36 CEST**: `onStartInputView restarting=true state=RECORDING outcome=FREEZE` — input view finished while RECORDING at 22:17:34, reappeared PAUSED at 22:17:50, restarted → FREEZE; controller went IDLE at 22:18:43 (dictation lost). Hits the issue's "rotation/provisional-freeze path" suspect. Evidence posted to the issue.
+- [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back. Recurrence captured 2026-10-09 22:18:36 CEST (evidence on the issue; `restarting=true state=RECORDING outcome=FREEZE` path).
 - [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
 - [ ] **#74 Phase 1 posting (owner)** — r/fossdroid, r/degoogle (Showcase), r/selfhosted (modmail), kuketz, Facebook (#108); welcome message into the Google Group.
 - [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 × 14 days.
@@ -52,4 +52,4 @@ None.
 - Owner dictates with **Raw mode on** (no LLM pass — llm-prompt stays stale; don't misread that as a pipeline failure).
 
 ## Next Session Suggestion
-Start #116 Phase 2 (per-provider auto-sizing — fixes the 2.2-s gregor tail with the freshly measured t(S) samples) or the small flake-instrumentation task first; both are fully specified in HANDOFF.md.
+Owner on-device verify of Phase 2 (see Pending) — then #112/#113 owner items, or pick up whatever the verification surfaces. The completed items (#117, flake) are closed; do not re-open them.
