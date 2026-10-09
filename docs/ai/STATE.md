@@ -10,10 +10,19 @@ Current status as of 2026-10-10 (early): **#117 CLOSED — round 2 (21-s fragmen
 - `stt-trim.json`: `echoTokens=0` everywhere — no false trims. The one fragment-extra phrase ("Es geht nicht um Panikmache", 5 words, wording differs from the tail) sits at the fragment 1→2 seam; too long/modified for a 1-s pre-roll echo — likely real speech the full-context Whisper collapsed. Owner confirmation pending.
 - **Latency caveat**: stop→raw ≈ 2.2 s (tail 21.7 s audio, gregor elapsed 2166 ms) vs the 1.3-s target; session variance (fragment 0: 0.7 s vs fragments 1–3: 2.2–2.3 s for identical lengths). Phase 2's auto-sizer would land gregor at ~12–14-s fragments with this measured slope.
 
-Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open. #112 restore-tap pending; #113 recurrence data pending.
+Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open. #112 restore-tap pending; #113 recurrence captured (see Pending).
+
+## 2026-10-10 movie-session data point (16-min recording, 47 fragments, raw mode)
+
+Long-form stress test of the round-2 pipeline (owner played a ~15-min movie into the mic, 23:55:46–00:12:07 CEST, 47 fragments ≈ 971 s):
+
+- **Pipeline clean**: 47/47 fragments uploaded, all `attempt: 1` / HTTP 200, `silenceAligned: true` throughout, echo trim quiet (`echoTokens` 0 except 7 on frag 30, 1 on frag 27), tail round-trip 3.3 s (19 KB / ~3.3 s tail). No LLM traffic (raw mode — `llm-*` stale from 22:24, expected).
+- **Shadow full-context pass COLLAPSED on gregor**: 588.4-s chunk → 12.8 s after VAD (garbled, `no_speech_prob` 0.64); 382.9-s chunk → 47.6 s after VAD, only the last ~61 s transcribed. Fragment concat **2310 chars** vs full pass **1021 chars** — the first ~9 min vanished. **Implication for #116 Phase 2: full-context-at-stop is unusable on gregor-style VAD servers for long recordings; fragment sizing is correctness-critical there.** (Details in PITFALLS.)
+- Language misdetected `nn` (Norwegian Nynorsk, 0.61) on the assembled live text — audio is English; dialogue chunks still transcribed fine. One music hallucination at the credits tail entered the fragment text (not the full pass).
+- IME: **no freeze during the movie session**; a FREEZE recurrence was captured at 22:18:36 CEST in the earlier dictation session (evidence posted to #113).
 
 ## Current Focus
-**#116 Phase 2** (per-provider auto-sizing — fixes the 2.2-s gregor tail with the freshly measured samples; full-context-at-stop for fast providers) and the **VoiceSessionControllerTest flake instrumentation**. #117 closed.
+**#116 Phase 2** (per-provider auto-sizing — fixes the 2.2-s gregor tail with the freshly measured samples; full-context-at-stop for fast providers) and the **VoiceSessionControllerTest flake instrumentation**. #117 closed. **2026-10-10 movie-session caveat: the full-context shadow pass collapsed on gregor VAD at 588/383-s uploads (fragment concat 2310 chars vs 1021) — Phase 2 must treat gregor as fragments-only for long recordings (see the data block above + PITFALLS).**
 
 ## Completed (recent cycles)
 - [x] **#117 CLOSED 2026-10-10** — round 2 implemented (`5c49cc5`) + verified on-device (noisy-condition A/B: 0 dropped words, 0 hallucinations, fragment ⊇ full); verdicts resolved (duplicated phrase harmless by construction; 2.2-s tail latency accepted, Phase 2 owns sizing). Full history: `400d13f` + `5ef704f` + `8b7f191` + `5c49cc5`.
@@ -24,7 +33,7 @@ Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open.
 - [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct" it). Real 21-s gregor samples now exist; the fit would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s).
 - [ ] **VoiceSessionControllerTest flake instrumentation (agent)** — the watch item recurred twice in the round-2 session incl. a CLASS-LEVEL run (`pipeline failure parks PAUSED…`, compress-OFF path); both re-runs green. Instrument the failure branch (see PITFALLS).
 - [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
-- [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps.
+- [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps. **Recurrence captured 2026-10-09 22:18:36 CEST**: `onStartInputView restarting=true state=RECORDING outcome=FREEZE` — input view finished while RECORDING at 22:17:34, reappeared PAUSED at 22:17:50, restarted → FREEZE; controller went IDLE at 22:18:43 (dictation lost). Hits the issue's "rotation/provisional-freeze path" suspect. Evidence posted to the issue.
 - [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
 - [ ] **#74 Phase 1 posting (owner)** — r/fossdroid, r/degoogle (Showcase), r/selfhosted (modmail), kuketz, Facebook (#108); welcome message into the Google Group.
 - [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 × 14 days.

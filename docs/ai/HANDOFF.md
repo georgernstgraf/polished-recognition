@@ -2,6 +2,8 @@
 
 **2026-10-10 (early): #117 CLOSED — round 2 (21-s fragments + 1-s acoustic pre-roll + echo trim) verified on-device: 0 dropped words (baseline −9), 0 "…" hallucinations (baseline 6×), fragment text ⊇ full text. Trunk at `dc04eb9`. Next: #116 Phase 2 (owns fragment sizing) + flake instrumentation.**
 
+**2026-10-10 (later): 16-min movie session logged — fragment pipeline clean (47/47, all attempt 1), but the shadow full-context pass COLLAPSED on gregor's hardcoded VAD (fragment concat 2310 chars vs full pass 1021; first ~9 min lost). Phase 2: treat gregor as fragments-only for long recordings. #113 FREEZE recurrence captured (2026-10-09 22:18:36 CEST, evidence on the issue).**
+
 ## Where things stand
 
 - Round 2 shipped in `5c49cc5` (21-s fragments + 1-s acoustic pre-roll + echo trim; implementation details in CONVENTIONS/ARCHITECTURE/DECISIONS, full report in the #117 comment). Issue CLOSED with owner verdicts 2026-10-10.
@@ -11,10 +13,10 @@
 
 ## Open tasks
 
-1. [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct"). Real 21-s gregor samples exist; the fit would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s).
+1. [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct"). Real 21-s gregor samples exist; the fit would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s). **2026-10-10 movie-session caveat: the full-context shadow pass collapsed on gregor VAD (588-s chunk → 12.8 s after VAD; fragment concat 2310 vs 1021 chars) — gregor must stay fragments-only for long recordings; see STATE.md data block + PITFALLS.**
 2. [ ] **VoiceSessionControllerTest flake instrumentation (agent)** — the watch item recurred twice in the round-2 session (`fragment failure fails in polish mode…` full-suite; `pipeline failure parks PAUSED…` **class-level**, compress-OFF path — "session.meta exists" false / missing `Completed`). Both re-runs green. Instrument the failure branch (log the snapshot()/event-path failure cause) before the next debug round.
 3. [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
-4. [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps.
+4. [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps. **Recurrence captured 2026-10-09 22:18:36 CEST** (`restarting=true state=RECORDING outcome=FREEZE`; input view finished while RECORDING 22:17:34 → PAUSED 22:17:50 → restart → FREEZE → IDLE 22:18:43); evidence posted to the issue — remaining owner work: stage-line behavior + X-tap vs system-back.
 5. [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
 6. [ ] **#74 Phase 1 posting (owner)** — r/fossdroid (own words — sub bans AI promo), r/degoogle (weekly Showcase thread only), r/selfhosted (modmail first), kuketz (DE, second wave), Facebook DE (#108); Google Group welcome message from `docs/marketing/alpha-welcome.md`.
 7. [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 × 14 days.
@@ -34,4 +36,4 @@
 - Pulse-contrast (#87): foreground rows breathe 0.3↔1.0 on a 1333 ms sine while RECORDING.
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-10-10 early (**#117 CLOSED — round 2 implemented + verified on-device; trunk at `dc04eb9`**).
+Last cleared: 2026-10-10 later (**movie-session STT data persisted — gregor VAD full-context collapse + #113 FREEZE recurrence**).
