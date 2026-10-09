@@ -27,10 +27,11 @@ import java.util.concurrent.atomic.AtomicLong
  * against the measured gregor profile at the 21-s default fragment size,
  * <1 s against GROQ.
  *
- * Serial by construction (C=1): gregor strictly serializes requests
- * (measured, #64), so a single in-flight request is optimal there, and
- * trivial ordering is worth more than parallelism anywhere else — Phase 2's
- * concurrency auto-detection may raise C later, but C=1 ships first.
+ * Serial by construction (C=1) — PERMANENT (owner verdict 2026-10-10, #116):
+ * even the slowest provider (gregor) runs ~25× realtime, so parallelism has
+ * no provider to help anywhere; and the prompt carry-over + echo trim need
+ * fragment i−1's transcript at fragment i's upload time, which the serial
+ * worker guarantees. Concurrency would break seam conditioning for zero gain.
  *
  * Ordering: transcripts accumulate in fragment order regardless of offer
  * order ([ConcurrentSkipListMap] keyed by fragment index); the join

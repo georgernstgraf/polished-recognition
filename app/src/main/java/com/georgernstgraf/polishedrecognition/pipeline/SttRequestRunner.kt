@@ -27,7 +27,7 @@ import java.io.IOException
  *   the audio duration (`durationMs`, parsed via [AudioDuration]), HTTP
  *   code, elapsed time and failure class. This is the Phase 2 per-provider
  *   latency-profile input (robust fit of t(S) ≈ a + b·S → auto fragment
- *   size + concurrency) and closes the #64 evidence gap ("&gt;2 min per
+ *   size) and closes the #64 evidence gap ("&gt;2 min per
  *   600-s chunk" was neither provable nor refutable from the old logs).
  *
  * Completion records go into a dedicated rotation stream instead of extra
