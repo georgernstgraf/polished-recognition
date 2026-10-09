@@ -66,6 +66,7 @@ class SettingsActivity : Activity() {
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
     private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
+    private val fragmentSecondsField: EditText by lazy { findViewById(R.id.fragment_seconds) }
     private val appWrapDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.app_wrap_app) }
     private val appWrapWidthField: EditText by lazy { findViewById(R.id.app_wrap_width) }
     private val appWrapForgetButton: Button by lazy { findViewById(R.id.app_wrap_forget) }
@@ -166,6 +167,14 @@ class SettingsActivity : Activity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 wrapWidthField.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        fragmentSecondsField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                fragmentSecondsField.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -312,6 +321,11 @@ class SettingsActivity : Activity() {
         rawModeCheckbox.isChecked = settings.rawMode
         compressAudioCheckbox.isChecked = settings.compressAudio
         wrapWidthField.setText(settings.wrapWidth.toString())
+        settings.fragmentSecondsOverride?.let { override ->
+            fragmentSecondsField.setText(
+                if (override % 1f == 0f) override.toInt().toString() else override.toString()
+            )
+        }
         loadAppWrapSection()
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
         settings.targetLanguage?.let { tl ->
@@ -1017,6 +1031,17 @@ class SettingsActivity : Activity() {
             return
         }
         settings.wrapWidth = wrapWidth
+        // Fragment-size override (#116 Phase 2): blank = auto, else 7–60 s.
+        val fragmentText = fragmentSecondsField.text.toString().trim()
+        val fragmentOverride = if (fragmentText.isEmpty()) null else fragmentText.toFloatOrNull()
+        if (fragmentText.isNotEmpty() && (fragmentOverride == null ||
+                fragmentOverride < com.georgernstgraf.polishedrecognition.config.SttLatencyProfile.MIN_FRAGMENT_SECONDS ||
+                fragmentOverride > com.georgernstgraf.polishedrecognition.config.SttLatencyProfile.MAX_FRAGMENT_SECONDS)
+        ) {
+            fragmentSecondsField.error = getString(R.string.fragment_seconds_error)
+            return
+        }
+        settings.fragmentSecondsOverride = fragmentOverride
         settings.saveKnownAppWidths(appWrapWidths.toMap())
         val tl = targetLanguageDropdown.text.toString()
         val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl
