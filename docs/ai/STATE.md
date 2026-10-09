@@ -1,6 +1,8 @@
 # Project State
 
-Current status as of 2026-10-10 (early): **#117 round 2 IMPLEMENTED (`5c49cc5`) AND VERIFIED ON-DEVICE (2026-10-09 ~23:47, noisy-condition run) — 0 dropped words (round-1 baseline −9), 0 "…" hallucinations (baseline 6×), fragment text ⊇ full text. Owner verdict on closure pending (duplicated-phrase question + stop→raw feel).**
+Current status as of 2026-10-10 (early): **#117 CLOSED — round 2 (21-s fragments + 1-s acoustic pre-roll + echo trim, `5c49cc5`) verified on-device: 0 dropped words (round-1 baseline −9), 0 "…" hallucinations (baseline 6×), fragment text ⊇ full text, noisy-condition run accepted as a scenario. Next: #116 Phase 2 (owns fragment sizing — fixes the 2.2-s gregor tail) + flake instrumentation.**
+
+**Closure verdicts (2026-10-10):** duplicated "Panikmache" phrase at the fragment 1→2 seam — owner cannot confirm; accepted harmless by construction (real repetition kept verbatim → LLM polish dedupes in polish mode; raw mode is verbatim by design; trim correctly never fired, `echoTokens=0`). Stop→raw ≈ 2.2 s measured = the tail chunk's round-trip (only chunk paid at send; tail bounded ~23 s, near-worst case this session; gregor variance 0.7–2.3 s for identical lengths) — accepted; Phase 2 auto-sizing would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s).
 
 **Round-2 on-device verification** (report in the #117 comment 2026-10-09/10):
 - 4 fragments / ~85 s under TV audio: 3 hard cuts at exactly 672 000 B (background RMS defeats silence search → graceful fallback, expected) + 1 silence-aligned cut (21.76 s).
@@ -11,17 +13,16 @@ Current status as of 2026-10-10 (early): **#117 round 2 IMPLEMENTED (`5c49cc5`) 
 Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open. #112 restore-tap pending; #113 recurrence data pending.
 
 ## Current Focus
-**Owner verdict on #117** (duplicated phrase + latency feel) → close or iterate. Then #116 Phase 2 (auto-sizing fixes the gregor tail latency) and the VoiceSessionControllerTest flake instrumentation.
+**#116 Phase 2** (per-provider auto-sizing — fixes the 2.2-s gregor tail with the freshly measured samples; full-context-at-stop for fast providers) and the **VoiceSessionControllerTest flake instrumentation**. #117 closed.
 
 ## Completed (recent cycles)
-- [x] **#117 round 2 verified on-device 2026-10-09/10** (`5c49cc5`): 21-s fragments + 1-s pre-roll + echo trim; noisy-condition A/B: 0 dropped words, 0 hallucinations, fragment ⊇ full. Latency caveat 2.2 s recorded; Phase 2 owns sizing.
+- [x] **#117 CLOSED 2026-10-10** — round 2 implemented (`5c49cc5`) + verified on-device (noisy-condition A/B: 0 dropped words, 0 hallucinations, fragment ⊇ full); verdicts resolved (duplicated phrase harmless by construction; 2.2-s tail latency accepted, Phase 2 owns sizing). Full history: `400d13f` + `5ef704f` + `8b7f191` + `5c49cc5`.
 - [x] **#117 round 1 verified 2026-10-09** (`400d13f` + `5ef704f` + `8b7f191`): shadow comparison works; seam loss quantified (406/415); owner decisions recorded.
 - [x] #116 Phase 1 implemented 2026-10-08; #64 CLOSED BY MEASUREMENT; #115 CLOSED; #114/#105 CLOSED; v1.3.5 + v1.3.6 released.
 
 ## Pending
-- [ ] **#117 closure (owner)** — confirm the "Panikmache" phrase was spoken twice (or accept it as harmless) + feel-check the 2.2-s stop→raw; then close the issue.
-- [ ] **VoiceSessionControllerTest flake instrumentation (agent)** — recurred twice in the round-2 session incl. a CLASS-LEVEL run (`pipeline failure parks PAUSED…`, compress-OFF path); both re-runs green. Instrument the failure branch (see PITFALLS).
-- [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct" it). Real 21-s gregor samples now exist.
+- [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct" it). Real 21-s gregor samples now exist; the fit would shrink gregor to ~12–14-s fragments (tail ≈ 1.3 s).
+- [ ] **VoiceSessionControllerTest flake instrumentation (agent)** — the watch item recurred twice in the round-2 session incl. a CLASS-LEVEL run (`pipeline failure parks PAUSED…`, compress-OFF path); both re-runs green. Instrument the failure branch (see PITFALLS).
 - [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
 - [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps.
 - [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
@@ -42,4 +43,4 @@ None.
 - Owner dictates with **Raw mode on** (no LLM pass — llm-prompt stays stale; don't misread that as a pipeline failure).
 
 ## Next Session Suggestion
-Get the owner's #117 verdict (duplicated phrase + latency feel) → close the issue. Then start the flake instrumentation (small) or #116 Phase 2 (per-provider auto-sizing — it fixes the 2.2-s gregor tail with the freshly measured t(S) samples).
+Start #116 Phase 2 (per-provider auto-sizing — fixes the 2.2-s gregor tail with the freshly measured t(S) samples) or the small flake-instrumentation task first; both are fully specified in HANDOFF.md.
