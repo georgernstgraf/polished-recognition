@@ -1,31 +1,27 @@
 # Project State
 
-Current status as of 2026-10-09 (later): **#117 round 2 IMPLEMENTED & pushed (`5c49cc5`) — 21-s fragments + 1-s acoustic pre-roll + echo trim; on-device shadow comparison pending (owner device).**
+Current status as of 2026-10-10 (early): **#117 round 2 IMPLEMENTED (`5c49cc5`) AND VERIFIED ON-DEVICE (2026-10-09 ~23:47, noisy-condition run) — 0 dropped words (round-1 baseline −9), 0 "…" hallucinations (baseline 6×), fragment text ⊇ full text. Owner verdict on closure pending (duplicated-phrase question + stop→raw feel).**
 
-**#117 round 2 shipped** (`5c49cc5`, pushed; full report in the issue comment 2026-10-09):
-- `FRAGMENT_SECONDS` 7 → 21 (672 kB); `preRollBytes` ctor param (1 s / 32 000 B), controller test param `fragmentPreRollBytes` (0 = off in tests).
-- `preroll_<i>.<ext>` side files (last 1 s of PCM before fragment start, same format, clamped), written BEFORE the manifest; pre-roll encode failure → `null`, never the WAV fallback; WAV-fallback rebuild re-creates pre-rolls; `recover()` keep-set includes them; hook + `committedFragments()` carry `(index, file, preRoll)` with an `isFile` check.
-- `FragmentTranscriber`: upload composed ONCE as `preRoll + fragment` byte-concat (`upload_<i>.<ext>`), both attempts (incl. the HTTP-400 prompt retry — a bare-fragment retry would have dropped the pre-roll) use it, deleted in `finally`; missing pre-roll → bare fragment.
-- Echo trim BEFORE storing: conservative token match vs previous transcript tail (head token equal, ≤1 mismatch for k ≥ 2, k ≤ 8; no match keeps everything), only when the upload carried a pre-roll; fully echoed fragment trims to empty; evidence → new `stt-trim.json` stream.
-- Two bugs fixed during implementation that the original plan missed: (1) 400-retry bypassed the composed upload; (2) untrimmed echo would have re-conditioned the next fragment's prompt/tail.
-- Tests: +12 (pre-roll PCM ranges incl. clamp, ogg+wav modes, hook payload, recover keep-set, fallback rebuild, composition byte-equality + cleanup, trim echo/no-match/single-token/full-echo/no-preroll cases, 400-retry-on-composed-upload). Full suite green (395) + `assembleRelease` green; pre-push hook green.
-
-**Verification pending (owner device):** one dictation vs gregor → `stt-shadow.json` fragmentText vs fullText against the 2026-10-09 baseline (406 vs 415 words; 9-word + 5-word phrase drops; "Pest"→"Best"; 6× "…"). Expected: phrase drops shrink drastically; `prepare.json` shows ~21-s fragments (pcmEnd deltas ≈ 672 000 ± search window); `stt-trim.json` shows echo matches; stop→raw ≤ ~1.5 s. Watch signal: gregor GPU bursts every ~21–23 s during dictation.
+**Round-2 on-device verification** (report in the #117 comment 2026-10-09/10):
+- 4 fragments / ~85 s under TV audio: 3 hard cuts at exactly 672 000 B (background RMS defeats silence search → graceful fallback, expected) + 1 silence-aligned cut (21.76 s).
+- Pre-roll on the wire confirmed (uploads 96.8–100 kB vs 91.2 kB bare; `promptChars` 278/378/380).
+- `stt-trim.json`: `echoTokens=0` everywhere — no false trims. The one fragment-extra phrase ("Es geht nicht um Panikmache", 5 words, wording differs from the tail) sits at the fragment 1→2 seam; too long/modified for a 1-s pre-roll echo — likely real speech the full-context Whisper collapsed. Owner confirmation pending.
+- **Latency caveat**: stop→raw ≈ 2.2 s (tail 21.7 s audio, gregor elapsed 2166 ms) vs the 1.3-s target; session variance (fragment 0: 0.7 s vs fragments 1–3: 2.2–2.3 s for identical lengths). Phase 2's auto-sizer would land gregor at ~12–14-s fragments with this measured slope.
 
 Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open. #112 restore-tap pending; #113 recurrence data pending.
 
 ## Current Focus
-**Next session: on-device shadow comparison for #117 round 2** (needs the OnePlus attached — the agent host has none by default). If seam quality is acceptable → owner decides close; then #116 Phase 2 (auto-sized fragments 40–60 s + full-context-at-stop).
+**Owner verdict on #117** (duplicated phrase + latency feel) → close or iterate. Then #116 Phase 2 (auto-sizing fixes the gregor tail latency) and the VoiceSessionControllerTest flake instrumentation.
 
 ## Completed (recent cycles)
-- [x] **#117 round 2 implemented 2026-10-09 (later)** (`5c49cc5`): 21-s fragments + 1-s pre-roll + echo trim; full report in the issue comment. Open: on-device verify.
-- [x] **#117 round 1 verified on-device 2026-10-09** (`400d13f` + `5ef704f` + `8b7f191`): shadow comparison works; seam quality quantified (406/415 words); owner decisions recorded.
+- [x] **#117 round 2 verified on-device 2026-10-09/10** (`5c49cc5`): 21-s fragments + 1-s pre-roll + echo trim; noisy-condition A/B: 0 dropped words, 0 hallucinations, fragment ⊇ full. Latency caveat 2.2 s recorded; Phase 2 owns sizing.
+- [x] **#117 round 1 verified 2026-10-09** (`400d13f` + `5ef704f` + `8b7f191`): shadow comparison works; seam loss quantified (406/415); owner decisions recorded.
 - [x] #116 Phase 1 implemented 2026-10-08; #64 CLOSED BY MEASUREMENT; #115 CLOSED; #114/#105 CLOSED; v1.3.5 + v1.3.6 released.
 
 ## Pending
-- [ ] **#117 round-2 verify (owner + agent)** — `installRelease` → one dictation → shadow comparison vs the 406/415 baseline (see "Verification pending" above).
-- [ ] **VoiceSessionControllerTest flake instrumentation** — the watch item recurred TWICE in the round-2 session (`fragment failure fails in polish mode…` in a full-suite run; `pipeline failure parks PAUSED…` in a class-level run — the documented "passes in class-level" no longer holds). Both re-runs green. Instrument the failure branch (see PITFALLS entry).
-- [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` (40–60 s for fast providers) + concurrency; **full-context-at-stop strategy** for fast providers. Note: `stt-latency` `durationMs`/`bytes` now INCLUDE the 1-s pre-roll (uploaded-size truth — the fit basis; do not "correct" it).
+- [ ] **#117 closure (owner)** — confirm the "Panikmache" phrase was spoken twice (or accept it as harmless) + feel-check the 2.2-s stop→raw; then close the issue.
+- [ ] **VoiceSessionControllerTest flake instrumentation (agent)** — recurred twice in the round-2 session incl. a CLASS-LEVEL run (`pipeline failure parks PAUSED…`, compress-OFF path); both re-runs green. Instrument the failure branch (see PITFALLS).
+- [ ] **#116 Phase 2 (agent)** — per-provider profiles: `t(S) ≈ a + b·S` fit over `stt-latency.json` → auto `fragmentSeconds` + concurrency; **full-context-at-stop strategy** for fast providers. `stt-latency` `durationMs`/`bytes` INCLUDE the 1-s pre-roll (uploaded-size truth — correct fit basis; do not "correct" it). Real 21-s gregor samples now exist.
 - [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
 - [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back, `ime-lifecycle.log` + STT/LLM timestamps.
 - [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
@@ -38,12 +34,12 @@ Release state unchanged: **v1.3.6 (10306) released**; F-Droid pickup watch open.
 None.
 
 ## Device Notes
-- f6de166c = **OnePlus 7T** (HD1903, Oplus, 1080×2400) — adb IME/secure-setting writes blocked, reads work.
+- f6de166c = **OnePlus 7T** (HD1903, Oplus, 1080×2400) — adb IME/secure-setting writes blocked, reads work. USB mode gotcha: `18d1:4ee8` (MIDI mode) is invisible to adb — switch USB mode to file transfer / keep USB debugging on.
 - d890cc9e = **S5** (SM-G900F, LineageOS 18.1) — adb writes WORK.
 - **The OnePlus is also the Telegram bridge** — verify the foreground before `input tap`; scrcpy output is VFR — normalize before trimming.
-- Owner runs the **local LAN STT server** gregor (`http://10.8.0.16:11437/v1/`, `hwdsl2/whisper-server:cuda`, `large-v3`, SSH alias `gregor`, container name `whisper` — logs via `sudo docker logs whisper`; server code at `/opt/src/api_server.py` in the container; **VAD hardcoded on**, prompt forwarded as `initial_prompt`). Owner watches gregor's GPU spikes: ~21–23-s bursts = live fragment cadence (round 2), one long spike at stop = the shadow pass.
-- Log evidence via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` — `adb pull` is BLOCKED (scoped storage); use `adb shell cat` per file (mind stdin-eating in loops, `\r` stripping, and the exact package name). Streams: `stt-upload`, `stt-latency` (per-attempt, `durationMs` + `promptChars`), `prepare` (fragment cadence, `pcmEnd`, `silenceAligned`), `stt-trim` (round 2: `fragment`, `echoTokens`, `uploadWithPreRoll`), `stt-shadow` (gate breadcrumb + fragmentText vs fullText + crash records), `stt-text`, `llm-prompt`/`llm-response`, `ime-lifecycle.log`.
+- Owner runs the **local LAN STT server** gregor (`http://10.8.0.16:11437/v1/`, `hwdsl2/whisper-server:cuda`, `large-v3`, SSH alias `gregor`, container name `whisper` — logs via `sudo docker logs whisper`; server code at `/opt/src/api_server.py` in the container; **VAD hardcoded on**, prompt forwarded as `initial_prompt`). GPU spikes: ~21–23-s bursts = live fragment cadence (round 2), one long spike at stop = the shadow pass. Measured 2026-10-09: ~2.2–2.3 s per 21-s upload (fragment 0 outlier 0.7 s).
+- Log evidence via adb: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/` — `adb pull` is BLOCKED (scoped storage); use `adb shell cat` per file (mind stdin-eating in loops, `\r` stripping, and the exact package name). Streams: `stt-upload`, `stt-latency` (`durationMs` + `promptChars`), `prepare` (`pcmEnd`, `silenceAligned`), `stt-trim` (`fragment`, `echoTokens`, `uploadWithPreRoll`), `stt-shadow` (gate breadcrumb + fragmentText vs fullText + crash records), `stt-response` (per-request verbose responses — newest = shadow pass, rotation covers the fragments), `stt-text`, `llm-prompt`/`llm-response`, `ime-lifecycle.log`.
 - Owner dictates with **Raw mode on** (no LLM pass — llm-prompt stays stale; don't misread that as a pipeline failure).
 
 ## Next Session Suggestion
-On-device #117 round-2 verify: `installRelease`, one dictation vs gregor with Raw on, then `adb shell cat` the `stt-shadow.json` / `prepare.json` / `stt-trim.json` streams and compare against the 406/415 baseline. Then (owner verdict) close #117 or iterate; the flake instrumentation is the next code task regardless.
+Get the owner's #117 verdict (duplicated phrase + latency feel) → close the issue. Then start the flake instrumentation (small) or #116 Phase 2 (per-provider auto-sizing — it fixes the 2.2-s gregor tail with the freshly measured t(S) samples).
