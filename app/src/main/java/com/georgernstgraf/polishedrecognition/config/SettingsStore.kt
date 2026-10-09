@@ -112,6 +112,15 @@ class SettingsStore(
         set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
 
     /**
+     * Manual fragment-size override in seconds (#116 Phase 2). `null` = auto
+     * (the per-provider latency profile decides); a value ≥ 1 fixes the
+     * fragment size and suspends the auto-sizer for every provider.
+     */
+    var fragmentSecondsOverride: Float?
+        get() = prefs.getString(FRAGMENT_SECONDS_OVERRIDE_KEY, null)?.toFloatOrNull()
+        set(value) = prefs.edit().putString(FRAGMENT_SECONDS_OVERRIDE_KEY, value?.toString()).apply()
+
+    /**
      * Learned dictation targets (#100), most-recently-used first. Apps used in
      * this process come first in true MRU order (#102); the remaining apps fall
      * back to the stored `lastSeenMs` (descending). MRU entries no longer in the
@@ -280,6 +289,72 @@ class SettingsStore(
         prefs.edit().remove(legacyKey).apply()
     }
 
+    /**
+     * The STT latency profile for `baseUrl + model + mediaType` (#116
+     * Phase 2), or `null` when nothing was measured yet. Media types are
+     * separated so OGG/WAV latencies never mix into one fit.
+     */
+    @Synchronized
+    fun sttProfile(baseUrl: String, model: String, mediaType: String): SttProviderProfile? =
+        readSttProfiles()[sttProfileKey(baseUrl, model, mediaType)]
+
+    /**
+     * Records one successful STT request as a profile sample (#116 Phase 2),
+     * keeping the newest [SttLatencyProfile.MAX_SAMPLES] per profile. Called
+     * from the request runner's completion hook on IO threads — hence the
+     * synchronized read-modify-write.
+     */
+    @Synchronized
+    fun recordSttSample(
+        baseUrl: String,
+        model: String,
+        mediaType: String,
+        durationMs: Long,
+        elapsedMs: Long
+    ) {
+        val key = sttProfileKey(baseUrl, model, mediaType)
+        val profiles = readSttProfiles()
+        val existing = profiles[key] ?: SttProviderProfile()
+        profiles[key] = existing.copy(
+            samples = (existing.samples + SttProfileSample(durationMs, elapsedMs))
+                .takeLast(SttLatencyProfile.MAX_SAMPLES)
+        )
+        prefs.edit().putString(STT_PROFILES_KEY, gson.toJson(profiles)).apply()
+    }
+
+    /**
+     * Records the fragment size (seconds) the auto-sizer APPLIED for a
+     * profile — the anchor of the stepwise adaptation (#116 Phase 2).
+     */
+    @Synchronized
+    fun setSttProfileAppliedSeconds(
+        baseUrl: String,
+        model: String,
+        mediaType: String,
+        seconds: Double
+    ) {
+        val key = sttProfileKey(baseUrl, model, mediaType)
+        val profiles = readSttProfiles()
+        val existing = profiles[key] ?: SttProviderProfile()
+        profiles[key] = existing.copy(lastAppliedSeconds = seconds)
+        prefs.edit().putString(STT_PROFILES_KEY, gson.toJson(profiles)).apply()
+    }
+
+    /** Wipes every learned profile (Settings "reset" path, #116 Phase 2). */
+    @Synchronized
+    fun clearSttProfiles() {
+        prefs.edit().remove(STT_PROFILES_KEY).apply()
+    }
+
+    private fun readSttProfiles(): MutableMap<String, SttProviderProfile> {
+        val json = prefs.getString(STT_PROFILES_KEY, null) ?: return mutableMapOf()
+        return gson.fromJson(json, object : TypeToken<MutableMap<String, SttProviderProfile>>() {}.type)
+            ?: mutableMapOf()
+    }
+
+    private fun sttProfileKey(baseUrl: String, model: String, mediaType: String): String =
+        "$baseUrl|$model|$mediaType"
+
     private fun <T> getJson(key: String, clazz: Class<T>): T? {
         val json = prefs.getString(key, null) ?: return null
         return gson.fromJson(json, clazz)
@@ -318,6 +393,8 @@ class SettingsStore(
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
         private const val WRAP_WIDTH_KEY = "wrap_width"
+        private const val FRAGMENT_SECONDS_OVERRIDE_KEY = "fragment_seconds_override"
+        private const val STT_PROFILES_KEY = "stt_profiles"
 
         /** 6 weeks in milliseconds. */
         const val MODEL_CACHE_TTL_MS = 42L * 24 * 60 * 60 * 1000

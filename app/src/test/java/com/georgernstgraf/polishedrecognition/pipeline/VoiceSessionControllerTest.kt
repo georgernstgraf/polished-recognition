@@ -5,6 +5,7 @@ import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -70,7 +71,8 @@ class VoiceSessionControllerTest {
         sessionIdInMeta: String? = null,
         shadowSttEnabled: () -> Boolean = { false },
         mainDispatcher: Boolean = false, // true = production-like queued main-looper (#117 shadow)
-        logger: RotatingJsonLogger? = null
+        logger: RotatingJsonLogger? = null,
+        fragmentSizeProvider: (() -> Double?)? = null // Phase 2 auto-sizer (#116)
     ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
         pipeline,
@@ -88,7 +90,8 @@ class VoiceSessionControllerTest {
         // with zero backoff so failure-path tests stay fast
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
         logger = logger,
-        shadowSttEnabled = shadowSttEnabled
+        shadowSttEnabled = shadowSttEnabled,
+        fragmentSizeProvider = fragmentSizeProvider
     )
 
     private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
@@ -122,6 +125,29 @@ class VoiceSessionControllerTest {
         // worker resumed there, #116) — pump the main looper so posted
         // runnables deliver before the caller reads its event list.
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+    }
+
+    /**
+     * Waits until [predicate] holds for the pumped event list (#117 flake
+     * fix). The FAILURE branch publishes PAUSED and posts its events from an
+     * IO thread afterwards — a test that waits on the state field alone can
+     * pump too early and read an empty list (the missing-`Completed` flake
+     * shape). Waiting on the events themselves makes the handoff
+     * deterministic.
+     */
+    private fun awaitEvents(
+        events: MutableList<VoiceSessionController.Event>,
+        predicate: (List<VoiceSessionController.Event>) -> Boolean
+    ) {
+        val shadow = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+        val deadline = System.currentTimeMillis() + 5000
+        while (System.currentTimeMillis() < deadline) {
+            shadow.idle()
+            if (predicate(events)) return
+            Thread.sleep(10)
+        }
+        shadow.idle()
+        assertThat(predicate(events)).isTrue()
     }
 
     private fun uploadedFile(): File {
@@ -649,10 +675,17 @@ class VoiceSessionControllerTest {
         val before = controller.recordedDurationMs()
 
         controller.stopAndTranscribe()
-        controller.awaitState(VoiceSessionController.State.PAUSED)
-
+        awaitEvents(events) { e ->
+            e.filterIsInstance<VoiceSessionController.Event.StateChanged>()
+                .lastOrNull()?.state == VoiceSessionController.State.PAUSED &&
+                e.filterIsInstance<VoiceSessionController.Event.Completed>().size == 1
+        }
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
         assertThat(controller.recordedDurationMs()).isEqualTo(before)
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        // The snapshot must exist once PAUSED is observable (the failure
+        // branch snapshots BEFORE publishing the state — #117 flake fix).
+        assertThat(controller.lastSnapshotError).isNull()
         assertThat(File(cacheDir, "session.pcm").exists()).isTrue()
         assertThat(File(cacheDir, "session.meta").exists()).isTrue()
         assertThat(events.filterIsInstance<VoiceSessionController.Event.StateChanged>().last())
@@ -683,6 +716,9 @@ class VoiceSessionControllerTest {
         controller.stopAndTranscribe()
         controller.awaitState(VoiceSessionController.State.PAUSED)
         controller.detach()
+        // The snapshot must exist once PAUSED is observable (#117 flake fix —
+        // the failure branch snapshots BEFORE publishing the state).
+        assertThat(controller.lastSnapshotError).isNull()
 
         val reborn = newController()
         assertThat(reborn.restore()).isTrue()
@@ -935,10 +971,11 @@ class VoiceSessionControllerTest {
 
         // polish mode: the session fails, the lowest-order failure is named
         controller.stopAndTranscribe()
-        controller.awaitState(VoiceSessionController.State.PAUSED)
-        // the result is delivered via a main-looper post (the pipeline flow
-        // resumed on an IO worker) — pump the looper before reading events
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        awaitEvents(events) { e ->
+            e.filterIsInstance<VoiceSessionController.Event.Completed>().isNotEmpty()
+        }
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(controller.lastSnapshotError).isNull()
         val failed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last().result
         assertThat(failed.exceptionOrNull()!!.message).contains("fragment 2/4")
         assertThat(failed.exceptionOrNull()!!.message).contains("HTTP 401")
@@ -1037,9 +1074,6 @@ class VoiceSessionControllerTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
         assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
-        println("DIAG shadow dir exists=${File(cacheDir, "shadow").exists()} contents=${File(cacheDir, "shadow").listFiles()?.map { it.name }}")
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        println("DIAG shadow dir after extra pump exists=${File(cacheDir, "shadow").exists()}")
         verify(atLeast = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         assertThat(shadowFile.exists()).isTrue()
         val shadow = com.google.gson.Gson().fromJson(
@@ -1056,5 +1090,218 @@ class VoiceSessionControllerTest {
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
         File(cacheDir, "session.pcm").delete()
         File(cacheDir, "session.meta").delete()
+    }
+
+    /** Feeds [count] profile samples with slope b ≈ 1/`msPerSecond` (fast provider when small). */
+    private fun feedProfile(count: Int, msPerSecond: Long, fixedOverheadMs: Long = 150L) {
+        val config = settings.sttProvider!!
+        for (i in 0 until count) {
+            val durationMs = 16_000L + i * 1_000
+            settings.recordSttSample(
+                baseUrl = config.baseUrl,
+                model = config.model,
+                mediaType = "audio/ogg",
+                durationMs = durationMs,
+                elapsedMs = fixedOverheadMs + durationMs / 1000 * msPerSecond
+            )
+        }
+    }
+
+    /**
+     * #116 Phase 2 fragment-size resolution: a wired [fragmentSizeProvider]
+     * converts seconds → PCM bytes (32 000 B/s) and overrides the static
+     * default — 2 s over a 200 kB buffer yields 3 full fragments + tail
+     * instead of the single giant fragment the default size would encode.
+     */
+    @Test
+    fun `fragmentSizeProvider overrides the fragment size in PCM bytes`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(200_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":6250,"sessionId":"testsess"}""")
+
+        val controller = newController(fragmentSizeProvider = { 2.0 })
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
+            mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.chunkCount).isEqualTo(4)
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        clearSessionFiles()
+    }
+
+    /**
+     * #116 Phase 2 full-context-at-stop: when the measured profile predicts
+     * the whole recording transcribes within the latency target, the awaited
+     * full-context pass REPLACES the fragment join as the delivered text
+     * (chunkCount 1 — no seams). Here the profile is fast (~500× realtime),
+     * the recording 0.625 s → predicted ≈ 0.16 s ≤ 1.3 s.
+     */
+    @Test
+    fun `fast profile delivers the full-context text at stop`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":625,"sessionId":"testsess"}""")
+        feedProfile(count = 12, msPerSecond = 2L) // ≈ 500× realtime
+
+        val controller = newController()
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        // 1 fragment response, then the awaited full-context pass
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(
+                    SttResponse(text = "one", language = "de", languageProbability = 0.9f))),
+                mockSttCall(Response.success(
+                    SttResponse(text = "FULL", language = "de", languageProbability = 0.9f)))
+            )
+        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.text).isEqualTo("FULL")
+        assertThat(stt.chunkCount).isEqualTo(1)
+        assertThat(stt.chunkLengths).containsExactly(4)
+        assertThat(stt.language).isEqualTo("de")
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        clearSessionFiles()
+    }
+
+    /** The strategy can only improve, never lose: a failed full pass falls back to the join. */
+    @Test
+    fun `full-context failure falls back to the fragment join`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":625,"sessionId":"testsess"}""")
+        feedProfile(count = 12, msPerSecond = 2L)
+
+        val controller = newController()
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        val http500 =
+            @Suppress("DEPRECATION")
+            Response.error<SttResponse>(500, ResponseBody.create(null, "boom"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
+                mockSttCall(http500), // full pass: 3 transient-retried attempts, then failure
+                mockSttCall(http500),
+                mockSttCall(http500)
+            )
+        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.text).isEqualTo("one")
+        assertThat(stt.chunkCount).isEqualTo(1)
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        clearSessionFiles()
+    }
+
+    /** Bootstrap gate: below 12 usable samples the strategy never fires. */
+    @Test
+    fun `strategy does not fire before the profile has enough samples`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":625,"sessionId":"testsess"}""")
+        feedProfile(count = SttLatencyProfile.MIN_SAMPLES - 1, msPerSecond = 2L)
+
+        val controller = newController()
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "FULL", language = null)))
+            )
+        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(sttSlot.captured.getOrThrow().text).isEqualTo("one")
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        clearSessionFiles()
+    }
+
+    /**
+     * The gregor-unsafe guard (2026-10-10 measurement): a slow profile
+     * (~22× realtime, the measured gregor slope) NEVER fires the strategy —
+     * the predicted full-context time for a multi-minute recording exceeds
+     * the target, so the fragment join is delivered even though samples
+     * exist. This is what protects long recordings from the VAD collapse.
+     */
+    @Test
+    fun `slow profile never fires the full-context strategy`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
+        // 15-minute recording — the movie-session shape
+        File(cacheDir, "session.meta").writeText("""{"durationMs":900000,"sessionId":"testsess"}""")
+        feedProfile(count = 12, msPerSecond = 45L) // ≈ 22× realtime
+
+        val controller = newController()
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "FULL", language = null)))
+            )
+        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(sttSlot.captured.getOrThrow().text).isEqualTo("one")
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        clearSessionFiles()
     }
 }

@@ -371,4 +371,98 @@ class SettingsStoreTest {
         val fresh = freshStore()
         assertThat(fresh.knownAppsByRecency().map { it.first }).containsExactly("com.example.chat")
     }
+
+    /** #116 Phase 2: the per-provider latency-profile storage. */
+
+    @Test
+    fun `stt profile round-trips samples keyed by baseUrl model and mediaType`() {
+        store.recordSttSample("https://a/v1/", "whisper", "audio/ogg", 21_000, 700)
+        store.recordSttSample("https://a/v1/", "whisper", "audio/wav", 21_000, 900)
+        store.recordSttSample("https://b/v1/", "whisper", "audio/ogg", 21_000, 5_000)
+
+        val ogg = store.sttProfile("https://a/v1/", "whisper", "audio/ogg")!!
+        assertThat(ogg.samples).hasSize(1)
+        assertThat(ogg.samples[0].durationMs).isEqualTo(21_000)
+        assertThat(ogg.samples[0].elapsedMs).isEqualTo(700)
+        // media types and endpoints never mix
+        assertThat(store.sttProfile("https://a/v1/", "whisper", "audio/wav")!!.samples[0].elapsedMs)
+            .isEqualTo(900)
+        assertThat(store.sttProfile("https://b/v1/", "whisper", "audio/ogg")!!.samples[0].elapsedMs)
+            .isEqualTo(5_000)
+        assertThat(store.sttProfile("https://a/v1/", "other-model", "audio/ogg")).isNull()
+    }
+
+    @Test
+    fun `stt profile keeps only the newest sample window`() {
+        repeat(SttLatencyProfile.MAX_SAMPLES + 10) { i ->
+            store.recordSttSample("https://a/v1/", "m", "audio/ogg", 1_000L + i, i.toLong())
+        }
+        val samples = store.sttProfile("https://a/v1/", "m", "audio/ogg")!!.samples
+        assertThat(samples).hasSize(SttLatencyProfile.MAX_SAMPLES)
+        assertThat(samples.last().durationMs).isEqualTo(1_000L + SttLatencyProfile.MAX_SAMPLES + 9)
+        assertThat(samples.first().durationMs).isEqualTo(1_010L)
+    }
+
+    @Test
+    fun `stt profile applied seconds round-trips`() {
+        store.setSttProfileAppliedSeconds("https://a/v1/", "m", "audio/ogg", 13.5)
+        val fresh = freshStore()
+        assertThat(fresh.sttProfile("https://a/v1/", "m", "audio/ogg")!!.lastAppliedSeconds)
+            .isEqualTo(13.5)
+    }
+
+    @Test
+    fun `clearSttProfiles wipes every learned profile`() {
+        store.recordSttSample("https://a/v1/", "m", "audio/ogg", 1_000, 100)
+        store.clearSttProfiles()
+        assertThat(store.sttProfile("https://a/v1/", "m", "audio/ogg")).isNull()
+    }
+
+    @Test
+    fun `fragmentSecondsOverride defaults to null and round-trips`() {
+        assertThat(store.fragmentSecondsOverride).isNull()
+        store.fragmentSecondsOverride = 30f
+        assertThat(store.fragmentSecondsOverride).isEqualTo(30f)
+        store.fragmentSecondsOverride = null
+        assertThat(store.fragmentSecondsOverride).isNull()
+    }
+
+    /** #116 Phase 2: the sizer resolves override > profile fit > null. */
+
+    @Test
+    fun `sizer returns the manual override and skips the profile`() {
+        store.fragmentSecondsOverride = 30f
+        repeat(SttLatencyProfile.MIN_SAMPLES + 5) {
+            store.recordSttSample("https://a/v1/", "m", "audio/ogg", 21_000, 700)
+        }
+        assertThat(SttFragmentSizer(store).fragmentSeconds()).isEqualTo(30.0)
+    }
+
+    @Test
+    fun `sizer returns null without a provider or a ready profile`() {
+        assertThat(SttFragmentSizer(store).fragmentSeconds()).isNull()
+        store.sttProvider = SttProviderConfig(displayName = "A", baseUrl = "https://a/v1/", apiToken = "t", model = "m")
+        store.compressAudio = true // key the samples on the OGG media type
+        repeat(SttLatencyProfile.MIN_SAMPLES - 1) {
+            store.recordSttSample("https://a/v1/", "m", "audio/ogg", 21_000, 700)
+        }
+        assertThat(SttFragmentSizer(store).fragmentSeconds()).isNull()
+    }
+
+    @Test
+    fun `sizer derives from the profile and persists the applied anchor`() {
+        store.sttProvider = SttProviderConfig(displayName = "A", baseUrl = "https://a/v1/", apiToken = "t", model = "m")
+        store.compressAudio = true // the sizer keys the profile on the OGG media type
+        // t = 0.06 + 0.02·S → derived (1.0 − 0.09)/0.02 = 45.5 s
+        repeat(SttLatencyProfile.MIN_SAMPLES) { i ->
+            val s = 10.0 + i * 3.0
+            store.recordSttSample("https://a/v1/", "m", "audio/ogg",
+                (s * 1000).toLong(), ((0.06 + 0.02 * s) * 1000).toLong())
+        }
+        assertThat(SttFragmentSizer(store).fragmentSeconds()).isWithin(1e-9).of(45.5)
+        // the applied value was persisted — the next session's stepwise
+        // adaptation is anchored here (±50 %, tested in SttLatencyProfileTest)
+        assertThat(store.sttProfile("https://a/v1/", "m", "audio/ogg")!!.lastAppliedSeconds)
+            .isWithin(1e-9).of(45.5)
+    }
 }

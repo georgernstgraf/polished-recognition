@@ -148,8 +148,10 @@ class FragmentPreparer(
 
     /** Fragment size in PCM bytes (21 s · 16 kHz · 16 bit · mono, #117 round 2). */
     companion object {
+        /** PCM byte rate: 16 kHz · 16 bit · mono. */
+        const val PCM_BYTES_PER_SECOND = 32_000
         const val FRAGMENT_SECONDS = 21.0
-        const val DEFAULT_FRAGMENT_BYTES = (FRAGMENT_SECONDS * 32_000).toInt()
+        const val DEFAULT_FRAGMENT_BYTES = (FRAGMENT_SECONDS * PCM_BYTES_PER_SECOND).toInt()
 
         /** Default forward silence-search window (#117): 2 s. */
         const val DEFAULT_SEARCH_SECONDS = 2.0

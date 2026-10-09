@@ -38,8 +38,26 @@ class SttRequestRunner(
     private val getSttApi: (String) -> OpenAiSttApiService,
     private val logger: RotatingJsonLogger? = null,
     private val backoffMs: List<Long> = listOf(1_000L, 2_000L),
-    private val sleep: suspend (Long) -> Unit = { delay(it) }
+    private val sleep: suspend (Long) -> Unit = { delay(it) },
+    /**
+     * Successful-completion hook (#116 Phase 2): the per-provider latency
+     * profile's sample feed. Invoked on the caller's context for every
+     * successful request WITH evidence on (the shadow pass runs with
+     * evidence off and must not pollute the profile). `durationMs` is the
+     * uploaded audio duration (pre-roll included — the uploaded-size truth),
+     * `elapsedMs` this single attempt's round-trip.
+     */
+    private val onCompletion: ((Completion) -> Unit)? = null
 ) {
+
+    /** Successful request measurement (#116 Phase 2 profile sample). */
+    data class Completion(
+        val config: SttProviderConfig,
+        val mediaType: String,
+        val durationMs: Long?,
+        val elapsedMs: Long,
+        val attempt: Int
+    )
 
     /** Final failure after all attempts; [httpCode] is set for HTTP failures. */
     class SttRequestException(message: String, val httpCode: Int? = null) : Exception(message)
@@ -101,6 +119,9 @@ class SttRequestRunner(
 
                 if (response.isSuccessful && response.body() != null) {
                     logCompletion(audioFile, config, mediaType, durationMs, attempt, response.code(), elapsedMs, null, prompt, evidence)
+                    if (evidence && durationMs != null) {
+                        onCompletion?.invoke(Completion(config, mediaType, durationMs, elapsedMs, attempt))
+                    }
                     return Result.success(response.body()!!)
                 }
                 val code = response.code()

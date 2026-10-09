@@ -8,9 +8,11 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttEndpointPolicy
+import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
+import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
@@ -74,15 +76,40 @@ class PolishedRecognitionApp : Application() {
             getChatApi = { baseUrl -> getChatApi(baseUrl) },
             promptStore = promptStore,
             settingsStore = settingsStore,
-            logger = jsonLogger
+            logger = jsonLogger,
+            sttRunner = SttRequestRunner(
+                getSttApi = { baseUrl -> getSttApi(baseUrl) },
+                logger = jsonLogger,
+                // Per-provider latency profile feed (#116 Phase 2): every
+                // successful evidenced request is a (S, t) sample. The
+                // runner invokes this only on success with duration parsed.
+                onCompletion = { completion ->
+                    val durationMs = completion.durationMs
+                    if (durationMs != null) {
+                        runCatching {
+                            settingsStore.recordSttSample(
+                                baseUrl = completion.config.baseUrl,
+                                model = completion.config.model,
+                                mediaType = completion.mediaType,
+                                durationMs = durationMs,
+                                elapsedMs = completion.elapsedMs
+                            )
+                        }.onFailure {
+                            android.util.Log.w("PolishedRecognitionApp", "stt sample recording failed", it)
+                        }
+                    }
+                }
+            )
         )
     }
 
     val voiceSessionController by lazy {
+        val fragmentSizer = SttFragmentSizer(settingsStore)
         VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger,
             shadowSttEnabled = {
                 settingsStore.sttProvider?.baseUrl?.let { isLocalSttEndpoint(it) } == true
-            })
+            },
+            fragmentSizeProvider = { fragmentSizer.fragmentSeconds() })
     }
 
     /**

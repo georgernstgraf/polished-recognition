@@ -10,6 +10,7 @@ import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
@@ -68,7 +69,15 @@ class VoiceSessionController(
      * streams (its requests run with evidence off). Production wires a
      * LAN-provider gate — cloud providers would pay real money twice.
      */
-    private val shadowSttEnabled: () -> Boolean = { false }
+    private val shadowSttEnabled: () -> Boolean = { false },
+    /**
+     * Resolves the fragment size for a NEW session in SECONDS (#116 Phase 2):
+     * the per-provider auto-sizer or the manual override. `null` (or a null
+     * result) falls back to the constructor [fragmentBytes]. Production
+     * wires the profile-driven sizer; tests inject explicit [fragmentBytes]
+     * and leave this null, so their size expectations stay untouched.
+     */
+    private val fragmentSizeProvider: (() -> Double?)? = null
 ) {
 
     enum class State { IDLE, RECORDING, PAUSED, PROCESSING }
@@ -238,7 +247,7 @@ class VoiceSessionController(
         pcm = recorder,
         transcoder = transcoder,
         sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sessionId),
-        fragmentBytes = fragmentBytes,
+        fragmentBytes = resolvedFragmentBytes(),
         wavMode = !settings.compressAudio,
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
@@ -246,6 +255,20 @@ class VoiceSessionController(
         preRollBytes = fragmentPreRollBytes,
         logger = logger
     )
+
+    /**
+     * The fragment size in PCM bytes for this session (#116 Phase 2): the
+     * auto-sizer's seconds when a [fragmentSizeProvider] is wired, the
+     * constructor [fragmentBytes] otherwise (tests). Defensively clamped to
+     * the upload cap — a bogus resolved size must never exceed the 600-s
+     * chunk limit the preparer's assembly relies on.
+     */
+    private fun resolvedFragmentBytes(): Int {
+        val seconds = fragmentSizeProvider?.invoke()
+            ?: return fragmentBytes
+        val clamped = seconds.coerceIn(1.0, chunkMaxSeconds)
+        return (clamped * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt()
+    }
 
     /** Drop the session's committed fragments (flush/cancel — audio discarded). */
     private fun discardFragmentSession() {
@@ -353,8 +376,13 @@ class VoiceSessionController(
                 // death is covered by restore(). The IME stays visible, shows
                 // the failure Toast, and offers send/resume plus editable
                 // quick settings — as if the send had never happened.
+                Log.w(TAG, "pipeline failed; parking PAUSED: ${result.exceptionOrNull()?.message}")
+                // Snapshot FIRST (forced — the state is still PROCESSING
+                // here): a PAUSED state visible to any observer must imply
+                // the snapshot files exist. The old order (state first) was
+                // the #117 flake's file-race mechanism.
+                snapshot(force = true)
                 state = State.PAUSED
-                snapshot()
                 emit(Event.StateChanged(state))
                 deliver(result)
             }
@@ -408,9 +436,16 @@ class VoiceSessionController(
      * so a dead process can pick it up via [restore]. Best-effort and
      * synchronous: called with the recorder stopped (pause/teardown), never
      * mid-capture. A failure must never break the in-memory session.
+     *
+     * `force` (#117 flake instrumentation): the pipeline-failure branch calls
+     * this while still in PROCESSING — the snapshot must land BEFORE the
+     * PAUSED state becomes externally visible, so every observer that sees
+     * PAUSED also sees the snapshot files (the old order — state first,
+     * snapshot second — let a fast observer race the write and lose the
+     * session on a process death in that window).
      */
-    fun snapshot() {
-        if (state != State.RECORDING && state != State.PAUSED) return
+    fun snapshot(force: Boolean = false) {
+        if (!force && state != State.RECORDING && state != State.PAUSED) return
         try {
             val total = accumulatedMs +
                 if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
@@ -421,12 +456,21 @@ class VoiceSessionController(
             File(appContext.cacheDir, SNAP_META).writeText(
                 gson.toJson(SessionMeta(total, sessionId))
             )
-        } catch (_: Throwable) {
+            lastSnapshotError = null
+        } catch (e: Throwable) {
             // Best-effort: snapshotting must never break the live session —
             // this explicitly includes OutOfMemoryError on absurdly large
-            // buffers, not just ordinary I/O failures.
+            // buffers, not just ordinary I/O failures. The swallow is
+            // VISIBLE (flake instrumentation, #117 watch item): a silently
+            // missing `session.meta` cost two debug rounds in the test suite.
+            lastSnapshotError = "${e.javaClass.simpleName}: ${e.message}"
+            Log.w(TAG, "session snapshot failed (state=$state, sessionId=$sessionId)", e)
         }
     }
+
+    /** Last [snapshot] failure cause (#117 flake instrumentation), null when the last snapshot succeeded. */
+    @Volatile var lastSnapshotError: String? = null
+        private set
 
     /** Persisted session snapshot metadata (JSON since #115; was a bare duration). */
     private data class SessionMeta(val durationMs: Long, val sessionId: String?)
@@ -532,6 +576,25 @@ class VoiceSessionController(
                         gson.toJson(mapOf("rawRescue" to true, "failed" to where, "error" to failure.message))
                     )
                 }
+                // Full-context-at-stop (#116 Phase 2): when the provider's
+                // measured profile predicts the WHOLE recording transcribes
+                // within the latency target, deliver the seamless full-context
+                // text instead of the fragment join — the fragments were the
+                // live-cadence vehicle, the full pass is the better product.
+                // The profile gate makes this self-limiting: predicted
+                // t(S_total) ≤ 1.3 s bounds S_total by ~1.3/b, which is far
+                // below the multi-minute uploads where gregor's server-side
+                // VAD collapses (measured 2026-10-10, see PITFALLS). Any
+                // failure or empty result falls back to the fragment join.
+                if (drained.failure == null) {
+                    val fullContext = maybeFullContextAtStop(p, drained)
+                    if (fullContext != null) {
+                        return pipeline.finishTranscription(
+                            Result.success(fullContext),
+                            callerPackage
+                        ) { stage -> emit(Event.StageChanged(stage)) }
+                    }
+                }
                 // Shadow comparison (#117): assemble the full recording into
                 // a DEDICATED dir — `clearPrepared()` deletes the session dir
                 // on success, and the main-looper-queued shadow coroutine
@@ -571,6 +634,126 @@ class VoiceSessionController(
         chunkCount = chunkCount,
         chunkLengths = chunkLengths
     )
+
+    /**
+     * The #116 Phase 2 full-context-at-stop strategy: when the provider's
+     * measured latency profile predicts the FULL recording transcribes within
+     * the stop→raw target (`a + b·S_total ≤ 1.3 s`), transcribe the assembled
+     * recording in one awaited pass and return its result — the fragment join
+     * stays the fallback for every failure and empty result, so the strategy
+     * can only improve, never lose, the delivered text.
+     *
+     * The requests run with evidence ON: they are real `(S, t)` samples of
+     * the same provider (large-S points, valuable to the fit). The gate is
+     * inherently gregor-safe: predicted ≤ 1.3 s bounds the recording size to
+     * a fraction of the multi-minute uploads on which the server-side VAD
+     * collapses (2026-10-10 measurement, PITFALLS).
+     *
+     * Returns `null` whenever the strategy does not fire or does not produce
+     * usable text — the caller then proceeds with the fragment join exactly
+     * as before this strategy existed.
+     */
+    private suspend fun maybeFullContextAtStop(
+        p: FragmentPreparer,
+        drained: FragmentTranscriber.Drained
+    ): TranscriptionPipeline.SttResult? {
+        val config = settings.sttProvider ?: return null
+        val totalSeconds = accumulatedMs / 1000.0
+        if (totalSeconds <= 0.0) return null
+        val mediaType = if (settings.compressAudio) "audio/ogg" else "audio/wav"
+        val profile = settings.sttProfile(config.baseUrl, config.model, mediaType) ?: return null
+        val fit = SttLatencyProfile.fit(profile.samples) ?: return null
+        val predictedSeconds = fit.interceptSeconds + fit.slopeSecondsPerSecond * totalSeconds
+        if (predictedSeconds > SttLatencyProfile.TARGET_STOP_TO_RAW_SECONDS) return null
+
+        val shadowDir = File(appContext.cacheDir, SHADOW_DIR)
+        try {
+            val files = withContext(Dispatchers.IO) {
+                p.assembleChunks(shadowDir.apply { deleteRecursively(); mkdirs() })
+            }
+            if (files.isEmpty()) return null
+            var language: String? = null
+            var languageProbability: Float? = null
+            val parts = mutableListOf<String>()
+            for ((index, file) in files.withIndex()) {
+                // IO dispatcher REQUIRED (SttRequestRunner runs on the CALLER's
+                // context — the shadow crash, #117).
+                val result = withContext(Dispatchers.IO) {
+                    pipeline.sttRequestRunner.run(
+                        audioFile = file,
+                        config = config,
+                        chunk = index + 1,
+                        chunkCount = files.size
+                    )
+                }
+                val body = result.getOrNull()
+                if (body == null) {
+                    logger?.log(
+                        "stt-shadow",
+                        gson.toJson(
+                            mapOf(
+                                "event" to "fullContextAtStop",
+                                "outcome" to "failed",
+                                "error" to (result.exceptionOrNull()?.message ?: "unknown error"),
+                                "predictedSeconds" to predictedSeconds
+                            )
+                        )
+                    )
+                    return null
+                }
+                if (!body.language.isNullOrBlank() && language == null) {
+                    language = body.language
+                    languageProbability = body.languageProbability
+                }
+                parts.add(body.text)
+            }
+            val fullText = parts.filter { it.isNotBlank() }.joinToString(" ").trim()
+            if (fullText.isEmpty()) {
+                logger?.log(
+                    "stt-shadow",
+                    gson.toJson(
+                        mapOf(
+                            "event" to "fullContextAtStop",
+                            "outcome" to "empty",
+                            "predictedSeconds" to predictedSeconds
+                        )
+                    )
+                )
+                return null
+            }
+            logger?.log(
+                "stt-shadow",
+                gson.toJson(
+                    mapOf(
+                        "event" to "fullContextAtStop",
+                        "outcome" to "delivered",
+                        "predictedSeconds" to predictedSeconds,
+                        "totalSeconds" to totalSeconds,
+                        "fullChars" to fullText.length,
+                        "fragmentChars" to drained.text.length
+                    )
+                )
+            )
+            return TranscriptionPipeline.SttResult(
+                text = fullText,
+                language = language,
+                languageProbability = languageProbability,
+                chunkCount = 1,
+                chunkLengths = listOf(fullText.length)
+            )
+        } catch (crashed: Throwable) {
+            // never lose the fragment join over a strategy crash — but never
+            // silently either (the #117 silent-catch lesson)
+            Log.w(TAG, "full-context-at-stop crashed; falling back to the fragment join", crashed)
+            return null
+        } finally {
+            // the assembled full-context chunks are single-use
+            try {
+                shadowDir.deleteRecursively()
+            } catch (_: Throwable) {
+            }
+        }
+    }
 
     /**
      * Fire-and-forget full-context STT of the same recording the live
@@ -873,9 +1056,15 @@ class VoiceSessionController(
             cb?.invoke(event)
             secondaryListeners.toList().forEach { it.invoke(event) }
         } else {
-            mainHandler.post {
+            val posted = mainHandler.post {
                 cb?.invoke(event)
                 secondaryListeners.toList().forEach { it.invoke(event) }
+            }
+            // Flake instrumentation (#117 watch item): a rejected post
+            // silently DROPS the event — the missing-`Completed` flake shape.
+            // Never fatal (best-effort delivery), but never invisible either.
+            if (!posted) {
+                Log.w(TAG, "event dropped: main looper rejected the post ($event)")
             }
         }
     }
