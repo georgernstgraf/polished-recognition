@@ -48,11 +48,19 @@ class FragmentTranscriberTest {
         )
     }
 
-    private fun fragment(index: Int, seconds: Int = 7): FragmentTranscriber.CommittedFragment {
+    private fun fragment(
+        index: Int,
+        seconds: Int = 7,
+        preRollSeconds: Int = 0 // pre-roll off unless a test opts in (#117 round 2)
+    ): FragmentTranscriber.CommittedFragment {
         // 16-bit mono @ 16 kHz = 32_000 bytes/s → one second of PCM per 32 kB
         val file = File(tmp.root, "frag_%06d.wav".format(index))
         file.writeBytes(WavWriter.write(ByteArray(seconds * 32_000), sampleRate = 16_000))
-        return FragmentTranscriber.CommittedFragment(index, file)
+        val preRoll = if (preRollSeconds == 0) null else
+            File(tmp.root, "preroll_%06d.wav".format(index)).apply {
+                writeBytes(WavWriter.write(ByteArray(preRollSeconds * 32_000), sampleRate = 16_000))
+            }
+        return FragmentTranscriber.CommittedFragment(index, file, preRoll)
     }
 
     private fun ok(text: String, language: String? = null): Result<SttResponse> =
@@ -271,5 +279,176 @@ class FragmentTranscriberTest {
         assertThat(prompts).containsExactly(null, "t0", null, null, null).inOrder()
         assertThat(drained.text).isEqualTo("t0 t1 t2 t3")
         assertThat(drained.failedIndex).isNull()
+    }
+
+    // ---- #117 round 2: acoustic pre-roll composition + echo trim -----------
+
+    @Test
+    fun `pre-roll is prepended to the upload and the composed file is deleted`() = runBlocking {
+        val uploaded = mutableListOf<Pair<String, ByteArray>>() // name to bytes AT CALL TIME
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            val file = firstArg<File>()
+            uploaded.add(file.name to file.readBytes())
+            ok("t${thirdArg<Int>() - 1}")
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1))
+        val drained = transcriber.drain()
+
+        // fragment 0 uploads bare (no pre-roll); fragment 1 uploads
+        // preRoll + fragment byte-concatenated (chained stream)
+        assertThat(uploaded[0].first).isEqualTo("frag_000000.wav")
+        assertThat(uploaded[1].first).isEqualTo("upload_000001.wav")
+        val expected = File(tmp.root, "preroll_000001.wav").readBytes() +
+            File(tmp.root, "frag_000001.wav").readBytes()
+        assertThat(uploaded[1].second).isEqualTo(expected)
+        // the composed upload is single-use — deleted after the attempt
+        assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
+        // the preparer-owned sources survive
+        assertThat(File(tmp.root, "frag_000001.wav").exists()).isTrue()
+        assertThat(File(tmp.root, "preroll_000001.wav").exists()).isTrue()
+        assertThat(drained.text).isEqualTo("t0 t1")
+    }
+
+    @Test
+    fun `missing pre-roll file uploads the bare fragment`() = runBlocking {
+        val uploaded = mutableListOf<File>()
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            uploaded.add(firstArg())
+            ok("t${thirdArg<Int>() - 1}")
+        }
+
+        val f1 = fragment(1, preRollSeconds = 1)
+        f1.preRoll!!.delete() // e.g. a failed pre-roll encode on-device
+        transcriber.start()
+        transcriber.offer(f1)
+        val drained = transcriber.drain()
+
+        assertThat(uploaded.single().name).isEqualTo("frag_000001.wav")
+        assertThat(drained.text).isEqualTo("t1")
+    }
+
+    @Test
+    fun `echoed pre-roll text is trimmed against the previous transcript tail`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            when (thirdArg<Int>() - 1) {
+                0 -> ok("Der Patient klagt über Schmerzen")
+                else -> ok("Der Patient klagt über Schmerzen und Fieber")
+            }
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1))
+        val drained = transcriber.drain()
+
+        // the echoed 5 head words match the previous tail → trimmed;
+        // only the fresh words are added
+        assertThat(drained.text).isEqualTo("Der Patient klagt über Schmerzen und Fieber")
+    }
+
+    @Test
+    fun `echo trim matches a single tail token`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            when (thirdArg<Int>() - 1) {
+                0 -> ok("Der Patient klagt über Schmerzen")
+                else -> ok("Schmerzen und Fieber")
+            }
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1))
+        val drained = transcriber.drain()
+
+        // only the LAST tail token repeats at the head → k=1 match → trimmed
+        assertThat(drained.text).isEqualTo("Der Patient klagt über Schmerzen und Fieber")
+    }
+
+    @Test
+    fun `echo trim keeps everything when no match exists`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            when (thirdArg<Int>() - 1) {
+                0 -> ok("Der Patient klagt über Schmerzen")
+                else -> ok("Völlig neuer Gedanke beginnt hier")
+            }
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1))
+        val drained = transcriber.drain()
+
+        // conservative: no match → keep everything (duplication beats loss)
+        assertThat(drained.text)
+            .isEqualTo("Der Patient klagt über Schmerzen Völlig neuer Gedanke beginnt hier")
+    }
+
+    @Test
+    fun `a fully echoed fragment trims to empty`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            ok("Der Patient klagt über Schmerzen")
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1))
+        val drained = transcriber.drain()
+
+        // every token of fragment 1 matches the previous tail → trimmed empty;
+        // blank transcripts join as nothing
+        assertThat(drained.text).isEqualTo("Der Patient klagt über Schmerzen")
+    }
+
+    @Test
+    fun `trim runs only when the upload carried a pre-roll`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            when (thirdArg<Int>() - 1) {
+                0 -> ok("Der Patient klagt über Schmerzen")
+                else -> ok("Der Patient klagt über Schmerzen und Fieber")
+            }
+        }
+
+        transcriber.start()
+        // NO pre-roll: the identical-looking repeat is real speech, not echo
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        val drained = transcriber.drain()
+
+        assertThat(drained.text).isEqualTo(
+            "Der Patient klagt über Schmerzen Der Patient klagt über Schmerzen und Fieber"
+        )
+    }
+
+    @Test
+    fun `HTTP 400 retry uploads the same composed file`() = runBlocking {
+        val calls = mutableListOf<Pair<String, String?>>() // upload name to prompt
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            val prompt = invocation.args[4] as String?
+            calls.add(firstArg<File>().name to prompt)
+            if (prompt != null) {
+                Result.failure(SttRequestRunner.SttRequestException("HTTP 400", httpCode = 400))
+            } else {
+                ok("t${thirdArg<Int>() - 1}")
+            }
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1))
+        val drained = transcriber.drain()
+
+        // fragment 1: attempt 1 with prompt → 400 → attempt 2 WITHOUT the
+        // prompt on the SAME composed upload (the pre-roll must survive a
+        // prompt fallback — the echo is acoustic)
+        assertThat(calls).containsExactly(
+            "frag_000000.wav" to null,
+            "upload_000001.wav" to "t0",
+            "upload_000001.wav" to null
+        ).inOrder()
+        assertThat(drained.text).isEqualTo("t0 t1")
+        assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
     }
 }

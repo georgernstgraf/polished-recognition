@@ -66,6 +66,7 @@ class VoiceSessionControllerTest {
         chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
         fragmentBytes: Int = 1 shl 30,
         fragmentSearchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
+        fragmentPreRollBytes: Int = 0, // pre-roll off unless a test opts in (#117 round 2)
         sessionIdInMeta: String? = null,
         shadowSttEnabled: () -> Boolean = { false },
         mainDispatcher: Boolean = false, // true = production-like queued main-looper (#117 shadow)
@@ -82,6 +83,7 @@ class VoiceSessionControllerTest {
         chunkMaxSeconds = chunkMaxSeconds,
         fragmentBytes = fragmentBytes,
         fragmentSearchBytes = fragmentSearchBytes,
+        fragmentPreRollBytes = fragmentPreRollBytes,
         // real live-fragment engine (#116) over the mocked STT endpoint,
         // with zero backoff so failure-path tests stay fast
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),

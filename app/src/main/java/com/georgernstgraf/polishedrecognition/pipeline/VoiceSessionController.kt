@@ -40,6 +40,15 @@ class VoiceSessionController(
      */
     private val fragmentSearchBytes: Int = FragmentPreparer.DEFAULT_SEARCH_BYTES,
     /**
+     * Acoustic pre-roll prepended to each fragment's UPLOAD (#117 round 2):
+     * PCM bytes of the previous fragment re-sent ahead of the current one so
+     * Whisper gets real acoustic context at the seam (fragment files stay
+     * gapless; the echoed pre-roll text is trimmed by token-matching in
+     * [FragmentTranscriber]). Tests inject 0 (off), mirroring
+     * [fragmentSearchBytes].
+     */
+    private val fragmentPreRollBytes: Int = FragmentPreparer.DEFAULT_PRE_ROLL_BYTES,
+    /**
      * Overrides the pipeline's shared [SttRequestRunner] for the live
      * fragment worker (#116); tests inject a fast-backoff runner. `null` in
      * production — the runner comes from the pipeline (same Retrofit cache
@@ -187,11 +196,11 @@ class VoiceSessionController(
      */
     private fun attachTranscriber(p: FragmentPreparer) {
         val t = transcriber ?: buildTranscriber().also { transcriber = it }
-        p.onFragmentCommitted = { index, file ->
-            t.offer(FragmentTranscriber.CommittedFragment(index, file))
+        p.onFragmentCommitted = { index, file, preRoll ->
+            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll))
         }
-        p.committedFragments().forEach { (index, file) ->
-            t.offer(FragmentTranscriber.CommittedFragment(index, file))
+        p.committedFragments().forEach { (index, file, preRoll) ->
+            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll))
         }
         t.start()
     }
@@ -206,7 +215,8 @@ class VoiceSessionController(
                     TranscriptionPipeline.TranscriptionStage.RequestingSttProgress(pendingSeconds)
                 ))
             }
-        }
+        },
+        logger = logger
     )
 
     /**
@@ -233,6 +243,7 @@ class VoiceSessionController(
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
         searchBytes = fragmentSearchBytes,
+        preRollBytes = fragmentPreRollBytes,
         logger = logger
     )
 
@@ -483,7 +494,8 @@ class VoiceSessionController(
      * Runs the transcription for a stopped session (#116). With the fragment
      * pipeline active, the live worker has already transcribed the committed
      * fragments DURING dictation — only the tail fragment is encoded now
-     * (sub-second) and the ordered transcripts drain. The single
+     * (fast even at the 21-s default size) and the ordered transcripts
+     * drain. The single
      * full-context LLM pass then runs over the joined raw text (owner
      * decision: the polish always sees the transcript in one piece).
      *
@@ -670,8 +682,8 @@ class VoiceSessionController(
      */
     private suspend fun prepareAudioFiles(wav: ByteArray): List<File> {
         // Fragment path (#115/#116): the background worker has already encoded
-        // 7-s fragments during the dictation — only the trailing partial
-        // fragment and the chained-OGG assembly remain, both sub-second.
+        // 21-s fragments during the dictation — only the trailing partial
+        // fragment and the chained-OGG assembly remain, both fast.
         // Reached only for empty recordings now (the live path handles
         // everything else); kept as the legacy safety net.
         ensureFragmentPreparer()

@@ -48,7 +48,8 @@ class FragmentPreparerTest {
         fragmentBytes: Int = 1000,
         chunkMaxSeconds: Double = 600.0,
         wavMode: Boolean = false,
-        searchBytes: Int = 0 // legacy fixed-offset cuts unless a test opts in (#117)
+        searchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
+        preRollBytes: Int = 0 // pre-roll off unless a test opts in (#117 round 2)
     ): FragmentPreparer = FragmentPreparer(
         pcm = pcm,
         transcoder = transcoder,
@@ -56,6 +57,7 @@ class FragmentPreparerTest {
         fragmentBytes = fragmentBytes,
         wavMode = wavMode,
         searchBytes = searchBytes,
+        preRollBytes = preRollBytes,
         chunkMaxSeconds = chunkMaxSeconds
     )
 
@@ -399,5 +401,142 @@ class FragmentPreparerTest {
         assertThat(chunks[0].readBytes()).isEqualTo(fragments[0].readBytes())
         assertThat(chunks[1].readBytes()).isEqualTo(fragments[1].readBytes())
         assertThat(chunks[2].readBytes()).isEqualTo(fragments[2].readBytes())
+    }
+
+    // ---- #117 round 2: acoustic pre-roll ------------------------------------
+
+    private fun preRollFiles() =
+        sessionDir.listFiles().orEmpty().filter { it.name.startsWith("preroll_") }.sortedBy { it.name }
+
+    @Test
+    fun `pre-roll covers the pcm immediately before the fragment start`() {
+        val data = noisy(2500)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 0, preRollBytes = 320
+        )
+
+        preparer.encodeAvailableFragments()
+
+        // fragment 0 has no predecessor; fragment 1 starts at 1000 → [680, 1000)
+        val preRolls = preRollFiles()
+        assertThat(preRolls.map { it.name }).containsExactly("preroll_000001.wav")
+        assertThat(payload(preRolls[0])).isEqualTo(data.copyOfRange(680, 1000))
+    }
+
+    @Test
+    fun `pre-roll clamps at the stream start`() {
+        val data = noisy(2500)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 0, preRollBytes = 1500
+        )
+
+        preparer.encodeAvailableFragments()
+
+        // fragment 1 starts at 1000, but the pre-roll wants 1500 → clamped to [0, 1000)
+        assertThat(payload(preRollFiles().single()))
+            .isEqualTo(data.copyOfRange(0, 1000))
+    }
+
+    @Test
+    fun `commit hook and committedFragments carry the pre-roll side file`() {
+        val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
+        pcm.append(2500)
+        val committed = mutableListOf<Triple<Int, String, String?>>()
+        preparer.onFragmentCommitted = { index, file, preRoll ->
+            committed.add(Triple(index, file.name, preRoll?.name))
+        }
+
+        preparer.encodeAvailableFragments()
+
+        assertThat(committed).containsExactly(
+            Triple(0, "frag_000000.ogg", null),
+            Triple(1, "frag_000001.ogg", "preroll_000001.ogg")
+        ).inOrder()
+        assertThat(preparer.committedFragments().map { it.third?.name })
+            .containsExactly(null, "preroll_000001.ogg")
+            .inOrder()
+    }
+
+    @Test
+    fun `pre-roll transcode failure degrades to null without the wav fallback`() {
+        val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
+        pcm.append(2500)
+        val hookPreRolls = mutableListOf<String?>()
+        preparer.onFragmentCommitted = { _, _, preRoll -> hookPreRolls.add(preRoll?.name) }
+        every { transcoder.transcode(any(), any()) } answers {
+            val target = secondArg<File>()
+            if (target.name.startsWith("preroll_")) throw IOException("pre-roll encode failed")
+            target.writeBytes(firstArg())
+            target
+        }
+
+        preparer.encodeAvailableFragments()
+
+        // the session stays in OGG mode — a pre-roll failure is NOT a
+        // transcoder failure of the fragment path
+        val fragments = fragmentFiles()
+        assertThat(fragments.map { it.name }).containsExactly(
+            "frag_000000.ogg", "frag_000001.ogg"
+        )
+        assertThat(fragments.all { it.extension == "ogg" }).isTrue()
+        assertThat(preRollFiles()).isEmpty()
+        assertThat(hookPreRolls).containsExactly(null, null).inOrder()
+        assertThat(preparer.committedFragments().map { it.third }).containsExactly(null, null)
+    }
+
+    @Test
+    fun `recover keeps the kept fragments' pre-rolls and deletes orphans`() {
+        val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
+        pcm.append(2500)
+        preparer.encodeAvailableFragments() // fragments 0+1, pre-roll 1
+        assertThat(preRollFiles()).hasSize(1)
+
+        // crash residue: a pre-roll beyond the manifest prefix
+        File(sessionDir, "preroll_000009.ogg").writeBytes(byteArrayOf(1))
+
+        val reborn = newPreparer(fragmentBytes = 1000, preRollBytes = 320) // recover() ran
+        assertThat(File(sessionDir, "preroll_000001.ogg").isFile).isTrue()
+        assertThat(File(sessionDir, "preroll_000009.ogg").exists()).isFalse()
+        assertThat(reborn.committedFragments().map { it.third?.name })
+            .containsExactly(null, "preroll_000001.ogg")
+            .inOrder()
+    }
+
+    @Test
+    fun `wav fallback rebuild re-creates the pre-rolls`() {
+        val data = noisy(3500)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, searchBytes = 0, preRollBytes = 320
+        )
+        // fragment 2's OGG encode dies → whole session rebuilds as WAV
+        every { transcoder.transcode(any(), any()) } answers {
+            val target = secondArg<File>()
+            if (target.name == "frag_000002.ogg") throw IOException("encoder died")
+            target.writeBytes(firstArg())
+            target
+        }
+
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        assertThat(fragmentFiles().map { it.name }).containsExactly(
+            "frag_000000.wav", "frag_000001.wav", "frag_000002.wav", "frag_000003.wav"
+        ).inOrder()
+        // rebuilt pre-rolls, byte-exact from the original PCM ranges
+        assertThat(preRollFiles().map { it.name }).containsExactly(
+            "preroll_000001.wav", "preroll_000002.wav", "preroll_000003.wav"
+        ).inOrder()
+        assertThat(payload(File(sessionDir, "preroll_000001.wav")))
+            .isEqualTo(data.copyOfRange(680, 1000))
+        assertThat(payload(File(sessionDir, "preroll_000002.wav")))
+            .isEqualTo(data.copyOfRange(1680, 2000))
+        assertThat(payload(File(sessionDir, "preroll_000003.wav")))
+            .isEqualTo(data.copyOfRange(2680, 3000))
     }
 }

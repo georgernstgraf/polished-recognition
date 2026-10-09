@@ -33,7 +33,21 @@ import java.util.concurrent.CopyOnWriteArrayList
  * silence within the search window (continuous speech) → hard cut at the
  * nominal boundary, as before. Finding the cut may wait for up to the
  * search window of extra audio — a ≤2-s commit-delay cadence cost, still
- * far below the 7-s fragment length.
+ * far below the fragment length.
+ *
+ * **Acoustic pre-roll (#117 round 2):** the text prompt conditions only the
+ * decoder — it cannot add acoustic context, and a server-side VAD can trim
+ * quiet onsets near the clip edge. Every fragment ≥ 1 therefore ALSO gets a
+ * `preroll_%06d.<ext>` side file: the last [PRE_ROLL_SECONDS] of PCM before
+ * its start, in the SAME format as the fragments. The fragment FILES stay
+ * gapless (chunk assembly still reproduces the original PCM byte-for-byte) —
+ * the pre-roll exists only to be prepended to the fragment's UPLOAD
+ * ([com.georgernstgraf.polishedrecognition.pipeline.FragmentTranscriber]
+ * byte-concatenates `preRoll + fragment` into the upload; OGG chaining makes
+ * that a valid stream). The echoed pre-roll text is trimmed from the
+ * transcript by token-matching against the previous fragment's known
+ * transcript tail. A failed pre-roll encode degrades to `null` and must
+ * NEVER trigger the session-level WAV fallback — the upload simply omits it.
  *
  * The commit-every-step architecture (owner request): the PCM source is
  * append-only, so encoded fragments stay valid for the lifetime of the
@@ -73,6 +87,13 @@ class FragmentPreparer(
      * values: 0 reproduces the legacy fixed-offset cuts exactly.
      */
     private val searchBytes: Int = DEFAULT_SEARCH_BYTES,
+    /**
+     * Acoustic pre-roll length in PCM bytes (#117 round 2): the tail of the
+     * previous fragment re-sent ahead of this one IN THE UPLOAD ONLY (the
+     * fragment files stay gapless). Tests inject 0 (off), mirroring
+     * [searchBytes].
+     */
+    private val preRollBytes: Int = DEFAULT_PRE_ROLL_BYTES,
     private val pollIntervalMs: Long = 500,
     private val logger: RotatingJsonLogger? = null
 ) {
@@ -95,9 +116,10 @@ class FragmentPreparer(
      * thread) after a fragment is committed to disk + manifest — the live
      * transcription worker consumes fragments through this as they close.
      * `index` is the fragment's position in the stream, `file` the committed
-     * OGG/WAV fragment file.
+     * OGG/WAV fragment file, `preRoll` the acoustic pre-roll side file
+     * (#117 round 2; `null` for fragment 0 or when its encode failed).
      */
-    var onFragmentCommitted: ((index: Int, file: File) -> Unit)? = null
+    var onFragmentCommitted: ((index: Int, file: File, preRoll: File?) -> Unit)? = null
 
     /**
      * Upload chunk cap in PCM bytes (#117): the smaller of the byte limit
@@ -124,14 +146,18 @@ class FragmentPreparer(
         if (wavMode) fallbackToWav = true
     }
 
-    /** Fragment size in PCM bytes (7 s · 16 kHz · 16 bit · mono). */
+    /** Fragment size in PCM bytes (21 s · 16 kHz · 16 bit · mono, #117 round 2). */
     companion object {
-        const val FRAGMENT_SECONDS = 7.0
+        const val FRAGMENT_SECONDS = 21.0
         const val DEFAULT_FRAGMENT_BYTES = (FRAGMENT_SECONDS * 32_000).toInt()
 
         /** Default forward silence-search window (#117): 2 s. */
         const val DEFAULT_SEARCH_SECONDS = 2.0
         val DEFAULT_SEARCH_BYTES = (DEFAULT_SEARCH_SECONDS * 32_000).toInt()
+
+        /** Acoustic pre-roll (#117 round 2): 1 s of the previous fragment. */
+        const val PRE_ROLL_SECONDS = 1.0
+        val DEFAULT_PRE_ROLL_BYTES = (PRE_ROLL_SECONDS * 32_000).toInt()
         private const val MANIFEST = "manifest.json"
     }
 
@@ -168,12 +194,17 @@ class FragmentPreparer(
                 } else break
             }
             nextFragment = count
-            val keep = state.fragments.take(count).map { it.name }.toSet()
+            // The pre-roll side files are NOT manifest entries (#117 round 2)
+            // — they must survive the orphan cleanup exactly like their
+            // fragments, or a restored session loses its seam context.
+            val kept = state.fragments.take(count)
+            val keep = kept.map { it.name }.toSet() +
+                kept.map { it.name.replaceFirst("frag_", "preroll_") }.toSet()
             sessionDir.listFiles()?.forEach { file ->
                 if (file.name != MANIFEST && file.name !in keep) file.delete()
             }
             entries.clear()
-            entries.addAll(state.fragments.take(count))
+            entries.addAll(kept)
         } catch (_: Throwable) {
         }
     }
@@ -267,7 +298,8 @@ class FragmentPreparer(
      * fragments that became available, then the trailing partial fragment
      * (which is the LAST fragment — no seam follows it, so the remainder is
      * taken whole). Called by the controller after the capture stopped —
-     * with 7-s fragments this is sub-second work in the normal case.
+     * even at the 21-s default fragment size this is fast work in the
+     * normal case (the live worker already consumed every full fragment).
      */
     fun prepareTailSync() {
         encodeAvailableFragments()
@@ -329,11 +361,18 @@ class FragmentPreparer(
     }
 
     /**
-     * (index, file) of every committed fragment, in commit order (#116).
-     * Safe to call while the encoder thread runs — COW snapshot semantics.
+     * (index, file, preRoll) of every committed fragment, in commit order
+     * (#116; the pre-roll side file #117 round 2). The pre-roll is derived
+     * from the fragment's name and is `null` when its file is absent
+     * (fragment 0, a failed pre-roll encode, a legacy session). Safe to call
+     * while the encoder thread runs — COW snapshot semantics.
      */
-    fun committedFragments(): List<Pair<Int, File>> =
-        entries.mapIndexed { index, entry -> index to File(sessionDir, entry.name) }
+    fun committedFragments(): List<Triple<Int, File, File?>> =
+        entries.mapIndexed { index, entry ->
+            val file = File(sessionDir, entry.name)
+            val preRoll = File(sessionDir, entry.name.replaceFirst("frag_", "preroll_"))
+            Triple(index, file, preRoll.takeIf { it.isFile })
+        }
 
     private fun encodeFragment(index: Int, start: Long, end: Long) {
         if (end <= start) return
@@ -341,6 +380,7 @@ class FragmentPreparer(
         val started = System.currentTimeMillis()
         val silenceAligned = (end - start) != fragmentBytes.toLong() ||
             (start % fragmentBytes != 0L)
+        var preRoll: File? = null
 
         if (!fallbackToWav && !wavMode) {
             val target = File(sessionDir, "frag_%06d.ogg".format(index))
@@ -366,6 +406,9 @@ class FragmentPreparer(
                     val e = boundaries.getOrNull(i)?.takeIf { it > 0 }
                         ?: (s + fragmentBytes)
                     val rebuilt = writeWavFragment(i, pcm.copyPcmRange(s, e))
+                    // The rebuild's delete sweep wiped the pre-rolls — they
+                    // are re-created for every rebuilt fragment (#117 round 2).
+                    writePreRoll(i, s, ogg = false)
                     entries.add(Entry(rebuilt.name, rebuilt.length(), e))
                 }
                 logger?.log(
@@ -376,22 +419,54 @@ class FragmentPreparer(
         }
 
         val file = if (fallbackToWav) writeWavFragment(index, data) else {
-            // OGG path already appended its entry above
-                writeManifest()
+            // OGG path already appended its entry above; the pre-roll encode
+            // happens BEFORE the manifest write so a crash can never leave a
+            // committed fragment without the pre-roll it advertised. A failed
+            // pre-roll encode yields `null` — it must NOT trigger the
+            // session-level WAV fallback.
+            preRoll = writePreRoll(index, start, ogg = true)
+            writeManifest()
             logFragment(index, data.size, end, silenceAligned, started)
-            notifyCommitted(index, "frag_%06d.ogg".format(index))
+            notifyCommitted(index, "frag_%06d.ogg".format(index), preRoll)
             return
         }
+        preRoll = writePreRoll(index, start, ogg = false)
         entries.add(Entry(file.name, file.length(), end))
         writeManifest()
         logFragment(index, data.size, end, silenceAligned, started)
-        notifyCommitted(index, file.name)
+        notifyCommitted(index, file.name, preRoll)
     }
 
-    private fun notifyCommitted(index: Int, name: String) {
+    private fun notifyCommitted(index: Int, name: String, preRoll: File?) {
         try {
-            onFragmentCommitted?.invoke(index, File(sessionDir, name))
+            onFragmentCommitted?.invoke(index, File(sessionDir, name), preRoll)
         } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * Writes fragment [index]'s acoustic pre-roll (#117 round 2): the
+     * [preRollBytes] of PCM immediately before the fragment's start (clamped
+     * at the stream start), encoded in the SAME format as the fragments.
+     * Fragment 0 has no predecessor → `null`. ANY failure → `null`: a
+     * missing pre-roll degrades gracefully (bare-fragment upload) and a
+     * pre-roll transcode failure must NEVER trigger the session-level WAV
+     * fallback — this is why the OGG transcode here is isolated from the
+     * fragment encode's own catch block.
+     */
+    private fun writePreRoll(index: Int, start: Long, ogg: Boolean): File? {
+        if (index == 0 || preRollBytes <= 0) return null
+        return try {
+            val from = (start - preRollBytes).coerceAtLeast(0L)
+            if (from >= start) return null
+            val data = pcm.copyPcmRange(from, start)
+            val target = if (ogg) File(sessionDir, "preroll_%06d.ogg".format(index))
+            else File(sessionDir, "preroll_%06d.wav".format(index))
+            if (ogg) transcoder.transcode(WavWriter.write(data, sampleRate), target)
+            else target.writeBytes(WavWriter.write(data, sampleRate))
+            target
+        } catch (_: Throwable) {
+            null
         }
     }
 
