@@ -60,7 +60,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `transcripts accumulate in fragment order regardless of offer order`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
             val index = firstArg<File>().name.substringAfter("frag_").takeWhile { it.isDigit() }.toInt()
             Result.success(SttResponse(text = "f$index"))
         }
@@ -78,7 +78,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `language comes from the first fragment reporting one`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } returnsMany
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(ok("eins"), ok("zwei", language = "de", ), ok("drei", language = "fr"))
 
         transcriber.start()
@@ -91,7 +91,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `failed fragment is isolated and reported at the lowest failed index`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } returnsMany
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 ok("eins"),
                 Result.failure(SttRequestRunner.SttRequestException("HTTP 429", httpCode = 429)),
@@ -113,7 +113,7 @@ class FragmentTranscriberTest {
     @Test
     fun `offer is idempotent per index`() = runBlocking {
         var calls = 0
-        coEvery { sttRunner.run(any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
             calls++
             ok("once")
         }
@@ -131,7 +131,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `progress reports pending audio seconds while draining`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
             Result.success(SttResponse(text = "x"))
         }
 
@@ -148,7 +148,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `drain after cancel returns an empty snapshot`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } returns ok("eins")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } returns ok("eins")
 
         transcriber.start()
         transcriber.offer(fragment(0))
@@ -177,7 +177,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `unexpected worker exception is recorded as fragment failure`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } throws RuntimeException("boom")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } throws RuntimeException("boom")
 
         transcriber.start()
         transcriber.offer(fragment(0))
@@ -189,7 +189,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `resetFailures re-queues only the failed fragments`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any()) } returnsMany
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 ok("eins"),
                 Result.failure(SttRequestRunner.SttRequestException("read timeout")),
@@ -202,11 +202,74 @@ class FragmentTranscriberTest {
         assertThat(first.failedIndex).isEqualTo(1)
 
         // retry: fragment 1 gets a fresh attempt, 0 and 2 stay cached
-        coEvery { sttRunner.run(any(), any(), any(), any()) } returns ok("zwei")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } returns ok("zwei")
         transcriber.resetFailures()
         val second = transcriber.drain()
 
         assertThat(second.text).isEqualTo("eins zwei drei")
         assertThat(second.failedIndex).isNull()
+    }
+
+    // ---- #117: prompt carry-over across fragment seams ---------------------
+
+    /** The prompt argument (arg 4) of every runner call, in call order. */
+    private val prompts = mutableListOf<String?>()
+
+    /** Records every runner call's prompt and answers `t<fragmentIndex>`. */
+    private fun stubPromptRecordingRunner(answer: (String?, Int) -> Result<SttResponse>) {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            val prompt = invocation.args[4] as String?
+            prompts.add(prompt)
+            val index = firstArg<File>().name.substringAfter("frag_").takeWhile { it.isDigit() }.toInt()
+            answer(prompt, index)
+        }
+    }
+
+    @Test
+    fun `previous fragment transcript is passed as the prompt`() = runBlocking {
+        stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
+
+        transcriber.start()
+        (0..2).forEach { transcriber.offer(fragment(it)) }
+        val drained = transcriber.drain()
+
+        assertThat(drained.text).isEqualTo("t0 t1 t2")
+        // the first fragment is contextless; every later one is conditioned
+        // on the previous transcript (which is NOT echoed into the output)
+        assertThat(prompts).containsExactly(null, "t0", "t1").inOrder()
+    }
+
+    @Test
+    fun `prompt carries only the tail of the previous transcript`() = runBlocking {
+        val long = (1..500).joinToString(" ") { "wort$it" } // far beyond ~200 tokens
+        stubPromptRecordingRunner { _, _ -> Result.success(SttResponse(text = long)) }
+
+        transcriber.start()
+        (0..1).forEach { transcriber.offer(fragment(it)) }
+        transcriber.drain()
+
+        assertThat(prompts[1])
+            .isEqualTo(long.trim().takeLast(FragmentTranscriber.PROMPT_MAX_CHARS))
+    }
+
+    @Test
+    fun `HTTP 400 on a prompted request retries without prompt and disables prompts`() = runBlocking {
+        stubPromptRecordingRunner { prompt, index ->
+            if (prompt != null) {
+                Result.failure(SttRequestRunner.SttRequestException("HTTP 400", httpCode = 400))
+            } else {
+                Result.success(SttResponse(text = "t$index"))
+            }
+        }
+
+        transcriber.start()
+        (0..3).forEach { transcriber.offer(fragment(it)) }
+        val drained = transcriber.drain()
+
+        // fragment 0 (no prompt) succeeds; fragment 1 fails WITH the prompt
+        // and retries without it; fragments 2..3 skip the prompt directly
+        assertThat(prompts).containsExactly(null, "t0", null, null, null).inOrder()
+        assertThat(drained.text).isEqualTo("t0 t1 t2 t3")
+        assertThat(drained.failedIndex).isNull()
     }
 }

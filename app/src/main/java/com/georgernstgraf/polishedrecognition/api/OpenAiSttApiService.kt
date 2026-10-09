@@ -30,7 +30,9 @@ interface OpenAiSttApiService {
         @Header("Authorization") authorization: String,
         @Part file: MultipartBody.Part,
         @Part("model") model: RequestBody,
-        @Part("response_format") responseFormat: RequestBody
+        @Part("response_format") responseFormat: RequestBody,
+        /** Whisper conditioning prompt (#117); null parts are omitted. */
+        @Part("prompt") prompt: RequestBody?
     ): Response<SttResponse>
 
     @Multipart
@@ -39,6 +41,8 @@ interface OpenAiSttApiService {
         @Header("Authorization") authorization: String,
         @Part file: MultipartBody.Part,
         @Part("model") model: RequestBody,
-        @Part("response_format") responseFormat: RequestBody
+        @Part("response_format") responseFormat: RequestBody,
+        /** Whisper conditioning prompt (#117); null parts are omitted. */
+        @Part("prompt") prompt: RequestBody?
     ): Call<SttResponse>
 }

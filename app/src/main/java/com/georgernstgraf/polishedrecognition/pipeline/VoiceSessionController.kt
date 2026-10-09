@@ -35,6 +35,11 @@ class VoiceSessionController(
     /** PCM bytes per background-encoded fragment (#115); tests inject huge values. */
     private val fragmentBytes: Int = FragmentPreparer.DEFAULT_FRAGMENT_BYTES,
     /**
+     * Forward silence-search window around the nominal fragment boundary
+     * (#117); tests inject 0 to reproduce the legacy fixed-offset cuts.
+     */
+    private val fragmentSearchBytes: Int = FragmentPreparer.DEFAULT_SEARCH_BYTES,
+    /**
      * Overrides the pipeline's shared [SttRequestRunner] for the live
      * fragment worker (#116); tests inject a fast-backoff runner. `null` in
      * production — the runner comes from the pipeline (same Retrofit cache
@@ -42,7 +47,19 @@ class VoiceSessionController(
      */
     private val sttRunnerOverride: SttRequestRunner? = null,
     /** adb-readable encode evidence (fragment cadence), null in unit tests. */
-    private val logger: RotatingJsonLogger? = null
+    private val logger: RotatingJsonLogger? = null,
+    /**
+     * Gate for the #117 shadow comparison: when it returns true, a
+     * successfully drained fragment session additionally transcribes the
+     * FULL recording in one pass after the result is delivered and logs
+     * both texts side by side into `stt-shadow.json` — the objective seam
+     * quality evidence (joined fragment transcripts vs full-context STT of
+     * the same audio). Deliberately fire-and-forget: it must never delay
+     * the result, fail the session, or pollute the Phase 2 measurement
+     * streams (its requests run with evidence off). Production wires a
+     * LAN-provider gate — cloud providers would pay real money twice.
+     */
+    private val shadowSttEnabled: () -> Boolean = { false }
 ) {
 
     enum class State { IDLE, RECORDING, PAUSED, PROCESSING }
@@ -215,6 +232,7 @@ class VoiceSessionController(
         wavMode = !settings.compressAudio,
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
+        searchBytes = fragmentSearchBytes,
         logger = logger
     )
 
@@ -502,6 +520,14 @@ class VoiceSessionController(
                         gson.toJson(mapOf("rawRescue" to true, "failed" to where, "error" to failure.message))
                     )
                 }
+                // Shadow comparison (#117): assemble the full recording from
+                // the committed fragments NOW — `clearPrepared()` deletes the
+                // session dir on success, and the async shadow coroutine must
+                // own its bytes (chunk assembly is a cheap byte concat).
+                if (shadowSttEnabled()) {
+                    val shadowFiles = withContext(Dispatchers.IO) { p.assembleChunks() }
+                    if (shadowFiles.isNotEmpty()) launchShadowStt(shadowFiles, drained.text)
+                }
                 return pipeline.finishTranscription(
                     Result.success(drained.toSttResult()),
                     callerPackage
@@ -523,6 +549,61 @@ class VoiceSessionController(
         chunkCount = chunkCount,
         chunkLengths = chunkLengths
     )
+
+    /**
+     * Fire-and-forget full-context STT of the same recording the live
+     * fragment worker transcribed (#117): joins the per-chunk texts and
+     * logs them next to the joined fragment transcripts in
+     * `stt-shadow.json`. Runs in its OWN coroutine so the delivered result
+     * is never delayed; every failure is swallowed into the log record —
+     * a shadow problem must never surface in the pipeline. The STT
+     * requests run with evidence off so `stt-upload`/`stt-latency` (the
+     * Phase 2 profile input) stay unpolluted.
+     */
+    private fun launchShadowStt(files: List<File>, fragmentText: String) {
+        scope.launch {
+            try {
+                val config = settings.sttProvider
+                if (config == null) {
+                    logger?.log("stt-shadow", gson.toJson(mapOf("error" to "STT provider not configured")))
+                    return@launch
+                }
+                val parts = mutableListOf<String>()
+                var error: String? = null
+                for ((index, file) in files.withIndex()) {
+                    val result = pipeline.sttRequestRunner.run(
+                        audioFile = file,
+                        config = config,
+                        chunk = index + 1,
+                        chunkCount = files.size,
+                        evidence = false
+                    )
+                    val body = result.getOrNull()
+                    if (body == null) {
+                        error = result.exceptionOrNull()?.message ?: "unknown error"
+                        break
+                    }
+                    parts.add(body.text)
+                }
+                val fullText = parts.filter { it.isNotBlank() }.joinToString(" ").trim()
+                logger?.log(
+                    "stt-shadow",
+                    gson.toJson(
+                        mapOf(
+                            "chunks" to files.size,
+                            "fragmentChars" to fragmentText.length,
+                            "fullChars" to fullText.length,
+                            "fragmentText" to fragmentText,
+                            "fullText" to fullText,
+                            "error" to error
+                        )
+                    )
+                )
+            } catch (_: Throwable) {
+                // pure diagnostics — never a pipeline failure
+            }
+        }
+    }
 
     /**
      * Prepares the recording(s) for upload. With `compress_audio` enabled the

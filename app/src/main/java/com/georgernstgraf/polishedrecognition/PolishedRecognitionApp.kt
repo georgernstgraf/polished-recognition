@@ -78,7 +78,23 @@ class PolishedRecognitionApp : Application() {
     }
 
     val voiceSessionController by lazy {
-        VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger)
+        VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger,
+            shadowSttEnabled = {
+                settingsStore.sttProvider?.baseUrl?.let { isLocalSttEndpoint(it) } == true
+            })
+    }
+
+    /**
+     * The #117 shadow comparison runs only against LOCAL STT endpoints:
+     * the extra full-context pass costs GPU time on the user's own box
+     * (gregor measures 22–29× realtime), but real money against cloud
+     * providers. Pure string heuristic — no DNS on any caller thread.
+     */
+    private fun isLocalSttEndpoint(baseUrl: String): Boolean {
+        val host = runCatching { java.net.URI(baseUrl).host }.getOrNull()?.lowercase() ?: return false
+        if (host == "localhost" || host.endsWith(".local")) return true
+        if (host.startsWith("[")) return true // bracketed IPv6 loop/link-local literals
+        return Regex("^127\\.|^10\\.|^192\\.168\\.|^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(host)
     }
 
     /**

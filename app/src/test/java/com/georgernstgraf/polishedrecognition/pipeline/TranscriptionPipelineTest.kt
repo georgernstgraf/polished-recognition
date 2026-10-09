@@ -109,27 +109,27 @@ class TranscriptionPipelineTest {
     }
 
     private fun mockSttSuccess() {
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "german")))
     }
 
     private fun mockSttSuccessNoLanguage() {
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
     }
 
     private fun mockSttSuccessWithLanguageProbability() {
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "german", languageProbability = 0.87f)))
     }
 
     private fun mockSttSuccessIsoCodeWithProbability() {
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = "de", languageProbability = 0.99f)))
     }
 
     private fun mockSttSuccessPadded() {
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = "  \n$lincolnGermanText\n  ", language = "german")))
     }
 
@@ -362,7 +362,7 @@ class TranscriptionPipelineTest {
 
     @Test
     fun `STT HTTP error returns failure`() = runBlocking {
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             @Suppress("DEPRECATION")
             mockCall(Response.error(500, ResponseBody.create(null, "Server Error")))
 
@@ -377,7 +377,7 @@ class TranscriptionPipelineTest {
         settingsStore.rawMode = true
         mockSttSuccess()
         val partSlot = slot<MultipartBody.Part>()
-        every { sttApi.transcribeAudioSync(any(), capture(partSlot), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), capture(partSlot), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
         val oggFile = File(tmp.root, "recording.ogg").apply { writeBytes(ByteArray(8)) }
 
@@ -392,7 +392,7 @@ class TranscriptionPipelineTest {
         settingsStore.rawMode = true
         mockSttSuccess()
         val partSlot = slot<MultipartBody.Part>()
-        every { sttApi.transcribeAudioSync(any(), capture(partSlot), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), capture(partSlot), any(), any(), any()) } returns
             mockCall(Response.success(SttResponse(text = lincolnGermanText, language = null)))
         val wavFile = File(tmp.root, "recording.wav").apply { writeBytes(ByteArray(8)) }
 
@@ -494,7 +494,7 @@ class TranscriptionPipelineTest {
     fun `chunked files are transcribed per chunk and joined`() = runBlocking {
         settingsStore.rawMode = false
         var callIndex = 0
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
             callIndex++
             val text = if (callIndex == 1) "Part one." else "Part two."
             val language = if (callIndex == 1) "german" else null
@@ -509,7 +509,7 @@ class TranscriptionPipelineTest {
         val result = pipeline.transcribe(listOf(file1, file2))
 
         assertThat(result.isSuccess).isTrue()
-        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         val userMessage = requestSlot.captured.messages.find { it.role == "user" }?.content ?: ""
         assertThat(userMessage).isEqualTo("Part one. Part two.")
         val systemMessage = requestSlot.captured.messages.find { it.role == "system" }?.content ?: ""
@@ -519,7 +519,7 @@ class TranscriptionPipelineTest {
     @Test
     fun `chunked STT failure names the failing chunk`() = runBlocking {
         settingsStore.rawMode = true
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 mockCall(Response.success(SttResponse(text = "part one", language = null))),
                 mockCall(
@@ -542,7 +542,7 @@ class TranscriptionPipelineTest {
     fun `chunked upload logs per-chunk evidence in stt-text`() = runBlocking {
         settingsStore.rawMode = true
         var callIndex = 0
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
             callIndex++
             val text = if (callIndex == 1) "Part one." else "Part two."
             mockCall(Response.success(SttResponse(text = text, language = null)))
@@ -572,7 +572,7 @@ class TranscriptionPipelineTest {
     fun `each chunk upload is logged with its size and endpoint`() = runBlocking {
         settingsStore.rawMode = true
         var callIndex = 0
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
             callIndex++
             mockCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
         }
@@ -602,7 +602,7 @@ class TranscriptionPipelineTest {
     @Test
     fun `transient STT failure retries then succeeds through the pipeline`() = runBlocking {
         settingsStore.rawMode = true
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 mockCall(
                     @Suppress("DEPRECATION")
@@ -614,7 +614,7 @@ class TranscriptionPipelineTest {
         val result = pipeline.transcribe(listOf(lincolnFile))
 
         assertThat(result.isSuccess).isTrue()
-        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
     }
 
     /**
@@ -628,7 +628,7 @@ class TranscriptionPipelineTest {
         settingsStore.rawMode = true
         val wav = File(tmp.root, "chunk.wav")
             .apply { writeBytes(WavWriter.write(ByteArray(16_000), sampleRate = 16_000)) }
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 mockCall(
                     @Suppress("DEPRECATION")

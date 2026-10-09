@@ -47,13 +47,15 @@ class FragmentPreparerTest {
     private fun newPreparer(
         fragmentBytes: Int = 1000,
         chunkMaxSeconds: Double = 600.0,
-        wavMode: Boolean = false
+        wavMode: Boolean = false,
+        searchBytes: Int = 0 // legacy fixed-offset cuts unless a test opts in (#117)
     ): FragmentPreparer = FragmentPreparer(
         pcm = pcm,
         transcoder = transcoder,
         sessionDir = sessionDir,
         fragmentBytes = fragmentBytes,
         wavMode = wavMode,
+        searchBytes = searchBytes,
         chunkMaxSeconds = chunkMaxSeconds
     )
 
@@ -241,5 +243,161 @@ class FragmentPreparerTest {
 
     private fun verifyTranscodeCount(count: Int) {
         io.mockk.verify(exactly = count) { transcoder.transcode(any(), any()) }
+    }
+
+    // ---- #117: silence-aligned boundaries ----------------------------------
+
+    /** High-energy PCM (speech-like), deterministic. */
+    private fun noisy(size: Int, seed: Int = 1) =
+        ByteArray(size) { i -> ((i * 31 + seed * 7) % 251).toByte() }
+
+    /** PCM payload of a wavMode fragment file (canonical 44-byte header). */
+    private fun payload(file: File): ByteArray = file.readBytes().copyOfRange(44, file.readBytes().size)
+
+    private fun fragmentFiles() =
+        sessionDir.listFiles().orEmpty().filter { it.name.startsWith("frag_") }.sortedBy { it.name }
+
+    @Test
+    fun `silence-aligned cut lands inside the silence run`() {
+        val data = noisy(1200) + ByteArray(1800) // speech, then a long pause
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+        )
+
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        val fragments = fragmentFiles()
+        // fragment 0 ends at the center of the zero region (window [1000, 3000):
+        // silent frames 1..5 → cut at byte 1000 + 3·320 = 1960), the tail takes
+        // the remainder whole (its end is the stream end — no seam follows)
+        assertThat(fragments).hasSize(2)
+        assertThat(payload(fragments[0]).size).isEqualTo(1960)
+        assertThat(payload(fragments[0]).copyOfRange(1900, 1960)).isEqualTo(ByteArray(60))
+        assertThat(payload(fragments[1]).size).isEqualTo(1040)
+    }
+
+    @Test
+    fun `continuous speech falls back to the hard cut at the nominal boundary`() {
+        val data = noisy(3500)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+        )
+
+        preparer.encodeAvailableFragments() // window complete, no silence → cut at 1000
+        preparer.prepareTailSync()          // window incomplete → remainder whole
+
+        val payloads = fragmentFiles().map { payload(it) }
+        assertThat(payloads).hasSize(2)
+        assertThat(payloads[0].size).isEqualTo(1000)
+        assertThat(payloads[1].size).isEqualTo(2500)
+    }
+
+    @Test
+    fun `fragments stay gapless — concatenating them reproduces the pcm byte-for-byte`() {
+        val data = noisy(1200) + ByteArray(1800) + noisy(2000, seed = 2)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+        )
+
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        val joined = fragmentFiles().flatMap { payload(it).toList() }.toByteArray()
+        assertThat(joined).isEqualTo(data)
+    }
+
+    @Test
+    fun `incomplete search window without silence waits instead of splitting a word`() {
+        val p = FakePcm(noisy(1500))
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 64_000
+        )
+
+        // nominal boundary reached, but the 2-s search window is not — and
+        // no silence has appeared yet: nothing is committed
+        preparer.encodeAvailableFragments()
+        assertThat(fragmentFiles()).isEmpty()
+
+        // at stop the remainder is taken whole (its end is the stream end)
+        preparer.prepareTailSync()
+        assertThat(fragmentFiles().map { payload(it).size }).containsExactly(1500)
+    }
+
+    @Test
+    fun `manifest end offsets let a fresh preparer resume at the exact last cut`() {
+        val data = noisy(1200) + ByteArray(1800) + noisy(2000, seed = 2)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+        val firstRun = fragmentFiles().map { payload(it) }
+
+        // process death + restore: fresh preparer over the same dir, more audio
+        val reborn = FragmentPreparer(
+            pcm = FakePcm(data + noisy(1000, seed = 3)), transcoder = transcoder,
+            sessionDir = sessionDir, fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+        )
+        reborn.prepareTailSync()
+
+        val payloads = fragmentFiles().map { payload(it) }
+        // the first-run fragments were NOT re-encoded (identical payloads)
+        payloads.take(firstRun.size).forEachIndexed { i, bytes ->
+            assertThat(bytes).isEqualTo(firstRun[i])
+        }
+        // and the whole stream is still covered gaplessly
+        assertThat(payloads.flatMap { it.toList() }.toByteArray())
+            .isEqualTo(data + noisy(1000, seed = 3))
+    }
+
+    @Test
+    fun `pre-#117 manifest without end offsets is discarded and the prefix re-encoded`() {
+        val stale = File(sessionDir, "frag_000000.ogg")
+        stale.writeBytes(byteArrayOf(1, 2, 3, 4))
+        File(sessionDir, "manifest.json").writeText(
+            """{"fallbackToWav":false,"fragments":[{"name":"frag_000000.ogg","bytes":4}]}"""
+        )
+        pcm.append(2500)
+
+        val preparer = newPreparer() // searchBytes = 0 → fixed cuts
+        preparer.encodeAvailableFragments()
+
+        // the stale fragment was overwritten by a fresh encode of the real range
+        assertThat(stale.length()).isNotEqualTo(4)
+        assertThat(fragmentFiles()).hasSize(2)
+    }
+
+    @Test
+    fun `chunk assembly respects the byte cap with variable fragment sizes`() {
+        val data = noisy(1200) + ByteArray(1800) + noisy(2000, seed = 2)
+        val p = FakePcm(data)
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            chunkMaxSeconds = 0.0625 // cap = 0.0625 s × 32000 B/s = 2000 PCM bytes
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+        // fragments: 1960 B (silence cut), 1000 B (hard cut), 2040 B (tail)
+
+        val chunks = preparer.assembleChunks()
+        // 1960 alone fits; adding 1000 would exceed 2000 → own chunk, etc.
+        assertThat(chunks.map { it.name }).containsExactly(
+            "recording_1.wav", "recording_2.wav", "recording_3.wav"
+        ).inOrder()
+        val fragments = fragmentFiles()
+        assertThat(chunks[0].readBytes()).isEqualTo(fragments[0].readBytes())
+        assertThat(chunks[1].readBytes()).isEqualTo(fragments[1].readBytes())
+        assertThat(chunks[2].readBytes()).isEqualTo(fragments[2].readBytes())
     }
 }

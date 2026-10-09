@@ -50,7 +50,7 @@ class VoiceSessionControllerSecondaryTest {
         )
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
         coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
-        coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
     }
 

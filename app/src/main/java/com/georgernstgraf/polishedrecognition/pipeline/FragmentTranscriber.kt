@@ -70,6 +70,11 @@ class FragmentTranscriber(
         object CheckIdle : WorkerItem
     }
 
+    companion object {
+        /** Prompt carry-over budget (#117): ~200 Whisper tokens of text. */
+        const val PROMPT_MAX_CHARS = 800
+    }
+
     private val channel = Channel<WorkerItem>(Channel.UNLIMITED)
     private val transcripts = ConcurrentSkipListMap<Int, SttResponse>()
     private val failures = ConcurrentSkipListMap<Int, SttRequestRunner.SttRequestException>()
@@ -81,6 +86,14 @@ class FragmentTranscriber(
     private val queued = ConcurrentHashMap.newKeySet<Int>()
 
     private val pendingAudioMs = AtomicLong()
+
+    /**
+     * Set when a provider rejects the Whisper `prompt` field with HTTP 400
+     * (#117): the current request is retried without the prompt once, and
+     * every later fragment of the session skips it. Falls back gracefully
+     * on servers without prompt support.
+     */
+    @Volatile private var promptDisabled = false
 
     @Volatile private var worker: Job? = null
 
@@ -176,6 +189,7 @@ class FragmentTranscriber(
         offered.clear()
         queued.clear()
         pendingAudioMs.set(0)
+        promptDisabled = false
         pendingDrain?.cancel()
         pendingDrain = null
     }
@@ -187,8 +201,37 @@ class FragmentTranscriber(
             failures[fragment.index] = SttRequestRunner.SttRequestException("STT provider not configured")
             return
         }
+        // Prompt carry-over (#117): the previous fragment's transcript tail
+        // conditions Whisper across the seam, so the fragment start is not
+        // contextless (the main cold-start word-drop cause). Whisper does
+        // NOT echo the prompt into the output — no join-side dedup needed.
+        // Serial processing (C=1) in commit order guarantees the previous
+        // fragment's transcript exists here (a re-queued failed fragment
+        // after resetFailures may have none — then no prompt is sent).
+        val prompt = if (promptDisabled) null else promptTail(transcripts[fragment.index - 1]?.text)
         val result = withContext(Dispatchers.IO) {
-            sttRunner.run(fragment.file, config, chunk = fragment.index + 1)
+            sttRunner.run(
+                audioFile = fragment.file,
+                config = config,
+                chunk = fragment.index + 1,
+                prompt = prompt
+            )
+        }.let { first ->
+            // A provider without prompt support rejects the field with 400:
+            // retry THIS fragment without it and skip prompts for the rest
+            // of the session (#117 graceful fallback).
+            if (first.isFailure && prompt != null &&
+                (first.exceptionOrNull() as? SttRequestRunner.SttRequestException)?.httpCode == 400
+            ) {
+                promptDisabled = true
+                withContext(Dispatchers.IO) {
+                    sttRunner.run(
+                        audioFile = fragment.file,
+                        config = config,
+                        chunk = fragment.index + 1
+                    )
+                }
+            } else first
         }
         result.fold(
             onSuccess = { transcripts[fragment.index] = it },
@@ -198,6 +241,16 @@ class FragmentTranscriber(
                 failures[fragment.index] = ex
             }
         )
+    }
+
+    /**
+     * ~200 Whisper tokens ≈ 800 characters of transcript; the tail carries
+     * the immediate acoustic/linguistic context of the seam. Leading
+     * whitespace is dropped so the prompt starts on a word.
+     */
+    private fun promptTail(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        return text.trim().takeLast(PROMPT_MAX_CHARS)
     }
 
     private fun checkIdle() {

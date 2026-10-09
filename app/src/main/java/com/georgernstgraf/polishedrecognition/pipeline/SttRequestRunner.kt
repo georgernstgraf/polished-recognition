@@ -48,19 +48,29 @@ class SttRequestRunner(
      * Executes one upload. Fails fast on non-transient errors; otherwise
      * retries up to [MAX_ATTEMPTS] total attempts with the configured
      * backoff between attempts.
+     *
+     * [prompt] (#117): optional Whisper conditioning prompt — the tail of
+     * the previous fragment's transcript. Conditioned text is NOT echoed
+     * into the output, so no join-side dedup is needed.
+     *
+     * [evidence] = false suppresses the `stt-upload`/`stt-latency` records
+     * (used by the #117 shadow comparison, whose requests must not pollute
+     * the Phase 2 latency-profile input streams).
      */
     suspend fun run(
         audioFile: File,
         config: SttProviderConfig,
         chunk: Int? = null,
-        chunkCount: Int? = null
+        chunkCount: Int? = null,
+        prompt: String? = null,
+        evidence: Boolean = true
     ): Result<SttResponse> {
         val mediaType = if (isOgg(audioFile)) "audio/ogg" else "audio/wav"
         val uploadName = if (isOgg(audioFile)) "audio.ogg" else "audio.wav"
         val durationMs = AudioDuration.estimateMs(audioFile)
 
         // Pre-send evidence (#115 semantics, unchanged shape).
-        logger?.log(
+        if (evidence) logger?.log(
             "stt-upload",
             gson(SttRequestLog(
                 chunk = chunk,
@@ -84,17 +94,18 @@ class SttRequestRunner(
                         "file", uploadName, audioFile.asRequestBody(mediaType.toMediaTypeOrNull())
                     ),
                     model = config.model.toRequestBody("text/plain".toMediaTypeOrNull()),
-                    responseFormat = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull())
+                    responseFormat = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull()),
+                    prompt = prompt?.toRequestBody("text/plain".toMediaTypeOrNull())
                 ).execute()
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
 
                 if (response.isSuccessful && response.body() != null) {
-                    logCompletion(audioFile, config, mediaType, durationMs, attempt, response.code(), elapsedMs, null)
+                    logCompletion(audioFile, config, mediaType, durationMs, attempt, response.code(), elapsedMs, null, prompt, evidence)
                     return Result.success(response.body()!!)
                 }
                 val code = response.code()
                 val errorKind = if (response.isSuccessful) "emptyBody" else null
-                logCompletion(audioFile, config, mediaType, durationMs, attempt, code, elapsedMs, errorKind)
+                logCompletion(audioFile, config, mediaType, durationMs, attempt, code, elapsedMs, errorKind, prompt, evidence)
                 val failure = if (response.isSuccessful) {
                     SttRequestException("HTTP $code (empty response body)", httpCode = code)
                 } else {
@@ -104,7 +115,7 @@ class SttRequestRunner(
                 lastFailure = failure
             } catch (e: IOException) {
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
-                logCompletion(audioFile, config, mediaType, durationMs, attempt, null, elapsedMs, e.javaClass.simpleName)
+                logCompletion(audioFile, config, mediaType, durationMs, attempt, null, elapsedMs, e.javaClass.simpleName, prompt, evidence)
                 lastFailure = SttRequestException(e.message ?: e.javaClass.simpleName)
             }
             if (attempt < MAX_ATTEMPTS) sleep(backoffMs[zeroBased])
@@ -122,8 +133,11 @@ class SttRequestRunner(
         attempt: Int,
         httpCode: Int?,
         elapsedMs: Long,
-        error: String?
+        error: String?,
+        prompt: String? = null,
+        evidence: Boolean = true
     ) {
+        if (!evidence) return
         logger?.log(
             "stt-latency",
             gson(SttRequestLog(
@@ -137,6 +151,9 @@ class SttRequestRunner(
                 attempt = attempt,
                 httpCode = httpCode,
                 elapsedMs = elapsedMs,
+                // prompt marker (#117): keeps the Phase 2 t(S) fit unpolluted
+                // — prompt-induced latency must not read as audio-size cost
+                promptChars = prompt?.length,
                 error = error
             ))
         )
@@ -166,6 +183,7 @@ class SttRequestRunner(
         val attempt: Int? = null,
         val httpCode: Int? = null,
         val elapsedMs: Long? = null,
+        val promptChars: Int? = null,
         val error: String? = null
     )
 

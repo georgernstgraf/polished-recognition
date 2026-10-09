@@ -7,6 +7,7 @@ import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import okhttp3.ResponseBody
 import org.junit.Before
 import org.junit.Rule
@@ -55,13 +56,13 @@ class SttRequestRunnerTest {
     private fun mockStt(response: Response<SttResponse>) {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } returns response
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns call
     }
 
     private fun mockSttMany(vararg responses: Response<SttResponse>) {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } returnsMany responses.toList()
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns call
     }
 
     private fun success(text: String = "hallo welt") =
@@ -172,7 +173,7 @@ class SttRequestRunnerTest {
     fun `IOException is transient and fails after three attempts`() = kotlinx.coroutines.runBlocking {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } throws IOException("read timeout")
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns call
 
         val result = runner().run(wavFile(), config)
 
@@ -196,5 +197,54 @@ class SttRequestRunnerTest {
         page[26] = 1
         page[27] = 0
         return page
+    }
+
+    // ---- #117: prompt carry-over + evidence suppression --------------------
+
+    private fun stubWithPromptSlot(): io.mockk.CapturingSlot<okhttp3.RequestBody?> {
+        val promptSlot = slot<okhttp3.RequestBody?>()
+        val call = mockk<Call<SttResponse>>()
+        every { call.execute() } returns success()
+        every {
+            sttApi.transcribeAudioSync(any(), any(), any(), any(), captureNullable(promptSlot))
+        } returns call
+        return promptSlot
+    }
+
+    @Test
+    fun `prompt is forwarded as the prompt multipart part`() = kotlinx.coroutines.runBlocking {
+        val promptSlot = stubWithPromptSlot()
+
+        val result = runner().run(wavFile(), config, chunk = 1, prompt = "context tail")
+
+        assertThat(result.isSuccess).isTrue()
+        val buffer = okio.Buffer()
+        promptSlot.captured!!.writeTo(buffer)
+        assertThat(buffer.readUtf8()).isEqualTo("context tail")
+        // prompt marker in the completion record (#117) keeps the Phase 2
+        // t(S) fit unpolluted by prompt-induced latency
+        assertThat((readLog("stt-latency")["promptChars"] as Double).toInt()).isEqualTo(12)
+    }
+
+    @Test
+    fun `no prompt means the prompt part is omitted`() = kotlinx.coroutines.runBlocking {
+        val promptSlot = stubWithPromptSlot()
+
+        val result = runner().run(wavFile(), config, chunk = 1)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(promptSlot.captured).isNull()
+        assertThat(readLog("stt-latency").containsKey("promptChars")).isFalse()
+    }
+
+    @Test
+    fun `evidence=false suppresses upload and latency records`() = kotlinx.coroutines.runBlocking {
+        mockStt(success())
+
+        val result = runner().run(wavFile(), config, chunk = 1, evidence = false)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(File(logDir, "stt-upload.json").exists()).isFalse()
+        assertThat(File(logDir, "stt-latency.json").exists()).isFalse()
     }
 }

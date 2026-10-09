@@ -51,7 +51,7 @@ class VoiceSessionControllerTest {
         coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.success("hi")
         // The live fragment path (#116) ends in finishTranscription.
         coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
-        coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
     }
 
@@ -65,6 +65,7 @@ class VoiceSessionControllerTest {
         chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
         chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
         fragmentBytes: Int = 1 shl 30,
+        fragmentSearchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
         sessionIdInMeta: String? = null
     ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
@@ -75,6 +76,7 @@ class VoiceSessionControllerTest {
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
         fragmentBytes = fragmentBytes,
+        fragmentSearchBytes = fragmentSearchBytes,
         // real live-fragment engine (#116) over the mocked STT endpoint,
         // with zero backoff so failure-path tests stay fast
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
@@ -162,7 +164,7 @@ class VoiceSessionControllerTest {
 
         verify(exactly = 0) { transcoder.transcode(any(), any()) }
         // one fragment (whole recording at the default huge test fragment size)
-        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
         coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
         clearSessionFiles()
@@ -194,7 +196,7 @@ class VoiceSessionControllerTest {
         coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
         coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
         // one fragment (whole recording at the default huge test fragment size)
-        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         verify(exactly = 1) { transcoder.transcode(any(), any()) }
         clearSessionFiles()
     }
@@ -216,7 +218,7 @@ class VoiceSessionControllerTest {
         // The session-level WAV fallback (#115) must not kill the
         // transcription: the fragment uploads as audio/wav instead (#116).
         coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
-        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         clearSessionFiles()
     }
 
@@ -266,7 +268,7 @@ class VoiceSessionControllerTest {
         controller.restore()
 
         var uploads = 0
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
             uploads++
             mockSttCall(Response.success(SttResponse(text = "part $uploads", language = null)))
         }
@@ -815,7 +817,7 @@ class VoiceSessionControllerTest {
         controller.awaitState(VoiceSessionController.State.PAUSED)
         // 4 fragments committed for the 40 kB buffer, each transcribed once
         verify(exactly = 4) { transcoder.transcode(any(), any()) }
-        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
 
         // retry: the LLM pass succeeds now; the fragments re-drain from cache
         coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
@@ -823,7 +825,7 @@ class VoiceSessionControllerTest {
         controller.awaitIdle()
 
         verify(exactly = 4) { transcoder.transcode(any(), any()) }
-        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         // success consumed the fragment session
         assertThat(File(cacheDir, "fragments").exists()).isFalse()
         clearSessionFiles()
@@ -854,15 +856,15 @@ class VoiceSessionControllerTest {
         File(sessionDir, "frag_000001.ogg").writeBytes(persisted)
         File(sessionDir, "manifest.json").writeText(
             """{"fallbackToWav":false,"fragments":[""" +
-                """{"name":"frag_000000.ogg","bytes":4},""" +
-                """{"name":"frag_000001.ogg","bytes":4}]}"""
+                """{"name":"frag_000000.ogg","bytes":4,"end":10000},""" +
+                """{"name":"frag_000001.ogg","bytes":4,"end":20000}]}"""
         )
 
         val controller = newController(fragmentBytes = 10_000)
         controller.restore()
 
         var callIndex = 0
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } answers {
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
             callIndex++
             mockSttCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
         }
@@ -874,7 +876,7 @@ class VoiceSessionControllerTest {
         // only fragments 2 and 3 were encoded fresh; 0 and 1 were reused
         verify(exactly = 2) { transcoder.transcode(any(), any()) }
         // all four fragments transcribed, joined in fragment order
-        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         val stt = sttSlot.captured.getOrThrow()
         assertThat(stt.text).isEqualTo("part 1 part 2 part 3 part 4")
         assertThat(stt.chunkCount).isEqualTo(4)
@@ -901,14 +903,16 @@ class VoiceSessionControllerTest {
         File(cacheDir, "session.pcm").writeBytes(pcm)
         File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
 
-        // fragment 1 (0-based) fails permanently (HTTP 400 = non-transient)
-        val http400 =
+        // fragment 1 (0-based) fails permanently (HTTP 401 = non-transient;
+        // 401 also keeps the #117 prompt-rejection fallback out of the way,
+        // which only keys on 400)
+        val http401 =
             @Suppress("DEPRECATION")
-            Response.error<SttResponse>(400, ResponseBody.create(null, "bad request"))
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returnsMany
+            Response.error<SttResponse>(401, ResponseBody.create(null, "unauthorized"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(http400),
+                mockSttCall(http401),
                 mockSttCall(Response.success(SttResponse(text = "three", language = null))),
                 mockSttCall(Response.success(SttResponse(text = "four", language = null)))
             )
@@ -928,14 +932,14 @@ class VoiceSessionControllerTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         val failed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last().result
         assertThat(failed.exceptionOrNull()!!.message).contains("fragment 2/4")
-        assertThat(failed.exceptionOrNull()!!.message).contains("HTTP 400")
+        assertThat(failed.exceptionOrNull()!!.message).contains("HTTP 401")
         coVerify(exactly = 0) { pipeline.finishTranscription(any(), any(), any()) }
 
         // raw mode retry: the failed fragment is RE-ATTEMPTED (fresh attempt
         // succeeds now), the cached fragments are not re-transcribed, and
         // the raw text comes from finishTranscription
         settings.rawMode = true
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any()) } returns
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
             mockSttCall(Response.success(SttResponse(text = "two", language = null)))
         val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
         coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
@@ -945,7 +949,7 @@ class VoiceSessionControllerTest {
         val stt = sttSlot.captured.getOrThrow()
         assertThat(stt.text).isEqualTo("one two three four")
         assertThat(stt.chunkCount).isEqualTo(4)
-        verify(exactly = 5) { sttApi.transcribeAudioSync(any(), any(), any(), any()) }
+        verify(exactly = 5) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         assertThat(File(cacheDir, "fragments").exists()).isFalse()
         clearSessionFiles()
     }
