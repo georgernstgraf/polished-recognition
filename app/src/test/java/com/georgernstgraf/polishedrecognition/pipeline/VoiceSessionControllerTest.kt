@@ -66,20 +66,27 @@ class VoiceSessionControllerTest {
         chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
         fragmentBytes: Int = 1 shl 30,
         fragmentSearchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
-        sessionIdInMeta: String? = null
+        sessionIdInMeta: String? = null,
+        shadowSttEnabled: () -> Boolean = { false },
+        mainDispatcher: Boolean = false, // true = production-like queued main-looper (#117 shadow)
+        logger: RotatingJsonLogger? = null
     ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
         pipeline,
         settings,
         transcoder,
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+        scope = CoroutineScope(
+            SupervisorJob() + if (mainDispatcher) Dispatchers.Main else Dispatchers.Unconfined
+        ),
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
         fragmentBytes = fragmentBytes,
         fragmentSearchBytes = fragmentSearchBytes,
         // real live-fragment engine (#116) over the mocked STT endpoint,
         // with zero backoff so failure-path tests stay fast
-        sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
+        sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
+        logger = logger,
+        shadowSttEnabled = shadowSttEnabled
     )
 
     private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
@@ -968,6 +975,78 @@ class VoiceSessionControllerTest {
         controller.cancel()
 
         assertThat(File(cacheDir, "fragments/testsess").exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
+     * #117 shadow comparison: after a successful fragment session the
+     * assembled full recording is transcribed once more (evidence off) and
+     * both texts land in `stt-shadow.json`. Production dispatches the
+     * shadow on the MAIN looper behind the transcribe job — the test
+     * replicates that (mainDispatcher = true) and pumps the looper until
+     * the log record appears.
+     */
+    @Test
+    fun `shadow comparison logs the full-context STT next to the fragment transcripts`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+
+        val logDir = File(cacheDir, "shadow-test-logs").apply { deleteRecursively(); mkdirs() }
+        val controller = newController(
+            fragmentBytes = 10_000,
+            shadowSttEnabled = { true },
+            mainDispatcher = true,
+            logger = RotatingJsonLogger(logDir)
+        )
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+
+        // 4 fragment responses, then the shadow's single full-context call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "two", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "three", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "four", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "one two three four FULL", language = null)))
+            )
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
+        // the shadow runs on the pipeline's REAL runner (production), not on
+        // a relaxed mock — otherwise its failure is swallowed invisibly
+        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
+
+        controller.stopAndTranscribe()
+        val shadowFile = File(logDir, "stt-shadow.json")
+        val deadline = System.currentTimeMillis() + 10_000
+        while ((controller.state != VoiceSessionController.State.IDLE || !shadowFile.exists()) &&
+            System.currentTimeMillis() < deadline
+        ) {
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        println("DIAG shadow dir exists=${File(cacheDir, "shadow").exists()} contents=${File(cacheDir, "shadow").listFiles()?.map { it.name }}")
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        println("DIAG shadow dir after extra pump exists=${File(cacheDir, "shadow").exists()}")
+        verify(atLeast = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        assertThat(shadowFile.exists()).isTrue()
+        val shadow = com.google.gson.Gson().fromJson(
+            shadowFile.readText(), Map::class.java
+        ) as Map<String, Any>
+        assertThat(shadow["fragmentText"]).isEqualTo("one two three four")
+        assertThat(shadow["fullText"]).isEqualTo("one two three four FULL")
+        assertThat(shadow["chunks"]).isEqualTo(1.0)
+        assertThat(shadow["error"]).isNull()
         clearSessionFiles()
     }
 

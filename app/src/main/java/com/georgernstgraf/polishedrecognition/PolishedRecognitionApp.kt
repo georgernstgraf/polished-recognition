@@ -7,6 +7,7 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.config.SttEndpointPolicy
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
@@ -90,12 +91,7 @@ class PolishedRecognitionApp : Application() {
      * (gregor measures 22–29× realtime), but real money against cloud
      * providers. Pure string heuristic — no DNS on any caller thread.
      */
-    private fun isLocalSttEndpoint(baseUrl: String): Boolean {
-        val host = runCatching { java.net.URI(baseUrl).host }.getOrNull()?.lowercase() ?: return false
-        if (host == "localhost" || host.endsWith(".local")) return true
-        if (host.startsWith("[")) return true // bracketed IPv6 loop/link-local literals
-        return Regex("^127\\.|^10\\.|^192\\.168\\.|^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(host)
-    }
+    private fun isLocalSttEndpoint(baseUrl: String): Boolean = SttEndpointPolicy.isLocal(baseUrl)
 
     /**
      * Last IME rotation signal, monotonic uptime ms written by

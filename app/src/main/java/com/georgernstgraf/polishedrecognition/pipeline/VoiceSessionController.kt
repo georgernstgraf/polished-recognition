@@ -520,12 +520,22 @@ class VoiceSessionController(
                         gson.toJson(mapOf("rawRescue" to true, "failed" to where, "error" to failure.message))
                     )
                 }
-                // Shadow comparison (#117): assemble the full recording from
-                // the committed fragments NOW — `clearPrepared()` deletes the
-                // session dir on success, and the async shadow coroutine must
-                // own its bytes (chunk assembly is a cheap byte concat).
-                if (shadowSttEnabled()) {
-                    val shadowFiles = withContext(Dispatchers.IO) { p.assembleChunks() }
+                // Shadow comparison (#117): assemble the full recording into
+                // a DEDICATED dir — `clearPrepared()` deletes the session dir
+                // on success, and the main-looper-queued shadow coroutine
+                // only reads its files later (the assembly race was found in
+                // the first on-device verify). The coroutine deletes the dir
+                // when it is done. The gate decision is logged as a breadcrumb
+                // so a silently-absent shadow record is diagnosable on-device.
+                val shadowGate = shadowSttEnabled()
+                logger?.log(
+                    "stt-shadow",
+                    gson.toJson(mapOf("event" to "gate", "enabled" to shadowGate, "chunkCount" to drained.chunkCount))
+                )
+                if (shadowGate) {
+                    val shadowFiles = withContext(Dispatchers.IO) {
+                        p.assembleChunks(File(appContext.cacheDir, SHADOW_DIR).apply { deleteRecursively(); mkdirs() })
+                    }
                     if (shadowFiles.isNotEmpty()) launchShadowStt(shadowFiles, drained.text)
                 }
                 return pipeline.finishTranscription(
@@ -555,10 +565,11 @@ class VoiceSessionController(
      * fragment worker transcribed (#117): joins the per-chunk texts and
      * logs them next to the joined fragment transcripts in
      * `stt-shadow.json`. Runs in its OWN coroutine so the delivered result
-     * is never delayed; every failure is swallowed into the log record —
-     * a shadow problem must never surface in the pipeline. The STT
-     * requests run with evidence off so `stt-upload`/`stt-latency` (the
-     * Phase 2 profile input) stay unpolluted.
+     * is never delayed. The STT requests run with evidence off so
+     * `stt-upload`/`stt-latency` (the Phase 2 profile input) stay
+     * unpolluted. Every failure — including a crash of the shadow body —
+     * is logged into the stream: a silently absent record cost a
+     * diagnose round in the first on-device verify.
      */
     private fun launchShadowStt(files: List<File>, fragmentText: String) {
         scope.launch {
@@ -599,8 +610,18 @@ class VoiceSessionController(
                         )
                     )
                 )
-            } catch (_: Throwable) {
-                // pure diagnostics — never a pipeline failure
+            } catch (crashed: Throwable) {
+                // pure diagnostics — never a pipeline failure, but NEVER silent
+                logger?.log(
+                    "stt-shadow",
+                    gson.toJson(mapOf("error" to "shadow crashed: ${crashed.message}"))
+                )
+            } finally {
+                // the assembled shadow chunks are single-use
+                try {
+                    File(appContext.cacheDir, SHADOW_DIR).deleteRecursively()
+                } catch (_: Throwable) {
+                }
             }
         }
     }
@@ -835,5 +856,7 @@ class VoiceSessionController(
         private const val SNAP_META = "session.meta"
         private const val PREPARED_DIR = "prepared"
         private const val FRAGMENTS_DIR = "fragments"
+        /** Owns the shadow comparison's assembled chunks (#117) — deleted after use. */
+        private const val SHADOW_DIR = "shadow"
     }
 }

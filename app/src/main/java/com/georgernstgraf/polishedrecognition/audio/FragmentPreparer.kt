@@ -284,10 +284,13 @@ class FragmentPreparer(
      * accumulate until the next one would exceed the PCM-byte cap
      * ([chunkMaxPcmBytes], #117) — duration/byte limits hold for ANY
      * fragment size, which the Phase 2 auto-sized fragments require.
-     * Returns [] when nothing was encoded at all — callers fall back to the
-     * single-file path.
+     * Writes into [targetDir] (the session dir by default; the #117 shadow
+     * comparison assembles into its own dir so `clearPrepared()` can never
+     * delete the chunks under the running shadow upload). Returns [] when
+     * nothing was encoded at all — callers fall back to the single-file
+     * path.
      */
-    fun assembleChunks(): List<File> {
+    fun assembleChunks(targetDir: File = sessionDir): List<File> {
         if (entries.isEmpty()) return emptyList()
         val ext = if (fallbackToWav) "wav" else "ogg"
         val chunks = mutableListOf<File>()
@@ -302,7 +305,7 @@ class FragmentPreparer(
                 acc += fragBytes
                 groupEnd++
             }
-            val target = File(sessionDir, "recording_%d.%s".format(chunkNo, ext))
+            val target = File(targetDir, "recording_%d.%s".format(chunkNo, ext))
             FileOutputStream(target).use { out ->
                 for (i in index until groupEnd) {
                     File(sessionDir, entries[i].name).inputStream().use { input ->
