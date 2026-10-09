@@ -108,4 +108,7 @@
     <string name="crash_copy">Copy to Clipboard</string>
     <string name="crash_close">Close App</string>
     <string name="crash_copied">Copied to clipboard</string>
+    <!-- #113 salvage: cancel destroyed a session with finished transcripts -->
+    <string name="cancelled_dictation_clip">Cancelled dictation</string>
+    <string name="cancelled_dictation_saved">Dictation discarded — transcript (%d chars) copied to clipboard</string>
 </resources>

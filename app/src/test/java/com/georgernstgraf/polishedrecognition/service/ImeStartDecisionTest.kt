@@ -104,7 +104,14 @@ class ImeStartDecisionTest {
 
     @Test
     fun `fresh gate on other field still cancels live session`() {
+        // #113 data-loss fix: inside the fresh rotation window a live
+        // session NEVER cancels — the rotated client app can re-create its
+        // editor with a CHANGED field identity mid-cascade (observed
+        // 2026-10-10, destroyed a 10.5-min dictation), so a bind-time
+        // field comparison cannot be trusted while the gate is fresh.
         assertThat(ImeStartDecision.decide(recording, false, false, true, false))
-            .isEqualTo(Outcome.CANCEL)
+            .isEqualTo(Outcome.FREEZE)
+        assertThat(ImeStartDecision.decide(processing, false, false, true, false))
+            .isEqualTo(Outcome.FREEZE)
     }
 }

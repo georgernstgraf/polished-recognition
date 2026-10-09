@@ -146,6 +146,10 @@ class PolishedRecognitionService : RecognitionService() {
                 }
                 is VoiceSessionController.Event.StageChanged ->
                     updateNotification(stageText(event.stage))
+                // #113 salvage is an IME-only affordance (clipboard + toast);
+                // the service session's cancels are system-driven and have
+                // no salvage surface. Nothing to do here.
+                is VoiceSessionController.Event.CancelledWithTranscripts -> Unit
                 is VoiceSessionController.Event.Completed -> {
                     awaitingResult = false
                     controller.removeSecondaryListener(secondaryListener)

@@ -458,6 +458,79 @@ class VoiceSessionControllerTest {
     }
 
     /**
+     * #113 salvage: a cancel that destroys a session whose fragments were
+     * already transcribed must NOT silently void the paid-for transcripts —
+     * the joined text is published as [VoiceSessionController.Event
+     * .CancelledWithTranscripts] before the teardown. Driven via a restored
+     * session with committed + live-transcribed fragments (the same
+     * hand-crafted snapshot pattern as the #116 tests): stop runs the worker
+     * (4 fragments transcribed), the LLM failure parks PAUSED with cached
+     * transcripts, and the subsequent cancel salvages them.
+     */
+    @Test
+    fun `cancel with transcribed fragments salvages the joined transcript`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
+            callIndex++
+            mockSttCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
+        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(Exception("LLM post-processing failed: HTTP 500"))
+
+        val controller = newController(fragmentBytes = 10_000)
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        assertThat(callIndex).isEqualTo(4)
+
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        controller.cancel()
+
+        val salvaged = events.filterIsInstance<VoiceSessionController.Event.CancelledWithTranscripts>()
+        assertThat(salvaged).hasSize(1)
+        assertThat(salvaged.single().text).isEqualTo("part 1 part 2 part 3 part 4")
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        // The salvage fires only for transcript-bearing sessions; a second
+        // cancel (now IDLE, nothing left) stays silent.
+        val second = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { second.add(it) }
+        controller.cancel()
+        assertThat(second.filterIsInstance<VoiceSessionController.Event.CancelledWithTranscripts>())
+            .isEmpty()
+        clearSessionFiles()
+    }
+
+    /**
+     * #113 salvage counter-case: a cancel with NOTHING transcribed must not
+     * emit the salvage event — the IDLE tail is silence, not noise.
+     */
+    @Test
+    fun `cancel without transcripts emits no salvage event`() {
+        val controller = newController()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        try {
+            controller.start { events.add(it) }
+        } catch (_: Throwable) {
+        }
+        // cancel directly from RECORDING — no fragment was transcribed yet
+        controller.cancel()
+        assertThat(events.filterIsInstance<VoiceSessionController.Event.CancelledWithTranscripts>())
+            .isEmpty()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+    }
+
+    /**
      * Process-death snapshot (#67, observed on Oplus across rotation): a
      * snapshot left on disk is restored as PAUSED with the timer continuing
      * from the saved duration. The snapshot is consumed — a second restore

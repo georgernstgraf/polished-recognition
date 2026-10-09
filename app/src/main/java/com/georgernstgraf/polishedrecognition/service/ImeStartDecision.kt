@@ -24,6 +24,17 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  * - [Outcome.CANCEL] — different field with a live RECORDING/PROCESSING
  *   session: discard it as before, then run the normal tail (which re-reads
  *   the now-IDLE state and may auto-start on the new field).
+ *
+ *   #113 amendment (2026-10-10 data loss): inside the fresh rotation window
+ *   (`gateFresh`) a live session NEVER cancels — the outcome is FREEZE, the
+ *   session keeps recording and the user delivers it where they intended.
+ *   Reason: the rotation cascade delivers MULTIPLE rebinds, and the rotated
+ *   client app can re-create its editor with a CHANGED field identity
+ *   (observed: `fieldId` changed mid-cascade), which is indistinguishable
+ *   from a genuine field switch at bind time. Both misjudgment costs stay
+ *   inside the documented bias — wrongly surviving a field change is
+ *   harmless (the user taps cancel), wrongly cancelling a rotation loses
+ *   dictation (proven: 10.5 min destroyed, 2026-10-10 01:24 CEST).
  * - [Outcome.PROVISIONAL_FREEZE] — PAUSED on the same field with no rotation
  *   signal *yet*. The mark may simply be late, so the caller must NOT
  *   auto-resume now; instead it re-checks after a short delay (see
@@ -47,6 +58,16 @@ object ImeStartDecision {
         if (restored || instRotation) return Outcome.FREEZE
         if (gateFresh && sameField) return Outcome.FREEZE
         if (!sameField) {
+            // #113: a live session survives the rotation window even when
+            // the re-created editor reports a different field identity —
+            // cancelling here destroyed a 10.5-min dictation (2026-10-10).
+            if (gateFresh && (
+                state == VoiceSessionController.State.RECORDING ||
+                    state == VoiceSessionController.State.PROCESSING
+                )
+            ) {
+                return Outcome.FREEZE
+            }
             return if (
                 state == VoiceSessionController.State.RECORDING ||
                 state == VoiceSessionController.State.PROCESSING

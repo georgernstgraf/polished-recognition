@@ -209,11 +209,18 @@ class FragmentTranscriber(
     /**
      * Stops the worker and forgets everything — in-flight STT requests are
      * abandoned (they belong to a discarded session), transcripts dropped.
+     *
+     * #113 amendment: returns the accumulated transcripts (a copy) instead
+     * of silently voiding them, so a cancel with paid-for work can salvage
+     * the text (see [VoiceSessionController.cancel]); `null` when nothing
+     * was transcribed yet. Same for [Drained] shape as [snapshot] but
+     * WITHOUT the drain wait — in-flight fragments are simply not counted.
      */
-    fun cancel() {
+    fun cancel(): Drained? {
         channel.close()
         worker?.cancel()
         worker = null
+        val drained = if (transcripts.isEmpty()) null else snapshot()
         transcripts.clear()
         failures.clear()
         offered.clear()
@@ -222,6 +229,7 @@ class FragmentTranscriber(
         promptDisabled = false
         pendingDrain?.cancel()
         pendingDrain = null
+        return drained
     }
 
     private suspend fun process(fragment: CommittedFragment) {

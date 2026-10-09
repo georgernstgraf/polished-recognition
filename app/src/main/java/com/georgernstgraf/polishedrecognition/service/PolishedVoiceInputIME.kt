@@ -5,6 +5,8 @@ import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -448,6 +450,26 @@ class PolishedVoiceInputIME : InputMethodService() {
                     is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
                         getString(R.string.ime_stage_llm_words, stage.wordCount)
                 }
+            }
+            is VoiceSessionController.Event.CancelledWithTranscripts -> {
+                // #113 salvage: the cancel destroyed a session whose fragments
+                // were already transcribed — copy the joined text to the
+                // clipboard so the dictation is recoverable. Never inject
+                // into the (possibly changed) editor field.
+                runCatching {
+                    val clipboard = getSystemService(ClipboardManager::class.java)
+                    clipboard.setPrimaryClip(
+                        ClipData.newPlainText(
+                            getString(R.string.cancelled_dictation_clip),
+                            event.text
+                        )
+                    )
+                }
+                Toast.makeText(
+                    this,
+                    getString(R.string.cancelled_dictation_saved, event.text.length),
+                    Toast.LENGTH_LONG
+                ).show()
             }
             is VoiceSessionController.Event.Completed -> {
                 val result = event.result

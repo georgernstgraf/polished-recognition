@@ -86,6 +86,13 @@ class VoiceSessionController(
         data class StateChanged(val state: State) : Event()
         data class StageChanged(val stage: TranscriptionPipeline.TranscriptionStage) : Event()
         data class Completed(val result: Result<String>) : Event()
+        /**
+         * A cancel destroyed a session whose fragments were already
+         * transcribed (#113 salvage): the joined partial transcript. Emitted
+         * BEFORE the terminal [StateChanged] to IDLE; observers can copy it
+         * to the clipboard. Never sent when nothing was transcribed.
+         */
+        data class CancelledWithTranscripts(val text: String) : Event()
     }
 
     private val appContext = context.applicationContext
@@ -270,20 +277,28 @@ class VoiceSessionController(
         return (clamped * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt()
     }
 
-    /** Drop the session's committed fragments (flush/cancel — audio discarded). */
-    private fun discardFragmentSession() {
-        // In-flight fragment transcriptions belong to the discarded audio (#116).
-        transcriber?.cancel()
+    /**
+     * Drop the session's committed fragments (flush/cancel — audio
+     * discarded). Returns the transcriber's accumulated transcripts when the
+     * worker already transcribed anything (#113 salvage); the caller decides
+     * what to do with them (cancel salvages, flush deliberately ignores).
+     */
+    private fun discardFragmentSession(): FragmentTranscriber.Drained? {
+        // In-flight fragment transcriptions belong to the discarded audio
+        // (#116). #113: the transcriber's cancel() hands back the completed
+        // transcripts instead of voiding them.
+        val drained = transcriber?.cancel()
         transcriber = null
         preparer?.let {
             it.stopWorker()
             it.prune()
-            return
+            return drained
         }
         // restored-but-not-yet-prepared session: the dir exists on disk only
         sessionId?.let { sid ->
             File(appContext.cacheDir, "$FRAGMENTS_DIR/$sid").deleteRecursively()
         }
+        return drained
     }
 
     /**
@@ -392,7 +407,27 @@ class VoiceSessionController(
     fun cancel() {
         transcribeJob?.cancel()
         transcribeJob = null
-        discardFragmentSession()
+        // #113 salvage: fragments already uploaded + transcribed are paid-for
+        // work — publish them (evidence log + observer event) before the
+        // teardown voids the session. In-flight fragments are not counted
+        // (their transcripts belong to the discarded audio's tail).
+        val drained = discardFragmentSession()
+        drained?.takeIf { it.text.isNotBlank() }?.let { d ->
+            logger?.log(
+                "stt-text",
+                gson.toJson(
+                    mapOf(
+                        "outcome" to "cancelled",
+                        "chunkCount" to d.chunkCount,
+                        "chunkLengths" to d.chunkLengths,
+                        "language" to d.language,
+                        "textLength" to d.text.length,
+                        "text" to d.text
+                    )
+                )
+            )
+            emit(Event.CancelledWithTranscripts(d.text))
+        }
         preparer = null
         sessionId = null
         runCatching { recorder.cancel() }
