@@ -582,13 +582,21 @@ class VoiceSessionController(
                 val parts = mutableListOf<String>()
                 var error: String? = null
                 for ((index, file) in files.withIndex()) {
-                    val result = pipeline.sttRequestRunner.run(
-                        audioFile = file,
-                        config = config,
-                        chunk = index + 1,
-                        chunkCount = files.size,
-                        evidence = false
-                    )
+                    // IO dispatcher REQUIRED: SttRequestRunner.execute() runs on
+                    // the CALLER's context — the fragment worker and the batch
+                    // pipeline wrap it in Dispatchers.IO; the shadow's
+                    // main-dispatched coroutine must do the same (the missing
+                    // wrapper surfaced as NetworkOnMainThreadException in the
+                    // first on-device run).
+                    val result = withContext(Dispatchers.IO) {
+                        pipeline.sttRequestRunner.run(
+                            audioFile = file,
+                            config = config,
+                            chunk = index + 1,
+                            chunkCount = files.size,
+                            evidence = false
+                        )
+                    }
                     val body = result.getOrNull()
                     if (body == null) {
                         error = result.exceptionOrNull()?.message ?: "unknown error"
@@ -612,9 +620,19 @@ class VoiceSessionController(
                 )
             } catch (crashed: Throwable) {
                 // pure diagnostics — never a pipeline failure, but NEVER silent
+                val stack = crashed.stackTrace
+                    .take(8)
+                    .joinToString(" | ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
                 logger?.log(
                     "stt-shadow",
-                    gson.toJson(mapOf("error" to "shadow crashed: ${crashed.message}"))
+                    gson.toJson(
+                        mapOf(
+                            "error" to "shadow crashed",
+                            "exception" to crashed.javaClass.name,
+                            "message" to (crashed.message ?: ""),
+                            "stack" to stack
+                        )
+                    )
                 )
             } finally {
                 // the assembled shadow chunks are single-use
