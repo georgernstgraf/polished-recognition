@@ -140,6 +140,16 @@ class PolishedRecognitionApp : Application() {
     @Volatile
     var imeLastField: com.georgernstgraf.polishedrecognition.service.RotationGate.FieldId? = null
 
+    /**
+     * The field the current dictation was SENT from (#118), captured by
+     * `PolishedVoiceInputIME` at send time. The insertion breadcrumb compares
+     * it against the field at delivery: a pendingResult re-delivery across a
+     * rotation that lands in a *changed* field is the prime suspect for
+     * "text appeared on rotate". App-scoped so it survives IME recreation.
+     */
+    @Volatile
+    var imeSessionField: com.georgernstgraf.polishedrecognition.service.RotationGate.FieldId? = null
+
     private val sttApiCache = ConcurrentHashMap<String, OpenAiSttApiService>()
     private val chatApiCache = ConcurrentHashMap<String, OpenAiChatApiService>()
 

@@ -141,8 +141,13 @@ class PolishedVoiceInputIME : InputMethodService() {
             when (controller.state) {
                 VoiceSessionController.State.IDLE -> startIfPermitted()
                 VoiceSessionController.State.RECORDING,
-                VoiceSessionController.State.PAUSED ->
+                VoiceSessionController.State.PAUSED -> {
+                    // #118: remember the field the dictation was sent from so
+                    // the insertion breadcrumb can detect a delivery into a
+                    // different field after a rotation.
+                    (application as PolishedRecognitionApp).imeSessionField = currentFieldId()
                     controller.stopAndTranscribe(currentCallerPackage())
+                }
                 else -> Unit
             }
         }
@@ -475,6 +480,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 val result = event.result
                 val text = result.getOrNull()
                 if (text != null) {
+                    logInsertion(text, event)
                     commitWithSpacing(text)
                     // Re-learn on successful insertion (#100): the session already
                     // recorded the target at start (#102 amendment); this captures
@@ -548,6 +554,52 @@ class PolishedVoiceInputIME : InputMethodService() {
         val after = ic.getTextAfterCursor(1, 0)
         ic.commitText(InsertionSpacingPolicy.apply(text, before, after), 1)
     }
+
+    /**
+     * #118 Phase A insertion breadcrumb: records the single editor-insertion
+     * site so a "partial text appeared" repro is conclusive. Captures the
+     * delivery reason (live / `pendingResult` re-delivery / raw-mode rescue),
+     * the field at send vs at insertion (a changed field after rotation is
+     * the prime suspect), the controller state, and whether an
+     * `InputConnection` was available. Correlate by timestamp with
+     * `ime-lifecycle.log`. Best-effort: logging must never break insertion.
+     */
+    private fun logInsertion(text: String, event: VoiceSessionController.Event.Completed) {
+        try {
+            val app = application as PolishedRecognitionApp
+            val origin = app.imeSessionField
+            val current = currentFieldId()
+            val reason = InsertionTrace.reason(
+                redelivered = event.redelivered,
+                partial = event.partial != null
+            ).name
+            app.jsonLogger.log(
+                "insertion",
+                com.google.gson.Gson().toJson(
+                    mapOf(
+                        "surface" to "ime",
+                        "reason" to reason,
+                        "length" to text.length,
+                        "failedIndex" to event.partial?.failedIndex,
+                        "chunkCount" to event.partial?.chunkCount,
+                        "state" to controller.state.name,
+                        "originPkg" to origin?.packageName,
+                        "originField" to origin?.fieldId,
+                        "currentPkg" to current?.packageName,
+                        "currentField" to current?.fieldId,
+                        "sameField" to (origin != null && current != null &&
+                            RotationGate.isSameField(origin, current)),
+                        "hasConnection" to (currentInputConnection != null)
+                    )
+                )
+            )
+        } catch (_: Throwable) {
+        }
+    }
+
+    /** The focused field identity, or null when the editor info is absent (#118). */
+    private fun currentFieldId(): RotationGate.FieldId? =
+        currentInputEditorInfo?.let { RotationGate.FieldId(it.packageName, it.fieldId) }
 
     private fun applyUiState() {
         val ms = sendButton ?: return

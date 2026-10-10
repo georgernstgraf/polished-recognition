@@ -85,7 +85,26 @@ class VoiceSessionController(
     sealed class Event {
         data class StateChanged(val state: State) : Event()
         data class StageChanged(val stage: TranscriptionPipeline.TranscriptionStage) : Event()
-        data class Completed(val result: Result<String>) : Event()
+        /**
+         * A finished pipeline result (#118). [redelivered] is true when this
+         * event came out of the [pendingResult] hold — nobody was bound when
+         * it completed (rotation re-delivery, #83) — rather than a live emit.
+         * [partial] is non-null for a raw-mode rescue delivery: the delivered
+         * text is a join of fragments with one missing (see [PartialInfo]).
+         */
+        data class Completed(
+            val result: Result<String>,
+            val redelivered: Boolean = false,
+            val partial: PartialInfo? = null,
+        ) : Event()
+
+        /**
+         * Raw-mode rescue detail (#116/#118): the delivered text joins
+         * [chunkCount] fragments with the 1-based fragment [failedIndex]
+         * missing, so the text is incomplete by construction.
+         */
+        data class PartialInfo(val failedIndex: Int, val chunkCount: Int)
+
         /**
          * A cancel destroyed a session whose fragments were already
          * transcribed (#113 salvage): the joined partial transcript. Emitted
@@ -115,10 +134,18 @@ class VoiceSessionController(
         private set
 
     private var callback: ((Event) -> Unit)? = null
-    private var pendingResult: Result<String>? = null
+    private var pendingResult: Event.Completed? = null
     private var accumulatedMs = 0L
     private var segStartMs = 0L
     private var transcribeJob: Job? = null
+    /**
+     * #118 Phase A: the raw-mode rescue detail for the run currently
+     * finishing — set when a finally-failed fragment did not fail the session
+     * (raw mode returns the joined partial text). Consumed by [deliver]; reset
+     * at the start of every [runTranscription] so it can never leak into a
+     * later session.
+     */
+    private var rescuePartial: Event.PartialInfo? = null
     /**
      * Secondary observers (#82). The primary [callback] slot belongs to the
      * IME forever; a RecognitionService session observes the shared
@@ -305,13 +332,15 @@ class VoiceSessionController(
      * (Re-)binds the UI callback. A transcription result that completed while
      * no UI was bound (e.g. display rotation during PROCESSING, #83) is held
      * in [pendingResult] and delivered now, so it is committed exactly as if
-     * no rotation had happened.
+     * no rotation had happened. The re-emission is tagged
+     * `redelivered = true` (#118) so the observer can tell a rotation
+     * re-delivery from a live emit.
      */
     fun attach(onEvent: (Event) -> Unit) {
         callback = onEvent
         pendingResult?.let {
             pendingResult = null
-            emit(Event.Completed(it))
+            emit(it.copy(redelivered = true))
         }
     }
 
@@ -586,6 +615,7 @@ class VoiceSessionController(
      * applies unchanged.
      */
     private suspend fun runTranscription(wav: ByteArray, callerPackage: String?): Result<String> {
+        rescuePartial = null
         ensureFragmentPreparer()
         val p = preparer
         val t = transcriber
@@ -602,13 +632,23 @@ class VoiceSessionController(
             val drained = t.drain()
             if (drained.chunkCount > 0) {
                 drained.failure?.let { failure ->
-                    val where = "fragment ${drained.failedIndex!! + 1}/${drained.chunkCount}"
+                    val failedIndex = drained.failedIndex!! + 1
+                    val where = "fragment $failedIndex/${drained.chunkCount}"
                     if (!settings.rawMode) {
                         return Result.failure(Exception("$where: ${failure.message}"))
                     }
+                    rescuePartial = Event.PartialInfo(failedIndex, drained.chunkCount)
                     logger?.log(
                         "prepare",
-                        gson.toJson(mapOf("rawRescue" to true, "failed" to where, "error" to failure.message))
+                        gson.toJson(
+                            mapOf(
+                                "rawRescue" to true,
+                                "failed" to where,
+                                "failedIndex" to failedIndex,
+                                "chunkCount" to drained.chunkCount,
+                                "error" to failure.message
+                            )
+                        )
                     )
                 }
                 // Full-context-at-stop (#116 Phase 2): when the provider's
@@ -1068,6 +1108,9 @@ class VoiceSessionController(
      * (#82). Both the primary (IME) callback and any secondary observers get
      * the live `Completed` event; only when nobody is listening is the result
      * held in [pendingResult] for the next primary [attach] (rotation, #83).
+     * A raw-mode rescue partial (see [PartialInfo]) is carried on the event so
+     * the observer can apply a delivery policy instead of committing it
+     * blindly (#118).
      *
      * A secondary-only consumer — the bound `RecognitionService` — must be
      * served here too: otherwise its session falls through to
@@ -1075,10 +1118,13 @@ class VoiceSessionController(
      * even though the pipeline produced a good result.
      */
     private fun deliver(result: Result<String>) {
+        // Consume-once: the rescue detail belongs to this delivery only.
+        val partial = rescuePartial.also { rescuePartial = null }
+        val completed = Event.Completed(result, partial = partial)
         if (callback != null || secondaryListeners.isNotEmpty()) {
-            emit(Event.Completed(result))
+            emit(completed)
         } else {
-            pendingResult = result
+            pendingResult = completed
         }
     }
 

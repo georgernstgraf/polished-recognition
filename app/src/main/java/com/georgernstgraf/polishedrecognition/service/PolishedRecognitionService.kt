@@ -130,6 +130,39 @@ class PolishedRecognitionService : RecognitionService() {
         super.onDestroy()
     }
 
+    /**
+     * #118 Phase A breadcrumb for the RecognitionService surface: the IME
+     * insertion site cannot see this flow (the caller — Gboard etc. — inserts
+     * our returned result itself). Records the delivery reason, length and any
+     * raw-mode rescue detail so both flows from #118 question 1 are covered by
+     * evidence. Best-effort: logging must never break delivery.
+     */
+    private fun logServiceInsertion(
+        text: String,
+        event: VoiceSessionController.Event.Completed
+    ) {
+        try {
+            val reason = InsertionTrace.reason(
+                redelivered = event.redelivered,
+                partial = event.partial != null
+            ).name
+            (application as PolishedRecognitionApp).jsonLogger.log(
+                "insertion",
+                com.google.gson.Gson().toJson(
+                    mapOf(
+                        "surface" to "service",
+                        "reason" to reason,
+                        "length" to text.length,
+                        "failedIndex" to event.partial?.failedIndex,
+                        "chunkCount" to event.partial?.chunkCount,
+                        "callerPackage" to callerPackage
+                    )
+                )
+            )
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun handleEvent(event: VoiceSessionController.Event) {
         val cb = clientCallback ?: return
         try {
@@ -155,6 +188,7 @@ class PolishedRecognitionService : RecognitionService() {
                     controller.removeSecondaryListener(secondaryListener)
                     event.result.fold(
                         onSuccess = { text ->
+                            logServiceInsertion(text, event)
                             // Re-learn on successful delivery (#100): the session
                             // already recorded the target at start (#102 amendment);
                             // this captures the actual delivery and is throttled.

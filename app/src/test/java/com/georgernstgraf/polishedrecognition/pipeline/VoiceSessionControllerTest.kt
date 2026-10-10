@@ -420,6 +420,10 @@ class VoiceSessionControllerTest {
         val completed = after.filterIsInstance<VoiceSessionController.Event.Completed>()
         assertThat(completed).hasSize(1)
         assertThat(completed.single().result.getOrNull()).isEqualTo("hi")
+        // #118 Phase A: a pendingResult re-delivery is tagged so the observer
+        // can tell a rotation re-delivery from a live emit.
+        assertThat(completed.single().redelivered).isTrue()
+        assertThat(completed.single().partial).isNull()
     }
 
     @Test
@@ -1070,6 +1074,54 @@ class VoiceSessionControllerTest {
         assertThat(stt.chunkCount).isEqualTo(4)
         verify(exactly = 5) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         assertThat(File(cacheDir, "fragments").exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
+     * #118 Phase A: a raw-mode rescue delivery (a fragment finally fails, but
+     * Raw mode returns the joined partial instead of failing the session) is
+     * TAGGED on the [VoiceSessionController.Event.Completed] (`partial`
+     * non-null, naming the missing fragment) so an observer can apply a
+     * delivery policy instead of committing an incomplete transcript blindly.
+     */
+    @Test
+    fun `raw-mode rescue delivery carries the partial marker`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        settings.rawMode = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+
+        // fragment 1 (0-based) fails permanently (HTTP 401 = non-transient)
+        val http401 =
+            @Suppress("DEPRECATION")
+            Response.error<SttResponse>(401, ResponseBody.create(null, "unauthorized"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
+                mockSttCall(http401),
+                mockSttCall(Response.success(SttResponse(text = "three", language = null))),
+                mockSttCall(Response.success(SttResponse(text = "four", language = null)))
+            )
+
+        val controller = newController(fragmentBytes = 10_000)
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val completed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last()
+        assertThat(completed.result.isSuccess).isTrue()
+        assertThat(completed.redelivered).isFalse()
+        val partial = completed.partial
+        assertThat(partial).isNotNull()
+        assertThat(partial!!.failedIndex).isEqualTo(2)
+        assertThat(partial.chunkCount).isEqualTo(4)
         clearSessionFiles()
     }
 
