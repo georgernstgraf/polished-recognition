@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
+import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
 import com.georgernstgraf.polishedrecognition.audio.WavReader
 import com.georgernstgraf.polishedrecognition.audio.WavWriter
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
@@ -52,7 +53,8 @@ class FragmentTranscriberTest {
     private fun fragment(
         index: Int,
         seconds: Int = 7,
-        preRollSeconds: Int = 0 // pre-roll off unless a test opts in (#117 round 2)
+        preRollSeconds: Int = 0, // pre-roll off unless a test opts in (#117 round 2)
+        seamForced: Boolean = true // #122: boundary cut type
     ): FragmentTranscriber.CommittedFragment {
         // 16-bit mono @ 16 kHz = 32_000 bytes/s → one second of PCM per 32 kB
         val file = File(tmp.root, "frag_%06d.wav".format(index))
@@ -61,7 +63,7 @@ class FragmentTranscriberTest {
             File(tmp.root, "preroll_%06d.wav".format(index)).apply {
                 writeBytes(WavWriter.write(ByteArray(preRollSeconds * 32_000), sampleRate = 16_000))
             }
-        return FragmentTranscriber.CommittedFragment(index, file, preRoll)
+        return FragmentTranscriber.CommittedFragment(index, file, preRoll, seamForced)
     }
 
     private fun ok(text: String, language: String? = null): Result<SttResponse> =
@@ -249,16 +251,20 @@ class FragmentTranscriberTest {
     }
 
     @Test
-    fun `prompt carries only the tail of the previous transcript`() = runBlocking {
-        val long = (1..500).joinToString(" ") { "wort$it" } // far beyond ~200 tokens
+    fun `prompt carries a word-snapped seam-local tail of the previous transcript`() = runBlocking {
+        val long = (1..500).joinToString(" ") { "wort$it" } // far beyond the window
         stubPromptRecordingRunner { _, _ -> Result.success(SttResponse(text = long)) }
 
         transcriber.start()
         (0..1).forEach { transcriber.offer(fragment(it)) }
         transcriber.drain()
 
-        assertThat(prompts[1])
-            .isEqualTo(long.trim().takeLast(FragmentTranscriber.PROMPT_MAX_CHARS))
+        val prompt = prompts[1]!!
+        // #122: seam-local (≤ the window) AND starting on a word boundary.
+        assertThat(prompt.length).isAtMost(FragmentTranscriber.DEFAULT_PROMPT_MAX_CHARS)
+        assertThat(long.endsWith(prompt)).isTrue()
+        val start = long.length - prompt.length
+        assertThat(long[start - 1]).isEqualTo(' ')
     }
 
     @Test
@@ -453,5 +459,76 @@ class FragmentTranscriberTest {
         ).inOrder()
         assertThat(drained.text).isEqualTo("t0 t1")
         assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
+    }
+
+    // ---- #122: seam policy -------------------------------------------------
+
+    private fun transcriberWith(policy: SeamPolicy): FragmentTranscriber =
+        FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            onProgress = { progresses.add(it) },
+            seamPolicy = policy
+        )
+
+    @Test
+    fun `forced-only skips the prompt at a silence-aligned seam`() = runBlocking {
+        transcriber = transcriberWith(SeamPolicy.FORCED_ONLY)
+        stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, seamForced = true))
+        transcriber.offer(fragment(2, seamForced = false)) // silence-aligned boundary
+        transcriber.drain()
+
+        // f0 contextless; f1 forced → prompted; f2 silence → no prompt
+        assertThat(prompts).containsExactly(null, "t0", null).inOrder()
+    }
+
+    @Test
+    fun `all policy keeps the prompt at every seam`() = runBlocking {
+        transcriber = transcriberWith(SeamPolicy.ALL)
+        stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
+
+        transcriber.start()
+        (0..2).forEach { transcriber.offer(fragment(it, seamForced = false)) }
+        transcriber.drain()
+
+        assertThat(prompts).containsExactly(null, "t0", "t1").inOrder()
+    }
+
+    @Test
+    fun `off policy sends no prompt at all`() = runBlocking {
+        transcriber = transcriberWith(SeamPolicy.OFF)
+        stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
+
+        transcriber.start()
+        (0..2).forEach { transcriber.offer(fragment(it)) }
+        transcriber.drain()
+
+        assertThat(prompts).containsExactly(null, null, null).inOrder()
+    }
+
+    @Test
+    fun `prompt window is configurable — the long variant stays reachable`() = runBlocking {
+        val long = (1..400).joinToString(" ") { "wort$it" }
+        transcriber = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            promptMaxChars = 800
+        )
+        stubPromptRecordingRunner { _, _ -> Result.success(SttResponse(text = long)) }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.drain()
+
+        val prompt = prompts[1]!!
+        assertThat(prompt.length).isAtMost(800)
+        assertThat(long.endsWith(prompt)).isTrue()
     }
 }

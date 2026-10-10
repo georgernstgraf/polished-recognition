@@ -470,7 +470,7 @@ class FragmentPreparerTest {
         val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
         pcm.append(2500)
         val committed = mutableListOf<Triple<Int, String, String?>>()
-        preparer.onFragmentCommitted = { index, file, preRoll ->
+        preparer.onFragmentCommitted = { index, file, preRoll, _ ->
             committed.add(Triple(index, file.name, preRoll?.name))
         }
 
@@ -480,7 +480,7 @@ class FragmentPreparerTest {
             Triple(0, "frag_000000.ogg", null),
             Triple(1, "frag_000001.ogg", "preroll_000001.ogg")
         ).inOrder()
-        assertThat(preparer.committedFragments().map { it.third?.name })
+        assertThat(preparer.committedFragments().map { it.preRoll?.name })
             .containsExactly(null, "preroll_000001.ogg")
             .inOrder()
     }
@@ -490,7 +490,7 @@ class FragmentPreparerTest {
         val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
         pcm.append(2500)
         val hookPreRolls = mutableListOf<String?>()
-        preparer.onFragmentCommitted = { _, _, preRoll -> hookPreRolls.add(preRoll?.name) }
+        preparer.onFragmentCommitted = { _, _, preRoll, _ -> hookPreRolls.add(preRoll?.name) }
         every { transcoder.transcode(any(), any()) } answers {
             val target = secondArg<File>()
             if (target.name.startsWith("preroll_")) throw IOException("pre-roll encode failed")
@@ -509,7 +509,7 @@ class FragmentPreparerTest {
         assertThat(fragments.all { it.extension == "ogg" }).isTrue()
         assertThat(preRollFiles()).isEmpty()
         assertThat(hookPreRolls).containsExactly(null, null).inOrder()
-        assertThat(preparer.committedFragments().map { it.third }).containsExactly(null, null)
+        assertThat(preparer.committedFragments().map { it.preRoll }).containsExactly(null, null)
     }
 
     @Test
@@ -525,7 +525,7 @@ class FragmentPreparerTest {
         val reborn = newPreparer(fragmentBytes = 1000, preRollBytes = 320) // recover() ran
         assertThat(File(sessionDir, "preroll_000001.ogg").isFile).isTrue()
         assertThat(File(sessionDir, "preroll_000009.ogg").exists()).isFalse()
-        assertThat(reborn.committedFragments().map { it.third?.name })
+        assertThat(reborn.committedFragments().map { it.preRoll?.name })
             .containsExactly(null, "preroll_000001.ogg")
             .inOrder()
     }
@@ -562,5 +562,59 @@ class FragmentPreparerTest {
             .isEqualTo(data.copyOfRange(1680, 2000))
         assertThat(payload(File(sessionDir, "preroll_000003.wav")))
             .isEqualTo(data.copyOfRange(2680, 3000))
+    }
+
+    // ---- #122: seam policy + true silence tagging --------------------------
+
+    @Test
+    fun `tail fragment below the live nominal size is kept whole (no floor)`() {
+        // 100 000 B ≈ 3.1 s; the 10-s nominal floor must NEVER apply to the
+        // stop-tap tail — the remainder is taken whole, never dropped/padded.
+        val p = FakePcm(noisy(100_000))
+        val preparer = FragmentPreparer(
+            pcm = p, transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 320_000, wavMode = true
+        )
+        preparer.encodeAvailableFragments()
+        assertThat(fragmentFiles()).isEmpty()
+        preparer.prepareTailSync()
+        assertThat(fragmentFiles().map { payload(it).size }).containsExactly(100_000)
+    }
+
+    @Test
+    fun `forced-only keeps the pre-roll at hard cuts and drops it at a silence seam`() {
+        // frag0 [0,1000) forced · frag1 ends in silence (run [2000,5000)) ·
+        // frag2 [3000,4000) forced · frag3 [4000,5000) forced · tail [5000,7000)
+        val data = noisy(2000) + ByteArray(3000) + noisy(2000)
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, searchBytes = 2000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.FORCED_ONLY
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        // the boundary before frag2 was silence-aligned → its pre-roll is gone
+        assertThat(preRollFiles().map { it.name }).containsExactly(
+            "preroll_000001.ogg", "preroll_000003.ogg", "preroll_000004.ogg"
+        ).inOrder()
+        assertThat(preparer.committedFragments().map { it.seamForced })
+            .containsExactly(false, true, false, true, true).inOrder()
+    }
+
+    @Test
+    fun `all policy writes the pre-roll at every seam`() {
+        val data = noisy(2000) + ByteArray(3000) + noisy(2000)
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, searchBytes = 2000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.ALL
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        assertThat(preRollFiles().map { it.name }).containsExactly(
+            "preroll_000001.ogg", "preroll_000002.ogg", "preroll_000003.ogg", "preroll_000004.ogg"
+        ).inOrder()
     }
 }

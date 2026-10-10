@@ -61,7 +61,7 @@ class SttLatencyProfileTest {
 
     @Test
     fun `derivation follows the owner formula and clamps`() {
-        // t = 0.6 + 0.05·S → S = (1.3 − 0.3 − 1.5·0.6)/0.05 = 2.0 → clamped to 7
+        // t = 0.6 + 0.05·S → S = (1.3 − 0.3 − 1.5·0.6)/0.05 = 2.0 → clamped to the floor
         val fast = SttLatencyProfile.fit(
             (0 until 12).map { sample(10.0 + it * 3.0, 0.6 + 0.05 * (10.0 + it * 3.0)) }
         )!!
@@ -85,9 +85,14 @@ class SttLatencyProfileTest {
         assertThat(SttLatencyProfile.stepwise(null, 13.0)).isEqualTo(13.0)
         // derived 13 from an applied 21 → within [10.5, 42] → applied unchanged
         assertThat(SttLatencyProfile.stepwise(21.0, 13.0)).isEqualTo(13.0)
-        // derived 4 (clamped floor was 7 in practice, but stepwise guards anyway)
+        // derived 4 (clamped floor is 10 in practice, but stepwise guards anyway)
         assertThat(SttLatencyProfile.stepwise(21.0, 4.0)).isEqualTo(10.5)
         // derived 100 from an applied 21 → capped at 42
         assertThat(SttLatencyProfile.stepwise(21.0, 100.0)).isEqualTo(42.0)
+    }
+
+    @Test
+    fun `the fragment floor is 10 seconds (#122)`() {
+        assertThat(SttLatencyProfile.MIN_FRAGMENT_SECONDS).isEqualTo(10.0)
     }
 }

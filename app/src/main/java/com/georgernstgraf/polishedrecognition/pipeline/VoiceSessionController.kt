@@ -8,6 +8,7 @@ import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
+import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
@@ -49,6 +50,14 @@ class VoiceSessionController(
      * [fragmentSearchBytes].
      */
     private val fragmentPreRollBytes: Int = FragmentPreparer.DEFAULT_PRE_ROLL_BYTES,
+    /**
+     * Seam mechanism policy (#122): whether the acoustic pre-roll + Whisper
+     * prompt are applied at every seam ([SeamPolicy.ALL], the pre-#122
+     * behaviour) or only at forced (hard) cuts ([SeamPolicy.FORCED_ONLY]).
+     * Production defaults to FORCED_ONLY — a silence-aligned cut needs no
+     * manufactured seam. The harness selects the level per run.
+     */
+    private val seamPolicy: SeamPolicy = SeamPolicy.FORCED_ONLY,
     /**
      * Overrides the pipeline's shared [SttRequestRunner] for the live
      * fragment worker (#116); tests inject a fast-backoff runner. `null` in
@@ -239,11 +248,15 @@ class VoiceSessionController(
      */
     private fun attachTranscriber(p: FragmentPreparer) {
         val t = transcriber ?: buildTranscriber().also { transcriber = it }
-        p.onFragmentCommitted = { index, file, preRoll ->
-            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll))
+        p.onFragmentCommitted = { index, file, preRoll, seamForced ->
+            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll, seamForced))
         }
-        p.committedFragments().forEach { (index, file, preRoll) ->
-            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll))
+        p.committedFragments().forEach { committed ->
+            t.offer(
+                FragmentTranscriber.CommittedFragment(
+                    committed.index, committed.file, committed.preRoll, committed.seamForced
+                )
+            )
         }
         t.start()
     }
@@ -259,7 +272,8 @@ class VoiceSessionController(
                 ))
             }
         },
-        logger = logger
+        logger = logger,
+        seamPolicy = seamPolicy
     )
 
     /**
@@ -287,6 +301,7 @@ class VoiceSessionController(
         chunkMaxSeconds = chunkMaxSeconds,
         searchBytes = fragmentSearchBytes,
         preRollBytes = fragmentPreRollBytes,
+        seamPolicy = seamPolicy,
         logger = logger
     )
 

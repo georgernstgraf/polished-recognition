@@ -2,6 +2,7 @@ package com.georgernstgraf.polishedrecognition.pipeline
 
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioDuration
+import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
 import com.georgernstgraf.polishedrecognition.audio.WavAssembler
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.gson.Gson
@@ -64,14 +65,37 @@ class FragmentTranscriber(
     private val scope: CoroutineScope,
     private val onProgress: ((pendingAudioSeconds: Int) -> Unit)? = null,
     /** adb-readable trim evidence (`stt-trim.json`), null in unit tests. */
-    private val logger: RotatingJsonLogger? = null
+    private val logger: RotatingJsonLogger? = null,
+    /**
+     * Whisper prompt window (#117 / #122): characters of the previous
+     * transcript tail passed as `prompt`. Seam-local by default — the prompt
+     * and the acoustic pre-roll now cover the same span; the round-1
+     * `takeLast(800)` vastly exceeded the pre-roll and could make the decoder
+     * emit prompt text not present in the audio (a dup source). The window is
+     * snapped to a word boundary so the prompt never starts mid-word. The old
+     * 800-char behaviour stays reachable as a study knob (#122).
+     */
+    private val promptMaxChars: Int = DEFAULT_PROMPT_MAX_CHARS,
+    /**
+     * Seam mechanism policy (#122): under [SeamPolicy.FORCED_ONLY] the prompt
+     * is skipped on a silence-aligned seam (the acoustic pre-roll is
+     * suppressed there too) — a clean pause needs no cross-seam conditioning.
+     * [SeamPolicy.ALL] keeps today's behaviour for the study's "before" arm.
+     */
+    private val seamPolicy: SeamPolicy = SeamPolicy.ALL
 ) {
 
     data class CommittedFragment(
         val index: Int,
         val file: File,
         /** Pre-roll side file (#117 round 2), null when absent. */
-        val preRoll: File? = null
+        val preRoll: File? = null,
+        /**
+         * #122: was the boundary at this fragment's start a forced (hard)
+         * cut? Under [SeamPolicy.FORCED_ONLY] the text prompt is applied only
+         * then.
+         */
+        val seamForced: Boolean = true
     )
 
     /**
@@ -95,8 +119,12 @@ class FragmentTranscriber(
     }
 
     companion object {
-        /** Prompt carry-over budget (#117): ~200 Whisper tokens of text. */
-        const val PROMPT_MAX_CHARS = 800
+        /**
+         * Default prompt window (#122): ~12 words of seam-local context,
+         * aligned with the 1-s acoustic pre-roll span. Replaces the round-1
+         * `takeLast(800)` (~200 tokens), which predated the pre-roll.
+         */
+        const val DEFAULT_PROMPT_MAX_CHARS = 96
 
         /** Echo-trim match window (#117 round 2): at most 8 tokens of head. */
         const val MAX_ECHO_TOKENS = 8
@@ -247,7 +275,15 @@ class FragmentTranscriber(
         // Serial processing (C=1) in commit order guarantees the previous
         // fragment's transcript exists here (a re-queued failed fragment
         // after resetFailures may have none — then no prompt is sent).
-        val prompt = if (promptDisabled) null else promptTail(transcripts[fragment.index - 1]?.text)
+        // #122: under FORCED_ONLY/FORCED-ONLY the prompt is applied only at a
+        // forced seam (a silence-aligned seam needs no cross-seam context).
+        val seamContext = when (seamPolicy) {
+            SeamPolicy.ALL -> true
+            SeamPolicy.FORCED_ONLY -> fragment.seamForced
+            SeamPolicy.OFF -> false
+        }
+        val prompt = if (promptDisabled || !seamContext) null
+        else promptTail(transcripts[fragment.index - 1]?.text)
         // Acoustic pre-roll (#117 round 2): the upload is composed ONCE (the
         // echoed pre-roll is acoustic — it would appear on either attempt),
         // so BOTH attempts below upload the SAME file, which is deleted
@@ -393,13 +429,21 @@ class FragmentTranscriber(
     }
 
     /**
-     * ~200 Whisper tokens ≈ 800 characters of transcript; the tail carries
-     * the immediate acoustic/linguistic context of the seam. Leading
-     * whitespace is dropped so the prompt starts on a word.
+     * Seam-local prompt (#122): the last [promptMaxChars] characters of the
+     * previous transcript, SNAPPED FORWARD to a word boundary so the prompt
+     * never starts mid-word (the old `takeLast` cut at an arbitrary character
+     * offset, despite the doc-comment claim). A short transcript passes
+     * through unchanged; a single word longer than the window is returned
+     * as-is (nothing to snap to).
      */
     private fun promptTail(text: String?): String? {
         if (text.isNullOrBlank()) return null
-        return text.trim().takeLast(PROMPT_MAX_CHARS)
+        val trimmed = text.trim()
+        if (trimmed.length <= promptMaxChars) return trimmed
+        val window = trimmed.takeLast(promptMaxChars)
+        val firstBoundary = window.indexOfFirst { it.isWhitespace() }
+        if (firstBoundary < 0) return window
+        return window.substring(firstBoundary + 1).trimStart()
     }
 
     private fun checkIdle() {

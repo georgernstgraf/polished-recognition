@@ -26,8 +26,8 @@
     <string name="wrap_width_hint">Wrap output lines at this many characters. Suggestions: 80, 120, 200. Enter 0 to disable wrapping.</string>
     <string name="wrap_width_error">Enter 0 to disable, or a width of 20 or more</string>
     <string name="fragment_seconds">Fragment size in seconds (empty = auto)</string>
-    <string name="fragment_seconds_hint">Each fragment is transcribed while you are still dictating. Auto (empty) measures your STT provider and picks the size so the stop wait stays under ~1.3 s. Enter a number to fix the size (7–60 s) and suspend the auto-sizing.</string>
-    <string name="fragment_seconds_error">Enter a fragment size between 7 and 60 seconds, or leave empty for auto</string>
+    <string name="fragment_seconds_hint">Each fragment is transcribed while you are still dictating. Auto (empty) measures your STT provider and picks the size so the stop wait stays under ~1.3 s. Enter a number to fix the size (10–60 s) and suspend the auto-sizing.</string>
+    <string name="fragment_seconds_error">Enter a fragment size between 10 and 60 seconds, or leave empty for auto</string>
     <string name="app_wrap_section">Line wrap per app</string>
     <string name="app_wrap_pick">App</string>
     <string name="app_wrap_global_hint">global (%1$d)</string>

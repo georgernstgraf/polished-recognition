@@ -1031,7 +1031,7 @@ class SettingsActivity : Activity() {
             return
         }
         settings.wrapWidth = wrapWidth
-        // Fragment-size override (#116 Phase 2): blank = auto, else 7–60 s.
+        // Fragment-size override (#116 Phase 2): blank = auto, else 10–60 s (#122).
         val fragmentText = fragmentSecondsField.text.toString().trim()
         val fragmentOverride = if (fragmentText.isEmpty()) null else fragmentText.toFloatOrNull()
         if (fragmentText.isNotEmpty() && (fragmentOverride == null ||

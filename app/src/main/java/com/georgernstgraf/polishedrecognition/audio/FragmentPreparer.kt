@@ -94,13 +94,39 @@ class FragmentPreparer(
      * [searchBytes].
      */
     private val preRollBytes: Int = DEFAULT_PRE_ROLL_BYTES,
+    /**
+     * Seam mechanism policy (#122): whether the acoustic pre-roll is written
+     * for a boundary, keyed on the boundary's cut type (silence-aligned vs
+     * forced). [SeamPolicy.ALL] preserves the pre-#122 behaviour (pre-roll on
+     * every fragment ≥ 1); production wires [SeamPolicy.FORCED_ONLY].
+     */
+    private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
     private val pollIntervalMs: Long = 500,
     private val logger: RotatingJsonLogger? = null
 ) {
 
     /** `end` = PCM byte offset AFTER this fragment (#117) — 0 marks legacy. */
-    data class Entry(val name: String, val bytes: Long, val end: Long)
+    data class Entry(
+        val name: String,
+        val bytes: Long,
+        val end: Long,
+        /**
+         * #122: did this fragment's END cut land in silence (true) or was it
+         * a hard/forced cut (false)? Drives the NEXT fragment's pre-roll
+         * policy. Legacy manifests parse as `false` (= forced).
+         */
+        val silenceAligned: Boolean = false
+    )
     data class ManifestState(val fallbackToWav: Boolean, val fragments: List<Entry>)
+
+    /** (index, file, preRoll, seamForced) of one committed fragment (#122). */
+    data class Committed(
+        val index: Int,
+        val file: File,
+        val preRoll: File?,
+        /** Was the boundary at this fragment's start a forced (hard) cut? */
+        val seamForced: Boolean
+    )
 
     private val gson = Gson()
 
@@ -117,9 +143,11 @@ class FragmentPreparer(
      * transcription worker consumes fragments through this as they close.
      * `index` is the fragment's position in the stream, `file` the committed
      * OGG/WAV fragment file, `preRoll` the acoustic pre-roll side file
-     * (#117 round 2; `null` for fragment 0 or when its encode failed).
+     * (#117 round 2; `null` for fragment 0 or when its encode failed OR the
+     * seam policy suppressed it), `seamForced` whether the boundary at this
+     * fragment's start was a forced cut (#122).
      */
-    var onFragmentCommitted: ((index: Int, file: File, preRoll: File?) -> Unit)? = null
+    var onFragmentCommitted: ((index: Int, file: File, preRoll: File?, seamForced: Boolean) -> Unit)? = null
 
     /**
      * Upload chunk cap in PCM bytes (#117): the smaller of the byte limit
@@ -291,7 +319,7 @@ class FragmentPreparer(
                 // audio rather than splitting a word unnecessarily
                 return
             }
-            encodeFragment(nextFragment, start, cut ?: nominalEnd)
+            encodeFragment(nextFragment, start, cut ?: nominalEnd, silenceAligned = cut != null)
             nextFragment++
         }
     }
@@ -309,7 +337,9 @@ class FragmentPreparer(
         val start = nextFragmentStart()
         val total = pcm.pcmSize()
         if (total > start) {
-            encodeFragment(nextFragment, start, total)
+            // The tail is NOT a searched cut — it is taken whole (#122 keeps
+            // the stop-tap tail free of any minimum), so it counts as forced.
+            encodeFragment(nextFragment, start, total, silenceAligned = false)
             nextFragment++
         }
     }
@@ -374,40 +404,43 @@ class FragmentPreparer(
     }
 
     /**
-     * (index, file, preRoll) of every committed fragment, in commit order
-     * (#116; the pre-roll side file #117 round 2). The pre-roll is derived
-     * from the fragment's name and is `null` when its file is absent
-     * (fragment 0, a failed pre-roll encode, a legacy session). Safe to call
-     * while the encoder thread runs — COW snapshot semantics.
+     * (index, file, preRoll, seamForced) of every committed fragment, in
+     * commit order (#116/#122). The pre-roll is derived from the fragment's
+     * name and is `null` when its file is absent (fragment 0, a failed
+     * pre-roll encode, a policy-suppressed seam, or a legacy session). Safe
+     * to call while the encoder thread runs — COW snapshot semantics.
      */
-    fun committedFragments(): List<Triple<Int, File, File?>> =
+    fun committedFragments(): List<Committed> =
         entries.mapIndexed { index, entry ->
             val file = File(sessionDir, entry.name)
             val preRoll = File(sessionDir, entry.name.replaceFirst("frag_", "preroll_"))
-            Triple(index, file, preRoll.takeIf { it.isFile })
+            Committed(index, file, preRoll.takeIf { it.isFile }, seamForcedAt(index))
         }
 
-    private fun encodeFragment(index: Int, start: Long, end: Long) {
+    /** Was the boundary at fragment [index]'s start a forced (hard) cut? (#122) */
+    private fun seamForcedAt(index: Int): Boolean =
+        index > 0 && entries.getOrNull(index - 1)?.silenceAligned != true
+
+    private fun encodeFragment(index: Int, start: Long, end: Long, silenceAligned: Boolean) {
         if (end <= start) return
         val data = pcm.copyPcmRange(start, end)
         val started = System.currentTimeMillis()
-        val silenceAligned = (end - start) != fragmentBytes.toLong() ||
-            (start % fragmentBytes != 0L)
         var preRoll: File? = null
 
         if (!fallbackToWav && !wavMode) {
             val target = File(sessionDir, "frag_%06d.ogg".format(index))
             try {
                 transcoder.transcode(WavWriter.write(data, sampleRate), target)
-                entries.add(Entry(target.name, target.length(), end))
+                entries.add(Entry(target.name, target.length(), end, silenceAligned))
             } catch (e: Exception) {
                 // Session-level fallback: OGG is impossible on this ROM —
                 // discard the OGG fragments and rebuild the WHOLE prefix as
                 // WAV (the PCM prefix is immutable and fully available),
                 // then continue in WAV mode below for this very fragment.
-                // The committed boundaries (#117) are captured BEFORE the
-                // clear so the rebuild reproduces the exact same ranges.
+                // The committed boundaries + cut flags (#117/#122) are
+                // captured BEFORE the clear so the rebuild reproduces both.
                 val boundaries = entries.map { it.end }
+                val flags = entries.map { it.silenceAligned }
                 fallbackToWav = true
                 entries.clear()
                 sessionDir.listFiles()?.forEach { file ->
@@ -422,7 +455,7 @@ class FragmentPreparer(
                     // The rebuild's delete sweep wiped the pre-rolls — they
                     // are re-created for every rebuilt fragment (#117 round 2).
                     writePreRoll(i, s, ogg = false)
-                    entries.add(Entry(rebuilt.name, rebuilt.length(), e))
+                    entries.add(Entry(rebuilt.name, rebuilt.length(), e, flags.getOrNull(i) ?: false))
                 }
                 logger?.log(
                     "prepare",
@@ -440,19 +473,19 @@ class FragmentPreparer(
             preRoll = writePreRoll(index, start, ogg = true)
             writeManifest()
             logFragment(index, data.size, end, silenceAligned, started)
-            notifyCommitted(index, "frag_%06d.ogg".format(index), preRoll)
+            notifyCommitted(index, "frag_%06d.ogg".format(index), preRoll, seamForcedAt(index))
             return
         }
         preRoll = writePreRoll(index, start, ogg = false)
-        entries.add(Entry(file.name, file.length(), end))
+        entries.add(Entry(file.name, file.length(), end, silenceAligned))
         writeManifest()
         logFragment(index, data.size, end, silenceAligned, started)
-        notifyCommitted(index, file.name, preRoll)
+        notifyCommitted(index, file.name, preRoll, seamForcedAt(index))
     }
 
-    private fun notifyCommitted(index: Int, name: String, preRoll: File?) {
+    private fun notifyCommitted(index: Int, name: String, preRoll: File?, seamForced: Boolean) {
         try {
-            onFragmentCommitted?.invoke(index, File(sessionDir, name), preRoll)
+            onFragmentCommitted?.invoke(index, File(sessionDir, name), preRoll, seamForced)
         } catch (_: Throwable) {
         }
     }
@@ -469,6 +502,16 @@ class FragmentPreparer(
      */
     private fun writePreRoll(index: Int, start: Long, ogg: Boolean): File? {
         if (index == 0 || preRollBytes <= 0) return null
+        // #122 seam policy: a silence-aligned boundary already separates the
+        // two fragments cleanly — under FORCED_ONLY the pre-roll is written
+        // only at a forced (hard) boundary, where a word straddles the cut.
+        val boundarySilenceAligned = entries.getOrNull(index - 1)?.silenceAligned == true
+        val allowed = when (seamPolicy) {
+            SeamPolicy.ALL -> true
+            SeamPolicy.FORCED_ONLY -> !boundarySilenceAligned
+            SeamPolicy.OFF -> false
+        }
+        if (!allowed) return null
         return try {
             val from = (start - preRollBytes).coerceAtLeast(0L)
             if (from >= start) return null

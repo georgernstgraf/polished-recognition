@@ -62,8 +62,14 @@ class SttLatencyProfile private constructor(
         /** Intercept safety factor in the latency model (owner formula). */
         const val INTERCEPT_FACTOR = 1.5
 
-        /** Derived fragment size bounds (seconds) — the issue's clamp. */
-        const val MIN_FRAGMENT_SECONDS = 7.0
+        /**
+         * Derived fragment size bounds (seconds). The floor was raised 7 → 10 s
+         * (#122): the 7-s floor produced ~118 fragments on a 14-min recording
+         * — a lot of seams, each a potential word-drop/dup site (see #121). It
+         * bounds the *live* fragment size only; the stop-tap tail is taken whole
+         * at any length (no floor).
+         */
+        const val MIN_FRAGMENT_SECONDS = 10.0
         const val MAX_FRAGMENT_SECONDS = 60.0
 
         /** Max stepwise change per adaptation step (±50 %, owner spec). */
