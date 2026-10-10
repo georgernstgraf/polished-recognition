@@ -419,6 +419,27 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun `profiles written before the version guard are discarded (#119)`() {
+        // Simulate a pre-#119 store: samples present, no version key. Their
+        // durationMs came from the corrupt WAV pre-roll header and poisoned
+        // the auto-sizer's fit, so they must be dropped exactly once.
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+            .edit()
+            .putString(
+                "stt_profiles",
+                "{\"https://a/v1/|m|audio/ogg\":{\"samples\":[{\"durationMs\":1000,\"elapsedMs\":900}]}}"
+            )
+            .remove("stt_profiles_version")
+            .commit()
+
+        assertThat(store.sttProfile("https://a/v1/", "m", "audio/ogg")).isNull()
+        // the guard stamps the version, so a new sample survives the read
+        store.recordSttSample("https://a/v1/", "m", "audio/ogg", 21_000, 700)
+        assertThat(store.sttProfile("https://a/v1/", "m", "audio/ogg")!!.samples).hasSize(1)
+    }
+
+    @Test
     fun `fragmentSecondsOverride defaults to null and round-trips`() {
         assertThat(store.fragmentSecondsOverride).isNull()
         store.fragmentSecondsOverride = 30f

@@ -103,6 +103,11 @@ class FragmentPreparerTest {
         fragments.forEach { assertThat(it.readBytes().decodeToString(0, 4)).isEqualTo("RIFF") }
         val chunk = preparer.assembleChunks().single()
         assertThat(chunk.name).isEqualTo("recording_1.wav")
+        // #119: the assembled WAV is REBUILT into one header, not
+        // byte-concatenated — a decoder must see ALL fragments (2500 B PCM),
+        // not only the first one.
+        val assembled = WavReader.read(chunk.readBytes())
+        assertThat(assembled.data.size).isEqualTo(2500)
     }
 
     @Test

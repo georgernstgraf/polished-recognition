@@ -319,7 +319,7 @@ class SettingsStore(
             samples = (existing.samples + SttProfileSample(durationMs, elapsedMs))
                 .takeLast(SttLatencyProfile.MAX_SAMPLES)
         )
-        prefs.edit().putString(STT_PROFILES_KEY, gson.toJson(profiles)).apply()
+        writeSttProfiles(profiles)
     }
 
     /**
@@ -337,7 +337,7 @@ class SettingsStore(
         val profiles = readSttProfiles()
         val existing = profiles[key] ?: SttProviderProfile()
         profiles[key] = existing.copy(lastAppliedSeconds = seconds)
-        prefs.edit().putString(STT_PROFILES_KEY, gson.toJson(profiles)).apply()
+        writeSttProfiles(profiles)
     }
 
     /** Wipes every learned profile (Settings "reset" path, #116 Phase 2). */
@@ -347,9 +347,26 @@ class SettingsStore(
     }
 
     private fun readSttProfiles(): MutableMap<String, SttProviderProfile> {
+        // A version mismatch discards all samples: pre-#119 profiles carry the
+        // bogus ~1000 ms durations measured from the corrupt WAV pre-roll
+        // header, which would otherwise poison the auto-sizer's fit (#119).
+        if (prefs.getInt(STT_PROFILES_VERSION_KEY, 0) != STT_PROFILES_VERSION) {
+            prefs.edit()
+                .remove(STT_PROFILES_KEY)
+                .putInt(STT_PROFILES_VERSION_KEY, STT_PROFILES_VERSION)
+                .apply()
+            return mutableMapOf()
+        }
         val json = prefs.getString(STT_PROFILES_KEY, null) ?: return mutableMapOf()
         return gson.fromJson(json, object : TypeToken<MutableMap<String, SttProviderProfile>>() {}.type)
             ?: mutableMapOf()
+    }
+
+    private fun writeSttProfiles(profiles: MutableMap<String, SttProviderProfile>) {
+        prefs.edit()
+            .putString(STT_PROFILES_KEY, gson.toJson(profiles))
+            .putInt(STT_PROFILES_VERSION_KEY, STT_PROFILES_VERSION)
+            .apply()
     }
 
     private fun sttProfileKey(baseUrl: String, model: String, mediaType: String): String =
@@ -395,6 +412,16 @@ class SettingsStore(
         private const val WRAP_WIDTH_KEY = "wrap_width"
         private const val FRAGMENT_SECONDS_OVERRIDE_KEY = "fragment_seconds_override"
         private const val STT_PROFILES_KEY = "stt_profiles"
+        private const val STT_PROFILES_VERSION_KEY = "stt_profiles_version"
+
+        /**
+         * Bumped when a measurement fix invalidates stored samples. #119: the
+         * WAV pre-roll byte-concat made every fragment upload decode as its
+         * 1-s pre-roll, so `durationMs` was recorded as ~1000 for every
+         * fragment and poisoned the auto-sizer's fit. A mismatch discards all
+         * learned profiles (they re-bootstrap in ~4 min of dictation).
+         */
+        private const val STT_PROFILES_VERSION = 2
 
         /** 6 weeks in milliseconds. */
         const val MODEL_CACHE_TTL_MS = 42L * 24 * 60 * 60 * 1000

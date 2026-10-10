@@ -2,6 +2,7 @@ package com.georgernstgraf.polishedrecognition.pipeline
 
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioDuration
+import com.georgernstgraf.polishedrecognition.audio.WavAssembler
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
@@ -301,22 +302,30 @@ class FragmentTranscriber(
 
     /**
      * The upload file for a fragment (#117 round 2): with a pre-roll
-     * available, `preRoll + fragment` byte-concatenated into
-     * `upload_%06d.<ext>` in the session dir — a chained OGG (or the
-     * chunk-assembly WAV pattern) that hands the decoder ~1 s of acoustic
-     * seam context. Without a pre-roll (fragment 0, failed pre-roll encode,
-     * process death) the bare fragment uploads unchanged. Composition
-     * failures degrade to the bare fragment too — an upload must never be
-     * lost over a missing pre-roll.
+     * available, the pre-roll and the fragment are combined into
+     * `upload_%06d.<ext>` in the session dir, handing the decoder ~1 s of
+     * acoustic seam context. Without a pre-roll (fragment 0, failed pre-roll
+     * encode, process death) the bare fragment uploads unchanged.
+     * Composition failures degrade to the bare fragment too — an upload must
+     * never be lost over a missing pre-roll.
+     *
+     * OGG is byte-concatenated (page chaining is a valid stream); WAV is
+     * REBUILT into one canonical header (#119) — a byte-concat would decouple
+     * the payload from the first file's declared `data` size and make a
+     * decoder read only the pre-roll.
      */
     private fun composeUpload(fragment: CommittedFragment): File {
         val preRoll = fragment.preRoll?.takeIf { it.isFile } ?: return fragment.file
         val ext = fragment.file.name.substringAfterLast('.')
         val upload = File(fragment.file.parentFile, "upload_%06d.$ext".format(fragment.index))
         return try {
-            FileOutputStream(upload).use { out ->
-                preRoll.inputStream().use { it.copyTo(out, 64 * 1024) }
-                fragment.file.inputStream().use { it.copyTo(out, 64 * 1024) }
+            if (ext.equals("wav", ignoreCase = true)) {
+                WavAssembler.concat(listOf(preRoll, fragment.file), upload)
+            } else {
+                FileOutputStream(upload).use { out ->
+                    preRoll.inputStream().use { it.copyTo(out, 64 * 1024) }
+                    fragment.file.inputStream().use { it.copyTo(out, 64 * 1024) }
+                }
             }
             upload
         } catch (_: Throwable) {

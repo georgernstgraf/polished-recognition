@@ -340,10 +340,20 @@ class FragmentPreparer(
                 groupEnd++
             }
             val target = File(targetDir, "recording_%d.%s".format(chunkNo, ext))
-            FileOutputStream(target).use { out ->
-                for (i in index until groupEnd) {
-                    File(sessionDir, entries[i].name).inputStream().use { input ->
-                        input.copyTo(out, 64 * 1024)
+            if (fallbackToWav) {
+                // WAV must be REBUILT, not byte-concatenated (#119): the first
+                // fragment's header would otherwise cap the decoded duration at
+                // one fragment, truncating both the shadow pass and the
+                // full-context-at-stop strategy.
+                val sources = (index until groupEnd).map { File(sessionDir, entries[it].name) }
+                WavAssembler.concat(sources, target)
+            } else {
+                // OGG page chaining makes a byte-concat a valid stream.
+                FileOutputStream(target).use { out ->
+                    for (i in index until groupEnd) {
+                        File(sessionDir, entries[i].name).inputStream().use { input ->
+                            input.copyTo(out, 64 * 1024)
+                        }
                     }
                 }
             }

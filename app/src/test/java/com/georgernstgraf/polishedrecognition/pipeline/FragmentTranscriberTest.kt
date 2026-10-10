@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
+import com.georgernstgraf.polishedrecognition.audio.WavReader
 import com.georgernstgraf.polishedrecognition.audio.WavWriter
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.common.truth.Truth.assertThat
@@ -297,13 +298,15 @@ class FragmentTranscriberTest {
         transcriber.offer(fragment(1, preRollSeconds = 1))
         val drained = transcriber.drain()
 
-        // fragment 0 uploads bare (no pre-roll); fragment 1 uploads
-        // preRoll + fragment byte-concatenated (chained stream)
+        // fragment 0 uploads bare (no pre-roll); fragment 1 uploads the
+        // pre-roll and the fragment combined (#119: a WAV is REBUILT into one
+        // canonical header — a byte-concat would cap the decoded duration at
+        // the 1-s pre-roll and drop the fragment).
         assertThat(uploaded[0].first).isEqualTo("frag_000000.wav")
         assertThat(uploaded[1].first).isEqualTo("upload_000001.wav")
-        val expected = File(tmp.root, "preroll_000001.wav").readBytes() +
-            File(tmp.root, "frag_000001.wav").readBytes()
-        assertThat(uploaded[1].second).isEqualTo(expected)
+        val composed = WavReader.read(uploaded[1].second)
+        assertThat(composed.sampleRate).isEqualTo(16_000)
+        assertThat(composed.data.size).isEqualTo((1 + 7) * 32_000)
         // the composed upload is single-use — deleted after the attempt
         assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
         // the preparer-owned sources survive
