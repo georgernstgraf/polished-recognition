@@ -90,7 +90,7 @@ class HarnessActivity : Activity() {
 
         // 3. inject the sample through the production restore seam
         val pcm = try {
-            WavReader.read(File(input).readBytes()).data
+            WavPcm.extract(File(input).readBytes())
         } catch (e: Throwable) {
             return finishRun(false, "cannot read WAV '$input': ${e.message}")
         }

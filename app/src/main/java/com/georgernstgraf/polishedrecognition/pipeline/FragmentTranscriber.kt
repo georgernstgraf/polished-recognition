@@ -460,8 +460,10 @@ class FragmentTranscriber(
         if (!seamEvidence) return
         val text = trim.response.text
         val previous = transcripts[fragment.index - 1]?.text
+        val durationMs = AudioDuration.estimateMs(fragment.file)
         val record = mapOf(
             "fragment" to fragment.index,
+            "pcmBytes" to durationMs?.let { it * 32 }, // 16 kHz · 16 bit · mono
             "words" to SeamOverlap.wordCount(text),
             "chars" to text.length,
             "language" to trim.response.language,
