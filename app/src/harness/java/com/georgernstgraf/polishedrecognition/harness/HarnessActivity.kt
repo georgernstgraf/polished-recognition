@@ -106,6 +106,7 @@ class HarnessActivity : Activity() {
             fragmentSearchBytes = (searchSeconds * 32_000).toInt(),
             fragmentPreRollBytes = (preRollSeconds * 32_000).toInt(),
             seamPolicy = parsePolicy(policy),
+            promptMaxChars = promptChars,
             seamEvidence = true,
             onShadowResult = { _, full, err ->
                 shadowFull = full.ifBlank { null }

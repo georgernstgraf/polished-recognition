@@ -59,6 +59,12 @@ class VoiceSessionController(
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.FORCED_ONLY,
     /**
+     * Whisper prompt window in characters (#122 study knob): passed through to
+     * [FragmentTranscriber]. `<= 0` disables the prompt. Production keeps the
+     * seam-local default.
+     */
+    private val promptMaxChars: Int = FragmentTranscriber.DEFAULT_PROMPT_MAX_CHARS,
+    /**
      * #122: turn on the per-fragment `stt-fragment.json` seam evidence. Off
      * in production; the study harness builds its own controller with it on.
      */
@@ -292,7 +298,8 @@ class VoiceSessionController(
         },
         logger = logger,
         seamPolicy = seamPolicy,
-        seamEvidence = seamEvidence
+        seamEvidence = seamEvidence,
+        promptMaxChars = promptMaxChars
     )
 
     /**

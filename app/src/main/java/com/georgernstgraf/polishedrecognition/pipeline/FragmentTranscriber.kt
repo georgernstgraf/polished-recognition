@@ -490,6 +490,7 @@ class FragmentTranscriber(
      * as-is (nothing to snap to).
      */
     private fun promptTail(text: String?): String? {
+        if (promptMaxChars <= 0) return null // #122 study knob: prompt disabled
         if (text.isNullOrBlank()) return null
         val trimmed = text.trim()
         if (trimmed.length <= promptMaxChars) return trimmed
