@@ -18,8 +18,14 @@ object WavChunker {
     /** Default upload-size limit in bytes (aitranscribe `MAX_AUDIO_SIZE_MB = 25`). */
     const val MAX_CHUNK_BYTES: Int = 25 * 1024 * 1024
 
-    /** Default per-chunk duration limit in seconds (`max_duration_s = 600`). */
-    const val MAX_CHUNK_SECONDS: Double = 600.0
+    /**
+     * Default per-chunk duration limit in seconds. Hard-capped at **300 s
+     * (5 min)** (#120): uploads above ~5 min make Whisper hallucinate/loop on
+     * BOTH gregor (hardcoded `vad_filter=True` collapses long files) and
+     * GROQ. This is a hard code limit, not a heuristic — the byte cap can
+     * only lower the effective block size, never raise it.
+     */
+    const val MAX_CHUNK_SECONDS: Double = 300.0
 
     /** Minimum segment duration in seconds, mirroring aitranscribe's `max(60, ...)`. */
     const val MIN_SEGMENT_SECONDS: Double = 60.0

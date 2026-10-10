@@ -94,6 +94,26 @@ class WavChunkerTest {
     }
 
     @Test
+    fun `default duration cap is the hard 5-minute limit`() {
+        // #120: >5-min uploads make Whisper hallucinate/loop on gregor + GROQ.
+        assertThat(WavChunker.MAX_CHUNK_SECONDS).isEqualTo(300.0)
+    }
+
+    @Test
+    fun `long recording splits into blocks no longer than the 5-minute cap`() {
+        val seconds = 700.0
+        // Default limits (#120): the 300-s duration cap binds, not the byte cap.
+        val chunks = WavChunker.chunk(buildWav(seconds))
+
+        assertThat(chunks.size).isAtLeast(3)
+        chunks.forEach { chunk ->
+            assertThat(WavReader.read(chunk).data.size / 32_000.0).isAtMost(300.0)
+        }
+        // No sample lost or duplicated across the block boundary.
+        assertThat(PcmSink(chunks).data).isEqualTo(WavReader.read(buildWav(seconds)).data)
+    }
+
+    @Test
     fun `minimum segment floor of 60 seconds is kept`() {
         // duration-based split would want ~0.5 s chunks; MIN_SEGMENT_SECONDS = 60 wins.
         val chunks = WavChunker.chunk(

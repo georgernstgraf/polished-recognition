@@ -294,8 +294,8 @@ class VoiceSessionController(
      * The fragment size in PCM bytes for this session (#116 Phase 2): the
      * auto-sizer's seconds when a [fragmentSizeProvider] is wired, the
      * constructor [fragmentBytes] otherwise (tests). Defensively clamped to
-     * the upload cap — a bogus resolved size must never exceed the 600-s
-     * chunk limit the preparer's assembly relies on.
+     * the upload cap — a bogus resolved size must never exceed the 300-s
+     * chunk limit the preparer's assembly relies on (#120).
      */
     private fun resolvedFragmentBytes(): Int {
         val seconds = fragmentSizeProvider?.invoke()
@@ -920,9 +920,10 @@ class VoiceSessionController(
      * original WAV so a recording is never lost over transcoding.
      *
      * Chunking (#115, port of aitranscribe's `chunk_audio`): uploads beyond
-     * the STT limits (25 MB / 600 s) are split at sample boundaries BEFORE
-     * compression — an Ogg is never split (impossible without re-encode),
-     * each chunk is compressed (or falls back to WAV) individually.
+     * the STT limits (25 MB / 300 s, #120) are split at sample boundaries
+     * BEFORE compression — an Ogg is never split (impossible without
+     * re-encode), each chunk is compressed (or falls back to WAV)
+     * individually.
      * Recordings within both limits keep the legacy single-file names
      * `recording.{wav,ogg}`.
      *

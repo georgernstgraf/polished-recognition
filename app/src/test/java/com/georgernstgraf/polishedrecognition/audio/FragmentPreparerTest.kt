@@ -46,7 +46,7 @@ class FragmentPreparerTest {
 
     private fun newPreparer(
         fragmentBytes: Int = 1000,
-        chunkMaxSeconds: Double = 600.0,
+        chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
         wavMode: Boolean = false,
         searchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
         preRollBytes: Int = 0 // pre-roll off unless a test opts in (#117 round 2)
@@ -382,6 +382,25 @@ class FragmentPreparerTest {
         // the stale fragment was overwritten by a fresh encode of the real range
         assertThat(stale.length()).isNotEqualTo(4)
         assertThat(fragmentFiles()).hasSize(2)
+    }
+
+    @Test
+    fun `chunk assembly never exceeds the default 5-minute cap`() {
+        // 320 s of PCM at 32 000 B/s: the 300-s cap (#120) must force a split.
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(ByteArray(320 * 32_000)), transcoder = transcoder,
+            sessionDir = sessionDir, fragmentBytes = FragmentPreparer.DEFAULT_FRAGMENT_BYTES,
+            wavMode = true, searchBytes = 0
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        val chunks = preparer.assembleChunks()
+        assertThat(chunks.size).isAtLeast(2)
+        chunks.forEach { chunk ->
+            val seconds = WavReader.read(chunk.readBytes()).data.size / 32_000.0
+            assertThat(seconds).isAtMost(300.0)
+        }
     }
 
     @Test

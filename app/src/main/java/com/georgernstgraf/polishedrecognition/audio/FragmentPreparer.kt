@@ -17,9 +17,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  * **chaining** (RFC 3533) is a native format feature — simply concatenating
  * self-contained fragment files produces a valid chained stream every
  * decoder (ffmpeg/Whisper) plays through, with a per-link encoder pre-skip
- * "tick" (~6.5 ms) at each seam. A 600-s upload chunk is therefore assembled
- * at stop time by byte-concatenating its fragments — no custom muxer
- * involved.
+ * "tick" (~6.5 ms) at each seam. An upload chunk (hard-capped at 300 s, #120)
+ * is therefore assembled at stop time by byte-concatenating its fragments —
+ * no custom muxer involved.
  *
  * **Silence-aligned boundaries (#117):** the fixed 7-s byte cuts split words
  * at the seams (the owner observed consistent word drops), and each
@@ -123,8 +123,9 @@ class FragmentPreparer(
 
     /**
      * Upload chunk cap in PCM bytes (#117): the smaller of the byte limit
-     * (25 MB WAV) and the duration limit (600 s = 19.2 MB of 16-kHz mono
-     * 16-bit PCM). Chunks accumulate fragments until adding the next would
+     * (25 MB WAV) and the duration limit (300 s = 9.6 MB of 16-kHz mono
+     * 16-bit PCM, #120 — the time cap binds and the byte cap can only lower
+     * it further). Chunks accumulate fragments until adding the next would
      * exceed this — with variable fragment lengths a count-based grouping
      * could overshoot the cap, and the Phase 2 auto-sizer may settle on
      * fragment sizes different from the default, so the cap must be
