@@ -82,7 +82,15 @@ class FragmentTranscriber(
      * suppressed there too) — a clean pause needs no cross-seam conditioning.
      * [SeamPolicy.ALL] keeps today's behaviour for the study's "before" arm.
      */
-    private val seamPolicy: SeamPolicy = SeamPolicy.ALL
+    private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
+    /**
+     * #122: when true, every fragment's transcript evidence is appended to
+     * `stt-fragment.json` — index, words, chars, language, seam type, the
+     * actual prompt text, echo-trim tokens and the seam-overlap metric. Off
+     * in production (the harness turns it on): the array is rewritten per
+     * fragment, which is cheap for a study but unnecessary for daily use.
+     */
+    private val seamEvidence: Boolean = false
 ) {
 
     data class CommittedFragment(
@@ -254,6 +262,7 @@ class FragmentTranscriber(
         failures.clear()
         offered.clear()
         queued.clear()
+        seamEvidenceRecords.clear()
         pendingAudioMs.set(0)
         promptDisabled = false
         pendingDrain?.cancel()
@@ -326,7 +335,9 @@ class FragmentTranscriber(
                 // fragment's prompt AND its known tail — an untrimmed echo
                 // would re-condition the decoder on the duplicated words and
                 // compound per seam.
-                transcripts[fragment.index] = trimEcho(fragment, response)
+                val trim = trimEcho(fragment, response)
+                transcripts[fragment.index] = trim.response
+                recordSeamEvidence(fragment, trim, prompt)
             },
             onFailure = { e ->
                 val ex = e as? SttRequestRunner.SttRequestException
@@ -383,12 +394,12 @@ class FragmentTranscriber(
      * duplication beats loss (the LLM polish can dedupe, lost words are
      * gone).
      */
-    private fun trimEcho(fragment: CommittedFragment, response: SttResponse): SttResponse {
+    private fun trimEcho(fragment: CommittedFragment, response: SttResponse): TrimResult {
         val uploadWithPreRoll = fragment.preRoll?.isFile == true
-        if (!uploadWithPreRoll) return response
+        if (!uploadWithPreRoll) return TrimResult(response, 0, false)
         val knownTail = transcripts[fragment.index - 1]?.text
         val text = response.text
-        if (knownTail.isNullOrBlank() || text.isBlank()) return response
+        if (knownTail.isNullOrBlank() || text.isBlank()) return TrimResult(response, 0, uploadWithPreRoll)
         val known = TOKEN_REGEX.findAll(knownTail).map { it.value.lowercase() }.toList()
         val fresh = TOKEN_REGEX.findAll(text)
             .map { it.value.lowercase() to it.range.first }
@@ -420,12 +431,52 @@ class FragmentTranscriber(
                 )
             )
         )
-        if (echoTokens == 0) return response
+        if (echoTokens == 0) return TrimResult(response, 0, uploadWithPreRoll)
         // Drop the first echoTokens tokens; the text is rebuilt from the
         // NEXT token's offset so leading punctuation/whitespace goes too
         // (a full-echo fragment trims to empty).
         val trimmed = if (echoTokens >= fresh.size) "" else text.substring(fresh[echoTokens].second)
-        return response.copy(text = trimmed)
+        return TrimResult(response.copy(text = trimmed), echoTokens, uploadWithPreRoll)
+    }
+
+    /** Echo-trim outcome of one fragment (#117 round 2 / #122 evidence). */
+    private data class TrimResult(
+        val response: SttResponse,
+        val echoTokens: Int,
+        val uploadWithPreRoll: Boolean
+    )
+
+    /** Per-fragment seam evidence, keyed by index; written as one JSON array (#122). */
+    private val seamEvidenceRecords = ConcurrentSkipListMap<Int, String>()
+
+    /**
+     * Appends this fragment's seam evidence (#122) and rewrites the whole
+     * `stt-fragment.json` array. The array form is deliberate: every other
+     * evidence stream is a single record rotated 9 deep, which would keep only
+     * the last 9 of ~40-80 fragments — useless for a seam study. Gated by
+     * [seamEvidence] so production pays nothing.
+     */
+    private fun recordSeamEvidence(fragment: CommittedFragment, trim: TrimResult, prompt: String?) {
+        if (!seamEvidence) return
+        val text = trim.response.text
+        val previous = transcripts[fragment.index - 1]?.text
+        val record = mapOf(
+            "fragment" to fragment.index,
+            "words" to SeamOverlap.wordCount(text),
+            "chars" to text.length,
+            "language" to trim.response.language,
+            "languageProbability" to trim.response.languageProbability,
+            "seamForced" to fragment.seamForced,
+            "uploadWithPreRoll" to trim.uploadWithPreRoll,
+            "promptChars" to (prompt?.length ?: 0),
+            "prompt" to prompt,
+            "echoTokens" to trim.echoTokens,
+            "seamOverlapTokens" to SeamOverlap.longestTokenOverlap(previous, text),
+            "seamOverlapText" to SeamOverlap.overlapText(previous, text),
+            "text" to text
+        )
+        seamEvidenceRecords[fragment.index] = gson.toJson(record)
+        logger?.log("stt-fragment", "[" + seamEvidenceRecords.values.joinToString(",\n") + "]")
     }
 
     /**

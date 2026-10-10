@@ -531,4 +531,35 @@ class FragmentTranscriberTest {
         assertThat(prompt.length).isAtMost(800)
         assertThat(long.endsWith(prompt)).isTrue()
     }
+
+    @Test
+    fun `seam evidence is one accumulating array when enabled`() = runBlocking {
+        val logDir = tmp.newFolder("logs")
+        transcriber = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            logger = RotatingJsonLogger(logDir),
+            seamEvidence = true
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            when (thirdArg<Int>() - 1) {
+                0 -> ok("Der Patient klagt über Schmerzen und Fieber")
+                else -> ok("und Fieber am Abend stärker")
+            }
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.drain()
+
+        val json = File(logDir, "stt-fragment.json").readText()
+        // both fragments in ONE array (rotation would otherwise keep only the
+        // last 9), with the seam-overlap metric computed across the seam
+        assertThat(json).contains("\"fragment\":0")
+        assertThat(json).contains("\"fragment\":1")
+        assertThat(json).contains("\"seamOverlapTokens\":2")
+        assertThat(json).contains("\"words\":5")
+    }
 }

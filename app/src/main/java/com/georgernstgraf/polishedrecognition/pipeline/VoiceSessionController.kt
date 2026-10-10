@@ -59,6 +59,11 @@ class VoiceSessionController(
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.FORCED_ONLY,
     /**
+     * #122: turn on the per-fragment `stt-fragment.json` seam evidence. Off
+     * in production; the study harness builds its own controller with it on.
+     */
+    private val seamEvidence: Boolean = false,
+    /**
      * Overrides the pipeline's shared [SttRequestRunner] for the live
      * fragment worker (#116); tests inject a fast-backoff runner. `null` in
      * production — the runner comes from the pipeline (same Retrofit cache
@@ -273,7 +278,8 @@ class VoiceSessionController(
             }
         },
         logger = logger,
-        seamPolicy = seamPolicy
+        seamPolicy = seamPolicy,
+        seamEvidence = seamEvidence
     )
 
     /**
