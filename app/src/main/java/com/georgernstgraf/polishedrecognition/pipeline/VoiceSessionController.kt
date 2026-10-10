@@ -64,6 +64,19 @@ class VoiceSessionController(
      */
     private val seamEvidence: Boolean = false,
     /**
+     * #122 study hook: invoked when the shadow pass finishes, with the joined
+     * fragment text, the full-context text (empty on failure) and an error
+     * string (null on success). The harness uses it as its "run is done"
+     * signal and as the seam reference. `null` in production.
+     */
+    private val onShadowResult: ((fragmentText: String, fullText: String, error: String?) -> Unit)? = null,
+    /**
+     * #122 study gate: when false, the full-context-at-stop strategy is
+     * disabled so the delivered text is ALWAYS the fragment join (otherwise
+     * short samples can bypass the seams under study). `true` in production.
+     */
+    private val fullContextAtStopEnabled: Boolean = true,
+    /**
      * Overrides the pipeline's shared [SttRequestRunner] for the live
      * fragment worker (#116); tests inject a fast-backoff runner. `null` in
      * production — the runner comes from the pipeline (same Retrofit cache
@@ -682,7 +695,7 @@ class VoiceSessionController(
                 // below the multi-minute uploads where gregor's server-side
                 // VAD collapses (measured 2026-10-10, see PITFALLS). Any
                 // failure or empty result falls back to the fragment join.
-                if (drained.failure == null) {
+                if (drained.failure == null && fullContextAtStopEnabled) {
                     val fullContext = maybeFullContextAtStop(p, drained)
                     if (fullContext != null) {
                         return pipeline.finishTranscription(
@@ -909,6 +922,7 @@ class VoiceSessionController(
                         )
                     )
                 )
+                onShadowResult?.invoke(fragmentText, fullText, error)
             } catch (crashed: Throwable) {
                 // pure diagnostics — never a pipeline failure, but NEVER silent
                 val stack = crashed.stackTrace
@@ -924,6 +938,10 @@ class VoiceSessionController(
                             "stack" to stack
                         )
                     )
+                )
+                onShadowResult?.invoke(
+                    fragmentText, "",
+                    "shadow crashed: ${crashed.javaClass.name}: ${crashed.message ?: ""}"
                 )
             } finally {
                 // the assembled shadow chunks are single-use

@@ -40,6 +40,16 @@ class VoiceSessionControllerTest {
     @Before
     fun setUp() {
         val ctx = RuntimeEnvironment.getApplication()
+        // Hermetic per-test state: the controller's snapshot + prepared/
+        // fragment dirs live in the SHARED app cacheDir, so a prior test class
+        // in the same Robolectric sandbox can otherwise leak a snapshot into a
+        // test that never asked for one (a restored fragment then shows up as
+        // a spurious finishTranscription instead of the legacy transcribe).
+        File(ctx.cacheDir, "session.pcm").delete()
+        File(ctx.cacheDir, "session.meta").delete()
+        File(ctx.cacheDir, "fragments").deleteRecursively()
+        File(ctx.cacheDir, "prepared").deleteRecursively()
+        File(ctx.cacheDir, "shadow").deleteRecursively()
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         settings = SettingsStore(ctx)
         // The live fragment worker (#116) resolves the provider itself.
@@ -173,9 +183,27 @@ class VoiceSessionControllerTest {
         controller.stopAndTranscribe("com.example.chat")
         controller.awaitIdle()
 
-        val pkgSlot = slot<String>()
-        coVerify { pipeline.transcribe(any(), capture(pkgSlot), any()) }
-        assertThat(pkgSlot.captured).isEqualTo("com.example.chat")
+        // Which surface is reached is nondeterministic under Robolectric (the
+        // shadow AudioRecord may or may not yield a byte, selecting the live
+        // fragment path vs the legacy batch path) — the point of this test is
+        // that the caller PACKAGE propagates, so accept either surface.
+        val legacyPkg = slot<String>()
+        val fragmentPkg = slot<String>()
+        val usedLegacy = try {
+            coVerify { pipeline.transcribe(any(), capture(legacyPkg), any()) }
+            true
+        } catch (_: AssertionError) {
+            false
+        }
+        val usedFragment = try {
+            coVerify { pipeline.finishTranscription(any(), capture(fragmentPkg), any()) }
+            true
+        } catch (_: AssertionError) {
+            false
+        }
+        assertThat(usedLegacy || usedFragment).isTrue()
+        assertThat(if (usedLegacy) legacyPkg.captured else fragmentPkg.captured)
+            .isEqualTo("com.example.chat")
     }
 
     /**

@@ -134,6 +134,21 @@ android {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
         }
+        /**
+         * #122 seam-study harness — NEVER shipped: F-Droid/Play/CI build only
+         * `release`, and this variant's manifest/service set exists only under
+         * `src/harness/`. It reuses release's applicationId + signing key so it
+         * installs in place over the release app and shares the device's
+         * provider config. Build/install with `./gradlew installHarness`.
+         */
+        create("harness") {
+            initWith(getByName("release"))
+            isMinifyEnabled = false
+            isDebuggable = true
+            if (releaseKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     compileOptions {
