@@ -1,5 +1,7 @@
 # Hand Off
 
+**2026-10-10 (night): rotation storm investigation — the #113 amendment (`21e9e80`) is VERIFIED on-device (post-01:40:59 install: `sameField=false + gateFresh + RECORDING → FREEZE`, previously `CANCEL`). The storm is Oplus re-creating the IME input view; the 3000 ms `RotationGate` absorbs it and the dictation survives (UI churns per cycle). An IME cannot block rotation (no API) — the fix is delivery-side. New issue #118 files the partial-transcript insertion seen on rotation (raw-rescue / `pendingResult`); plan + 4 owner questions are on the issue. Storm/pid/build table posted to #113.**
+
 **2026-10-10 (later): #116 Phase 2 CORE SHIPPED (`f152cd9` + `9453658`) — Theil–Sen per-provider profiles → auto fragment sizing (stepwise ±50 %, bootstrap 12 samples), full-context-at-stop with the gregor-safe predicted-latency gate, Settings override field. The #117 test-flake watch item ROOT-CAUSED and FIXED (real ordering bug: the failure branch published PAUSED before `snapshot()` — on-device that window loses the dictation; + harness event race). C=1 kept — concurrency conflicts with prompt carry-over; owner decision flagged on #116. Next: owner on-device verify.**
 
 **2026-10-10 (early): #117 CLOSED — round 2 (21-s fragments + 1-s acoustic pre-roll + echo trim) verified on-device: 0 dropped words (baseline −9), 0 "…" hallucinations (baseline 6×), fragment text ⊇ full text. Trunk at `dc04eb9`.**
@@ -24,6 +26,7 @@
 7. [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 × 14 days.
 8. [ ] **#109 visual check (owner)** — notification mic icon variant B, both paths.
 9. [ ] **#99 (owner)** — Google overview page outdated images; **#101 (owner)** — token storage vs Auto Backup; **#75** — rate-limit header logging; insertion-spacing watch — passive.
+10. [ ] **#118 partial-insertion on rotation (owner input needed)** — Phase A breadcrumb → Phase B delivery policy → Phase C storm UX → Phase D verify; blocked on the 4 open questions on the issue. Related: #113.
 
 ## Known on-device gotchas
 

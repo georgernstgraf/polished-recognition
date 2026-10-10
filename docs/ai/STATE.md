@@ -21,6 +21,14 @@ Long-form stress test of the round-2 pipeline (owner played a ~15-min movie into
 - Language misdetected `nn` (Norwegian Nynorsk, 0.61) on the assembled live text — audio is English; dialogue chunks still transcribed fine. One music hallucination at the credits tail entered the fragment text (not the full pass).
 - IME: **no freeze during the movie session**; a FREEZE recurrence was captured at 22:18:36 CEST in the earlier dictation session (evidence posted to #113).
 
+## 2026-10-10 night rotation investigation (feeds #113 / #118)
+
+- **#113 amendment verified on-device** (`21e9e80`, installed 01:40:59 CEST): post-install storms show `sameField=false + gateFresh + RECORDING → FREEZE` (log lines 145/147/155/157); the 01:24 `CANCEL` (10.5-min loss) predates the fix.
+- **Storm mechanics**: Oplus re-creates the IME input view on rotation → repeated `onStartInputView(FREEZE) → onConfigurationChanged → onFinishInputView(inst=true)`; the 3000 ms `RotationGate` window absorbs the cascade, so the session survives but the UI churns per cycle.
+- **An IME cannot block rotation** — no API; orientation is the client's; global rotate-lock needs `WRITE_SETTINGS` and is Oplus-blocked. Fix belongs on the delivery side.
+- **New #118**: rotation can insert a *partial* transcript (raw-mode rescue / `pendingResult` re-delivery). The only insertion site is `Event.Completed → commitWithSpacing`; there is no streaming insertion. Plan + owner questions on #118.
+- Evidence: `ime-lifecycle.log` (01:24–02:15 CEST); storm/pid/build table posted to #113.
+
 ## Current Focus
 **#116 Phase 2 verification** — the core is shipped (profile fit + auto sizing + full-context-at-stop + override UI, see DECISIONS 2026-10-10); concurrency is ruled out permanently (owner verdict, ~25× floor). What remains is the owner on-device verify. The test-flake watch item is CLOSED (root-caused, fixed, relocated to HISTORY).
 
@@ -32,7 +40,8 @@ Long-form stress test of the round-2 pipeline (owner played a ~15-min movie into
 ## Pending
 - [ ] **#116 Phase 2 on-device verify (owner)** — core shipped (`f152cd9` + `9453658`); auto-sizing engages after ≥ 12 samples (~4 min dictation at 21 s; profiles start EMPTY, no retro-fit of old logs). Acceptance: `stt-upload` cadence at the auto-derived size, stop→raw ≤ 1.3 s (gregor) / ≤ 1 s (GROQ), Settings field round-trip (blank = auto, 7–60 s), `stt-shadow` `fullContextAtStop` records on fast-provider sessions. Watch: derived gregor size may differ from the predicted 12–14 s (the fit decides). Concurrency: ruled out permanently (owner 2026-10-10).
 - [ ] **#112 verify (owner)** — tap "Restore Default Prompts", confirm the crafted prompt appears; then close.
-- [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back. Recurrence captured 2026-10-09 22:18:36 CEST (evidence on the issue; `restarting=true state=RECORDING outcome=FREEZE` path).
+- [ ] **#113 freeze recurrence (owner)** — stage line, X-tap vs system-back. Recurrence captured 2026-10-09 22:18:36 CEST (evidence on the issue; `restarting=true state=RECORDING outcome=FREEZE` path). 2026-10-10 night: amendment verified on-device, storm analysis posted.
+- [ ] **#118 partial-insertion on rotation (owner input)** — mechanism hypotheses + plan on the issue; needs owner answers to the 4 open questions.
 - [ ] **F-Droid 1.3.6 pickup watch (automatic)**.
 - [ ] **#74 Phase 1 posting (owner)** — r/fossdroid, r/degoogle (Showcase), r/selfhosted (modmail), kuketz, Facebook (#108); welcome message into the Google Group.
 - [ ] **#74 Play-alpha recruitment (owner)** — 20–30 testers, ≥12 × 14 days.
