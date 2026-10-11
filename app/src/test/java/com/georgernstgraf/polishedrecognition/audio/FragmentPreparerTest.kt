@@ -290,9 +290,13 @@ class FragmentPreparerTest {
     fun `continuous speech falls back to the hard cut at the nominal boundary`() {
         val data = noisy(3500)
         val p = FakePcm(data)
+        // energyFallbackEnabled = false → the #117 hard-cut behaviour; the
+        // #124 default (true) moves the cut into the late window half (see
+        // the energy-fallback tests below)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            energyFallbackEnabled = false
         )
 
         preparer.encodeAvailableFragments() // window complete, no silence → cut at 1000
@@ -585,11 +589,12 @@ class FragmentPreparerTest {
     fun `forced-only keeps the pre-roll at hard cuts and drops it at a silence seam`() {
         // frag0 [0,1000) forced · frag1 ends in silence (run [2000,5000)) ·
         // frag2 [3000,4000) forced · frag3 [4000,5000) forced · tail [5000,7000)
+        // (energyFallbackEnabled = false keeps the #122 boundaries under study)
         val data = noisy(2000) + ByteArray(3000) + noisy(2000)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
             fragmentBytes = 1000, searchBytes = 2000, preRollBytes = 320,
-            seamPolicy = SeamPolicy.FORCED_ONLY
+            seamPolicy = SeamPolicy.FORCED_ONLY, energyFallbackEnabled = false
         )
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
@@ -608,7 +613,7 @@ class FragmentPreparerTest {
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
             fragmentBytes = 1000, searchBytes = 2000, preRollBytes = 320,
-            seamPolicy = SeamPolicy.ALL
+            seamPolicy = SeamPolicy.ALL, energyFallbackEnabled = false
         )
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
@@ -616,5 +621,61 @@ class FragmentPreparerTest {
         assertThat(preRollFiles().map { it.name }).containsExactly(
             "preroll_000001.ogg", "preroll_000002.ogg", "preroll_000003.ogg", "preroll_000004.ogg"
         ).inOrder()
+    }
+
+    // ---- #124: adaptive search + quietest-frame energy fallback -------------
+
+    /** Full-amplitude 16-bit speech-like noise (sample RMS ≈ 43 605). */
+    private fun loud(size: Int) =
+        ByteArray(size) { i -> if (i % 2 == 0) 0x55 else 0xAA.toByte() }
+
+    /**
+     * Constant-byte frame: every sample = 257·[level] — above the silence
+     * threshold (RMS > 500) for level ≥ 2 but far below [loud].
+     */
+    private fun dip(size: Int, level: Int) = ByteArray(size) { level.toByte() }
+
+    @Test
+    fun `energy fallback cuts at the quietest frame in the late half of the window`() {
+        // fragmentBytes = 1000 (nominal), searchBytes = 2000 → window
+        // [1000, 3000), fallback range [2000, 3000) (= [1.5S, 2S]). The GLOBAL
+        // quietest dip (level 2) sits in the EARLY half — the fallback must
+        // ignore it and cut at the late-half dip (level 3, frame-aligned at
+        // [2640, 2960)) → cut at its centre 2800.
+        val data = loud(1300) + dip(320, 2) + loud(380) +   // early half [1000,2000)
+            loud(640) + dip(320, 3) + loud(40) +            // late half  [2000,3000)
+            loud(500)                                        // tail region
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+        )
+
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        val payloads = fragmentFiles().map { payload(it) }
+        assertThat(payloads.map { it.size }).containsExactly(2800, 700).inOrder()
+        // the fallback cut is FORCED (not silence-aligned) → FORCED_ONLY would
+        // still apply the pre-roll + prompt at this seam
+        assertThat(preparer.committedFragments().map { it.seamForced })
+            .containsExactly(false, true).inOrder()
+    }
+
+    @Test
+    fun `a recording below 2S without pauses collapses to a single fragment`() {
+        // search = S (320 000 B) → fragment spans [S, 2S] = [10, 20] s; a
+        // 12.5-s recording never fills the first search window, so nothing
+        // commits live and the stop-tap tail takes the whole stream.
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(loud(400_000)), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 320_000, wavMode = true, searchBytes = 320_000
+        )
+
+        preparer.encodeAvailableFragments()
+        assertThat(fragmentFiles()).isEmpty()
+
+        preparer.prepareTailSync()
+        assertThat(fragmentFiles().map { payload(it).size }).containsExactly(400_000)
+        assertThat(preparer.committedFragments().map { it.seamForced }).containsExactly(false)
     }
 }

@@ -30,7 +30,9 @@ import java.io.File
  * Recognised extras: `file` (required), `label`, `mode` (raw|german|polish),
  * `format` (ogg|wav), `policy` (all|forced|off), `fragmentSeconds`,
  * `searchSeconds`, `preRollSeconds`, `promptChars` (int), `reference` (bool,
- * default true = run the shadow as the seam reference), `timeoutSeconds` (int).
+ * default true = run the shadow as the seam reference), `energyFallback`
+ * (bool, default true = the #124 quietest-frame forced-cut fallback),
+ * `timeoutSeconds` (int).
  */
 class HarnessActivity : Activity() {
 
@@ -51,6 +53,7 @@ class HarnessActivity : Activity() {
     private var preRollSeconds = 1f
     private var promptChars = 96
     private var reference = true
+    private var energyFallback = true
 
     private var completed: VoiceSessionController.Event.Completed? = null
     private var shadowFull: String? = null
@@ -73,6 +76,7 @@ class HarnessActivity : Activity() {
         preRollSeconds = intent.getFloatExtra("preRollSeconds", 1f)
         promptChars = intent.getIntExtra("promptChars", 96)
         reference = intent.getBooleanExtra("reference", true)
+        energyFallback = intent.getBooleanExtra("energyFallback", true)
         val timeoutMs = intent.getIntExtra("timeoutSeconds", 600) * 1000L
 
         val settings = app.settingsStore
@@ -102,11 +106,17 @@ class HarnessActivity : Activity() {
             context = this,
             pipeline = app.transcriptionPipeline,
             settings = settings,
+            // No fragmentSizeProvider on purpose (#124): an explicit
+            // fragmentSearchBytes keeps its exact semantics only without a
+            // provider (with one wired, the controller derives search =
+            // max(search, fragment)); the harness pins the size via
+            // fragmentBytes directly.
             fragmentBytes = (fragmentSeconds * 32_000).toInt(),
             fragmentSearchBytes = (searchSeconds * 32_000).toInt(),
             fragmentPreRollBytes = (preRollSeconds * 32_000).toInt(),
             seamPolicy = parsePolicy(policy),
             promptMaxChars = promptChars,
+            fragmentEnergyFallback = energyFallback,
             seamEvidence = true,
             onShadowResult = { _, full, err ->
                 shadowFull = full.ifBlank { null }
@@ -116,8 +126,7 @@ class HarnessActivity : Activity() {
             },
             fullContextAtStopEnabled = false,
             logger = app.jsonLogger,
-            shadowSttEnabled = { reference },
-            fragmentSizeProvider = { fragmentSeconds.toDouble() }
+            shadowSttEnabled = { reference }
         )
 
         controller.attach { event ->
@@ -163,6 +172,7 @@ class HarnessActivity : Activity() {
             "preRollSeconds" to preRollSeconds,
             "promptChars" to promptChars,
             "reference" to reference,
+            "energyFallback" to energyFallback,
             "deliveredText" to delivered,
             "deliveredWordCount" to delivered?.split(Regex("\\s+"))?.count { it.isNotBlank() },
             "redelivered" to (completed?.redelivered ?: false),

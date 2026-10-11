@@ -7,7 +7,6 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
-import com.georgernstgraf.polishedrecognition.config.SttEndpointPolicy
 import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
@@ -106,19 +105,15 @@ class PolishedRecognitionApp : Application() {
     val voiceSessionController by lazy {
         val fragmentSizer = SttFragmentSizer(settingsStore)
         VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger,
-            shadowSttEnabled = {
-                settingsStore.sttProvider?.baseUrl?.let { isLocalSttEndpoint(it) } == true
-            },
+            // #125: both diagnostics are OFF in release (BuildConfig gates,
+            // false in defaultConfig) and ON in debug/harness. The shadow's
+            // old LAN-endpoint gate (SttEndpointPolicy) is gone with it —
+            // the shadow is diagnostic-only and unreliable on long/noisy
+            // audio (#122), so release never runs it at all.
+            shadowSttEnabled = { BuildConfig.SHADOW_STT },
+            fullContextAtStopEnabled = BuildConfig.FULL_CONTEXT_AT_STOP,
             fragmentSizeProvider = { fragmentSizer.fragmentSeconds() })
     }
-
-    /**
-     * The #117 shadow comparison runs only against LOCAL STT endpoints:
-     * the extra full-context pass costs GPU time on the user's own box
-     * (gregor measures 22–29× realtime), but real money against cloud
-     * providers. Pure string heuristic — no DNS on any caller thread.
-     */
-    private fun isLocalSttEndpoint(baseUrl: String): Boolean = SttEndpointPolicy.isLocal(baseUrl)
 
     /**
      * Last IME rotation signal, monotonic uptime ms written by

@@ -75,4 +75,43 @@ class SilenceCutterTest {
         assertThat(cut!! % 2).isEqualTo(0)
         assertThat(pcm[cut].toInt()).isEqualTo(0)
     }
+
+    // ---- #124: quietest-frame forced-cut fallback ---------------------------
+
+    /** Constant-byte frame: every sample = 257·[level] (deterministic energy). */
+    private fun frame(level: Int) = ByteArray(SilenceCutter.FRAME_BYTES) { level.toByte() }
+
+    @Test
+    fun `quietest frame cut lands at the frame centre`() {
+        // loud, quiet (level 3), medium (level 7) → the quiet frame wins
+        val pcm = frame(20) + frame(3) + frame(7)
+
+        val cut = SilenceCutter.quietestFrameCut(pcm)
+
+        // frame 1 → centre = 320 + 160 = 480
+        assertThat(cut).isEqualTo(480)
+        assertThat(cut!! % 2).isEqualTo(0)
+    }
+
+    @Test
+    fun `quietest frame ties resolve to the earliest frame`() {
+        val pcm = frame(5) + frame(3) + frame(3)
+
+        assertThat(SilenceCutter.quietestFrameCut(pcm)).isEqualTo(320 + 160)
+    }
+
+    @Test
+    fun `a trailing partial frame is ignored by the quietest search`() {
+        // 2 full frames + 40 B remainder: the quieter frame 0 wins despite the
+        // partial frame 2 being all-zero (it is not a candidate)
+        val pcm = frame(4) + frame(9) + ByteArray(40)
+
+        assertThat(SilenceCutter.quietestFrameCut(pcm)).isEqualTo(160)
+    }
+
+    @Test
+    fun `quietest frame windows below one frame return null`() {
+        assertThat(SilenceCutter.quietestFrameCut(ByteArray(SilenceCutter.FRAME_BYTES - 1))).isNull()
+        assertThat(SilenceCutter.quietestFrameCut(ByteArray(0))).isNull()
+    }
 }

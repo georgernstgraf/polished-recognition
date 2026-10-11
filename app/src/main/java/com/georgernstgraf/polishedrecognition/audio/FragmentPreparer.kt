@@ -30,10 +30,14 @@ import java.util.concurrent.CopyOnWriteArrayList
  * fragment *i+1* starts just before the next onset. The stream stays
  * GAPLESS: fragment *i+1* starts exactly where *i* ended, so the assembled
  * chunks still reproduce the original PCM byte-for-byte. No qualifying
- * silence within the search window (continuous speech) → hard cut at the
- * nominal boundary, as before. Finding the cut may wait for up to the
- * search window of extra audio — a ≤2-s commit-delay cadence cost, still
- * far below the fragment length.
+ * silence within the search window (continuous speech) → forced cut: the
+ * **quietest-frame fallback (#124)** cuts at the minimum-energy 10-ms frame
+ * in the window's LATE half (`[1.5S, 2S]` when `search = S`) — the least
+ * energetic frame is the least likely place to split a word — or the hard
+ * cut at the nominal boundary when the fallback is disabled. Finding the cut
+ * may wait for up to the search window of extra audio — with the adaptive
+ * `search = max(2 s, S)` (#124) that is an up-to-`S` commit-delay cadence
+ * cost, still bounded by the fragment length (a fragment spans `[S, 2S]`).
  *
  * **Acoustic pre-roll (#117 round 2):** the text prompt conditions only the
  * decoder — it cannot add acoustic context, and a server-side VAD can trim
@@ -101,6 +105,17 @@ class FragmentPreparer(
      * every fragment ≥ 1); production wires [SeamPolicy.FORCED_ONLY].
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
+    /**
+     * #124: on a full search window with NO qualifying silence run, fall back
+     * to the quietest 10-ms frame in the window's LATE half
+     * (`[nominalEnd + search/2, nominalEnd + search]` = `[1.5S, 2S]` when
+     * `search = S`) instead of the hard cut at the nominal boundary — the
+     * least energetic frame is the least likely place to split a word. The
+     * fallback cut is tagged FORCED (`silenceAligned = false`) so
+     * `SeamPolicy.FORCED_ONLY` still applies the pre-roll + prompt there.
+     * `false` restores the #117 hard cut (the harness A/B knob).
+     */
+    private val energyFallbackEnabled: Boolean = true,
     private val pollIntervalMs: Long = 500,
     private val logger: RotatingJsonLogger? = null
 ) {
@@ -299,9 +314,11 @@ class FragmentPreparer(
     /**
      * Encodes every fragment whose cut point is DECIDABLE (#117): a
      * fragment commits once either a silence run was found within the
-     * searched window, or the full search window is available (hard cut at
-     * the nominal boundary). With [searchBytes] = 0 this degenerates to the
-     * legacy fixed-offset behavior.
+     * searched window, or the full search window is available (forced cut —
+     * the #124 energy fallback picks the quietest frame in the window's late
+     * half, or the hard cut at the nominal boundary when the fallback is
+     * disabled). With [searchBytes] = 0 this degenerates to the legacy
+     * fixed-offset behavior.
      */
     fun encodeAvailableFragments() {
         while (true) {
@@ -309,17 +326,27 @@ class FragmentPreparer(
             val nominalEnd = start + fragmentBytes
             val total = pcm.pcmSize()
             if (total < nominalEnd) return
-            val windowEnd = minOf(total, nominalEnd + searchBytes.toLong())
-            val cut = if (windowEnd > nominalEnd) {
+            val searchEnd = nominalEnd + searchBytes.toLong()
+            val windowEnd = minOf(total, searchEnd)
+            val cut = if (searchBytes > 0 && windowEnd > nominalEnd) {
                 SilenceCutter.findCut(pcm.copyPcmRange(nominalEnd, windowEnd))
                     ?.let { nominalEnd + it }
             } else null
-            if (cut == null && windowEnd < nominalEnd + searchBytes) {
+            if (cut == null && windowEnd < searchEnd) {
                 // window still growing and no silence yet — wait for more
                 // audio rather than splitting a word unnecessarily
                 return
             }
-            encodeFragment(nextFragment, start, cut ?: nominalEnd, silenceAligned = cut != null)
+            val forcedCut = if (cut == null && energyFallbackEnabled && searchBytes > 0) {
+                // #124: no qualifying silence in the FULL window — cut at
+                // the quietest 10-ms frame of the LATE half
+                // [nominalEnd + search/2, nominalEnd + search] (= [1.5S, 2S]
+                // when search = S), never below the nominal boundary
+                val from = nominalEnd + searchBytes.toLong() / 2
+                SilenceCutter.quietestFrameCut(pcm.copyPcmRange(from, searchEnd))
+                    ?.let { from + it } ?: nominalEnd
+            } else nominalEnd
+            encodeFragment(nextFragment, start, cut ?: forcedCut, silenceAligned = cut != null)
             nextFragment++
         }
     }

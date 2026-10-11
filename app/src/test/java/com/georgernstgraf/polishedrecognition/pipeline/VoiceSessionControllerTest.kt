@@ -3,6 +3,7 @@ package com.georgernstgraf.polishedrecognition.pipeline
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
+import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
@@ -1293,6 +1294,67 @@ class VoiceSessionControllerTest {
         assertThat(stt.chunkCount).isEqualTo(4)
         verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         clearSessionFiles()
+    }
+
+    /**
+     * #124 adaptive silence search: a wired [fragmentSizeProvider] (the
+     * production auto-sizer wiring) grows the search window with the fragment
+     * size — `max(2 s, S)` → fragment spans `[S, 2S]`. Here S = 10 s (the
+     * production floor), 40 s of continuous speech with two 1-s pauses at
+     * 15 s and 28 s: both sit BEYOND a fixed 2-s search window ([10, 12] s /
+     * [25.5, 27.5] s) but INSIDE the derived 10-s windows ([10, 20] s /
+     * [25.5, 35.5] s) — so both cuts are silence-aligned (15.5 s and 28.5 s)
+     * and the session lands on 3 fragments. With the old fixed 2-s search
+     * (and the hard cut, no energy fallback) the same audio cuts at the
+     * nominal 10-s boundaries → 4 fragments, both pauses missed.
+     */
+    @Test
+    fun `fragmentSizeProvider grows the silence search with the fragment size`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        // 40 s of loud speech, pauses (zero runs) at [15, 16] s and [28, 29] s
+        val data = ByteArray(1_280_000) { i ->
+            val silence = (i in 480_000 until 512_000) || (i in 896_000 until 928_000)
+            if (silence) 0 else if (i % 2 == 0) 0x55 else 0xAA.toByte()
+        }
+        File(cacheDir, "session.pcm").writeBytes(data)
+        File(cacheDir, "session.meta").writeText("""{"durationMs":40000,"sessionId":"testsess"}""")
+
+        val controller = newController(
+            fragmentSearchBytes = FragmentPreparer.DEFAULT_SEARCH_BYTES, // production default (2 s)
+            fragmentSizeProvider = { 10.0 } // the auto-sizer floor
+        )
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
+            mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val stt = sttSlot.captured.getOrThrow()
+        assertThat(stt.chunkCount).isEqualTo(3)
+        verify(exactly = 3) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
+        clearSessionFiles()
+    }
+
+    /**
+     * #124 invariant: the largest possible fragment span with
+     * `search = max(2 s, S)` is `2S` — at the sizer's 60-s ceiling that is
+     * 120 s, which must stay within the 300-s upload chunk cap (#120). A
+     * guard against future cap drift in either constant.
+     */
+    @Test
+    fun `adaptive search keeps the largest fragment span within the chunk cap`() {
+        assertThat(2.0 * SttLatencyProfile.MAX_FRAGMENT_SECONDS)
+            .isAtMost(WavChunker.MAX_CHUNK_SECONDS)
     }
 
     /**

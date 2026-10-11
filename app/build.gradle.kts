@@ -100,6 +100,14 @@ android {
         val commitCount = providers.of(CommitCountSource::class.java) {}.get().trim()
         val versionDisplay = if (commitCount == "0") versionName else "$versionName+$commitCount"
         buildConfigField("String", "VERSION_DISPLAY", "\"$versionDisplay\"")
+
+        // #125: the shadow comparison and the full-context-at-stop strategy
+        // are DIAGNOSTICS, not delivery features — release ships BOTH OFF
+        // (the fragment join is the only delivery path; the shadow is
+        // unreliable on long/noisy audio, #122). debug/harness override both
+        // to true below.
+        buildConfigField("boolean", "SHADOW_STT", "false")
+        buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "false")
     }
 
     val keystoreProperties = Properties().apply {
@@ -133,6 +141,9 @@ android {
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
+            // #125: diagnostics stay available in debug (and harness below).
+            buildConfigField("boolean", "SHADOW_STT", "true")
+            buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
         }
         /**
          * #122 seam-study harness — NEVER shipped: F-Droid/Play/CI build only
@@ -148,6 +159,9 @@ android {
             if (releaseKeystore.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            // #125: diagnostics stay available in the harness.
+            buildConfigField("boolean", "SHADOW_STT", "true")
+            buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
         }
     }
 

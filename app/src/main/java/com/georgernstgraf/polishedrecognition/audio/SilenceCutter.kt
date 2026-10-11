@@ -73,6 +73,35 @@ object SilenceCutter {
     }
 
     /**
+     * #124 forced-cut fallback: the byte offset (relative to the window start)
+     * of the CENTER of the minimum-energy 10-ms frame, or `null` when the
+     * window holds less than one full frame. Frames tile the window from its
+     * start; a trailing partial frame is ignored. Ties resolve to the
+     * EARLIEST frame (deterministic). The caller passes only the LATE half of
+     * the search window (`[1.5S, 2S]` when `search = S`) so the cut can never
+     * land before the nominal boundary — a continuous-speech stream still
+     * cuts at its least energetic frame instead of mid-word at the nominal
+     * boundary.
+     */
+    fun quietestFrameCut(pcm: ByteArray): Int? {
+        if (pcm.size < FRAME_BYTES) return null
+        val frames = pcm.size / FRAME_BYTES
+        var bestFrame = -1
+        var bestEnergy = Long.MAX_VALUE
+        for (frame in 0 until frames) {
+            val energy = frameEnergy(pcm, frame)
+            if (energy < bestEnergy) {
+                bestEnergy = energy
+                bestFrame = frame
+            }
+        }
+        if (bestFrame < 0) return null
+        // center of the 10-ms frame — FRAME_BYTES / 2 is even, so the cut is
+        // sample-aligned
+        return bestFrame * FRAME_BYTES + FRAME_BYTES / 2
+    }
+
+    /**
      * Frame RMS ≤ threshold test without floats: the running sum of squares
      * is compared against `samplesSeen · threshold²` with an early exit.
      */
@@ -86,5 +115,16 @@ object SilenceCutter {
             if (sum > thresholdSq * samplesSeen) return false
         }
         return true
+    }
+
+    /** Sum of squares of one 10-ms frame's samples (no threshold, no floats). */
+    private fun frameEnergy(pcm: ByteArray, frame: Int): Long {
+        val base = frame * FRAME_BYTES
+        var sum = 0L
+        for (i in 0 until FRAME_BYTES step 2) {
+            val sample = ((pcm[base + i + 1].toInt()) shl 8) or (pcm[base + i].toInt() and 0xFF)
+            sum += sample.toLong() * sample
+        }
+        return sum
     }
 }

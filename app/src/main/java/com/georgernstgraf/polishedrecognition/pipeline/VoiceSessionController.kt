@@ -39,6 +39,9 @@ class VoiceSessionController(
     /**
      * Forward silence-search window around the nominal fragment boundary
      * (#117); tests inject 0 to reproduce the legacy fixed-offset cuts.
+     * #124: when a [fragmentSizeProvider] is wired (production) the effective
+     * window grows to `max(fragmentSearchBytes, fragmentBytes)` — see
+     * [resolvedSearchBytes].
      */
     private val fragmentSearchBytes: Int = FragmentPreparer.DEFAULT_SEARCH_BYTES,
     /**
@@ -58,6 +61,13 @@ class VoiceSessionController(
      * manufactured seam. The harness selects the level per run.
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.FORCED_ONLY,
+    /**
+     * #124: pass-through of the preparer's quietest-frame forced-cut
+     * fallback (see [FragmentPreparer.energyFallbackEnabled]). `true` in
+     * production (the frozen config); the harness A/Bs it via
+     * `--ez energyFallback`.
+     */
+    private val fragmentEnergyFallback: Boolean = true,
     /**
      * Whisper prompt window in characters (#122 study knob): passed through to
      * [FragmentTranscriber]. `<= 0` disables the prompt. Production keeps the
@@ -79,7 +89,11 @@ class VoiceSessionController(
     /**
      * #122 study gate: when false, the full-context-at-stop strategy is
      * disabled so the delivered text is ALWAYS the fragment join (otherwise
-     * short samples can bypass the seams under study). `true` in production.
+     * short samples can bypass the seams under study). #125: release wiring
+     * passes `BuildConfig.FULL_CONTEXT_AT_STOP` (`false` in release — the
+     * strategy is a debug/harness diagnostic, and with the #124 adaptive
+     * search its benefit window mostly vanishes anyway); the constructor
+     * default stays `true` so debug/harness and the tests keep the strategy.
      */
     private val fullContextAtStopEnabled: Boolean = true,
     /**
@@ -99,8 +113,10 @@ class VoiceSessionController(
      * quality evidence (joined fragment transcripts vs full-context STT of
      * the same audio). Deliberately fire-and-forget: it must never delay
      * the result, fail the session, or pollute the Phase 2 measurement
-     * streams (its requests run with evidence off). Production wires a
-     * LAN-provider gate — cloud providers would pay real money twice.
+     * streams (its requests run with evidence off). #125: release wiring
+     * passes `BuildConfig.SHADOW_STT` (`false` in release — the shadow is
+     * diagnostic-only and unreliable on long/noisy audio, #122); the
+     * harness wires its own reference gate.
      */
     private val shadowSttEnabled: () -> Boolean = { false },
     /**
@@ -325,9 +341,10 @@ class VoiceSessionController(
         wavMode = !settings.compressAudio,
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
-        searchBytes = fragmentSearchBytes,
+        searchBytes = resolvedSearchBytes(),
         preRollBytes = fragmentPreRollBytes,
         seamPolicy = seamPolicy,
+        energyFallbackEnabled = fragmentEnergyFallback,
         logger = logger
     )
 
@@ -343,6 +360,25 @@ class VoiceSessionController(
             ?: return fragmentBytes
         val clamped = seconds.coerceIn(1.0, chunkMaxSeconds)
         return (clamped * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt()
+    }
+
+    /**
+     * The silence-search window in PCM bytes for this session (#124): with a
+     * [fragmentSizeProvider] wired (production — auto-sized fragments), the
+     * window GROWS with the fragment size, `max(fragmentSearchBytes,
+     * resolvedFragmentBytes())` — a fragment then spans `[S, 2S]` and the
+     * silence scan sees a full fragment's worth of audio past the nominal
+     * boundary. Without a provider (tests, the harness — explicit injected
+     * values) the constructor value keeps its exact semantics; an explicitly
+     * injected 0 stays the legacy fixed-offset cut. Invariant: `2S ≤
+     * chunkMaxSeconds` holds by construction — the sizer clamps S to
+     * [SttLatencyProfile.MAX_FRAGMENT_SECONDS] (60 s) and the chunk cap is
+     * 300 s (#120).
+     */
+    private fun resolvedSearchBytes(): Int = when {
+        fragmentSearchBytes <= 0 -> fragmentSearchBytes
+        fragmentSizeProvider == null -> fragmentSearchBytes
+        else -> maxOf(fragmentSearchBytes, resolvedFragmentBytes())
     }
 
     /**
@@ -716,14 +752,18 @@ class VoiceSessionController(
                 // on success, and the main-looper-queued shadow coroutine
                 // only reads its files later (the assembly race was found in
                 // the first on-device verify). The coroutine deletes the dir
-                // when it is done. The gate decision is logged as a breadcrumb
-                // so a silently-absent shadow record is diagnosable on-device.
-                val shadowGate = shadowSttEnabled()
-                logger?.log(
-                    "stt-shadow",
-                    gson.toJson(mapOf("event" to "gate", "enabled" to shadowGate, "chunkCount" to drained.chunkCount))
-                )
-                if (shadowGate) {
+                // when it is done. #125: the whole block — breadcrumb
+                // included — sits behind the gate, so a release build writes
+                // NO `stt-shadow.json` at all (the shadow is a diagnostic,
+                // not a delivery feature); harness/debug keep the gate
+                // breadcrumb so a silently-absent shadow record stays
+                // diagnosable there ("feature did nothing" vs "feature
+                // failed").
+                if (shadowSttEnabled()) {
+                    logger?.log(
+                        "stt-shadow",
+                        gson.toJson(mapOf("event" to "gate", "chunkCount" to drained.chunkCount))
+                    )
                     val shadowFiles = withContext(Dispatchers.IO) {
                         p.assembleChunks(File(appContext.cacheDir, SHADOW_DIR).apply { deleteRecursively(); mkdirs() })
                     }
@@ -760,10 +800,13 @@ class VoiceSessionController(
      * can only improve, never lose, the delivered text.
      *
      * The requests run with evidence ON: they are real `(S, t)` samples of
-     * the same provider (large-S points, valuable to the fit). The gate is
-     * inherently gregor-safe: predicted ≤ 1.3 s bounds the recording size to
-     * a fraction of the multi-minute uploads on which the server-side VAD
-     * collapses (2026-10-10 measurement, PITFALLS).
+     * the same provider — SMALL-S points: the gate caps the recording at
+     * `a + b·S_total ≤ 1.3 s`, which bounds `S_total` at ~15 s (the gregor
+     * fit: a=0.566, b=0.050 → S_total ≤ 14.7 s), far below the multi-minute
+     * uploads on which the server-side VAD collapses (2026-10-10
+     * measurement, PITFALLS). OFF in release (#125 — the strategy is a
+     * debug/harness diagnostic; the fragment join is the only delivery
+     * path).
      *
      * Returns `null` whenever the strategy does not fire or does not produce
      * usable text — the caller then proceeds with the fragment join exactly
@@ -805,7 +848,7 @@ class VoiceSessionController(
                 val body = result.getOrNull()
                 if (body == null) {
                     logger?.log(
-                        "stt-shadow",
+                        "stt-fullcontext",
                         gson.toJson(
                             mapOf(
                                 "event" to "fullContextAtStop",
@@ -826,7 +869,7 @@ class VoiceSessionController(
             val fullText = parts.filter { it.isNotBlank() }.joinToString(" ").trim()
             if (fullText.isEmpty()) {
                 logger?.log(
-                    "stt-shadow",
+                    "stt-fullcontext",
                     gson.toJson(
                         mapOf(
                             "event" to "fullContextAtStop",
@@ -838,7 +881,7 @@ class VoiceSessionController(
                 return null
             }
             logger?.log(
-                "stt-shadow",
+                "stt-fullcontext",
                 gson.toJson(
                     mapOf(
                         "event" to "fullContextAtStop",
