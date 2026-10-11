@@ -1,0 +1,298 @@
+[
+  {
+    "class": "de_interview",
+    "source": "@Audiobooks/Konrad Paul Liessmann/Denken und Leben I - CD 5/06 Philosophie und Öffentlichkeit - Mit Manfred Jochum im Gespräch.mp3",
+    "start": 120.0,
+    "duration": 10,
+    "file": "de_interview/de_interview_10s.wav",
+    "sha256": "0ebd4ec7ae0bb82db54b5ce3ea6cbb908237a76a1b5e9918d367362ff4bb2ff2"
+  },
+  {
+    "class": "de_interview",
+    "source": "@Audiobooks/Konrad Paul Liessmann/Denken und Leben I - CD 5/06 Philosophie und Öffentlichkeit - Mit Manfred Jochum im Gespräch.mp3",
+    "start": 120.0,
+    "duration": 30,
+    "file": "de_interview/de_interview_30s.wav",
+    "sha256": "5d319d0ce248b8d0deb1d2e4650cd5c445fa54a1082f24f3d238a657fa6144e9"
+  },
+  {
+    "class": "de_interview",
+    "source": "@Audiobooks/Konrad Paul Liessmann/Denken und Leben I - CD 5/06 Philosophie und Öffentlichkeit - Mit Manfred Jochum im Gespräch.mp3",
+    "start": 120.0,
+    "duration": 60,
+    "file": "de_interview/de_interview_60s.wav",
+    "sha256": "2fded06421ddddd87476f2309fb523992e10ed2e813ccca33793139b9ca72cec"
+  },
+  {
+    "class": "de_interview",
+    "source": "@Audiobooks/Konrad Paul Liessmann/Denken und Leben I - CD 5/06 Philosophie und Öffentlichkeit - Mit Manfred Jochum im Gespräch.mp3",
+    "start": 120.0,
+    "duration": 150,
+    "file": "de_interview/de_interview_150s.wav",
+    "sha256": "05b0a09dda66623fac004fbc0bd216cbdad0bde03b1f7b9c0ab7b7734114e7f0"
+  },
+  {
+    "class": "de_interview",
+    "source": "@Audiobooks/Konrad Paul Liessmann/Denken und Leben I - CD 5/06 Philosophie und Öffentlichkeit - Mit Manfred Jochum im Gespräch.mp3",
+    "start": 120.0,
+    "duration": 300,
+    "file": "de_interview/de_interview_300s.wav",
+    "sha256": "4cc2645d44bab6b663ec5819b51603117313c4faa3198d26783354ee832f7cb7"
+  },
+  {
+    "class": "de_monologue_male",
+    "source": "_VORTRÄGE/Buermann/Buermann 20_11_Erlebnisschule.mp3",
+    "start": 120.0,
+    "duration": 10,
+    "file": "de_monologue_male/de_monologue_male_10s.wav",
+    "sha256": "c41668b5da86d3e2834dcd800a754af47b3927ed2079b9879b4025a6998e65f8"
+  },
+  {
+    "class": "de_monologue_male",
+    "source": "_VORTRÄGE/Buermann/Buermann 20_11_Erlebnisschule.mp3",
+    "start": 120.0,
+    "duration": 30,
+    "file": "de_monologue_male/de_monologue_male_30s.wav",
+    "sha256": "69e428b9c83cba155be89de120c83c5dbd854167a13238425102ed8b5b0c4164"
+  },
+  {
+    "class": "de_monologue_male",
+    "source": "_VORTRÄGE/Buermann/Buermann 20_11_Erlebnisschule.mp3",
+    "start": 120.0,
+    "duration": 60,
+    "file": "de_monologue_male/de_monologue_male_60s.wav",
+    "sha256": "7f1ba268b3a9065a379eb37dff4011d5a47103d5d7003d96425ba092f0dd8b34"
+  },
+  {
+    "class": "de_monologue_male",
+    "source": "_VORTRÄGE/Buermann/Buermann 20_11_Erlebnisschule.mp3",
+    "start": 120.0,
+    "duration": 150,
+    "file": "de_monologue_male/de_monologue_male_150s.wav",
+    "sha256": "94b60ed8fe684e0f08bf818fd9936e1ed5fb35cfb4ec6d67a6ea4bb7b23e0481"
+  },
+  {
+    "class": "de_monologue_male",
+    "source": "_VORTRÄGE/Buermann/Buermann 20_11_Erlebnisschule.mp3",
+    "start": 120.0,
+    "duration": 300,
+    "file": "de_monologue_male/de_monologue_male_300s.wav",
+    "sha256": "3fae6c011737f8d0767e2c084157324896cb37e2557cfe3862851e4bd4010474"
+  },
+  {
+    "class": "en_interview",
+    "source": "Scared Weird Little Guys/Live at 42 Walnut Crescent/21 - Scared Weird Little Guys - Kiss.mp3",
+    "start": 30.0,
+    "duration": 10,
+    "file": "en_interview/en_interview_10s.wav",
+    "sha256": "d2920bc06d381a70b14fd7c0f260dbcaec2d36f1555288289a8beddb7ed4b9ba"
+  },
+  {
+    "class": "en_interview",
+    "source": "Scared Weird Little Guys/Live at 42 Walnut Crescent/21 - Scared Weird Little Guys - Kiss.mp3",
+    "start": 30.0,
+    "duration": 30,
+    "file": "en_interview/en_interview_30s.wav",
+    "sha256": "daa7997627470b1c7e26e672ba1b31d9c767fd8552a10803e6ff9071a60a321f"
+  },
+  {
+    "class": "en_interview",
+    "source": "Scared Weird Little Guys/Live at 42 Walnut Crescent/21 - Scared Weird Little Guys - Kiss.mp3",
+    "start": 30.0,
+    "duration": 60,
+    "file": "en_interview/en_interview_60s.wav",
+    "sha256": "f48f019d1ce74d2b0002b4f9567a725196f75e270170552617a3b94781272201"
+  },
+  {
+    "class": "en_interview",
+    "source": "Scared Weird Little Guys/Live at 42 Walnut Crescent/21 - Scared Weird Little Guys - Kiss.mp3",
+    "start": 30.0,
+    "duration": 150,
+    "file": "en_interview/en_interview_150s.wav",
+    "sha256": "ad7333556aa975fac33bcd138384c83f499cc620327909fb7a1fe822e8b59120"
+  },
+  {
+    "class": "en_interview",
+    "source": "Scared Weird Little Guys/Live at 42 Walnut Crescent/21 - Scared Weird Little Guys - Kiss.mp3",
+    "start": 30.0,
+    "duration": 300,
+    "file": "en_interview/en_interview_300s.wav",
+    "sha256": "28edc8439cccd21e065c6f11036e1df2d790ccd743d32bdcd046b69d8a9041b7"
+  },
+  {
+    "class": "en_monologue_female",
+    "source": "@Esoterik/Gangaji/Gangaji - Who are You - complete/Gangaji - Who Are You - 04 of 19 - Searching and Awakening.mp3",
+    "start": 60.0,
+    "duration": 10,
+    "file": "en_monologue_female/en_monologue_female_10s.wav",
+    "sha256": "d27db7861d7c224f2944620a6106d300e232392ff8874f79939bb1c3cf72f944"
+  },
+  {
+    "class": "en_monologue_female",
+    "source": "@Esoterik/Gangaji/Gangaji - Who are You - complete/Gangaji - Who Are You - 04 of 19 - Searching and Awakening.mp3",
+    "start": 60.0,
+    "duration": 30,
+    "file": "en_monologue_female/en_monologue_female_30s.wav",
+    "sha256": "cb5ee0d17b7d6460993b5754df411ef062a7f129a066deafa129981c1bbc3a1b"
+  },
+  {
+    "class": "en_monologue_female",
+    "source": "@Esoterik/Gangaji/Gangaji - Who are You - complete/Gangaji - Who Are You - 04 of 19 - Searching and Awakening.mp3",
+    "start": 60.0,
+    "duration": 60,
+    "file": "en_monologue_female/en_monologue_female_60s.wav",
+    "sha256": "7e01634e9fc4b2acc6cc8e5a43c77e9aba60e7909f44f563d7cad19fdfb56c3b"
+  },
+  {
+    "class": "en_monologue_female",
+    "source": "@Esoterik/Gangaji/Gangaji - Who are You - complete/Gangaji - Who Are You - 04 of 19 - Searching and Awakening.mp3",
+    "start": 60.0,
+    "duration": 150,
+    "file": "en_monologue_female/en_monologue_female_150s.wav",
+    "sha256": "03150752a2626c67a8408bbb56b4b83edfafdce7811a194d87bd365a163c1731"
+  },
+  {
+    "class": "en_monologue_female",
+    "source": "@Esoterik/Gangaji/Gangaji - Who are You - complete/Gangaji - Who Are You - 04 of 19 - Searching and Awakening.mp3",
+    "start": 60.0,
+    "duration": 300,
+    "file": "en_monologue_female/en_monologue_female_300s.wav",
+    "sha256": "aae67df03a1fb54a4324fc973e99771815c3af0a98d0f37fec8bdba0676794de"
+  },
+  {
+    "class": "en_monologue_female",
+    "source": "@Esoterik/Gangaji/Gangaji - Who are You - complete/Gangaji - Who Are You - 04 of 19 - Searching and Awakening.mp3",
+    "start": 60.0,
+    "duration": 600,
+    "file": "en_monologue_female/en_monologue_female_600s.wav",
+    "sha256": "052add55c2984da187e2f4d2bf69367c927709d4a94bd1f42840a5e449ad98f4"
+  },
+  {
+    "class": "en_monologue_male",
+    "source": "@Audiobooks/Fear and Loathing in Las Vegas CD 1 - 01.mp3",
+    "start": 60.0,
+    "duration": 10,
+    "file": "en_monologue_male/en_monologue_male_10s.wav",
+    "sha256": "8e3a05750da273c3d6804ae3c17f06c58141117784cfb116ec9ae2e8287c477f"
+  },
+  {
+    "class": "en_monologue_male",
+    "source": "@Audiobooks/Fear and Loathing in Las Vegas CD 1 - 01.mp3",
+    "start": 60.0,
+    "duration": 30,
+    "file": "en_monologue_male/en_monologue_male_30s.wav",
+    "sha256": "de418aa05736fdf51f3fff156d13e2a24baebfe8ee65274fd49e8a7db3a4f158"
+  },
+  {
+    "class": "en_monologue_male",
+    "source": "@Audiobooks/Fear and Loathing in Las Vegas CD 1 - 01.mp3",
+    "start": 60.0,
+    "duration": 60,
+    "file": "en_monologue_male/en_monologue_male_60s.wav",
+    "sha256": "6a33733b03aba733a16c192c421b3d649c4e5e10c6fd907c9bedbdcb14ae5a27"
+  },
+  {
+    "class": "en_monologue_male",
+    "source": "@Audiobooks/Fear and Loathing in Las Vegas CD 1 - 01.mp3",
+    "start": 60.0,
+    "duration": 150,
+    "file": "en_monologue_male/en_monologue_male_150s.wav",
+    "sha256": "62f9cbbd6bfe632ab015482ae08066db40c0b01128684d16e34d68ad5eaf8ae8"
+  },
+  {
+    "class": "en_monologue_male",
+    "source": "@Audiobooks/Fear and Loathing in Las Vegas CD 1 - 01.mp3",
+    "start": 60.0,
+    "duration": 300,
+    "file": "en_monologue_male/en_monologue_male_300s.wav",
+    "sha256": "067c12de89663647649919775658019878784619cb9db73803f4493bf66511e9"
+  },
+  {
+    "class": "en_monologue_male",
+    "source": "@Audiobooks/Fear and Loathing in Las Vegas CD 1 - 01.mp3",
+    "start": 60.0,
+    "duration": 600,
+    "file": "en_monologue_male/en_monologue_male_600s.wav",
+    "sha256": "ce2a22376346ffd57ccb2ad508f5eda42a9bf26d9b3faa95de4c5ead2d4f58fe"
+  },
+  {
+    "class": "panel_multispeaker",
+    "source": "_VORTRÄGE/Pöltner/Poeltner - Das Hoeren auf das Ungehoerte und seine Bedeutung fuer die Praxis der Psychotherapie - 2018-01.12 - Frage und Antwort.ogg",
+    "start": 120.0,
+    "duration": 10,
+    "file": "panel_multispeaker/panel_multispeaker_10s.wav",
+    "sha256": "137965c25e87bd7ee1c0d499001df0280639e01d9b4ffe4f289c265aa69490ed"
+  },
+  {
+    "class": "panel_multispeaker",
+    "source": "_VORTRÄGE/Pöltner/Poeltner - Das Hoeren auf das Ungehoerte und seine Bedeutung fuer die Praxis der Psychotherapie - 2018-01.12 - Frage und Antwort.ogg",
+    "start": 120.0,
+    "duration": 30,
+    "file": "panel_multispeaker/panel_multispeaker_30s.wav",
+    "sha256": "1b3e4e00a12f0fdcb91b8f440e0597eb4235a576fe3457642011abbda55e328f"
+  },
+  {
+    "class": "panel_multispeaker",
+    "source": "_VORTRÄGE/Pöltner/Poeltner - Das Hoeren auf das Ungehoerte und seine Bedeutung fuer die Praxis der Psychotherapie - 2018-01.12 - Frage und Antwort.ogg",
+    "start": 120.0,
+    "duration": 60,
+    "file": "panel_multispeaker/panel_multispeaker_60s.wav",
+    "sha256": "82a9c3f52071104cb1d09d640759f05134da6bcc50e503ed1b49dd36733f997b"
+  },
+  {
+    "class": "panel_multispeaker",
+    "source": "_VORTRÄGE/Pöltner/Poeltner - Das Hoeren auf das Ungehoerte und seine Bedeutung fuer die Praxis der Psychotherapie - 2018-01.12 - Frage und Antwort.ogg",
+    "start": 120.0,
+    "duration": 150,
+    "file": "panel_multispeaker/panel_multispeaker_150s.wav",
+    "sha256": "27f25cc86e245966ab1b0e98479d450798ad4874a7c83a1e72b65d483f31a250"
+  },
+  {
+    "class": "panel_multispeaker",
+    "source": "_VORTRÄGE/Pöltner/Poeltner - Das Hoeren auf das Ungehoerte und seine Bedeutung fuer die Praxis der Psychotherapie - 2018-01.12 - Frage und Antwort.ogg",
+    "start": 120.0,
+    "duration": 300,
+    "file": "panel_multispeaker/panel_multispeaker_300s.wav",
+    "sha256": "cce70beca5f05cab8b7a2cca8b46cd2c71a4084246724aa03e13931bb23db14f"
+  },
+  {
+    "class": "phone_radio",
+    "source": "@Comedy/Achmed - AOL Hotline.mp3",
+    "start": 30.0,
+    "duration": 10,
+    "file": "phone_radio/phone_radio_10s.wav",
+    "sha256": "944faf266f0479778cfb9e46d2d24425660cc2c34e0a93e62f30b53961e24835"
+  },
+  {
+    "class": "phone_radio",
+    "source": "@Comedy/Achmed - AOL Hotline.mp3",
+    "start": 30.0,
+    "duration": 30,
+    "file": "phone_radio/phone_radio_30s.wav",
+    "sha256": "b48c398821b9cfe4bbac66cbeb2ebf4e9013ceea21c51036f46ff4991344a914"
+  },
+  {
+    "class": "phone_radio",
+    "source": "@Comedy/Achmed - AOL Hotline.mp3",
+    "start": 30.0,
+    "duration": 60,
+    "file": "phone_radio/phone_radio_60s.wav",
+    "sha256": "df38cb98d2c68b778bca224f2300b18e9887725037fb5e500d727e47b443224b"
+  },
+  {
+    "class": "phone_radio",
+    "source": "@Comedy/Achmed - AOL Hotline.mp3",
+    "start": 30.0,
+    "duration": 150,
+    "file": "phone_radio/phone_radio_150s.wav",
+    "sha256": "98389d7ead51cdc1be1a7219e91627c49c04549a759c7f78c4d6a627f893b0b0"
+  },
+  {
+    "class": "phone_radio",
+    "source": "@Comedy/Achmed - AOL Hotline.mp3",
+    "start": 30.0,
+    "duration": 300,
+    "file": "phone_radio/phone_radio_300s.wav",
+    "sha256": "d85b05ad3af07e8654996c8bcd4a738d75cb5cc10c8e0bf698a143fe8ed1a635"
+  }
+]
