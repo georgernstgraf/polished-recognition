@@ -83,7 +83,9 @@ class VoiceSessionControllerTest {
         shadowSttEnabled: () -> Boolean = { false },
         mainDispatcher: Boolean = false, // true = production-like queued main-looper (#117 shadow)
         logger: RotatingJsonLogger? = null,
-        fragmentSizeProvider: (() -> Double?)? = null // Phase 2 auto-sizer (#116)
+        fragmentSizeProvider: (() -> Double?)? = null, // Phase 2 auto-sizer (#116)
+        audioEvidenceStore: AudioEvidenceStore? = null, // #127 evidence retention
+        audioEvidenceEnabled: () -> Boolean = { false }
     ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
         pipeline,
@@ -102,7 +104,9 @@ class VoiceSessionControllerTest {
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
         logger = logger,
         shadowSttEnabled = shadowSttEnabled,
-        fragmentSizeProvider = fragmentSizeProvider
+        fragmentSizeProvider = fragmentSizeProvider,
+        audioEvidenceStore = audioEvidenceStore,
+        audioEvidenceEnabled = audioEvidenceEnabled
     )
 
     private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
@@ -262,6 +266,101 @@ class VoiceSessionControllerTest {
         // one fragment (whole recording at the default huge test fragment size)
         verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         verify(exactly = 1) { transcoder.transcode(any(), any()) }
+        clearSessionFiles()
+    }
+
+    // ---- #127: per-session audio-evidence retention --------------------------
+
+    /**
+     * A finished session (SUCCESS) copies its full session PCM and its
+     * fragment session dir (fragments + manifest) into the evidence store
+     * BEFORE clearPrepared() wipes the cacheDir originals. Driven via a
+     * restored snapshot (the hand-crafted pattern, see PITFALLS).
+     */
+    @Test
+    fun `finished session retains pcm and fragments as audio evidence`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+        val evidenceRoot = File(cacheDir, "audio-evidence").apply { deleteRecursively(); mkdirs() }
+        val store = AudioEvidenceStore(evidenceRoot)
+
+        val controller = newController(
+            audioEvidenceStore = store,
+            audioEvidenceEnabled = { true }
+        )
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val session = File(evidenceRoot, "testsess")
+        // full session PCM: the restored 40 000 PCM bytes as a WAV
+        val sessionWav = File(session, "session.wav")
+        assertThat(sessionWav.isFile).isTrue()
+        assertThat(sessionWav.length()).isEqualTo(40_044L)
+        // fragments + manifest from the session dir, before clearPrepared()
+        val fragments = File(session, "fragments")
+        assertThat(File(fragments, "manifest.json").isFile).isTrue()
+        assertThat(File(fragments, "frag_000000.wav").isFile).isTrue()
+        // the cacheDir originals are gone (success path) — the evidence is
+        // the only surviving copy, exactly the point of #127
+        assertThat(File(cacheDir, "fragments").exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /** The toggle is the gate: store wired but OFF (release default) → no evidence at all. */
+    @Test
+    fun `no audio evidence is written when the toggle is off`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+        val evidenceRoot = File(cacheDir, "audio-evidence-gated").apply { deleteRecursively(); mkdirs() }
+        val store = AudioEvidenceStore(evidenceRoot)
+
+        val controller = newController(
+            audioEvidenceStore = store,
+            audioEvidenceEnabled = { false }
+        )
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(evidenceRoot.listFiles().orEmpty()).isEmpty()
+        clearSessionFiles()
+    }
+
+    /**
+     * A FAILED session retains its evidence too — failure already preserves
+     * the cacheDir state, but the adb-readable copy is what a post-mortem
+     * can actually reach (run-as is dead on the release OnePlus).
+     */
+    @Test
+    fun `failed session retains audio evidence too`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+        val evidenceRoot = File(cacheDir, "audio-evidence-failed").apply { deleteRecursively(); mkdirs() }
+        val store = AudioEvidenceStore(evidenceRoot)
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(IOException("LLM down"))
+
+        val controller = newController(
+            audioEvidenceStore = store,
+            audioEvidenceEnabled = { true }
+        )
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        val session = File(evidenceRoot, "testsess")
+        assertThat(File(session, "session.wav").isFile).isTrue()
+        assertThat(File(File(session, "fragments"), "manifest.json").isFile).isTrue()
         clearSessionFiles()
     }
 

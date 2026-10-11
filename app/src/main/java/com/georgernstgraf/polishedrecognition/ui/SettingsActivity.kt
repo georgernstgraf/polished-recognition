@@ -63,6 +63,7 @@ class SettingsActivity : Activity() {
 
     private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
     private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
+    private val audioEvidenceCheckbox: CheckBox by lazy { findViewById(R.id.audio_evidence) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
     private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
@@ -320,6 +321,7 @@ class SettingsActivity : Activity() {
 
         rawModeCheckbox.isChecked = settings.rawMode
         compressAudioCheckbox.isChecked = settings.compressAudio
+        audioEvidenceCheckbox.isChecked = settings.audioEvidence
         wrapWidthField.setText(settings.wrapWidth.toString())
         settings.fragmentSecondsOverride?.let { override ->
             fragmentSecondsField.setText(
@@ -1025,6 +1027,7 @@ class SettingsActivity : Activity() {
 
         settings.rawMode = rawModeCheckbox.isChecked
         settings.compressAudio = compressAudioCheckbox.isChecked
+        settings.audioEvidence = audioEvidenceCheckbox.isChecked
         val wrapWidth = parseWrapWidth()
         if (wrapWidth == null) {
             wrapWidthField.error = getString(R.string.wrap_width_error)

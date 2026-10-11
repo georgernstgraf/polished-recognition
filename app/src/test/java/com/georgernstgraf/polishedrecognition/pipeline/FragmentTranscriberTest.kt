@@ -322,6 +322,69 @@ class FragmentTranscriberTest {
     }
 
     @Test
+    fun `composed upload is copied into the audio evidence before deletion`() = runBlocking {
+        // #127: the evidence copy must land BEFORE the finally-delete — the
+        // post-mortem's view of exactly what the server saw (pre-roll included)
+        val evidenceRoot = tmp.newFolder("evidence")
+        val store = AudioEvidenceStore(evidenceRoot)
+        val evidenceTranscriber = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            audioEvidenceStore = store,
+            audioEvidenceEnabled = { true }
+        )
+        val uploaded = mutableListOf<Pair<String, ByteArray>>() // name to bytes AT CALL TIME
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            val file = firstArg<File>()
+            uploaded.add(file.name to file.readBytes())
+            ok("t${thirdArg<Int>() - 1}")
+        }
+
+        evidenceTranscriber.start()
+        evidenceTranscriber.offer(fragment(0))
+        evidenceTranscriber.offer(fragment(1, preRollSeconds = 1))
+        evidenceTranscriber.drain()
+
+        // the session id is the fragment session dir name (tmp.root here)
+        val session = File(evidenceRoot, tmp.root.name)
+        val retained = File(File(session, "uploads"), "upload_000001.wav")
+        assertThat(retained.isFile).isTrue()
+        assertThat(retained.readBytes()).isEqualTo(uploaded[1].second)
+        // fragment 0 uploaded BARE (no pre-roll) → nothing composed, nothing retained
+        assertThat(File(File(session, "uploads"), "upload_000000.wav").exists()).isFalse()
+        // the pipeline's own behaviour is unchanged: the composed file is gone,
+        // the preparer-owned sources survive
+        assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
+        assertThat(File(tmp.root, "frag_000001.wav").exists()).isTrue()
+        assertThat(File(tmp.root, "preroll_000001.wav").exists()).isTrue()
+    }
+
+    @Test
+    fun `no upload evidence is written when the gate is off`() = runBlocking {
+        val evidenceRoot = tmp.newFolder("evidence-gated")
+        val store = AudioEvidenceStore(evidenceRoot)
+        val gatedTranscriber = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            audioEvidenceStore = store, // store wired, toggle OFF (the release default)
+            audioEvidenceEnabled = { false }
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            ok("t${thirdArg<Int>() - 1}")
+        }
+
+        gatedTranscriber.start()
+        gatedTranscriber.offer(fragment(0))
+        gatedTranscriber.offer(fragment(1, preRollSeconds = 1))
+        gatedTranscriber.drain()
+
+        assertThat(evidenceRoot.listFiles().orEmpty()).isEmpty()
+        assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
+    }
+
+    @Test
     fun `missing pre-roll file uploads the bare fragment`() = runBlocking {
         val uploaded = mutableListOf<File>()
         coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {

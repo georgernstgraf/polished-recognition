@@ -50,7 +50,16 @@ class SettingsStore(
      */
     private val learnerExecutor: Executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "known-app-writer").apply { isDaemon = true }
-    }
+    },
+    /**
+     * Default of the audio-evidence retention toggle (#127): OFF in release
+     * (it persists dictated audio on disk), ON in debug/harness — wired from
+     * `BuildConfig.AUDIO_EVIDENCE_DEFAULT` in `PolishedRecognitionApp` so
+     * the owner's test builds keep their evidence while F-Droid/Play ships
+     * the privacy-safe default. Injectable so the Settings tests can pin
+     * both defaults.
+     */
+    private val audioEvidenceDefault: Boolean = false
 ) {
 
     private val appContext = context.applicationContext
@@ -91,6 +100,17 @@ class SettingsStore(
     var compressAudio: Boolean
         get() = prefs.getBoolean(COMPRESS_AUDIO_KEY, false)
         set(value) = prefs.edit().putBoolean(COMPRESS_AUDIO_KEY, value).apply()
+
+    /**
+     * Audio-evidence retention (#127): when on, a finished dictation session
+     * copies its fragments + manifest, composed uploads and full session PCM
+     * into `files/audio/<sessionId>/` (ring-buffered, ~3 sessions / ≤ 50 MB)
+     * so seam/cut post-mortems run on ground truth. Retains dictated audio
+     * on the device — default OFF in release ([audioEvidenceDefault]).
+     */
+    var audioEvidence: Boolean
+        get() = prefs.getBoolean(AUDIO_EVIDENCE_KEY, audioEvidenceDefault)
+        set(value) = prefs.edit().putBoolean(AUDIO_EVIDENCE_KEY, value).apply()
 
     var targetLanguage: String?
         get() = prefs.getString(TARGET_LANGUAGE_KEY, null)
@@ -407,6 +427,7 @@ class SettingsStore(
         private const val LLM_MODEL_LISTS_KEY = "llm_model_lists"
         private const val RAW_MODE_KEY = "raw_mode"
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
+        private const val AUDIO_EVIDENCE_KEY = "audio_evidence"
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
         private const val WRAP_WIDTH_KEY = "wrap_width"

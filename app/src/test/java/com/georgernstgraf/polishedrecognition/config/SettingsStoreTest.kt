@@ -87,6 +87,30 @@ class SettingsStoreTest {
         assertThat(store.rawMode).isTrue()
     }
 
+    // ---- #127: audio-evidence retention toggle -------------------------------
+
+    @Test
+    fun `audioEvidence defaults to false`() {
+        assertThat(freshStore().audioEvidence).isFalse()
+    }
+
+    @Test
+    fun `audioEvidence default true is honored until the user chooses`() {
+        // the debug/harness build-type default (BuildConfig.AUDIO_EVIDENCE_DEFAULT)
+        val store = SettingsStore(
+            RuntimeEnvironment.getApplication(), directExecutor, audioEvidenceDefault = true
+        )
+        assertThat(store.audioEvidence).isTrue()
+        store.audioEvidence = false
+        assertThat(store.audioEvidence).isFalse()
+    }
+
+    @Test
+    fun `audioEvidence save and load round-trips`() {
+        store.audioEvidence = true
+        assertThat(store.audioEvidence).isTrue()
+    }
+
     @Test
     fun `targetLanguage defaults to null`() {
         assertThat(store.targetLanguage).isNull()

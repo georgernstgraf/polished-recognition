@@ -17,6 +17,8 @@
     <string name="test_token">Test Token</string>
     <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
     <string name="compress_audio">Upload format: OGG/Opus when on (smaller on slow connections), WAV when off — live transcription runs either way</string>
+    <string name="audio_evidence">Keep session audio for diagnostics</string>
+    <string name="audio_evidence_hint">Dictated audio is retained locally for diagnostics (last few sessions, up to ~50 MB, adb-readable under files/audio); off by default.</string>
     <string name="target_language">Target language</string>
     <string name="target_language_hint">Enter language names in English (e.g. "German" not "Deutsch", "Italian" not "Italiano"). "None (polish only)" disables translation. Tap to pick, long-press to edit or add.</string>
     <string name="delete_language">Delete this language</string>

@@ -126,7 +126,12 @@ class HarnessActivity : Activity() {
             },
             fullContextAtStopEnabled = false,
             logger = app.jsonLogger,
-            shadowSttEnabled = { reference }
+            shadowSttEnabled = { reference },
+            // #127: retain the harness run's audio evidence too — the
+            // harness BuildConfig defaults the toggle ON, and study runs
+            // are exactly the material post-mortems want.
+            audioEvidenceStore = app.audioEvidenceStore,
+            audioEvidenceEnabled = { settings.audioEvidence }
         )
 
         controller.attach { event ->

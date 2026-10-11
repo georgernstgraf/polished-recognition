@@ -209,6 +209,23 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/compress_audio"
+            android:layout_marginBottom="8dp" />
+
+        <!-- #127: audio-evidence retention toggle (default off in release) -->
+        <CheckBox
+            android:id="@+id/audio_evidence"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/audio_evidence"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/audio_evidence_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
             android:layout_marginBottom="16dp" />
 
         <!-- Provider Control Section -->

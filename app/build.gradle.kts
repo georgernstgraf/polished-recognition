@@ -108,6 +108,12 @@ android {
         // to true below.
         buildConfigField("boolean", "SHADOW_STT", "false")
         buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "false")
+
+        // #127: the audio-evidence retention DEFAULT (the Settings toggle
+        // users see). OFF in release — it persists dictated audio on disk
+        // (privacy); ON in debug/harness below so the owner's test builds
+        // keep their post-mortem evidence.
+        buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "false")
     }
 
     val keystoreProperties = Properties().apply {
@@ -144,6 +150,8 @@ android {
             // #125: diagnostics stay available in debug (and harness below).
             buildConfigField("boolean", "SHADOW_STT", "true")
             buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
+            // #127: evidence retention defaults ON in the owner's test builds.
+            buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "true")
         }
         /**
          * #122 seam-study harness — NEVER shipped: F-Droid/Play/CI build only
@@ -162,6 +170,8 @@ android {
             // #125: diagnostics stay available in the harness.
             buildConfigField("boolean", "SHADOW_STT", "true")
             buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
+            // #127: evidence retention defaults ON in the harness.
+            buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "true")
         }
     }
 

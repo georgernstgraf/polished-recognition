@@ -120,6 +120,21 @@ class VoiceSessionController(
      */
     private val shadowSttEnabled: () -> Boolean = { false },
     /**
+     * #127 audio-evidence retention: when non-null AND [audioEvidenceEnabled]
+     * returns true, a FINISHED dictation session (success OR failure) copies
+     * its full session PCM (`session.wav`) and its fragment session dir
+     * (fragments + pre-rolls + manifest, under `fragments/`) into
+     * `<externalFilesDir>/audio/<sessionId>/` — the composed `upload_<i>`
+     * files are retained by [FragmentTranscriber] as they are used. The
+     * store ring-buffers the evidence (newest ~3 sessions, ≤ 50 MB) and the
+     * copies run BEFORE the pipeline deletes its own files, non-destructively
+     * — the pipeline's behaviour is unchanged. Copy failures are best-effort
+     * `Log.w` and can never fail a session. `null` in unit tests.
+     */
+    private val audioEvidenceStore: AudioEvidenceStore? = null,
+    /** Gate for the #127 evidence retention: the Settings toggle, wired in [com.georgernstgraf.polishedrecognition.PolishedRecognitionApp]. */
+    private val audioEvidenceEnabled: () -> Boolean = { false },
+    /**
      * Resolves the fragment size for a NEW session in SECONDS (#116 Phase 2):
      * the per-provider auto-sizer or the manual override. `null` (or a null
      * result) falls back to the constructor [fragmentBytes]. Production
@@ -315,7 +330,9 @@ class VoiceSessionController(
         logger = logger,
         seamPolicy = seamPolicy,
         seamEvidence = seamEvidence,
-        promptMaxChars = promptMaxChars
+        promptMaxChars = promptMaxChars,
+        audioEvidenceStore = audioEvidenceStore,
+        audioEvidenceEnabled = audioEvidenceEnabled
     )
 
     /**
@@ -479,6 +496,11 @@ class VoiceSessionController(
             } catch (e: Exception) {
                 Result.failure(e)
             }
+            // #127: retain the session's audio evidence (both success and
+            // failure — success is where the evidence used to be lost)
+            // BEFORE clearPrepared() wipes the fragment session dir. Copy
+            // only; the pipeline's own lifecycle is untouched.
+            retainAudioEvidence(wav)
             // On success the prepared uploads are consumed; on failure
             // they stay committed so the retry reuses them instead of
             // re-encoding (#115 stage memoization).
@@ -1184,6 +1206,40 @@ class VoiceSessionController(
         java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
 
+    /**
+     * #127: copies the finished session's audio evidence into the
+     * adb-readable evidence dir — the full session PCM (`session.wav`, the
+     * `stopPreservingBuffer()` WAV) and the fragment session dir (fragments
+     * + pre-rolls + manifest, under `fragments/`); the composed uploads are
+     * retained per-fragment by [FragmentTranscriber]. Runs on BOTH the
+     * success and the failure path and BEFORE [clearPrepared] deletes the
+     * fragment dir (on failure the dir survives for the retry — the copy is
+     * idempotent and simply overwrites). Copy failures are best-effort
+     * `Log.w`: evidence retention can never fail a session. Skipped
+     * entirely when the recording is empty (a bare 44-byte WAV header).
+     */
+    private suspend fun retainAudioEvidence(wav: ByteArray) {
+        val store = audioEvidenceStore ?: return
+        if (!audioEvidenceEnabled()) return
+        val sid = sessionId ?: return
+        if (wav.size <= 44) return // empty recording — a header only, nothing to retain
+        try {
+            withContext(Dispatchers.IO) {
+                if (!store.retainBytes(sid, EVIDENCE_SESSION_WAV, wav)) {
+                    Log.w(TAG, "audio evidence: session copy failed for $sid")
+                }
+                val fragmentDir = File(File(appContext.cacheDir, FRAGMENTS_DIR), sid)
+                if (fragmentDir.isDirectory) {
+                    store.retainDir(sid, fragmentDir, EVIDENCE_FRAGMENTS_DIR)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.w(TAG, "audio evidence retention failed for session $sid", e)
+        }
+    }
+
     /** Deletes the prepared-upload dirs after a successful pipeline run. */
     private fun clearPrepared() {
         try {
@@ -1248,5 +1304,9 @@ class VoiceSessionController(
         private const val FRAGMENTS_DIR = "fragments"
         /** Owns the shadow comparison's assembled chunks (#117) — deleted after use. */
         private const val SHADOW_DIR = "shadow"
+
+        /** #127: evidence layout inside `files/audio/<sessionId>/`. */
+        private const val EVIDENCE_SESSION_WAV = "session.wav"
+        private const val EVIDENCE_FRAGMENTS_DIR = "fragments"
     }
 }

@@ -9,6 +9,7 @@ import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
+import com.georgernstgraf.polishedrecognition.pipeline.AudioEvidenceStore
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
@@ -65,9 +66,22 @@ class PolishedRecognitionApp : Application() {
             .build()
     }
 
-    val settingsStore by lazy { SettingsStore(this) }
+    val settingsStore by lazy {
+        SettingsStore(this, audioEvidenceDefault = BuildConfig.AUDIO_EVIDENCE_DEFAULT)
+    }
     val promptStore by lazy { PromptStore(this) }
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
+
+    /**
+     * #127: per-session audio-evidence ring buffer
+     * (`files/audio/<sessionId>/`, next to `logs/` — the adb-readable root
+     * on release devices). Retention is gated by the Settings toggle
+     * (`audio_evidence`, default `BuildConfig.AUDIO_EVIDENCE_DEFAULT`:
+     * OFF in release, ON in debug/harness).
+     */
+    val audioEvidenceStore by lazy {
+        AudioEvidenceStore(File(getExternalFilesDir(null) ?: filesDir, "audio"))
+    }
 
     val transcriptionPipeline by lazy {
         TranscriptionPipeline(
@@ -112,7 +126,12 @@ class PolishedRecognitionApp : Application() {
             // audio (#122), so release never runs it at all.
             shadowSttEnabled = { BuildConfig.SHADOW_STT },
             fullContextAtStopEnabled = BuildConfig.FULL_CONTEXT_AT_STOP,
-            fragmentSizeProvider = { fragmentSizer.fragmentSeconds() })
+            fragmentSizeProvider = { fragmentSizer.fragmentSeconds() },
+            // #127: audio-evidence retention (Settings toggle; the default
+            // comes from BuildConfig.AUDIO_EVIDENCE_DEFAULT — OFF in
+            // release, ON in debug/harness).
+            audioEvidenceStore = audioEvidenceStore,
+            audioEvidenceEnabled = { settingsStore.audioEvidence })
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
+import android.util.Log
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioDuration
 import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
@@ -90,7 +91,18 @@ class FragmentTranscriber(
      * in production (the harness turns it on): the array is rewritten per
      * fragment, which is cheap for a study but unnecessary for daily use.
      */
-    private val seamEvidence: Boolean = false
+    private val seamEvidence: Boolean = false,
+    /**
+     * #127 audio-evidence retention: when non-null AND [audioEvidenceEnabled]
+     * returns true, every composed `upload_<i>.<ext>` file is COPIED into
+     * the session's evidence dir (`files/audio/<sessionId>/uploads/`) right
+     * before its `finally` deletion — the post-mortem sees exactly what the
+     * server saw, pre-roll included. Copy failures are best-effort `Log.w`
+     * and never touch the fragment's own flow. `null` in unit tests.
+     */
+    private val audioEvidenceStore: AudioEvidenceStore? = null,
+    /** Gate for the #127 evidence copy: the Settings toggle, wired by the controller. */
+    private val audioEvidenceEnabled: () -> Boolean = { false }
 ) {
 
     data class CommittedFragment(
@@ -139,6 +151,8 @@ class FragmentTranscriber(
 
         /** Word-ish token pattern for the echo match (#117 round 2). */
         private val TOKEN_REGEX = Regex("[\\p{L}\\p{N}]+")
+
+        private const val TAG = "FragmentTranscriber"
     }
 
     private val gson = Gson()
@@ -326,8 +340,19 @@ class FragmentTranscriber(
             }
         } finally {
             // the composed upload is single-use (the bare fragment file is
-            // owned by the preparer and must survive)
-            if (upload != fragment.file) upload.delete()
+            // owned by the preparer and must survive). #127: the evidence
+            // copy runs BEFORE the delete so a post-mortem sees exactly
+            // what the server saw; a cancelled worker skips the copy.
+            if (upload != fragment.file) {
+                try {
+                    retainUploadEvidence(upload)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    // best-effort by design — never fail a fragment over evidence
+                }
+                upload.delete()
+            }
         }
         result.fold(
             onSuccess = { response ->
@@ -379,6 +404,24 @@ class FragmentTranscriber(
             upload.delete()
             fragment.file
         }
+    }
+
+    /**
+     * #127: copies the composed upload into the session's evidence dir
+     * (`uploads/<name>`) before its deletion. The session id is the upload's
+     * parent dir name — the fragment session dir (`cacheDir/fragments/<sid>`)
+     * is where [composeUpload] writes, so no extra identity is threaded
+     * through. The IO dispatcher is REQUIRED: the worker coroutine is
+     * Main-dispatched and a ~10 MB WAV copy must not run on it.
+     */
+    private suspend fun retainUploadEvidence(upload: File) {
+        val store = audioEvidenceStore ?: return
+        if (!audioEvidenceEnabled()) return
+        val sessionId = upload.parentFile?.name ?: return
+        val copied = withContext(Dispatchers.IO) {
+            store.retainFile(sessionId, upload, "uploads/${upload.name}")
+        }
+        if (!copied) Log.w(TAG, "audio evidence: upload copy failed (${upload.name})")
     }
 
     /**
