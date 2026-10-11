@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-10-10 (night): **#122 seam study — harness + production changes shipped; Tier 1 + Tier 2 (126 runs) complete and analyzed. The seam-quality conclusions have been substantially REVISED by the data (see below).**
+Current status as of 2026-10-10 (night): **#122 seam study — harness + production changes shipped; Tier 1 + Tier 2 (126 runs) complete and analyzed. The seam-quality conclusions have been substantially REVISED by the data (see below). Full write-up: `docs/research/2026-10-seam-study.md`; reproducible tooling: `tools/seam-study/`.**
 
 ## #122 seam study — what shipped
 

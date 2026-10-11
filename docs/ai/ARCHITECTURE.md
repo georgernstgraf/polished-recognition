@@ -157,3 +157,11 @@ Worktree: `~/repos/schurlix/fdroiddata-mr-polished-recognition` (branch `add-pol
 | DOMAIN.md | Business/domain rules | Append |
 | STATE.md | Current project status | Overwrite |
 | HISTORY.md | Superseded entries archive | Append-only |
+
+## Research / benchmarks (`docs/research/`, `tools/`)
+
+| File | Purpose |
+|------|---------|
+| `docs/research/2026-10-seam-study.md` | Full #122 fragment-stitching seam study: method, 126-run results, the null levers, the repetition-loop finding, limitations. |
+| `tools/seam-study/` | Reproducible tooling: harness runners (`run_matrix.sh`, `run_prompt*.sh`), `analyze.py` (loop-masked), the corpus builder + manifest, `results.csv`. |
+| `tools/testcaller/` | Android-11 RecognitionService protocol-level test caller (see PITFALLS). |

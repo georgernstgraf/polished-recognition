@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-10-10 (night) — #122 seam study COMPLETE (Tier 1+2, 126 runs analyzed). Read STATE.md for the findings.** The headline: the seam mechanics are largely NULL levers (overlap size, fragment size, prompt length all show no effect); the dominant damage is Whisper **repetition-loop / whole-fragment derailment**, present in BOTH the fragment join and the shadow. One mechanical lever survived: do NOT apply the pre-roll/prompt at silence-aligned seams (shipped as `SeamPolicy.FORCED_ONLY`). Next session's decision: accept the nulls + build a **loop guard**, or extend the corpus for a stronger verdict.
+**2026-10-10 (night) — #122 seam study COMPLETE (Tier 1+2, 126 runs analyzed). Read STATE.md for the findings; full write-up in `docs/research/2026-10-seam-study.md`, reproducible tooling in `tools/seam-study/`.** The headline: the seam mechanics are largely NULL levers (overlap size, fragment size, prompt length all show no effect); the dominant damage is Whisper **repetition-loop / whole-fragment derailment**, present in BOTH the fragment join and the shadow. One mechanical lever survived: do NOT apply the pre-roll/prompt at silence-aligned seams (shipped as `SeamPolicy.FORCED_ONLY`). Next session's decision: accept the nulls + build a **loop guard**, or extend the corpus for a stronger verdict.
 
 The seam study was driven by a `harness` build variant (never shipped) that injects a WAV through the production restore seam — see STATE.md "Device Notes" for the exact adb invocation and the host scripts in `/tmp/opencode/seam-run/`.
 
