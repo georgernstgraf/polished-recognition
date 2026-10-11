@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-10-11 (afternoon): **#121/#122 close-out implemented — the owner-approved production config freeze is shipped (`3647554`): adaptive silence search `max(2 s, S)` + quietest-frame energy fallback (#124), shadow + full-context-at-stop build-gated OFF in release (#125), `SttEndpointPolicy` deleted. The extrapolation A/B ran (search=2 → search=S: err/100w 6.2 → 4.1, forced seams eliminated on Tier-1; the energy fallback never fired there). Both phones are back on the clean release 1.3.6 (10306) with the study corpus. #123 (loop guard) is filed, deliberately not implemented.**
+Current status as of 2026-10-11 (afternoon): **#122 and #121 are CLOSED — the close-out is complete. The owner-approved production config freeze is shipped (`3647554`): adaptive silence search `max(2 s, S)` + quietest-frame energy fallback (#124), shadow + full-context-at-stop build-gated OFF in release (#125), `SttEndpointPolicy` deleted. The extrapolation A/B ran (search=2 → search=S: err/100w 6.2 → 4.1, forced seams eliminated on Tier-1; the energy fallback never fired there). Both phones are on the clean release 1.3.6 (10306) with the study corpus. #123 (loop guard) is filed, deliberately not implemented — the next workstream.**
 
 ## #124/#125 — what shipped (`3647554`)
 
@@ -22,7 +22,7 @@ The adaptive search eliminates forced seams on Tier-1 classes; the energy fallba
 
 ## Current Focus
 
-Close-out of #122 and #121 (both fully addressed by the shipped freeze + the filed #123 loop guard), then the owner's on-device dictation checks. **With `fullContextAtStop` OFF in release, the fragment join is the ONLY delivery path — the join's dominant residual error is Whisper repetition-loop derailment → #123 (loop guard) is the highest-value follow-up.**
+#122 and #121 are closed (2026-10-11, final reports on the issues). Next: the owner's on-device dictation checks, then #123 as the next workstream. **With `fullContextAtStop` OFF in release, the fragment join is the ONLY delivery path — the join's dominant residual error is Whisper repetition-loop derailment → #123 (loop guard) is the highest-value follow-up.**
 
 ## Pending
 - [ ] **Owner dictation check (~25 s)** on the release build: `prepare.json` cadence (~10 s nominal, growth ≤ 2S, fallback cuts in the late half), stop→raw ≤ ~2.4 s worst case (finding 3 of the plan), Settings fragment field blank.

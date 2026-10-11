@@ -1,6 +1,6 @@
 # Hand Off
 
-**2026-10-11 (afternoon) — #121/#122 close-out IMPLEMENTED and verified (`3647554`): adaptive silence search `max(2 s, S)` + quietest-frame energy fallback (#124), shadow/full-context build-gated OFF in release (#125), extrapolation A/B done (err/100w 6.2 → 4.1, forced seams eliminated on Tier-1). Both phones on clean release 1.3.6 with the corpus. #123 (loop guard) filed, NOT implemented — it is the next workstream. Remaining: the owner's on-device dictation checks, then #120 can close.**
+**2026-10-11 (afternoon) — #122 and #121 are CLOSED (final reports on the issues). The close-out is implemented and verified (`3647554`): adaptive silence search `max(2 s, S)` + quietest-frame energy fallback (#124), shadow/full-context build-gated OFF in release (#125), extrapolation A/B done (err/100w 6.2 → 4.1, forced seams eliminated on Tier-1). Both phones on clean release 1.3.6 with the corpus. #123 (loop guard) filed, NOT implemented — it is the next workstream. Remaining: the owner's on-device dictation checks, then #120 can close.**
 
 ## Where things stand
 
