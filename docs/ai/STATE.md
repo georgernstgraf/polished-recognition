@@ -1,44 +1,39 @@
 # Project State
 
-Current status as of 2026-10-10 (night): **#122 seam study — harness + production changes shipped; Tier 1 + Tier 2 (126 runs) complete and analyzed. The seam-quality conclusions have been substantially REVISED by the data (see below). Full write-up: `docs/research/2026-10-seam-study.md`; reproducible tooling: `tools/seam-study/`.**
+Current status as of 2026-10-11 (afternoon): **#121/#122 close-out implemented — the owner-approved production config freeze is shipped (`3647554`): adaptive silence search `max(2 s, S)` + quietest-frame energy fallback (#124), shadow + full-context-at-stop build-gated OFF in release (#125), `SttEndpointPolicy` deleted. The extrapolation A/B ran (search=2 → search=S: err/100w 6.2 → 4.1, forced seams eliminated on Tier-1; the energy fallback never fired there). Both phones are back on the clean release 1.3.6 (10306) with the study corpus. #123 (loop guard) is filed, deliberately not implemented.**
 
-## #122 seam study — what shipped
+## #124/#125 — what shipped (`3647554`)
 
-- `e941430` hard 5-min STT cap (#120).
-- `7862603` `SeamPolicy { ALL | FORCED_ONLY | OFF }` (FORCED_ONLY = controller default), true `silenceAligned` tagging, `MIN_FRAGMENT_SECONDS` 7→10 s, word-snapped seam-local prompt.
-- `b401fbc` `pipeline/SeamOverlap` + `stt-fragment.json` evidence (one accumulating per-fragment array: index, PCM bytes, cut type, transcript, words, ACTUAL prompt, echo tokens, seam-overlap tokens).
-- `a222874` `harness` build variant (`./gradlew installHarness`) + `HarnessActivity` (adb-driven, injects a WAV through the production restore seam, own controller, waits for the shadow, writes `harness.json`); controller hooks `onShadowResult` + `fullContextAtStopEnabled`.
-- `344ec69` per-fragment PCM size in the evidence.
-- Prompt-window knob `promptMaxChars` wired through the controller (was missing → first sweep invalid).
+- `VoiceSessionController.resolvedSearchBytes()`: with a `fragmentSizeProvider` wired (production), `search = max(fragmentSearchBytes, resolvedFragmentBytes())` → fragment spans `[S, 2S]`; explicit injected values keep their exact semantics (`0` = legacy fixed cuts); the harness dropped its provider wiring so its explicit `searchSeconds` stays authoritative.
+- `SilenceCutter.quietestFrameCut()` + `FragmentPreparer.energyFallbackEnabled` (default true): on a silence-free FULL window, cut at the minimum-energy 10-ms frame center in the late half `[1.5S, 2S]`, tagged FORCED (`FORCED_ONLY` still applies pre-roll + prompt). Harness knob `--ez energyFallback`.
+- `BuildConfig.SHADOW_STT` / `FULL_CONTEXT_AT_STOP`: false in `defaultConfig` (release/F-Droid/CI), true in debug + harness; `PolishedRecognitionApp` wires them; the `stt-shadow` gate breadcrumb moved behind the gate (release writes NO `stt-shadow.json`); full-context delivery events renamed to `stt-fullcontext`; `SttEndpointPolicy` + test deleted.
+- Tests +8 (444 green); `assembleRelease` + `compileHarnessKotlin` green.
 
-## #122 seam study — findings (126 runs, gregor, 5 classes × formats × arms)
+## Energy-fallback extrapolation check (harness A/B, OnePlus → gregor)
 
-- **The dominant error source is Whisper repetition-loop hallucination / whole-fragment derailment, which occurs in BOTH the fragment join and the shadow full-context pass** — NOT seam mechanics. In the reliable runs the shadow looped ~1528 tokens vs the join's ~146. Every join↔shadow "error" metric MUST loop-mask first (the analyzer in `/tmp/opencode/seam-run/analyze.py` does).
-- **No systematic boundary duplication**: `SeamOverlap` found ~0 clean suffix↔prefix repeats; ~290 echo tokens trimmed total. The owner's "repetitions" are Whisper loops, not seam dups.
-- **Forced seams ≈ 1.4× worse per seam than silence seams** (5.3 vs 3.7 errors/seam, loop-masked). Supports workstream (a) — but see the null results below.
-- **(b) CONFIRMED**: on all-silence 60-s samples, applying the seam mechanism at silence seams adds errors — mechanism off 5.4 err/100w, prompt-only 6.9, pre-roll-only 6.4, both 7.7. The new FORCED_ONLY default (no pre-roll/prompt at a silence-aligned seam) is the right call.
-- **NULL: pre-roll SIZE does not matter** (0.5 s vs 2 s = identical 7.1).
-- **NULL: fragment size does not matter for accuracy** (7 s vs 21 s ≈ 11.8 vs 11.6 err/100w, same classes/durations).
-- **NULL: prompt window length does not matter** — the prompt is only the PREVIOUS fragment's transcript (~90 chars at 10 s, ~190 at 21 s, ~550 at 60 s), so `takeLast(800)` never bound and `96` only binds above ~10 s fragments. Sweeping 0/96/320/800 at 21 s and 60 s fragments showed no monotone effect.
-- **Format: OGG ≥ WAV** in error rate at 30/150/300 s (the one consistent mechanical lever).
-- **Reference reliability**: 10/126 shadows flagged unreliable (phone_radio, panel, long ogg) — the shadow collapses or loops; treat as diagnostic only.
-- Corpus caveat: the "en_" classes are largely detected as German (metadata-only selection); labels are unreliable, conclusions are language-independent.
+Frozen config (frag=10, search=10=S, forced, wav, raw, shadow reference), 8 runs all green, loop-masked:
+
+| arm | frags | forced seams | err/100w |
+|---|---|---|---|
+| search = 2 s (study config) | 68 | 3 | 6.2 |
+| search = S = 10 s (shipped) | 52 | 0 | 4.1 |
+
+The adaptive search eliminates forced seams on Tier-1 classes; the energy fallback NEVER fired there (both arms byte-identical — every 10-s window contains a qualifying pause). The fallback's regime is continuous/background-noise audio, where the shadow reference is itself unreliable — it stays validated at the unit-invariant level. Runs + analysis: `/tmp/opencode/seam-run/results/EF_*`, runner `run_energyfallback.sh`.
 
 ## Current Focus
-**#122 follow-up (owner decision):** the levers that survived are (i) do NOT apply the seam mechanism at silence seams — shipped as FORCED_ONLY; (ii) the loop/derailment propagation is the real damage and is NOT addressed by overlap size, fragment size, or prompt length — the candidate fix is a **loop guard** (detect a repeated n-gram inside a fragment transcript and truncate it BEFORE it becomes the next fragment's prompt). Also #120 needs an on-device re-check.
+
+Close-out of #122 and #121 (both fully addressed by the shipped freeze + the filed #123 loop guard), then the owner's on-device dictation checks. **With `fullContextAtStop` OFF in release, the fragment join is the ONLY delivery path — the join's dominant residual error is Whisper repetition-loop derailment → #123 (loop guard) is the highest-value follow-up.**
 
 ## Pending
-- [ ] **#122 owner decision** — accept the null results (no overlap/size/prompt lever) and prioritize a loop guard, or extend the corpus (independent/host-side reference, more English material) for a stronger verdict.
-- [ ] **#120 on-device re-check** — the 300 s cap is shipped + unit-tested; confirm the shadow no longer expands on-device.
-- [ ] **#121** (parent) — the study's seam evidence feeds it; close or keep open per the loop-guard outcome.
-- [ ] **#116 Phase 2 owner decisions** untouched: gregor's auto-size floor is now 10 s; shadow diagnostic-only.
-- [ ] **#118 Phase B** (delivery policy) still pending.
-- [ ] **#112/#113** owner items.
-- [ ] **F-Droid 1.3.6 pickup watch**; **#74 marketing/alpha**; **#109** visual check.
+- [ ] **Owner dictation check (~25 s)** on the release build: `prepare.json` cadence (~10 s nominal, growth ≤ 2S, fallback cuts in the late half), stop→raw ≤ ~2.4 s worst case (finding 3 of the plan), Settings fragment field blank.
+- [ ] **#120 re-check (owner)**: > 5-min dictation on the release build → `stt-upload`/`stt-latency` every `durationMs ≤ 300_000`, no mid-text cut-off → then close #120.
+- [ ] **#123 loop guard** — filed with the #122 evidence; next workstream.
+- [ ] **#118 Phase B** (delivery policy), **#112/#113** owner items, **#116 Phase 2** remaining owner decisions (auto-size floor now 10 s; shadow diagnostic-only, now debug/harness-only), **#110**, **#101**, **#99/#101/#75**, **#74 marketing**, **#109** visual check.
+- [ ] **F-Droid 1.3.6 pickup watch** (tag `v1.3.6` = 10306 already out).
 
 ## Device Notes
-- **Seam harness**: `./gradlew installHarness` installs the `harness` variant (same appId + key as release → shares the config; NEVER in release/F-Droid). Drive it with `adb shell am start -n com.georgernstgraf.polishedrecognition/.harness.HarnessActivity --es file <wav> --es label <id> --es mode raw --es format {ogg|wav} --es policy {all|forced|off} --ef fragmentSeconds 10 --ef searchSeconds 2 --ef preRollSeconds 1 --ei promptChars 96 --ez reference true`. Results land in `/sdcard/Android/data/<pkg>/files/harness/latest.json`; per-fragment evidence in `.../files/logs/stt-fragment.json`.
-- Corpus (37 mic-format WAVs, 7 classes) at `/sdcard/Android/data/<pkg>/files/samples/`; host copy + manifest in `/tmp/opencode/seam-corpus/`.
-- Study harness scripts (host, NOT in the repo): `/tmp/opencode/seam-run/{run_matrix.sh,run_prompt.sh,run_prompt2.sh,analyze.py}`.
-- `f6de166c` = OnePlus 7T (current: **harness build installed**, reinstall release when done). `d890cc9e` = S5.
-- gregor: no request queue (C=1 serial client); ~25× realtime; logs `sudo docker logs whisper`.
+- `f6de166c` = OnePlus 7T — **clean release 1.3.6 (10306)** (verified: no `DEBUGGABLE`, no harness activity). Corpus + leftover `harness/` artifacts remain under `files/`; `run-as` is dead on it (release, non-debuggable) — prefs were captured 2026-10-11: auto fragment size (no override), `compress_audio=false`, gregor `large-v3` @ `http://10.8.0.16:11437/v1/`, WAV profile `lastAppliedSeconds=10.0`, fit a=0.566/b=0.050, 30 samples.
+- `R7SRB06XF5K` = SM-A032F — **clean release 1.3.6** (upgraded from 1.3.4/10304) + the full study corpus (38 WAVs/172 MB incl. `samples.json` + `REPORT.md`) pushed to `files/samples/` via `/data/local/tmp` (see PITFALLS: Samsung blocks adbd's `secure_mkdirs` under the app dir).
+- gregor up (2026-10-11): API + SSH respond; serial C=1; the EF runs measured 300-s WAV sessions ≈ 58 s wall (join + shadow).
+- Harness A/B tooling (host, NOT in the repo): `/tmp/opencode/seam-run/{run_energyfallback.sh,run_matrix.sh,analyze.py}`; results in `/tmp/opencode/seam-run/results/EF_*`.
+- **One unidentified unit-test flake**: one pre-push `./gradlew test` run failed without a captured test name; 3 forced re-runs green (444/444). Watch for recurrence.
