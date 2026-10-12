@@ -1,27 +1,26 @@
 # Hand Off
 
-**2026-10-12 — #126 (silence-quality metric) is IMPLEMENTED and verified: `audio/SilenceQuality` (adaptive axis `X = k·M + c`, deficit-area Q, margin-clamped area-centroid cut, measured on the 80-Hz-high-passed LATE-half span) replaces the deleted `SilenceCutter`; `prepare.json` carries the `{M, min, max, X, Q, centroidMs, stitched:false}` contract block; suite 465 green, `assembleRelease` + `compileHarnessKotlin` green, pushed as `7ff3800` (+ docs commit). #128 (stitching gate `qualityMin`) and #129 (harness knobs + the research pass for the real k/c/K values) are the follow-ups. The unit-test flake hit a THIRD recorded occurrence during the push (exit 2 at 318/465, 0 failures, re-run green — maxHeapSize decision still pending with the owner). Otherwise unchanged from 2026-10-11: #127 shipped (issue open for the epic close-out), config freeze live, both phones on clean release 1.3.6.**
+**2026-10-12 — #128 (Q-gated stitching) is IMPLEMENTED and verified: the seam stitch decision (pre-roll + prompt + echo trim) is `Q < qualityMin` under `SeamPolicy.Q_GATE` (the new production default), decided ONCE in `FragmentPreparer.seamStitchedAt` (`Entry.seamQ` manifest-round-tripped; the transcriber's prompt keys on `CommittedFragment.stitched` — pre-roll/prompt/trim can never disagree); `prepare.json`'s `stitched` is real; suite 473 green, `assembleRelease` + `compileHarnessKotlin` green, pushed as `c4c14ab` (docs commit completed by the orchestrator after a sub-agent timeout — implementation itself was already pushed and hook-verified). #131 shipped (`717c194`): test heap 2048m — the flake fix, forced full re-run green. Next: **#129** (harness knobs + the research pass on the Samsung A03 via `htl.graf.priv.at` → gregor — the real k/c/K/qualityMin values). #126/#127 shipped before it; both phones on clean release 1.3.6.**
 
 ## Where things stand
 
 - **#126 shipped (`7ff3800`):** production seam path = `SilenceQuality` over the late-half search span (owner decision), cut at the best candidate's area centroid with a 150-ms edge margin, no candidate → forced quietest-frame cut; `silenceAligned := Q > 0` (interim — #128's `qualityMin` replaces it); PROVISIONAL axis defaults 0.65 / 100.0 / 150 ms / lateHalf (harness-only knobs, #129 decides the real values); `energyFallbackEnabled` inert; `SilenceCutter` deleted. Whisper-regime finding recorded in DECISIONS: a 6-dB whisper band is the threading regime (shallow candidate, Q ≈ 2.3), NOT the forced path — the forced path needs a tight band with `M ≥ c/(1−k) ≈ 286`.
-- Frozen production config shipped: fragment auto (10-s floor), WAV, `FORCED_ONLY`, bounds 10–60 s, search = max(2 s, S) → spans [S, 2S], pre-roll/prompt 1 s / ≤96 chars word-snapped (forced seams only), `fullContextAtStop` OFF in release, shadow OFF in release (`BuildConfig` gates).
+- **#128 shipped (`c4c14ab`):** stitch = `Q < qualityMin` under `SeamPolicy.Q_GATE` (production default; STRICT boundary — `Q == qualityMin` is bare; null Q and forced cuts Q=0 stitch, the conservative direction); `ALL`/`FORCED_ONLY`/`OFF` frozen as harness A/B arms (harness `policy` extra accepts `qgate`); the ONE decision `seamStitchedAt` drives pre-roll composition, the 5-arg commit hook (`Committed.stitched`), and the `prepare.json` `stitched` field; `FragmentTranscriber` dropped its own `SeamPolicy`; PROVISIONAL `qualityMin = 10.0` (the #126 fixtures bracket it: solid pause Q ≈ 40 bare, whisper Q ≈ 2.26 stitch) — #129 measures the real value.
+- Frozen production config shipped: fragment auto (10-s floor), WAV, **`Q_GATE` stitching since #128** (was `FORCED_ONLY`), bounds 10–60 s, search = max(2 s, S) → spans [S, 2S], pre-roll/prompt 1 s / ≤96 chars word-snapped (Q-gated seams), `fullContextAtStop` OFF in release, shadow OFF in release (`BuildConfig` gates).
 - **#127 audio evidence:** `pipeline/AudioEvidenceStore` ring buffer (≤ 3 sessions / ≤ 50 MB) + retention in `VoiceSessionController` and `FragmentTranscriber`; cancel/flush = deliberate discard.
-- Suite **465 green** (+14/−11 for #126); `assembleRelease` + `compileHarnessKotlin` green (harness needed zero changes).
+- Suite **473 green** (+8 for #128, 465 before; 5 skipped integration as always); `assembleRelease` + `compileHarnessKotlin` green; test heap 2048m since #131 — no flake on #128's push.
 
 ## Open tasks
 
-1. [ ] **#128 stitching gate (NEXT)** — pre-roll + prompt + echo trim when `Q < qualityMin`; fills the `stitched` placeholder in `prepare.json`; `SeamPolicy` becomes a harness A/B arm only.
-2. [ ] **#129 harness knobs + research pass** — expose `axisK`/`axisC`/`qualityMin`/`marginK`/search-span as harness extras, drop the inert `energyFallback`, and measure the real k/c/K/Q_min on retained audio + the corpus (Samsung A03 vs gregor).
-3. [ ] **#123 loop guard** — detect a repeated n-gram in a fragment transcript and truncate it BEFORE it is stored/prompted (evidence + spec in the #123 body).
-4. [ ] **#127 on-device spot check (owner, optional)**: one dictation on a debug/harness build → `adb shell ls /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/audio/<sessionId>/` shows `session.wav`, `fragments/`, `uploads/`; toggle visible in Settings, off by default in release.
-5. [ ] **Unit-test flake follow-up (owner decision)**: raise the test-only `maxHeapSize` (1536m → 2048m)? THIRD recorded occurrence 2026-10-12 (exit 2 at 318/465, 0 recorded failures — the #86 executor-crash shape).
-6. [ ] **Owner dictation check (~25 s)** on the release build: `prepare.json` cadence (~10 s nominal, growth ≤ 2S) with the new contract block, stop→raw latency (worst ~1.6–2.4 s accepted, typical ~0.8–1.0 s), Settings fragment field blank.
-7. [ ] **#120 re-check (owner)** — > 5-min dictation on the RELEASE build, then confirm from `stt-upload`/`stt-latency` that every `durationMs ≤ 300_000` → close #120.
-8. [ ] **#118 Phase B** — delivery policy (`InsertionDecision` → clipboard + toast).
-9. [ ] **#116 Phase 2** owner decisions residue — auto-size floor now 10 s; shadow now debug/harness-only.
-10. [ ] **#112** verify "Restore Default Prompts" (owner); **#113 freeze recurrence (owner)**.
-11. [ ] **F-Droid 1.3.6 pickup watch**; **#74 Phase 1 posting / Play-alpha recruitment**; **#109** notification-icon visual check; **#99/#101/#75**.
+1. [ ] **#129 harness knobs + research pass (NEXT)** — expose `axisK`/`axisC`/`qualityMin`/`marginK`/search-span as harness extras (default arm `qgate`), drop the inert `energyFallback`, samples in-repo git-ignored, runner + per-seam analyzer, and measure the real k/c/K/Q_min on retained audio + the corpus (Samsung A03 vs gregor via `htl.graf.priv.at`).
+2. [ ] **#123 loop guard** — detect a repeated n-gram in a fragment transcript and truncate it BEFORE it is stored/prompted (evidence + spec in the #123 body).
+3. [ ] **#127 on-device spot check (owner, optional)**: one dictation on a debug/harness build → `adb shell ls /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/audio/<sessionId>/` shows `session.wav`, `fragments/`, `uploads/`; toggle visible in Settings, off by default in release.
+4. [ ] **Owner dictation check (~25 s)** on the release build: `prepare.json` cadence (~10 s nominal, growth ≤ 2S) with the new contract block (REAL `stitched` — Q < 10 seams carry pre-roll + prompt), stop→raw latency (worst ~1.6–2.4 s accepted, typical ~0.8–1.0 s), Settings fragment field blank.
+5. [ ] **#120 re-check (owner)** — > 5-min dictation on the RELEASE build, then confirm from `stt-upload`/`stt-latency` that every `durationMs ≤ 300_000` → close #120.
+6. [ ] **#118 Phase B** — delivery policy (`InsertionDecision` → clipboard + toast).
+7. [ ] **#116 Phase 2** owner decisions residue — auto-size floor now 10 s; shadow now debug/harness-only.
+8. [ ] **#112** verify "Restore Default Prompts" (owner); **#113 freeze recurrence (owner)**.
+9. [ ] **F-Droid 1.3.6 pickup watch**; **#74 Phase 1 posting / Play-alpha recruitment**; **#109** notification-icon visual check; **#99/#101/#75**.
 
 ## Known on-device gotchas
 
@@ -32,4 +31,4 @@
 - **gregor** (SSH alias `gregor`, container `whisper`, `hwdsl2/whisper-server:cuda`, `large-v3`): strictly serial (C=1); `vad_filter=True` hardcoded; repetition-loops on repetitive/musical/noisy content in BOTH join and shadow — loop-mask before any join↔shadow diff (analyzer: `/tmp/opencode/seam-run/analyze.py`).
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-10-12 (**#126 silence-quality metric implemented + verified + pushed, docs persisted; flake third occurrence captured; #128/#129 next, #123 queued**).
+Last cleared: 2026-10-12 (**#128 Q-gated stitching implemented + verified + pushed (`c4c14ab`, docs completed after sub-agent timeout); #131 test-heap fix shipped (`717c194`); suite 473 green; #129 research pass next — epic #130 child #126/#127/#128 all implemented; #123 queued**).

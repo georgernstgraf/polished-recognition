@@ -1,6 +1,14 @@
 # Project State
 
-Current status as of 2026-10-12: **#126 (silence-quality metric) is IMPLEMENTED and verified — `audio/SilenceQuality` (deficit area Q, adaptive axis `X = k·M + c`, area-centroid cut with K-ms margin, measured on the 80-Hz-high-passed late-half span) replaces the deleted `SilenceCutter`; suite 465 green, `assembleRelease` + `compileHarnessKotlin` green, pushed as `7ff3800`. #128 (stitching gate `qualityMin`) and #129 (harness knobs + research pass for the real k/c/K values) are the follow-ups. The #127 audio-evidence retention and the #121/#122 close-out are history (see DECISIONS); #123 (loop guard) remains queued behind the seam work.**
+Current status as of 2026-10-12: **#128 (Q-gated stitching) is IMPLEMENTED and verified — the seam stitch decision (pre-roll + prompt + echo trim) is `Q < qualityMin` under `SeamPolicy.Q_GATE` (the new production default), decided ONCE in `FragmentPreparer.seamStitchedAt` and consumed by the transcriber; suite 473 green, `assembleRelease` + `compileHarnessKotlin` green, pushed as `c4c14ab`. #129 (harness knobs + the research pass for the real k/c/K/qualityMin values) is the follow-up; #123 (loop guard) stays queued. The #126 metric, #127 audio-evidence retention and the #121/#122 close-out are history (see DECISIONS).**
+
+## #128 — what shipped (`c4c14ab`)
+
+- `SeamPolicy.Q_GATE` (controller default; ALL/FORCED_ONLY/OFF frozen A/B arms; harness `policy` extra accepts `qgate`). Boundary: STRICT `Q < qualityMin` (Q == min → bare); null Q (legacy manifests, fixed cuts) stitches; forced cuts (Q = 0) always stitch.
+- `FragmentPreparer.Entry.seamQ` (manifest-round-tripped; Gson omits nulls → legacy manifests parse); `seamStitchedAt` = THE decision (pre-roll composition, 5-arg hook / `Committed.stitched`, `prepare.json`'s now-real `stitched`).
+- `FragmentTranscriber` dropped its own `SeamPolicy` — prompt iff `CommittedFragment.stitched` (+ `!promptDisabled`); trim unchanged (keys on the pre-roll file). Pre-roll/prompt/trim can never disagree.
+- `VoiceSessionController.fragmentQualityMin` (PROVISIONAL 10.0 = `FragmentPreparer.DEFAULT_QUALITY_MIN`; #126 fixtures bracket it: solid Q ≈ 40 bare, whisper Q ≈ 2.26 stitch; #129 measures the real value).
+- Tests +8 → **473 green** (5 skipped integration as always); fixture numbers pre-verified against the #126 Python mirror (`/tmp/opencode/sq-mirror/predict_128.py`). Pre-push suite ran clean first try (2048m heap since #131 — no flake).
 
 ## #126 — what shipped (`7ff3800`)
 
@@ -37,13 +45,12 @@ The adaptive search eliminates forced seams on Tier-1 classes; the energy fallba
 
 ## Current Focus
 
-#126 (silence-quality metric) is implemented and verified (2026-10-12, `7ff3800`). Next in the seam line: **#128** (the stitching gate — pre-roll + prompt + echo trim when `Q < qualityMin`, filling the `stitched` evidence field) and **#129** (harness knob rework — expose `axisK`/`axisC`/`qualityMin`/`marginK`/search-span as `am start` extras, drop the inert `energyFallback`, and run the research pass on retained audio + the corpus to replace the PROVISIONAL defaults). #123 (loop guard) stays queued. **With `fullContextAtStop` OFF in release, the fragment join is the ONLY delivery path.**
+#128 (Q-gated stitching) is implemented and verified (2026-10-12, `c4c14ab`). Next in the seam line: **#129** (harness knob rework — expose `axisK`/`axisC`/`qualityMin`/`marginK`/search-span as `am start` extras, drop the inert `energyFallback`, and run the research pass on retained audio + the corpus to replace the PROVISIONAL defaults: axis 0.65/100.0/150 ms/lateHalf and **qualityMin 10.0**). #123 (loop guard) stays queued. **With `fullContextAtStop` OFF in release, the fragment join is the ONLY delivery path.**
 
 ## Pending
-- [ ] **#128 stitching gate**: `qualityMin` threshold arming pre-roll/prompt/trim at low-Q seams; `stitched` field in `prepare.json`; `SeamPolicy` becomes a harness A/B arm only.
-- [ ] **#129 research pass**: measure real k/c/K/Q_min on retained audio + the corpus (harness on the Samsung A03 vs gregor); replace the provisional defaults (0.65 / 100.0 / 150 ms); rework the harness knobs.
+- [ ] **#129 research pass**: measure real k/c/K/Q_min on retained audio + the corpus (harness on the Samsung A03 vs gregor); replace the provisional defaults (0.65 / 100.0 / 150 ms / **10.0**); rework the harness knobs (incl. making `qgate` the sensible default arm).
 - [ ] **#127 on-device spot check (owner, optional)**: one dictation on a debug/harness build → `adb shell ls files/audio/<sessionId>/` shows `session.wav`, `fragments/`, `uploads/`; a second look at the Settings toggle (default off in release).
-- [ ] **Owner dictation check (~25 s)** on the release build: `prepare.json` cadence (~10 s nominal, growth ≤ 2S) now carries the `{M, min, max, X, Q, centroidMs, stitched}` block, stop→raw ≤ ~2.4 s worst case, Settings fragment field blank.
+- [ ] **Owner dictation check (~25 s)** on the release build: `prepare.json` cadence (~10 s nominal, growth ≤ 2S) carries the `{M, min, max, X, Q, centroidMs, stitched}` block with a REAL `stitched` (Q < 10 → stitched seams now carry pre-roll + prompt), stop→raw ≤ ~2.4 s worst case, Settings fragment field blank.
 - [ ] **#120 re-check (owner)**: > 5-min dictation on the release build → `stt-upload`/`stt-latency` every `durationMs ≤ 300_000`, no mid-text cut-off → then close #120.
 - [ ] **#123 loop guard** — filed with the #122 evidence; queued behind the seam work.
 - [ ] **Unidentified unit-test flake RECURRED AGAIN** (2026-10-12, during the #126 push — executor exit 2 at 318/465, 0 recorded failures; third recorded occurrence). Owner decision pending: raise the test-only `maxHeapSize` (1536m → 2048m)?
