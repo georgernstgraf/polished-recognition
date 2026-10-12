@@ -17,5 +17,8 @@ keystore.properties
 .env
 SCRATCH.md
 /tmp/
+/samples/corpus/
+/samples/retained/*
+!/samples/retained/.gitkeep
 /tools/testcaller/build/
 /tools/testcaller/app/build/
