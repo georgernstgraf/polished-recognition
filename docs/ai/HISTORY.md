@@ -3,6 +3,10 @@
 Chronological archive of superseded decisions and pruned entries.
 Entries here are no longer active truth. Never delete from this file.
 
+## 2026-10-12 (SUPERSEDED 2026-10-12, origin: PITFALLS.md, reason: #131 fixed the flake): Unidentified unit-test flake, three occurrences (exit 2 mid-suite, 0 recorded failures)
+- **Original entry (pruned from PITFALLS.md):** "A rare, unidentified unit-test flake (2026-10-11). One pre-push-hook run of `./gradlew test` failed ('BUILD FAILED in 34s') with no failing test captured; 3 forced full re-runs green, 444/444. RECURRENCE 2026-10-11 (during #127 verification, captured signature): `Gradle Test Executor 1` died with exit value 2 at 312/462 tests — every completed class's XML shows 0 failures/0 errors, the executor died just before `VoiceSessionControllerTest` (the same region as the #86 heap crash). A single re-run was green (462/462). THIRD occurrence 2026-10-12 (during the #126 push): same shape at 318/465, 0 recorded failures, single re-run green. The suite has ~1.9×'d since #86's 244-test/512m fix while the test heap stayed at 1536m — OOM-at-exhaustion hypothesis leading; candidate fix (not yet applied, owner decision): raise the test-only maxHeapSize."
+- **Reason superseded:** owner approved the fix; #131 (`717c194`) raised the test-only `maxHeapSize` to 2048m, verified with a forced `--rerun-tasks` full run; no recurrence since (the #128 push and the #129 research run both clean). PITFALLS.md retains only the one-line active watch entry.
+
 ## 2026-06-26 (SUPERSEDED 2026-06-26, origin: DOMAIN.md/CONVENTIONS.md, reason: #37 single editable prompt refactor): Translate/source-language resolved into user message
 - Translation mode previously injected `{{translate_prompt}}` into the **user** message template; `{{source_language}}` was a bare name substituted into the user template.
 - **Reason**: Both variables now resolve into the **system** message. The user message is an automatic, non-editable `{{text}}` carrier, and `{{source_language}}` is a sentence-or-empty clause dropped when Whisper is unsure.
