@@ -3,7 +3,6 @@ package com.georgernstgraf.polishedrecognition.pipeline
 import android.util.Log
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioDuration
-import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
 import com.georgernstgraf.polishedrecognition.audio.WavAssembler
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.gson.Gson
@@ -59,6 +58,12 @@ import java.util.concurrent.atomic.AtomicLong
  * stored (an untrimmed echo would re-condition the next fragment's prompt
  * and known tail, compounding per seam). Trim evidence goes into the
  * dedicated `stt-trim.json` stream.
+ *
+ * **#128 stitching gate:** WHICH seams get the pre-roll (+ the prompt) is
+ * decided by the preparer ([FragmentPreparer.seamStitchedAt] — under the
+ * production Q-gate: seam quality `Q < qualityMin`) and arrives per
+ * fragment as [CommittedFragment.stitched]; the prompt below is applied
+ * exactly on that flag, so prompt, pre-roll and trim share ONE decision.
  */
 class FragmentTranscriber(
     private val sttRunner: SttRequestRunner,
@@ -77,13 +82,6 @@ class FragmentTranscriber(
      * 800-char behaviour stays reachable as a study knob (#122).
      */
     private val promptMaxChars: Int = DEFAULT_PROMPT_MAX_CHARS,
-    /**
-     * Seam mechanism policy (#122): under [SeamPolicy.FORCED_ONLY] the prompt
-     * is skipped on a silence-aligned seam (the acoustic pre-roll is
-     * suppressed there too) — a clean pause needs no cross-seam conditioning.
-     * [SeamPolicy.ALL] keeps today's behaviour for the study's "before" arm.
-     */
-    private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
     /**
      * #122: when true, every fragment's transcript evidence is appended to
      * `stt-fragment.json` — index, words, chars, language, seam type, the
@@ -112,10 +110,19 @@ class FragmentTranscriber(
         val preRoll: File? = null,
         /**
          * #122: was the boundary at this fragment's start a forced (hard)
-         * cut? Under [SeamPolicy.FORCED_ONLY] the text prompt is applied only
-         * then.
+         * cut? Evidence only (the `stt-fragment.json` `seamForced` field).
          */
-        val seamForced: Boolean = true
+        val seamForced: Boolean = true,
+        /**
+         * #128: was the boundary at this fragment's start STITCHED — the
+         * single seam decision made by the preparer under the active
+         * [com.georgernstgraf.polishedrecognition.audio.SeamPolicy] (under
+         * the production Q-gate: the seam's silence quality Q fell below
+         * `qualityMin`). The text prompt is applied EXACTLY then, and the
+         * pre-roll composition (hence the echo trim) keys on the same
+         * seam's pre-roll file — the two can never disagree.
+         */
+        val stitched: Boolean = true
     )
 
     /**
@@ -298,14 +305,10 @@ class FragmentTranscriber(
         // Serial processing (C=1) in commit order guarantees the previous
         // fragment's transcript exists here (a re-queued failed fragment
         // after resetFailures may have none — then no prompt is sent).
-        // #122: under FORCED_ONLY/FORCED-ONLY the prompt is applied only at a
-        // forced seam (a silence-aligned seam needs no cross-seam context).
-        val seamContext = when (seamPolicy) {
-            SeamPolicy.ALL -> true
-            SeamPolicy.FORCED_ONLY -> fragment.seamForced
-            SeamPolicy.OFF -> false
-        }
-        val prompt = if (promptDisabled || !seamContext) null
+        // #128: the prompt is gated on the SAME seam decision as the
+        // pre-roll (`stitched`, made by the preparer under the active
+        // SeamPolicy) — prompt and pre-roll can never disagree.
+        val prompt = if (promptDisabled || !fragment.stitched) null
         else promptTail(transcripts[fragment.index - 1]?.text)
         // Acoustic pre-roll (#117 round 2): the upload is composed ONCE (the
         // echoed pre-roll is acoustic — it would appear on either attempt),

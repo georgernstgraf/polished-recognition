@@ -1,24 +1,43 @@
 package com.georgernstgraf.polishedrecognition.audio
 
 /**
- * How the seam mechanism — the acoustic pre-roll (and, in the transcriber,
- * the Whisper text prompt) — is applied at a fragment boundary (#122).
+ * How the seam mechanism — the acoustic pre-roll, the Whisper text prompt
+ * and (keyed on the pre-roll) the echo trim — is applied at a fragment
+ * boundary (#122, #128).
  *
- * A cut is either **silence-aligned** (a qualifying below-axis candidate
- * was found by [SilenceQuality], i.e. `Q > 0` — #126) or **forced** (no
- * candidate → best-effort cut at the quietest span frame, splitting
- * whatever is there). A forced cut splits a word across the seam, so
- * the overlap is exactly what recovers it; a silence-aligned cut already
- * separates the two fragments cleanly, so adding overlap/prompt there can
- * only *manufacture* contact (spurious duplication) — the round-2 symptom.
+ * **#128:** the production default is [Q_GATE] — stitching is a QUALITY
+ * decision, the one Boolean downstream of the cut (`stitch = Q < Q_min`):
+ * the cut is best-effort, the stitch is the guarantee. The #126 live
+ * failure (a word split across a silence-aligned seam, transcribed by BOTH
+ * fragments) happened precisely because a silence-aligned seam routed
+ * around every safety net; correctness must not depend on the cut being
+ * perfect.
+ *
+ * [ALL] / [FORCED_ONLY] / [OFF] keep their exact pre-#128 semantics as
+ * frozen harness A/B arms for the #129 research pass — production never
+ * selects them (the controller default is [Q_GATE]).
  */
 enum class SeamPolicy {
     /** Apply the pre-roll + prompt to EVERY seam (the pre-#122 behaviour). */
     ALL,
 
-    /** Apply them only at forced (hard) seams; silence-aligned seams get none. */
+    /**
+     * Apply them only at forced (hard) seams; silence-aligned seams
+     * (`Q > 0`) get none — the pre-#128 production default, kept as the
+     * study's "after" A/B arm.
+     */
     FORCED_ONLY,
 
     /** Never apply them (no pre-roll, no prompt). */
-    OFF;
+    OFF,
+
+    /**
+     * #128 quality gate — the production default: stitch (pre-roll +
+     * prompt + echo trim) at every seam whose quality Q falls below
+     * `qualityMin` (FragmentPreparer's threshold). The forced path's
+     * Q = 0 always stitches; a null Q (legacy/unmeasured cut) stitches
+     * too — the conservative direction. Boundary: Q == qualityMin is
+     * GOOD ENOUGH (bare seam, strict less-than).
+     */
+    Q_GATE;
 }

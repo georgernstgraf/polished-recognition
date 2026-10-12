@@ -4,7 +4,10 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
+import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
+import com.georgernstgraf.polishedrecognition.audio.SilenceQuality
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
+import com.georgernstgraf.polishedrecognition.audio.WavReader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 import com.google.common.truth.Truth.assertThat
@@ -17,7 +20,9 @@ import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okhttp3.MultipartBody
 import okhttp3.ResponseBody
+import okhttp3.RequestBody
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,6 +84,8 @@ class VoiceSessionControllerTest {
         fragmentBytes: Int = 1 shl 30,
         fragmentSearchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
         fragmentPreRollBytes: Int = 0, // pre-roll off unless a test opts in (#117 round 2)
+        seamPolicy: SeamPolicy = SeamPolicy.Q_GATE, // #128 production default
+        fragmentQualityMin: Double = FragmentPreparer.DEFAULT_QUALITY_MIN, // #128 gate
         sessionIdInMeta: String? = null,
         shadowSttEnabled: () -> Boolean = { false },
         mainDispatcher: Boolean = false, // true = production-like queued main-looper (#117 shadow)
@@ -99,6 +106,8 @@ class VoiceSessionControllerTest {
         fragmentBytes = fragmentBytes,
         fragmentSearchBytes = fragmentSearchBytes,
         fragmentPreRollBytes = fragmentPreRollBytes,
+        seamPolicy = seamPolicy,
+        fragmentQualityMin = fragmentQualityMin,
         // real live-fragment engine (#116) over the mocked STT endpoint,
         // with zero backoff so failure-path tests stay fast
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
@@ -1617,5 +1626,205 @@ class VoiceSessionControllerTest {
         assertThat(sttSlot.captured.getOrThrow().text).isEqualTo("one")
         verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         clearSessionFiles()
+    }
+
+    // ---- #128: Q-gated stitching, end-to-end over the restore seam ----------
+
+    /** #126/#128 fixture: [frames] 10-ms frames of a ±[amp] Nyquist square. */
+    private fun nyquistFrames(frames: Int, amp: Int): ByteArray {
+        val out = ByteArray(frames * SilenceQuality.FRAME_BYTES)
+        var sample = 0
+        for (i in 0 until out.size step 2) {
+            val v = if (sample % 2 == 0) amp else -amp
+            out[i] = (v and 0xFF).toByte()
+            out[i + 1] = ((v shr 8) and 0xFF).toByte()
+            sample++
+        }
+        return out
+    }
+
+    /**
+     * [total] bytes of ±3000 "speech" except the whole 10-ms frames inside
+     * [zeroRange] (byte range, exclusive end), which are floor — the solid
+     * #128 pause fixture (a span fully inside the pause reads Q = its frame
+     * count, mirror-verified).
+     */
+    private fun speechWithPause(total: Int, zeroRange: IntRange): ByteArray {
+        val frame = SilenceQuality.FRAME_BYTES
+        val out = ByteArray(total)
+        var sample = 0
+        for (f in 0 until total / frame) {
+            val a = f * frame
+            val amp = if (zeroRange.first <= a && a + frame <= zeroRange.last + 1) 0 else 3000
+            for (i in 0 until frame step 2) {
+                val v = if (sample % 2 == 0) amp else -amp
+                out[a + i] = (v and 0xFF).toByte()
+                out[a + i + 1] = ((v shr 8) and 0xFF).toByte()
+                sample++
+            }
+        }
+        return out
+    }
+
+    /**
+     * One restored fragment-session run (#128 pattern, see PITFALLS: the
+     * fragment path is only reachable via a hand-crafted snapshot):
+     * WAV fragments (parseable uploads), frag = search = 1 s → the
+     * late-half span is [nominal + 0.5 s, nominal + 1 s], a 1-s pre-roll.
+     * Returns every STT call's (uploaded PCM bytes, prompt text) in order
+     * plus the delivered [TranscriptionPipeline.SttResult].
+     */
+    private fun runRestoredSession(
+        pcm: ByteArray,
+        seamPolicy: SeamPolicy = SeamPolicy.Q_GATE,
+        fragmentQualityMin: Double = FragmentPreparer.DEFAULT_QUALITY_MIN,
+        logger: RotatingJsonLogger? = null,
+        responses: List<String>
+    ): Pair<List<Pair<Int, String?>>, TranscriptionPipeline.SttResult> {
+        clearSessionFiles()
+        settings.compressAudio = false // WAV fragments → parseable composed uploads
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText(
+            """{"durationMs":${pcm.size / 32},"sessionId":"testsess"}"""
+        )
+        val calls = mutableListOf<Pair<Int, String?>>()
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
+            val part = invocation.args[1] as MultipartBody.Part
+            val wav = WavReader.read(okio.Buffer().also { part.body.writeTo(it) }.readByteArray())
+            val promptBody = invocation.args[4] as? RequestBody
+            val prompt = promptBody?.let { p -> okio.Buffer().also { p.writeTo(it) }.readUtf8() }
+            calls.add(wav.data.size to prompt)
+            val text = responses.getOrNull(callIndex) ?: "resp$callIndex"
+            callIndex++
+            mockSttCall(Response.success(SttResponse(text = text, language = null)))
+        }
+        val controller = newController(
+            fragmentBytes = 32_000,
+            fragmentSearchBytes = 32_000,
+            fragmentPreRollBytes = 32_000,
+            seamPolicy = seamPolicy,
+            fragmentQualityMin = fragmentQualityMin,
+            logger = logger
+        )
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+        clearSessionFiles()
+        return calls.toList() to sttSlot.captured.getOrThrow()
+    }
+
+    /**
+     * The #126 whisper-THREADING seam (late-half span Q ≈ 2.3) meets the
+     * #128 production gate: Q < qualityMin (10) → the tail fragment's
+     * upload is composed with the 1-s pre-roll, its request carries the
+     * previous transcript as the seam prompt, and the echoed pre-roll text
+     * is trimmed against the known tail BEFORE the join (stt-trim
+     * evidence). Mirror-verified: cut at 48 800 → fragment 0 = 48 800 B,
+     * tail = 23 200 B, composed upload = 32 000 + 23 200 B.
+     */
+    @Test
+    fun `q-gate stitches a low-quality whisper seam end-to-end`() {
+        var pcm = ByteArray(0)
+        repeat(45) { blk -> pcm += nyquistFrames(5, if (blk % 2 == 0) 120 else 240) }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val logDir = File(cacheDir, "trimlogs").apply { deleteRecursively(); mkdirs() }
+
+        val (calls, stt) = runRestoredSession(
+            pcm,
+            logger = RotatingJsonLogger(logDir),
+            responses = listOf("eins zwei", "eins zwei drei") // the tail echoes the pre-roll
+        )
+
+        // fragment 0: bare upload (the searched cut), contextless
+        assertThat(calls[0]).isEqualTo(48_800 to null as String?)
+        // the tail: STITCHED — the composed upload carries the 1-s pre-roll
+        // AND the request carries the seam prompt
+        assertThat(calls[1]).isEqualTo(55_200 to "eins zwei")
+        // the echoed pre-roll text was trimmed before the join
+        assertThat(stt.text).isEqualTo("eins zwei drei")
+        assertThat(stt.chunkCount).isEqualTo(2)
+        val trim = File(logDir, "stt-trim.json").readText()
+        assertThat(trim).contains("\"fragment\":1")
+        assertThat(trim).contains("\"echoTokens\":2")
+        assertThat(trim).contains("\"uploadWithPreRoll\":true")
+    }
+
+    /**
+     * A solid pause (late-half span all floor → Q = 50 ≥ qualityMin = 10,
+     * mirror-verified; cut at 56 160) is GOOD ENOUGH: the seam stays BARE —
+     * the tail uploads unchanged, no prompt, and no trim evidence is
+     * written (nothing was fed, nothing echoes).
+     */
+    @Test
+    fun `q-gate leaves a solid-pause seam bare end-to-end`() {
+        val pcm = speechWithPause(96_000, 48_000 until 64_000)
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val logDir = File(cacheDir, "trimlogs").apply { deleteRecursively(); mkdirs() }
+
+        val (calls, stt) = runRestoredSession(
+            pcm,
+            logger = RotatingJsonLogger(logDir),
+            responses = listOf("eins zwei", "und fertig")
+        )
+
+        assertThat(calls[0]).isEqualTo(56_160 to null as String?)
+        assertThat(calls[1]).isEqualTo(39_840 to null as String?) // bare tail, no prompt
+        assertThat(stt.text).isEqualTo("eins zwei und fertig")
+        assertThat(File(logDir, "stt-trim.json").exists()).isFalse()
+    }
+
+    /**
+     * [VoiceSessionController.fragmentQualityMin] plumbing: the SAME
+     * solid-pause seam (Q = 50) flips from bare (default threshold 10) to
+     * stitched when the threshold rises above the measured quality (60) —
+     * the knob reaches the preparer's gate.
+     */
+    @Test
+    fun `fragmentQualityMin plumbing - a threshold above the seam Q stitches it`() {
+        val pcm = speechWithPause(96_000, 48_000 until 64_000) // Q = 50
+
+        val bare = runRestoredSession(pcm, responses = listOf("a", "b"))
+        val stitched = runRestoredSession(
+            pcm,
+            fragmentQualityMin = 60.0,
+            responses = listOf("eins zwei", "eins zwei drei")
+        )
+
+        // default (10): Q = 50 ≥ 10 → bare tail
+        assertThat(bare.first[1]).isEqualTo(39_840 to null as String?)
+        // threshold 60: Q = 50 < 60 → the tail is stitched (32 000 pre-roll
+        // + 39 840 fragment) and prompted
+        assertThat(stitched.first[1]).isEqualTo(71_840 to "eins zwei")
+        // and the echo trim heals the duplicated pre-roll text
+        assertThat(stitched.second.text).isEqualTo("eins zwei drei")
+    }
+
+    /**
+     * The frozen FORCED_ONLY A/B arm keeps its exact pre-#128 behaviour
+     * end-to-end: the SAME whisper seam (silence-ALIGNED, Q ≈ 2.3 > 0)
+     * stays bare — no pre-roll, no prompt. The discriminating case against
+     * the Q-gate (which stitches this exact audio, see the whisper test).
+     */
+    @Test
+    fun `forced-only arm keeps the aligned whisper seam bare end-to-end`() {
+        var pcm = ByteArray(0)
+        repeat(45) { blk -> pcm += nyquistFrames(5, if (blk % 2 == 0) 120 else 240) }
+
+        val (calls, stt) = runRestoredSession(
+            pcm,
+            seamPolicy = SeamPolicy.FORCED_ONLY,
+            responses = listOf("eins zwei", "drei")
+        )
+
+        assertThat(calls[0]).isEqualTo(48_800 to null as String?)
+        assertThat(calls[1]).isEqualTo(23_200 to null as String?)
+        assertThat(stt.text).isEqualTo("eins zwei drei")
     }
 }

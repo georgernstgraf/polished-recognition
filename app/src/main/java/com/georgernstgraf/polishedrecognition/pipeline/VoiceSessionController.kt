@@ -55,13 +55,16 @@ class VoiceSessionController(
      */
     private val fragmentPreRollBytes: Int = FragmentPreparer.DEFAULT_PRE_ROLL_BYTES,
     /**
-     * Seam mechanism policy (#122): whether the acoustic pre-roll + Whisper
-     * prompt are applied at every seam ([SeamPolicy.ALL], the pre-#122
-     * behaviour) or only at forced (hard) cuts ([SeamPolicy.FORCED_ONLY]).
-     * Production defaults to FORCED_ONLY — a silence-aligned cut needs no
-     * manufactured seam. The harness selects the level per run.
+     * Seam mechanism policy (#122/#128): how a seam's stitch decision
+     * (pre-roll + prompt + echo trim) is made — see
+     * [FragmentPreparer.seamStitchedAt]. Production defaults to
+     * [SeamPolicy.Q_GATE] (#128: stitch iff the seam's silence quality
+     * `Q < fragmentQualityMin` — the cut is best-effort, the stitch is the
+     * guarantee); ALL/FORCED_ONLY/OFF keep their exact pre-#128 semantics
+     * as frozen harness A/B arms (#129). The harness selects the arm per
+     * run.
      */
-    private val seamPolicy: SeamPolicy = SeamPolicy.FORCED_ONLY,
+    private val seamPolicy: SeamPolicy = SeamPolicy.Q_GATE,
     /**
      * #124: pass-through of the preparer's quietest-frame forced-cut
      * fallback (see [FragmentPreparer.energyFallbackEnabled]). `true` in
@@ -96,6 +99,14 @@ class VoiceSessionController(
      * or the full window (the #129 harness A/B arm).
      */
     private val fragmentSearchSpan: SearchSpan = FragmentPreparer.DEFAULT_SEARCH_SPAN,
+    /**
+     * #128 stitching gate: the minimum silence quality a seam must reach to
+     * stay BARE (no pre-roll/prompt/trim) under [SeamPolicy.Q_GATE] —
+     * stitch iff `Q < fragmentQualityMin`. Harness-only knob — no Settings
+     * UI. **PROVISIONAL default** ([FragmentPreparer.DEFAULT_QUALITY_MIN])
+     * — the #129 research pass on real audio determines the real value.
+     */
+    private val fragmentQualityMin: Double = FragmentPreparer.DEFAULT_QUALITY_MIN,
     /**
      * Whisper prompt window in characters (#122 study knob): passed through to
      * [FragmentTranscriber]. `<= 0` disables the prompt. Production keeps the
@@ -331,13 +342,13 @@ class VoiceSessionController(
      */
     private fun attachTranscriber(p: FragmentPreparer) {
         val t = transcriber ?: buildTranscriber().also { transcriber = it }
-        p.onFragmentCommitted = { index, file, preRoll, seamForced ->
-            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll, seamForced))
+        p.onFragmentCommitted = { index, file, preRoll, seamForced, stitched ->
+            t.offer(FragmentTranscriber.CommittedFragment(index, file, preRoll, seamForced, stitched))
         }
         p.committedFragments().forEach { committed ->
             t.offer(
                 FragmentTranscriber.CommittedFragment(
-                    committed.index, committed.file, committed.preRoll, committed.seamForced
+                    committed.index, committed.file, committed.preRoll, committed.seamForced, committed.stitched
                 )
             )
         }
@@ -356,7 +367,6 @@ class VoiceSessionController(
             }
         },
         logger = logger,
-        seamPolicy = seamPolicy,
         seamEvidence = seamEvidence,
         promptMaxChars = promptMaxChars,
         audioEvidenceStore = audioEvidenceStore,
@@ -394,6 +404,7 @@ class VoiceSessionController(
         axisC = fragmentAxisC,
         marginKMs = fragmentMarginKMs,
         searchSpan = fragmentSearchSpan,
+        qualityMin = fragmentQualityMin,
         logger = logger
     )
 

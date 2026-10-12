@@ -37,11 +37,22 @@ import java.util.concurrent.CopyOnWriteArrayList
  * the original PCM byte-for-byte. No candidate (min ≈ M — continuous
  * speech, or a whisper room under the absolute anchor) → best-effort forced
  * cut at the QUIETEST frame of the span (the #124 semantics, now the only
- * forced path), tagged FORCED so `SeamPolicy.FORCED_ONLY` still applies
- * pre-roll + prompt. Because the metric's M spans the search span (which
+ * forced path, Q = 0). Because the metric's M spans the search span (which
  * ends at the window end), the decision ALWAYS waits for the full window —
  * the #117 early-commit-on-found-silence is gone; every fragment commits
  * at ≤ S+search bytes of audio, which was the old worst case anyway.
+ *
+ * **#128 stitching gate — the cut is best-effort, the stitch is the
+ * guarantee:** whether a seam gets the pre-roll (+ the text prompt and the
+ * echo trim in the transcriber) is a QUALITY decision, not a cut-type
+ * decision. Under [SeamPolicy.Q_GATE] (the production default) a seam
+ * stitches iff its Q < [qualityMin]: a solid pause (Q ≥ qualityMin) needs
+ * no manufactured contact; a shallow/whisper seam or a forced cut (Q = 0)
+ * gets the full safety net. The decision is made HERE, once per seam
+ * ([seamStitchedAt]), and flows to the transcriber through
+ * [Committed.stitched] and the commit hook — pre-roll, prompt and trim can
+ * never disagree. The old cut-type rule survives verbatim inside
+ * [SeamPolicy.FORCED_ONLY] as a frozen harness A/B arm (#129).
  *
  * **Acoustic pre-roll (#117 round 2):** the text prompt conditions only the
  * decoder — it cannot add acoustic context, and a server-side VAD can trim
@@ -103,10 +114,11 @@ class FragmentPreparer(
      */
     private val preRollBytes: Int = DEFAULT_PRE_ROLL_BYTES,
     /**
-     * Seam mechanism policy (#122): whether the acoustic pre-roll is written
-     * for a boundary, keyed on the boundary's cut type (silence-aligned vs
-     * forced). [SeamPolicy.ALL] preserves the pre-#122 behaviour (pre-roll on
-     * every fragment ≥ 1); production wires [SeamPolicy.FORCED_ONLY].
+     * Seam mechanism policy (#122/#128): whether a boundary is STITCHED
+     * (pre-roll composed + prompt sent + echo trim armed), decided per seam
+     * by [seamStitchedAt]. [SeamPolicy.Q_GATE] is the production default
+     * (stitch iff the seam's Q < [qualityMin]); ALL/FORCED_ONLY/OFF keep
+     * their exact pre-#128 semantics as frozen harness A/B arms (#129).
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
     /**
@@ -145,6 +157,17 @@ class FragmentPreparer(
      * (the #129 harness A/B arm).
      */
     private val searchSpan: SearchSpan = DEFAULT_SEARCH_SPAN,
+    /**
+     * #128 stitching gate: the minimum silence quality a seam must reach to
+     * stay BARE under [SeamPolicy.Q_GATE] — stitch iff `Q < qualityMin`
+     * (strict; Q == qualityMin is good enough). 10-ms frame units, i.e. Q
+     * ≈ the minimum pause duration in frames. **PROVISIONAL default**
+     * ([DEFAULT_QUALITY_MIN]) — the #126 fixtures bracket it (solid pause
+     * Q ≈ 40 → bare, whisper threading Q ≈ 2.3 → stitch); the #129
+     * research pass on real audio determines the real value. Harness-only
+     * knob — no Settings UI.
+     */
+    private val qualityMin: Double = DEFAULT_QUALITY_MIN,
     private val pollIntervalMs: Long = 500,
     private val logger: RotatingJsonLogger? = null
 ) {
@@ -157,23 +180,43 @@ class FragmentPreparer(
         /**
          * Did this fragment's END cut come from a qualifying silence
          * candidate (#126: a below-axis deficit region was found, i.e.
-         * `Q > 0` — the interim `silenceAligned` mapping; #128 replaces the
-         * mapping with a real `qualityMin` gate) or was it a forced
-         * best-effort cut (false)? Drives the NEXT fragment's pre-roll
-         * policy. Legacy manifests parse as `false` (= forced). The field
-         * name is kept so pre-#126 manifests keep parsing unchanged.
+         * `Q > 0` — the interim `silenceAligned` mapping; under the #128
+         * Q-gate it only drives the frozen `FORCED_ONLY` A/B arm) or was it
+         * a forced best-effort cut (false)? Legacy manifests parse as
+         * `false` (= forced). The field name is kept so pre-#126 manifests
+         * keep parsing unchanged.
          */
-        val silenceAligned: Boolean = false
+        val silenceAligned: Boolean = false,
+        /**
+         * #128: the #126 metric's Q of this fragment's END cut — the seam
+         * quality the Q-gate compares against [qualityMin] when the NEXT
+         * fragment's stitch decision is made (`seamStitchedAt(index + 1)`).
+         * `null` when no search span was measured (the stop-tap tail, the
+         * `searchBytes = 0` legacy path, pre-#128 manifests) — the gate
+         * treats null as stitch (the conservative direction). Gson omits
+         * nulls, so legacy manifests keep parsing unchanged.
+         */
+        val seamQ: Double? = null
     )
     data class ManifestState(val fallbackToWav: Boolean, val fragments: List<Entry>)
 
-    /** (index, file, preRoll, seamForced) of one committed fragment (#122). */
+    /**
+     * (index, file, preRoll, seamForced, stitched) of one committed
+     * fragment (#122/#128).
+     */
     data class Committed(
         val index: Int,
         val file: File,
         val preRoll: File?,
         /** Was the boundary at this fragment's start a forced (hard) cut? */
-        val seamForced: Boolean
+        val seamForced: Boolean,
+        /**
+         * #128: was the boundary at this fragment's start STITCHED under
+         * the active [SeamPolicy] (pre-roll composed for THIS fragment +
+         * prompt + echo trim)? The single seam decision — the transcriber
+         * keys both its prompt and (via the pre-roll file) its trim on it.
+         */
+        val stitched: Boolean
     )
 
     private val gson = Gson()
@@ -191,11 +234,14 @@ class FragmentPreparer(
      * transcription worker consumes fragments through this as they close.
      * `index` is the fragment's position in the stream, `file` the committed
      * OGG/WAV fragment file, `preRoll` the acoustic pre-roll side file
-     * (#117 round 2; `null` for fragment 0 or when its encode failed OR the
-     * seam policy suppressed it), `seamForced` whether the boundary at this
-     * fragment's start was a forced cut (#122).
+     * (#117 round 2; `null` for fragment 0, a failed pre-roll encode, or a
+     * seam the active [SeamPolicy] left bare), `seamForced` whether the
+     * boundary at this fragment's start was a forced cut (#122 evidence),
+     * and `stitched` the #128 seam decision for this fragment's start
+     * boundary (pre-roll + prompt + echo trim armed).
      */
-    var onFragmentCommitted: ((index: Int, file: File, preRoll: File?, seamForced: Boolean) -> Unit)? = null
+    var onFragmentCommitted:
+            ((index: Int, file: File, preRoll: File?, seamForced: Boolean, stitched: Boolean) -> Unit)? = null
 
     /**
      * Upload chunk cap in PCM bytes (#117): the smaller of the byte limit
@@ -243,6 +289,15 @@ class FragmentPreparer(
         const val DEFAULT_AXIS_C = 100.0
         const val DEFAULT_MARGIN_K_MS = 150
         val DEFAULT_SEARCH_SPAN = SearchSpan.LATE_HALF
+
+        /**
+         * #128 provisional stitching-gate threshold — PLACEHOLDER until the
+         * #129 research pass on real audio picks the real value (harness
+         * knob, no Settings UI). The #126 fixtures bracket it: a solid
+         * pause reads Q ≈ 40 (bare), the whisper-threading regime Q ≈ 2.3
+         * (stitch).
+         */
+        const val DEFAULT_QUALITY_MIN = 10.0
 
         /** Acoustic pre-roll (#117 round 2): 1 s of the previous fragment. */
         const val PRE_ROLL_SECONDS = 1.0
@@ -496,22 +551,57 @@ class FragmentPreparer(
     }
 
     /**
-     * (index, file, preRoll, seamForced) of every committed fragment, in
-     * commit order (#116/#122). The pre-roll is derived from the fragment's
-     * name and is `null` when its file is absent (fragment 0, a failed
-     * pre-roll encode, a policy-suppressed seam, or a legacy session). Safe
-     * to call while the encoder thread runs — COW snapshot semantics.
+     * (index, file, preRoll, seamForced, stitched) of every committed
+     * fragment, in commit order (#116/#122/#128). The pre-roll is derived
+     * from the fragment's name and is `null` when its file is absent
+     * (fragment 0, a failed pre-roll encode, a policy-bare seam, or a
+     * legacy session). Safe to call while the encoder thread runs — COW
+     * snapshot semantics.
      */
     fun committedFragments(): List<Committed> =
         entries.mapIndexed { index, entry ->
             val file = File(sessionDir, entry.name)
             val preRoll = File(sessionDir, entry.name.replaceFirst("frag_", "preroll_"))
-            Committed(index, file, preRoll.takeIf { it.isFile }, seamForcedAt(index))
+            Committed(index, file, preRoll.takeIf { it.isFile }, seamForcedAt(index), seamStitchedAt(index))
         }
 
     /** Was the boundary at fragment [index]'s start a forced (hard) cut? (#122) */
     private fun seamForcedAt(index: Int): Boolean =
         index > 0 && entries.getOrNull(index - 1)?.silenceAligned != true
+
+    /**
+     * #128 stitching gate — THE seam decision, evaluated identically for
+     * the pre-roll composition ([writePreRoll]), the commit hook /
+     * [committedFragments] (the transcriber's prompt gate) and the
+     * `prepare.json` `stitched` evidence field: was the boundary at
+     * fragment [index]'s start STITCHED under the active [seamPolicy]?
+     *
+     * - [SeamPolicy.Q_GATE] (production): stitch iff the seam's Q (the
+     *   previous entry's [Entry.seamQ]) is `null` (legacy/unmeasured cut —
+     *   the conservative direction) or `< qualityMin` (strict: Q ==
+     *   qualityMin is a good-enough pause, bare). The forced path's Q = 0
+     *   always stitches.
+     * - [SeamPolicy.FORCED_ONLY] (frozen A/B arm, exact pre-#128 rule):
+     *   stitch iff the previous cut was forced (`silenceAligned == false`).
+     * - [SeamPolicy.ALL] / [SeamPolicy.OFF]: always / never.
+     *
+     * Fragment 0 has no predecessor → never stitched. The decision is
+     * deterministic in the append-only entry list, so every consumer
+     * evaluates the same value.
+     */
+    private fun seamStitchedAt(index: Int): Boolean {
+        if (index <= 0) return false
+        val previous = entries.getOrNull(index - 1)
+        return when (seamPolicy) {
+            SeamPolicy.ALL -> true
+            SeamPolicy.OFF -> false
+            SeamPolicy.FORCED_ONLY -> previous?.silenceAligned != true
+            SeamPolicy.Q_GATE -> {
+                val q = previous?.seamQ
+                q == null || q < qualityMin
+            }
+        }
+    }
 
     private fun encodeFragment(
         index: Int,
@@ -530,16 +620,18 @@ class FragmentPreparer(
             val target = File(sessionDir, "frag_%06d.ogg".format(index))
             try {
                 transcoder.transcode(WavWriter.write(data, sampleRate), target)
-                entries.add(Entry(target.name, target.length(), end, silenceAligned))
+                entries.add(Entry(target.name, target.length(), end, silenceAligned, metric?.quality))
             } catch (e: Exception) {
                 // Session-level fallback: OGG is impossible on this ROM —
                 // discard the OGG fragments and rebuild the WHOLE prefix as
                 // WAV (the PCM prefix is immutable and fully available),
                 // then continue in WAV mode below for this very fragment.
-                // The committed boundaries + cut flags (#117/#122) are
-                // captured BEFORE the clear so the rebuild reproduces both.
+                // The committed boundaries + cut flags + seam qualities
+                // (#117/#122/#128) are captured BEFORE the clear so the
+                // rebuild reproduces all three.
                 val boundaries = entries.map { it.end }
                 val flags = entries.map { it.silenceAligned }
+                val seamQs = entries.map { it.seamQ }
                 fallbackToWav = true
                 entries.clear()
                 sessionDir.listFiles()?.forEach { file ->
@@ -554,7 +646,9 @@ class FragmentPreparer(
                     // The rebuild's delete sweep wiped the pre-rolls — they
                     // are re-created for every rebuilt fragment (#117 round 2).
                     writePreRoll(i, s, ogg = false)
-                    entries.add(Entry(rebuilt.name, rebuilt.length(), e, flags.getOrNull(i) ?: false))
+                    entries.add(
+                        Entry(rebuilt.name, rebuilt.length(), e, flags.getOrNull(i) ?: false, seamQs.getOrNull(i))
+                    )
                 }
                 logger?.log(
                     "prepare",
@@ -572,19 +666,25 @@ class FragmentPreparer(
             preRoll = writePreRoll(index, start, ogg = true)
             writeManifest()
             logFragment(index, data.size, end, metric, metricSpanStart, start, started)
-            notifyCommitted(index, "frag_%06d.ogg".format(index), preRoll, seamForcedAt(index))
+            notifyCommitted(index, "frag_%06d.ogg".format(index), preRoll, seamForcedAt(index), seamStitchedAt(index))
             return
         }
         preRoll = writePreRoll(index, start, ogg = false)
-        entries.add(Entry(file.name, file.length(), end, silenceAligned))
+        entries.add(Entry(file.name, file.length(), end, silenceAligned, metric?.quality))
         writeManifest()
         logFragment(index, data.size, end, metric, metricSpanStart, start, started)
-        notifyCommitted(index, file.name, preRoll, seamForcedAt(index))
+        notifyCommitted(index, file.name, preRoll, seamForcedAt(index), seamStitchedAt(index))
     }
 
-    private fun notifyCommitted(index: Int, name: String, preRoll: File?, seamForced: Boolean) {
+    private fun notifyCommitted(
+        index: Int,
+        name: String,
+        preRoll: File?,
+        seamForced: Boolean,
+        stitched: Boolean
+    ) {
         try {
-            onFragmentCommitted?.invoke(index, File(sessionDir, name), preRoll, seamForced)
+            onFragmentCommitted?.invoke(index, File(sessionDir, name), preRoll, seamForced, stitched)
         } catch (_: Throwable) {
         }
     }
@@ -601,16 +701,13 @@ class FragmentPreparer(
      */
     private fun writePreRoll(index: Int, start: Long, ogg: Boolean): File? {
         if (index == 0 || preRollBytes <= 0) return null
-        // #122 seam policy: a silence-aligned boundary already separates the
-        // two fragments cleanly — under FORCED_ONLY the pre-roll is written
-        // only at a forced (hard) boundary, where a word straddles the cut.
-        val boundarySilenceAligned = entries.getOrNull(index - 1)?.silenceAligned == true
-        val allowed = when (seamPolicy) {
-            SeamPolicy.ALL -> true
-            SeamPolicy.FORCED_ONLY -> !boundarySilenceAligned
-            SeamPolicy.OFF -> false
-        }
-        if (!allowed) return null
+        // #128 stitching gate: the pre-roll is composed iff the seam at
+        // this fragment's start was STITCHED under the active policy —
+        // under Q_GATE that is `seam Q < qualityMin` (a solid pause stays
+        // bare; a shallow/whisper seam or a forced cut gets the overlap).
+        // The SAME decision drives the transcriber's prompt and the
+        // `stitched` evidence, via [seamStitchedAt].
+        if (!seamStitchedAt(index)) return null
         return try {
             val from = (start - preRollBytes).coerceAtLeast(0L)
             if (from >= start) return null
@@ -626,14 +723,16 @@ class FragmentPreparer(
     }
 
     /**
-     * Fragment evidence (#117/#126): the cadence fields stay unchanged and
-     * the old `silenceAligned` flag is REPLACED by the #126 contract block —
-     * `M`, `min` (the P5-ish floor stat, not a single-frame min), `max`,
-     * `X`, `Q`, `centroidMs` (the cut position relative to the FRAGMENT
-     * start; the margin-clamped centroid — what the analyzer needs) and
-     * `stitched` (placeholder `false` until #128 fills it; the field exists
-     * now so the #129 analyzer contract is stable from day one). The block
-     * is present only when a search span was actually measured (the
+     * Fragment evidence (#117/#126/#128): the cadence fields stay unchanged
+     * and the old `silenceAligned` flag is REPLACED by the #126 contract
+     * block — `M`, `min` (the P5-ish floor stat, not a single-frame min),
+     * `max`, `X`, `Q`, `centroidMs` (the cut position relative to the
+     * FRAGMENT start; the margin-clamped centroid — what the analyzer needs)
+     * and `stitched` (#128, real since this issue): the stitch decision for
+     * the seam this record DESCRIBES (the fragment's END cut) — whether the
+     * NEXT fragment's upload is composed with a pre-roll under the active
+     * [SeamPolicy] (`Q < qualityMin` under the production Q-gate). The
+     * block is present only when a search span was actually measured (the
      * stop-tap tail and the `searchBytes = 0` legacy path carry none).
      */
     private fun logFragment(
@@ -659,7 +758,7 @@ class FragmentPreparer(
             record["X"] = metric.axis
             record["Q"] = metric.quality
             record["centroidMs"] = (metricSpanStart + metric.cutOffset - fragmentStart) / 32.0
-            record["stitched"] = false
+            record["stitched"] = seamStitchedAt(index + 1)
         }
         logger?.log("prepare", gson.toJson(record))
     }

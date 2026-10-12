@@ -1,7 +1,6 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
-import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
 import com.georgernstgraf.polishedrecognition.audio.WavReader
 import com.georgernstgraf.polishedrecognition.audio.WavWriter
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
@@ -54,7 +53,8 @@ class FragmentTranscriberTest {
         index: Int,
         seconds: Int = 7,
         preRollSeconds: Int = 0, // pre-roll off unless a test opts in (#117 round 2)
-        seamForced: Boolean = true // #122: boundary cut type
+        seamForced: Boolean = true, // #122: boundary cut type (evidence)
+        stitched: Boolean = true // #128: the seam's stitch decision (prompt gate)
     ): FragmentTranscriber.CommittedFragment {
         // 16-bit mono @ 16 kHz = 32_000 bytes/s → one second of PCM per 32 kB
         val file = File(tmp.root, "frag_%06d.wav".format(index))
@@ -63,7 +63,7 @@ class FragmentTranscriberTest {
             File(tmp.root, "preroll_%06d.wav".format(index)).apply {
                 writeBytes(WavWriter.write(ByteArray(preRollSeconds * 32_000), sampleRate = 16_000))
             }
-        return FragmentTranscriber.CommittedFragment(index, file, preRoll, seamForced)
+        return FragmentTranscriber.CommittedFragment(index, file, preRoll, seamForced, stitched)
     }
 
     private fun ok(text: String, language: String? = null): Result<SttResponse> =
@@ -524,54 +524,65 @@ class FragmentTranscriberTest {
         assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
     }
 
-    // ---- #122: seam policy -------------------------------------------------
+    // ---- #128: the prompt follows the seam stitch decision ------------------
 
-    private fun transcriberWith(policy: SeamPolicy): FragmentTranscriber =
-        FragmentTranscriber(
-            sttRunner = sttRunner,
-            configProvider = { config },
-            scope = CoroutineScope(Dispatchers.Unconfined),
-            onProgress = { progresses.add(it) },
-            seamPolicy = policy
-        )
-
+    /**
+     * #128: the text prompt is gated on the SAME seam decision as the
+     * acoustic pre-roll ([FragmentTranscriber.CommittedFragment.stitched],
+     * made by the preparer under the active SeamPolicy) — a stitched seam
+     * is conditioned on the previous transcript, a bare seam is not, and
+     * the pattern resumes after a bare seam (fragment 3 is prompted from
+     * fragment 2's transcript).
+     */
     @Test
-    fun `forced-only skips the prompt at a silence-aligned seam`() = runBlocking {
-        transcriber = transcriberWith(SeamPolicy.FORCED_ONLY)
+    fun `prompt is sent exactly across stitched seams`() = runBlocking {
         stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
 
         transcriber.start()
         transcriber.offer(fragment(0))
-        transcriber.offer(fragment(1, seamForced = true))
-        transcriber.offer(fragment(2, seamForced = false)) // silence-aligned boundary
+        transcriber.offer(fragment(1, stitched = true))
+        transcriber.offer(fragment(2, stitched = false)) // bare seam → no prompt
+        transcriber.offer(fragment(3, stitched = true))
         transcriber.drain()
 
-        // f0 contextless; f1 forced → prompted; f2 silence → no prompt
-        assertThat(prompts).containsExactly(null, "t0", null).inOrder()
+        assertThat(prompts).containsExactly(null, "t0", null, "t2").inOrder()
     }
 
+    /**
+     * #128 × #117: the HTTP-400 prompt fallback disables the PROMPT for the
+     * session but never the STITCH — later stitched fragments keep their
+     * composed pre-roll upload, only the text conditioning is dropped.
+     */
     @Test
-    fun `all policy keeps the prompt at every seam`() = runBlocking {
-        transcriber = transcriberWith(SeamPolicy.ALL)
-        stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
+    fun `prompt-disabled session keeps composing pre-rolls at stitched seams`() = runBlocking {
+        val calls = mutableListOf<Pair<String, String?>>() // upload name to prompt
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any()) } answers {
+            val prompt = invocation.args[4] as String?
+            calls.add(firstArg<File>().name to prompt)
+            if (prompt != null) {
+                Result.failure(SttRequestRunner.SttRequestException("HTTP 400", httpCode = 400))
+            } else {
+                ok("t${thirdArg<Int>() - 1}")
+            }
+        }
 
         transcriber.start()
-        (0..2).forEach { transcriber.offer(fragment(it, seamForced = false)) }
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1, preRollSeconds = 1, stitched = true))
+        transcriber.offer(fragment(2, preRollSeconds = 1, stitched = true))
         transcriber.drain()
 
-        assertThat(prompts).containsExactly(null, "t0", "t1").inOrder()
-    }
-
-    @Test
-    fun `off policy sends no prompt at all`() = runBlocking {
-        transcriber = transcriberWith(SeamPolicy.OFF)
-        stubPromptRecordingRunner { _, index -> Result.success(SttResponse(text = "t$index")) }
-
-        transcriber.start()
-        (0..2).forEach { transcriber.offer(fragment(it)) }
-        transcriber.drain()
-
-        assertThat(prompts).containsExactly(null, null, null).inOrder()
+        // fragment 1: prompted attempt → 400 → retry without the prompt on
+        // the SAME composed upload; fragment 2: prompt already disabled,
+        // but the seam still stitches — the composed pre-roll upload goes out
+        assertThat(calls).containsExactly(
+            "frag_000000.wav" to null,
+            "upload_000001.wav" to "t0",
+            "upload_000001.wav" to null,
+            "upload_000002.wav" to null
+        ).inOrder()
+        assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
+        assertThat(File(tmp.root, "upload_000002.wav").exists()).isFalse()
     }
 
     @Test

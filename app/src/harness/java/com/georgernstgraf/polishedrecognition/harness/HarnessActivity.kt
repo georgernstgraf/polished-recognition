@@ -28,7 +28,7 @@ import java.io.File
  * ```
  *
  * Recognised extras: `file` (required), `label`, `mode` (raw|german|polish),
- * `format` (ogg|wav), `policy` (all|forced|off), `fragmentSeconds`,
+ * `format` (ogg|wav), `policy` (all|forced|off|qgate), `fragmentSeconds`,
  * `searchSeconds`, `preRollSeconds`, `promptChars` (int), `reference` (bool,
  * default true = run the shadow as the seam reference), `energyFallback`
  * (bool, default true = the #124 quietest-frame forced-cut fallback),
@@ -211,6 +211,10 @@ class HarnessActivity : Activity() {
     private fun parsePolicy(value: String): SeamPolicy = when (value.lowercase()) {
         "all" -> SeamPolicy.ALL
         "off" -> SeamPolicy.OFF
+        // #128: the production-default Q-gate arm is reachable for A/B
+        // against the frozen pre-#128 arms (the study default stays
+        // "forced" — knob rework is #129's).
+        "qgate" -> SeamPolicy.Q_GATE
         else -> SeamPolicy.FORCED_ONLY
     }
 

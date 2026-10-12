@@ -472,8 +472,8 @@ class FragmentPreparerTest {
 
     // ---- #117 round 2: acoustic pre-roll ------------------------------------
 
-    private fun preRollFiles() =
-        sessionDir.listFiles().orEmpty().filter { it.name.startsWith("preroll_") }.sortedBy { it.name }
+    private fun preRollFiles(dir: File = sessionDir) =
+        dir.listFiles().orEmpty().filter { it.name.startsWith("preroll_") }.sortedBy { it.name }
 
     @Test
     fun `pre-roll covers the pcm immediately before the fragment start`() {
@@ -513,7 +513,7 @@ class FragmentPreparerTest {
         val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
         pcm.append(2500)
         val committed = mutableListOf<Triple<Int, String, String?>>()
-        preparer.onFragmentCommitted = { index, file, preRoll, _ ->
+        preparer.onFragmentCommitted = { index, file, preRoll, _, _ ->
             committed.add(Triple(index, file.name, preRoll?.name))
         }
 
@@ -526,6 +526,9 @@ class FragmentPreparerTest {
         assertThat(preparer.committedFragments().map { it.preRoll?.name })
             .containsExactly(null, "preroll_000001.ogg")
             .inOrder()
+        // #128: default ALL arm — every seam ≥ 1 is stitched
+        assertThat(preparer.committedFragments().map { it.stitched })
+            .containsExactly(false, true).inOrder()
     }
 
     @Test
@@ -533,7 +536,7 @@ class FragmentPreparerTest {
         val preparer = newPreparer(fragmentBytes = 1000, preRollBytes = 320)
         pcm.append(2500)
         val hookPreRolls = mutableListOf<String?>()
-        preparer.onFragmentCommitted = { _, _, preRoll, _ -> hookPreRolls.add(preRoll?.name) }
+        preparer.onFragmentCommitted = { _, _, preRoll, _, _ -> hookPreRolls.add(preRoll?.name) }
         every { transcoder.transcode(any(), any()) } answers {
             val target = secondArg<File>()
             if (target.name.startsWith("preroll_")) throw IOException("pre-roll encode failed")
@@ -796,6 +799,7 @@ class FragmentPreparerTest {
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
             fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            seamPolicy = SeamPolicy.Q_GATE,
             axisK = 0.65, axisC = 100.0, marginKMs = 150,
             logger = logger
         )
@@ -821,12 +825,222 @@ class FragmentPreparerTest {
         assertThat(frag0.get("X").asDouble).isEqualTo(100.0)
         assertThat(frag0.get("Q").asDouble).isEqualTo(3.0)
         assertThat(frag0.get("centroidMs").asDouble).isEqualTo(77.5) // cut 2480 B / 32 B-per-ms
-        assertThat(frag0.get("stitched").asBoolean).isFalse()        // #128 placeholder
+        // #128: stitched is REAL — the gate decision for the seam this
+        // record describes (Q = 3.0 < qualityMin = 10 → the NEXT fragment
+        // is stitched)
+        assertThat(frag0.get("stitched").asBoolean).isTrue()
         // the stop-tap tail is not a searched cut — cadence only, no block
         val tail = gson.fromJson(logged[1], JsonObject::class.java)
         assertThat(tail.get("fragment").asInt).isEqualTo(1)
         assertThat(tail.has("Q")).isFalse()
         assertThat(tail.has("stitched")).isFalse()
         assertThat(tail.has("silenceAligned")).isFalse()
+    }
+
+    // ---- #128: the Q-gated stitching decision --------------------------------
+
+    /**
+     * The #126 whisper-THREADING regime meets the #128 gate: fragment 0's
+     * late-half span ([48000, 64000) — frames 150..199 of a 5-frame
+     * 120/240 alternation) threads the axis, the best candidate is one
+     * shallow quiet block, Q ≈ 2.26 < qualityMin (10) → the seam to the
+     * next fragment STITCHES under Q_GATE (pre-roll composed, stitched=true
+     * in prepare.json) — while the frozen FORCED_ONLY arm leaves the SAME
+     * seam bare (the cut was silence-aligned, Q > 0). Mirror-verified:
+     * Q = 2.2572, span-relative cut 800 → absolute 48800.
+     */
+    @Test
+    fun `q-gate stitches a low-quality whisper seam - forced-only leaves the same seam bare`() {
+        var data = ByteArray(0)
+        repeat(45) { blk ->
+            data += nyquist(5 * SilenceQuality.FRAME_BYTES, if (blk % 2 == 0) 120 else 240)
+        }
+        assertThat(data.size).isEqualTo(72_000)
+        val logged = mutableListOf<String>()
+        val logger = mockk<RotatingJsonLogger>()
+        every { logger.log("prepare", any()) } answers { logged.add(secondArg()) }
+
+        val gateDir = tmp.newFolder("gate")
+        val gate = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = gateDir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.Q_GATE,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150,
+            logger = logger
+        )
+        gate.encodeAvailableFragments()
+        gate.prepareTailSync()
+
+        // the seam before the tail fragment stitched: pre-roll composed +
+        // the decision visible in committedFragments and prepare.json
+        assertThat(preRollFiles(gateDir).map { it.name }).containsExactly("preroll_000001.wav")
+        assertThat(gate.committedFragments().map { it.stitched })
+            .containsExactly(false, true).inOrder()
+        val gson = Gson()
+        val frag0 = gson.fromJson(logged[0], JsonObject::class.java)
+        assertThat(frag0.get("Q").asDouble).isGreaterThan(1.0) // a real (shallow) candidate
+        assertThat(frag0.get("Q").asDouble).isLessThan(10.0)   // below the gate → stitch
+        assertThat(frag0.get("stitched").asBoolean).isTrue()
+
+        // the frozen FORCED_ONLY A/B arm: the same cut was silence-aligned
+        // (Q > 0) → NO pre-roll, stitched=false
+        val forcedDir = tmp.newFolder("forced-only-arm")
+        val forcedOnly = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = forcedDir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.FORCED_ONLY,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        forcedOnly.encodeAvailableFragments()
+        forcedOnly.prepareTailSync()
+        assertThat(preRollFiles(forcedDir)).isEmpty()
+        assertThat(forcedOnly.committedFragments().map { it.stitched })
+            .containsExactly(false, false).inOrder()
+
+        // manifest round-trip: the seam Q survives recover() — a reborn
+        // preparer re-derives the SAME stitch decision
+        val reborn = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = gateDir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.Q_GATE,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        assertThat(reborn.committedFragments().map { it.stitched })
+            .containsExactly(false, true).inOrder()
+    }
+
+    /**
+     * A solid pause (the span's full 50 zero frames at depth 1 → Q = 50
+     * EXACTLY, mirror-verified; cut 56160) is GOOD ENOUGH: Q ≥ qualityMin
+     * → the seam stays BARE under Q_GATE. Boundary semantics: the
+     * comparison is STRICT — Q == qualityMin (50.0 vs 50.0) is bare; only
+     * Q < qualityMin stitches (qualityMin = 60 flips the same seam).
+     */
+    @Test
+    fun `q-gate boundary - Q equal to qualityMin stays bare, only below stitches`() {
+        val data = speechWithZeros(96_000, 48_000 until 64_000)
+        val logged = mutableListOf<String>()
+        val logger = mockk<RotatingJsonLogger>()
+        every { logger.log("prepare", any()) } answers { logged.add(secondArg()) }
+
+        fun qGate(name: String, qualityMin: Double, log: Boolean = false): Pair<File, FragmentPreparer> {
+            val dir = tmp.newFolder(name)
+            val preparer = FragmentPreparer(
+                pcm = FakePcm(data), transcoder = transcoder, sessionDir = dir,
+                fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+                seamPolicy = SeamPolicy.Q_GATE, qualityMin = qualityMin,
+                axisK = 0.65, axisC = 100.0, marginKMs = 150,
+                logger = if (log) logger else null
+            )
+            return dir to preparer
+        }
+
+        // default threshold (10.0): Q = 50 ≥ 10 → bare
+        val (defaultDir, defaultGate) = qGate("at-default", FragmentPreparer.DEFAULT_QUALITY_MIN)
+        defaultGate.encodeAvailableFragments()
+        defaultGate.prepareTailSync()
+        assertThat(preRollFiles(defaultDir)).isEmpty()
+        assertThat(defaultGate.committedFragments().map { it.stitched })
+            .containsExactly(false, false).inOrder()
+
+        // boundary: Q == qualityMin → STILL bare (strict less-than)
+        val (atMinDir, atMin) = qGate("at-min", 50.0, log = true)
+        atMin.encodeAvailableFragments()
+        atMin.prepareTailSync()
+        assertThat(preRollFiles(atMinDir)).isEmpty()
+        assertThat(atMin.committedFragments().map { it.stitched })
+            .containsExactly(false, false).inOrder()
+        val gson = Gson()
+        val frag0 = gson.fromJson(logged[0], JsonObject::class.java)
+        assertThat(frag0.get("Q").asDouble).isEqualTo(50.0) // the exact boundary
+        assertThat(frag0.get("stitched").asBoolean).isFalse()
+
+        // just below the gate's idea of good enough: Q = 50 < 60 → stitch
+        val (aboveDir, aboveMin) = qGate("above-min", 60.0)
+        aboveMin.encodeAvailableFragments()
+        aboveMin.prepareTailSync()
+        assertThat(preRollFiles(aboveDir).map { it.name }).containsExactly("preroll_000001.wav")
+        assertThat(aboveMin.committedFragments().map { it.stitched })
+            .containsExactly(false, true).inOrder()
+    }
+
+    /**
+     * The forced path (no candidate → Q = 0) ALWAYS stitches under Q_GATE —
+     * 0 is below any positive qualityMin: uniform speech leaves the
+     * late-half span without a below-axis frame, the cut is the quietest
+     * frame (Q = 0) and the seam arms the full safety net.
+     */
+    @Test
+    fun `q-gate stitches the forced path - a Q of zero is always below the gate`() {
+        val data = nyquist(96_000, 3000)
+        val dir = tmp.newFolder("forced-q")
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = dir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.Q_GATE,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        assertThat(preRollFiles(dir).map { it.name }).containsExactly("preroll_000001.wav")
+        assertThat(preparer.committedFragments().map { it.stitched })
+            .containsExactly(false, true).inOrder()
+        assertThat(preparer.committedFragments().map { it.seamForced })
+            .containsExactly(false, true).inOrder()
+    }
+
+    /** The frozen OFF A/B arm: never a pre-roll, never a stitched seam. */
+    @Test
+    fun `off policy never writes a pre-roll`() {
+        val data = speechWithZeros(260_000, 48_000 until 64_000, 152_320 until 168_320)
+        val dir = tmp.newFolder("off-arm")
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = dir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.OFF,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        assertThat(preRollFiles(dir)).isEmpty()
+        // the 260 kB fixture commits 4 searched fragments + the tail
+        assertThat(preparer.committedFragments().map { it.stitched })
+            .containsExactly(false, false, false, false, false).inOrder()
+    }
+
+    /**
+     * Legacy manifests (no `seamQ` — pre-#128, or the unmeasured
+     * fixed-cut path) keep parsing, and the gate treats a null Q as
+     * STITCH — the conservative direction (an unmeasured seam is not
+     * trusted to be clean): the recovered seam arms the pre-roll.
+     */
+    @Test
+    fun `legacy manifest without seamQ parses and its seam stitches under the q-gate`() {
+        val frag = File(sessionDir, "frag_000000.wav")
+        frag.writeBytes(WavWriter.write(ByteArray(1000), sampleRate = 16_000))
+        File(sessionDir, "manifest.json").writeText(
+            """{"fallbackToWav":true,"fragments":[""" +
+                """{"name":"frag_000000.wav","bytes":1044,"end":1000,"silenceAligned":false}]}"""
+        )
+        val data = noisy(2000)
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 0, preRollBytes = 320,
+            seamPolicy = SeamPolicy.Q_GATE
+        )
+
+        preparer.prepareTailSync()
+
+        // recovered fragment 0 reused (not re-encoded), fragment 1 = the rest
+        assertThat(fragmentFiles().map { it.name }).containsExactly(
+            "frag_000000.wav", "frag_000001.wav"
+        )
+        // the null-Q seam stitched: pre-roll composed for fragment 1
+        assertThat(preRollFiles().map { it.name }).containsExactly("preroll_000001.wav")
+        assertThat(payload(preRollFiles().single())).isEqualTo(data.copyOfRange(680, 1000))
+        assertThat(preparer.committedFragments().map { it.stitched })
+            .containsExactly(false, true).inOrder()
     }
 }
