@@ -114,6 +114,15 @@ android {
         // (privacy); ON in debug/harness below so the owner's test builds
         // keep their post-mortem evidence.
         buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "false")
+
+        // #132: retention + log capacity are BUILD-TYPE properties. Release
+        // keeps the #127 ring-buffer defaults (3 sessions / 50 MB) and the
+        // 10-row log history; debug/harness widen both so the owner can
+        // dictate in daily life and analyse the evidence days later
+        // (problematic stitches are rare — the corpus must survive gaps).
+        buildConfigField("int", "AUDIO_EVIDENCE_MAX_SESSIONS", "3")
+        buildConfigField("long", "AUDIO_EVIDENCE_MAX_BYTES", "52428800L")
+        buildConfigField("int", "LOG_ROTATION_DEPTH", "9")
     }
 
     val keystoreProperties = Properties().apply {
@@ -152,6 +161,10 @@ android {
             buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
             // #127: evidence retention defaults ON in the owner's test builds.
             buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "true")
+            // #132: wide evidence + log capacity for days-later analysis.
+            buildConfigField("int", "AUDIO_EVIDENCE_MAX_SESSIONS", "99")
+            buildConfigField("long", "AUDIO_EVIDENCE_MAX_BYTES", "1073741824L")
+            buildConfigField("int", "LOG_ROTATION_DEPTH", "99")
         }
         /**
          * #122 seam-study harness — NEVER shipped: F-Droid/Play/CI build only
@@ -172,6 +185,10 @@ android {
             buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
             // #127: evidence retention defaults ON in the harness.
             buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "true")
+            // #132: wide evidence + log capacity for days-later analysis.
+            buildConfigField("int", "AUDIO_EVIDENCE_MAX_SESSIONS", "99")
+            buildConfigField("long", "AUDIO_EVIDENCE_MAX_BYTES", "1073741824L")
+            buildConfigField("int", "LOG_ROTATION_DEPTH", "99")
         }
     }
 

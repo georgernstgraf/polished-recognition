@@ -1345,7 +1345,27 @@ class VoiceSessionControllerTest {
         assertThat(shadow["fullText"]).isEqualTo("one two three four FULL")
         assertThat(shadow["chunks"]).isEqualTo(1.0)
         assertThat(shadow["error"]).isNull()
+        // #132: the row points straight at its session (retained evidence dir)
+        assertThat(shadow["sessionId"]).isEqualTo("testsess")
         clearSessionFiles()
+    }
+
+    // ---- #132: timestamped session IDs ----------------------------------------
+
+    /**
+     * The evidence dir name IS the owner's memory hook: `<yyyyMMdd-HHmm>-<8 hex>`
+     * in LOCAL time, one path-safe token. Two ids in the same minute share the
+     * prefix but never the suffix.
+     */
+    @Test
+    fun `session ids carry a local-time prefix and stay path-safe`() {
+        val a = newSessionId()
+        val b = newSessionId()
+        assertThat(a).matches("""\d{8}-\d{4}-[0-9a-f]{8}""")
+        assertThat(b).matches("""\d{8}-\d{4}-[0-9a-f]{8}""")
+        // same minute → same prefix; the uuid suffix keeps them distinct
+        assertThat(a.substringBeforeLast('-')).isEqualTo(b.substringBeforeLast('-'))
+        assertThat(a).isNotEqualTo(b)
     }
 
     private fun clearSessionFiles() {

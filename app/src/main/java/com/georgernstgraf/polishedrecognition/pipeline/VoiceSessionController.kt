@@ -22,6 +22,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -322,7 +325,7 @@ class VoiceSessionController(
         transcriber?.cancel()
         transcriber = null
         if (newSession || sessionId == null) {
-            sessionId = UUID.randomUUID().toString()
+            sessionId = newSessionId()
             // bound the fragment cache to one session: prune other sessions
             val root = File(appContext.cacheDir, FRAGMENTS_DIR)
             root.mkdirs()
@@ -381,7 +384,7 @@ class VoiceSessionController(
      */
     private fun ensureFragmentPreparer() {
         if (preparer != null) return
-        if (sessionId == null) sessionId = UUID.randomUUID().toString()
+        if (sessionId == null) sessionId = newSessionId()
         File(appContext.cacheDir, FRAGMENTS_DIR).mkdirs()
         val p = buildPreparer()
         preparer = p
@@ -827,12 +830,21 @@ class VoiceSessionController(
                 if (shadowSttEnabled()) {
                     logger?.log(
                         "stt-shadow",
-                        gson.toJson(mapOf("event" to "gate", "chunkCount" to drained.chunkCount))
+                        gson.toJson(
+                            mapOf(
+                                "event" to "gate",
+                                // #132: captured NOW — the async shadow coroutine
+                                // must not read the nullable field later (a
+                                // following cancel() nulls it, line ~603)
+                                "sessionId" to sessionId,
+                                "chunkCount" to drained.chunkCount
+                            )
+                        )
                     )
                     val shadowFiles = withContext(Dispatchers.IO) {
                         p.assembleChunks(File(appContext.cacheDir, SHADOW_DIR).apply { deleteRecursively(); mkdirs() })
                     }
-                    if (shadowFiles.isNotEmpty()) launchShadowStt(shadowFiles, drained.text)
+                    if (shadowFiles.isNotEmpty()) launchShadowStt(shadowFiles, drained.text, sessionId)
                 }
                 return pipeline.finishTranscription(
                     Result.success(drained.toSttResult()),
@@ -988,14 +1000,21 @@ class VoiceSessionController(
      * `stt-upload`/`stt-latency` (the Phase 2 profile input) stay
      * unpolluted. Every failure — including a crash of the shadow body —
      * is logged into the stream: a silently absent record cost a
-     * diagnose round in the first on-device verify.
+     * diagnose round in the first on-device verify. #132: [sessionId] is
+     * captured by the caller BEFORE the async body runs (the nullable
+     * field can be nulled by a subsequent cancel) and rides EVERY row of
+     * this stream, so a days-old shadow record points straight at its
+     * retained audio-evidence dir.
      */
-    private fun launchShadowStt(files: List<File>, fragmentText: String) {
+    private fun launchShadowStt(files: List<File>, fragmentText: String, sessionId: String?) {
         scope.launch {
             try {
                 val config = settings.sttProvider
                 if (config == null) {
-                    logger?.log("stt-shadow", gson.toJson(mapOf("error" to "STT provider not configured")))
+                    logger?.log(
+                        "stt-shadow",
+                        gson.toJson(mapOf("sessionId" to sessionId, "error" to "STT provider not configured"))
+                    )
                     return@launch
                 }
                 val parts = mutableListOf<String>()
@@ -1028,6 +1047,7 @@ class VoiceSessionController(
                     "stt-shadow",
                     gson.toJson(
                         mapOf(
+                            "sessionId" to sessionId,
                             "chunks" to files.size,
                             "fragmentChars" to fragmentText.length,
                             "fullChars" to fullText.length,
@@ -1047,6 +1067,7 @@ class VoiceSessionController(
                     "stt-shadow",
                     gson.toJson(
                         mapOf(
+                            "sessionId" to sessionId,
                             "error" to "shadow crashed",
                             "exception" to crashed.javaClass.name,
                             "message" to (crashed.message ?: ""),
@@ -1352,4 +1373,19 @@ class VoiceSessionController(
         private const val EVIDENCE_SESSION_WAV = "session.wav"
         private const val EVIDENCE_FRAGMENTS_DIR = "fragments"
     }
+}
+
+/**
+ * #132: session IDs carry a LOCAL-time prefix (`20261012-1415-abcd1234`)
+ * so a retained audio-evidence dir (`files/audio/<sessionId>/`, #127) is
+ * recognisable by dictation date/time at a glance — the owner analyses
+ * retained evidence days later and remembers when he dictated, not the
+ * UUID. The 8-hex UUID suffix keeps uniqueness within the same minute
+ * and keeps every existing consumer (dir names, logs, pull tooling)
+ * working: the id is still one path/JSON-safe token. Top-level + internal
+ * so the format is unit-testable without driving a full session.
+ */
+internal fun newSessionId(now: Date = Date()): String {
+    val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(now)
+    return "$stamp-${UUID.randomUUID().toString().substringBefore('-')}"
 }

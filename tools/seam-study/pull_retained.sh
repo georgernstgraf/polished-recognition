@@ -2,8 +2,12 @@
 # Pull retained audio-evidence sessions (#127: files/audio/<sessionId>/) off a
 # connected device into samples/retained/ (git-ignored, see SAMPLES.md).
 #
-# Usage: tools/seam-study/pull_retained.sh [serial] [session-id ...]
+# Usage: tools/seam-study/pull_retained.sh [serial] [--last N] [session-id ...]
 #   serial     adb device serial (default: R7SRB06XF5K, the Samsung A03)
+#   --last N   pull only the N most recently MODIFIED sessions (device-side
+#              ls -t). #132: with the widened ring buffer (99 sessions) a
+#              blind full pull can move gigabytes — this keeps the routine
+#              pull small. The listing always shows everything retained.
 #   session-id one or more specific sessions; omit to pull ALL retained ones
 #
 # adb pull is BLOCKED on the app's external dir on these devices — the pull is
@@ -18,6 +22,21 @@ BASE="/sdcard/Android/data/$PKG/files"
 DEST="$(cd "$(dirname "$0")/../.." && pwd)/samples/retained"
 
 if [ $# -gt 0 ]; then shift; fi
+
+LAST=0
+ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --last)
+      [ $# -ge 2 ] || { echo "--last needs a count" >&2; exit 1; }
+      LAST="$2"; shift 2 ;;
+    --last=*)
+      LAST="${1#--last=}"; shift ;;
+    *)
+      ARGS+=("$1"); shift ;;
+  esac
+done
+case "$LAST" in ''|*[!0-9]*) echo "invalid --last count: '$LAST'" >&2; exit 1;; esac
 
 list_sessions() {
   # The remote ls exits non-zero when files/audio/ is absent (expected on
@@ -38,8 +57,8 @@ pull_one() {
 
 mkdir -p "$DEST"
 
-if [ $# -gt 0 ]; then
-  for sid in "$@"; do pull_one "$sid"; done
+if [ ${#ARGS[@]} -gt 0 ]; then
+  for sid in "${ARGS[@]}"; do pull_one "$sid"; done
 else
   sessions="$(list_sessions)"
   if [ -z "$sessions" ]; then
@@ -49,5 +68,17 @@ else
   fi
   echo "retained sessions on $SERIAL:"
   echo "$sessions" | sed 's/^/  /'
-  for sid in $sessions; do pull_one "$sid"; done
+  if [ "$LAST" -gt 0 ]; then
+    # newest-first by device-side mtime, then keep the first N
+    selected="$(adb -s "$SERIAL" shell "ls -t $BASE/audio/ 2>/dev/null" < /dev/null \
+      | tr -d '\r' | sed '/^$/d' | head -n "$LAST" || true)"
+    if [ -z "$selected" ]; then
+      echo "no sessions selected by --last $LAST" >&2
+      exit 1
+    fi
+    echo "pulling the last $LAST (of $(echo "$sessions" | wc -l) retained):"
+    for sid in $selected; do pull_one "$sid"; done
+  else
+    for sid in $sessions; do pull_one "$sid"; done
+  fi
 fi
