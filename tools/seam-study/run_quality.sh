@@ -342,8 +342,16 @@ run_plan() { # $1 = plan text; strictly serial, consecutive-failure abort
 mkdir -p "$OUT"
 adb -s "$DEV" get-state </dev/null >/dev/null 2>&1 || { echo "device $DEV not reachable (adb get-state)"; exit 1; }
 if [ "$CHECK_SERVER" = 1 ]; then
-  curl -fsS --max-time 20 "$SERVER/models" -o /dev/null \
+  # 401/403 prove reachability + a live OpenAI-compatible endpoint: the auth
+  # token lives on the PHONE (provider config), not on the host — an
+  # auth-gated answer is a healthy answer. Only connection-level failures
+  # (timeout, DNS, 5xx) mean unreachable.
+  code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$SERVER/models" 2>/dev/null) \
     || { echo "STT server unreachable from the host: $SERVER — the phone must reach it too (CHECK_SERVER=0 to skip)"; exit 1; }
+  case "$code" in
+    2*|401|403) : ;;
+    *) echo "STT server answered HTTP $code at $SERVER/models — expected 2xx or an auth gate (401/403)"; exit 1 ;;
+  esac
 fi
 
 case $MODE_RUN in
