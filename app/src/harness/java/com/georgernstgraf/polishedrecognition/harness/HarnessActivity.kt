@@ -6,8 +6,9 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
+import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
+import com.georgernstgraf.polishedrecognition.audio.SearchSpan
 import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
-import com.georgernstgraf.polishedrecognition.audio.WavReader
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.google.gson.GsonBuilder
 import java.io.File
@@ -23,16 +24,23 @@ import java.io.File
  * ```
  * adb shell am start -n com.georgernstgraf.polishedrecognition/.harness.HarnessActivity \
  *   --es file /sdcard/.../samples/en_monologue_male_300s.wav \
- *   --es mode raw --es format ogg --es policy forced \
- *   --ef fragmentSeconds 10 --ef searchSeconds 2 --ef preRollSeconds 1
+ *   --es mode raw --es format wav --es policy qgate \
+ *   --ef fragmentSeconds 10 --ef searchSeconds 2 --ef preRollSeconds 1 \
+ *   --ef axisK 0.65 --ef axisC 100.0 --ef qualityMin 10.0 \
+ *   --ei marginKMs 150 --es searchSpan lateHalf
  * ```
  *
  * Recognised extras: `file` (required), `label`, `mode` (raw|german|polish),
- * `format` (ogg|wav), `policy` (all|forced|off|qgate), `fragmentSeconds`,
- * `searchSeconds`, `preRollSeconds`, `promptChars` (int), `reference` (bool,
- * default true = run the shadow as the seam reference), `energyFallback`
- * (bool, default true = the #124 quietest-frame forced-cut fallback),
- * `timeoutSeconds` (int).
+ * `format` (ogg|wav), `policy` (all|forced|off|qgate, DEFAULT qgate = the
+ * #128 production arm), `fragmentSeconds`, `searchSeconds`,
+ * `preRollSeconds`, `promptChars` (int), `reference` (bool, default true =
+ * run the shadow as the seam reference), `timeoutSeconds` (int), and the
+ * #126/#128 silence-quality knobs (#129 research pass): `axisK` (float,
+ * default 0.65), `axisC` (float, default 100.0), `qualityMin` (float,
+ * default 10.0), `marginKMs` (int, default 150), `searchSpan`
+ * (lateHalf default | fullWindow). Defaults mirror the PROVISIONAL
+ * production values ([FragmentPreparer] constants). The #124
+ * `energyFallback` extra is GONE — the parameter is inert since #126.
  */
 class HarnessActivity : Activity() {
 
@@ -47,13 +55,17 @@ class HarnessActivity : Activity() {
     private var label = ""
     private var mode = "raw"
     private var format = "wav"
-    private var policy = "forced"
+    private var policy = "qgate"
     private var fragmentSeconds = 10f
     private var searchSeconds = 2f
     private var preRollSeconds = 1f
     private var promptChars = 96
     private var reference = true
-    private var energyFallback = true
+    private var axisK = FragmentPreparer.DEFAULT_AXIS_K
+    private var axisC = FragmentPreparer.DEFAULT_AXIS_C
+    private var qualityMin = FragmentPreparer.DEFAULT_QUALITY_MIN
+    private var marginKMs = FragmentPreparer.DEFAULT_MARGIN_K_MS
+    private var searchSpan = "lateHalf"
 
     private var completed: VoiceSessionController.Event.Completed? = null
     private var shadowFull: String? = null
@@ -70,13 +82,19 @@ class HarnessActivity : Activity() {
         label = intent.getStringExtra("label") ?: File(input).nameWithoutExtension
         mode = intent.getStringExtra("mode") ?: "raw"
         format = intent.getStringExtra("format") ?: "wav"
-        policy = intent.getStringExtra("policy") ?: "forced"
+        policy = intent.getStringExtra("policy") ?: "qgate"
         fragmentSeconds = intent.getFloatExtra("fragmentSeconds", 10f)
         searchSeconds = intent.getFloatExtra("searchSeconds", 2f)
         preRollSeconds = intent.getFloatExtra("preRollSeconds", 1f)
         promptChars = intent.getIntExtra("promptChars", 96)
         reference = intent.getBooleanExtra("reference", true)
-        energyFallback = intent.getBooleanExtra("energyFallback", true)
+        // #129 research-pass knobs — defaults = the PROVISIONAL production
+        // values (#126/#128); am start's --ef/--ei carry the sweep arms.
+        axisK = intent.getFloatExtra("axisK", FragmentPreparer.DEFAULT_AXIS_K.toFloat()).toDouble()
+        axisC = intent.getFloatExtra("axisC", FragmentPreparer.DEFAULT_AXIS_C.toFloat()).toDouble()
+        qualityMin = intent.getFloatExtra("qualityMin", FragmentPreparer.DEFAULT_QUALITY_MIN.toFloat()).toDouble()
+        marginKMs = intent.getIntExtra("marginKMs", FragmentPreparer.DEFAULT_MARGIN_K_MS)
+        searchSpan = intent.getStringExtra("searchSpan") ?: "lateHalf"
         val timeoutMs = intent.getIntExtra("timeoutSeconds", 600) * 1000L
 
         val settings = app.settingsStore
@@ -100,7 +118,7 @@ class HarnessActivity : Activity() {
         }
         val pcmFile = File(cacheDir, "session.pcm").apply { writeBytes(pcm) }
         File(cacheDir, "session.meta").writeText("{\"durationMs\": ${pcm.size / 32}, \"sessionId\": null}")
-        Log.i(TAG, "injected ${pcm.size} B PCM from $input (label=$label mode=$mode format=$format policy=$policy)")
+        Log.i(TAG, "injected ${pcm.size} B PCM from $input (label=$label mode=$mode format=$format policy=$policy axisK=$axisK axisC=$axisC qualityMin=$qualityMin marginKMs=$marginKMs searchSpan=$searchSpan)")
 
         val controller = VoiceSessionController(
             context = this,
@@ -116,7 +134,13 @@ class HarnessActivity : Activity() {
             fragmentPreRollBytes = (preRollSeconds * 32_000).toInt(),
             seamPolicy = parsePolicy(policy),
             promptMaxChars = promptChars,
-            fragmentEnergyFallback = energyFallback,
+            // #129 research-pass knobs: plumb the am start extras into the
+            // controller (defaults = the PROVISIONAL production values).
+            fragmentAxisK = axisK,
+            fragmentAxisC = axisC,
+            fragmentQualityMin = qualityMin,
+            fragmentMarginKMs = marginKMs,
+            fragmentSearchSpan = parseSearchSpan(searchSpan),
             seamEvidence = true,
             onShadowResult = { _, full, err ->
                 shadowFull = full.ifBlank { null }
@@ -177,7 +201,14 @@ class HarnessActivity : Activity() {
             "preRollSeconds" to preRollSeconds,
             "promptChars" to promptChars,
             "reference" to reference,
-            "energyFallback" to energyFallback,
+            // #129: every knob is recorded so sweep arms are attributable
+            // in analysis — the results file is the single source for what
+            // an arm actually ran with.
+            "axisK" to axisK,
+            "axisC" to axisC,
+            "qualityMin" to qualityMin,
+            "marginKMs" to marginKMs,
+            "searchSpan" to searchSpan,
             "deliveredText" to delivered,
             "deliveredWordCount" to delivered?.split(Regex("\\s+"))?.count { it.isNotBlank() },
             "redelivered" to (completed?.redelivered ?: false),
@@ -211,11 +242,18 @@ class HarnessActivity : Activity() {
     private fun parsePolicy(value: String): SeamPolicy = when (value.lowercase()) {
         "all" -> SeamPolicy.ALL
         "off" -> SeamPolicy.OFF
-        // #128: the production-default Q-gate arm is reachable for A/B
-        // against the frozen pre-#128 arms (the study default stays
-        // "forced" — knob rework is #129's).
+        // #129: qgate (the #128 production default) is the DEFAULT arm —
+        // the research pass's mainline; forced/all/off remain selectable
+        // as frozen A/B arms.
         "qgate" -> SeamPolicy.Q_GATE
         else -> SeamPolicy.FORCED_ONLY
+    }
+
+    private fun parseSearchSpan(value: String): SearchSpan = when (value.lowercase()) {
+        // #126: lateHalf is the production default (owner decision);
+        // fullWindow is the #129 harness A/B arm.
+        "fullwindow" -> SearchSpan.FULL_WINDOW
+        else -> SearchSpan.LATE_HALF
     }
 
     private companion object {
