@@ -18,16 +18,37 @@ object PcmConditioner {
     private const val MIN_PEAK = 200
 
     fun condition(pcm: ByteArray, sampleRate: Int): ByteArray {
-        val sampleCount = pcm.size / 2
-        if (sampleCount == 0) return pcm
-        val samples = ShortArray(sampleCount)
-        for (i in 0 until sampleCount) samples[i] = readSample(pcm, 2 * i)
-
+        val samples = readSamples(pcm)
+        if (samples.isEmpty()) return pcm
         highPass(samples, sampleRate)
         normalize(samples)
+        return writeSamples(samples)
+    }
 
-        val out = ByteArray(sampleCount * 2)
-        for (i in 0 until sampleCount) writeSample(out, 2 * i, samples[i])
+    /**
+     * The 80-Hz one-pole high-pass stage ALONE (#126): no peak normalization.
+     * Normalization is a scalar gain over the whole buffer — it must never be
+     * part of a level MEASUREMENT (it would move the per-fragment axis), so
+     * [SilenceQuality] measures on this output while the upload path keeps
+     * [condition]. One filter implementation, two callers.
+     */
+    fun highPassOnly(pcm: ByteArray, sampleRate: Int): ByteArray {
+        val samples = readSamples(pcm)
+        if (samples.isEmpty()) return pcm
+        highPass(samples, sampleRate)
+        return writeSamples(samples)
+    }
+
+    private fun readSamples(pcm: ByteArray): ShortArray {
+        val sampleCount = pcm.size / 2
+        val samples = ShortArray(sampleCount)
+        for (i in 0 until sampleCount) samples[i] = readSample(pcm, 2 * i)
+        return samples
+    }
+
+    private fun writeSamples(samples: ShortArray): ByteArray {
+        val out = ByteArray(samples.size * 2)
+        for (i in samples.indices) writeSample(out, 2 * i, samples[i])
         return out
     }
 

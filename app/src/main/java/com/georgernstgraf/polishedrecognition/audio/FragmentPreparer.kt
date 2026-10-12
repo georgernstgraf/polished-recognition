@@ -21,23 +21,27 @@ import java.util.concurrent.CopyOnWriteArrayList
  * is therefore assembled at stop time by byte-concatenating its fragments —
  * no custom muxer involved.
  *
- * **Silence-aligned boundaries (#117):** the fixed 7-s byte cuts split words
- * at the seams (the owner observed consistent word drops), and each
- * fragment's transcript started cold. The cut point is therefore MOVED into
- * silence: the nominal boundary stays at [FRAGMENT_SECONDS], but the encoder
- * scans forward up to [DEFAULT_SEARCH_SECONDS] for a silence run
- * ([SilenceCutter]) and cuts at its center — fragment *i* ends in a pause,
- * fragment *i+1* starts just before the next onset. The stream stays
- * GAPLESS: fragment *i+1* starts exactly where *i* ended, so the assembled
- * chunks still reproduce the original PCM byte-for-byte. No qualifying
- * silence within the search window (continuous speech) → forced cut: the
- * **quietest-frame fallback (#124)** cuts at the minimum-energy 10-ms frame
- * in the window's LATE half (`[1.5S, 2S]` when `search = S`) — the least
- * energetic frame is the least likely place to split a word — or the hard
- * cut at the nominal boundary when the fallback is disabled. Finding the cut
- * may wait for up to the search window of extra audio — with the adaptive
- * `search = max(2 s, S)` (#124) that is an up-to-`S` commit-delay cadence
- * cost, still bounded by the fragment length (a fragment spans `[S, 2S]`).
+ * **Silence-quality-aligned boundaries (#117 → #126):** the fixed 7-s byte
+ * cuts split words at the seams (the owner observed consistent word drops),
+ * and each fragment's transcript started cold. The cut point is therefore
+ * * MOVED into silence: the nominal boundary stays at [FRAGMENT_SECONDS],
+ * but the encoder waits for the forward search window and hands the
+ * **search span** — by default the window's LATE half
+ * `[nominalEnd + search/2, nominalEnd + search]` (owner decision #126,
+ * "immer in der zweiten Hälfte des Windows") — to [SilenceQuality]: a
+ * per-fragment adaptive axis `X = k·M + c`, a normalized deficit curve,
+ * candidates as contiguous below-axis regions, the cut at the AREA CENTROID
+ * of the best deficit-area candidate Q, clamped to a K-ms margin from the
+ * candidate's over-axis edges. The stream stays GAPLESS: fragment *i+1*
+ * starts exactly where *i* ended, so the assembled chunks still reproduce
+ * the original PCM byte-for-byte. No candidate (min ≈ M — continuous
+ * speech, or a whisper room under the absolute anchor) → best-effort forced
+ * cut at the QUIETEST frame of the span (the #124 semantics, now the only
+ * forced path), tagged FORCED so `SeamPolicy.FORCED_ONLY` still applies
+ * pre-roll + prompt. Because the metric's M spans the search span (which
+ * ends at the window end), the decision ALWAYS waits for the full window —
+ * the #117 early-commit-on-found-silence is gone; every fragment commits
+ * at ≤ S+search bytes of audio, which was the old worst case anyway.
  *
  * **Acoustic pre-roll (#117 round 2):** the text prompt conditions only the
  * decoder — it cannot add acoustic context, and a server-side VAD can trim
@@ -107,15 +111,40 @@ class FragmentPreparer(
     private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
     /**
      * #124: on a full search window with NO qualifying silence run, fall back
-     * to the quietest 10-ms frame in the window's LATE half
-     * (`[nominalEnd + search/2, nominalEnd + search]` = `[1.5S, 2S]` when
-     * `search = S`) instead of the hard cut at the nominal boundary — the
-     * least energetic frame is the least likely place to split a word. The
-     * fallback cut is tagged FORCED (`silenceAligned = false`) so
-     * `SeamPolicy.FORCED_ONLY` still applies the pre-roll + prompt there.
-     * `false` restores the #117 hard cut (the harness A/B knob).
+     * to the quietest 10-ms frame in the window's LATE half. **INERT since
+     * #126:** the silence-quality metric ALWAYS finds a best-effort cut (the
+     * quietest span frame is its built-in no-candidate path), so there is no
+     * "hard cut at the nominal boundary" variant left to disable. The
+     * parameter stays accepted so the harness/controller call sites keep
+     * compiling — its rework is #129's job; do not rewire its semantics.
      */
     private val energyFallbackEnabled: Boolean = true,
+    /**
+     * #126 silence-quality axis: the multiplicative term k in
+     * `X = k·M + c` — gain-invariant separation (scales with the room/AGC
+     * together with M). **PROVISIONAL default** — the #129 research pass on
+     * real audio determines the real value.
+     */
+    private val axisK: Double = DEFAULT_AXIS_K,
+    /**
+     * #126 silence-quality axis: the absolute anchor c in `X = k·M + c`,
+     * in 16-bit amplitude units — the only absolute element (whisper/
+     * quiet-room: an axis threading under everything forces the best-effort
+     * path, arming stitching). **PROVISIONAL default** — #129 decides.
+     */
+    private val axisC: Double = DEFAULT_AXIS_C,
+    /**
+     * #126: the cut's minimum distance from the best candidate's over-axis
+     * edges, in milliseconds (quantized to 10-ms frames).
+     * **PROVISIONAL default** — #129 decides.
+     */
+    private val marginKMs: Int = DEFAULT_MARGIN_K_MS,
+    /**
+     * #126: which part of the forward search window the metric measures —
+     * the LATE half (production default, owner decision) or the full window
+     * (the #129 harness A/B arm).
+     */
+    private val searchSpan: SearchSpan = DEFAULT_SEARCH_SPAN,
     private val pollIntervalMs: Long = 500,
     private val logger: RotatingJsonLogger? = null
 ) {
@@ -126,9 +155,13 @@ class FragmentPreparer(
         val bytes: Long,
         val end: Long,
         /**
-         * #122: did this fragment's END cut land in silence (true) or was it
-         * a hard/forced cut (false)? Drives the NEXT fragment's pre-roll
-         * policy. Legacy manifests parse as `false` (= forced).
+         * Did this fragment's END cut come from a qualifying silence
+         * candidate (#126: a below-axis deficit region was found, i.e.
+         * `Q > 0` — the interim `silenceAligned` mapping; #128 replaces the
+         * mapping with a real `qualityMin` gate) or was it a forced
+         * best-effort cut (false)? Drives the NEXT fragment's pre-roll
+         * policy. Legacy manifests parse as `false` (= forced). The field
+         * name is kept so pre-#126 manifests keep parsing unchanged.
          */
         val silenceAligned: Boolean = false
     )
@@ -200,6 +233,16 @@ class FragmentPreparer(
         /** Default forward silence-search window (#117): 2 s. */
         const val DEFAULT_SEARCH_SECONDS = 2.0
         val DEFAULT_SEARCH_BYTES = (DEFAULT_SEARCH_SECONDS * 32_000).toInt()
+
+        /**
+         * #126 provisional axis defaults — PLACEHOLDERS until the #129
+         * research pass on real audio picks the real values (harness knobs,
+         * no Settings UI).
+         */
+        const val DEFAULT_AXIS_K = 0.65
+        const val DEFAULT_AXIS_C = 100.0
+        const val DEFAULT_MARGIN_K_MS = 150
+        val DEFAULT_SEARCH_SPAN = SearchSpan.LATE_HALF
 
         /** Acoustic pre-roll (#117 round 2): 1 s of the previous fragment. */
         const val PRE_ROLL_SECONDS = 1.0
@@ -312,13 +355,15 @@ class FragmentPreparer(
     }
 
     /**
-     * Encodes every fragment whose cut point is DECIDABLE (#117): a
-     * fragment commits once either a silence run was found within the
-     * searched window, or the full search window is available (forced cut —
-     * the #124 energy fallback picks the quietest frame in the window's late
-     * half, or the hard cut at the nominal boundary when the fallback is
-     * disabled). With [searchBytes] = 0 this degenerates to the legacy
-     * fixed-offset behavior.
+     * Encodes every fragment whose cut point is DECIDABLE (#117/#126): a
+     * fragment commits once the FULL search window is available — the
+     * silence-quality metric's M spans the search span, which ends at the
+     * window end, so the decision cannot be made earlier (the #117
+     * early-commit-on-found-silence is gone). The metric then ALWAYS
+     * returns a best-effort cut: the best candidate's margin-clamped area
+     * centroid (silence-aligned), or the quietest span frame when no
+     * candidate exists (forced). With [searchBytes] = 0 this degenerates
+     * to the legacy fixed-offset behavior.
      */
     fun encodeAvailableFragments() {
         while (true) {
@@ -328,25 +373,45 @@ class FragmentPreparer(
             if (total < nominalEnd) return
             val searchEnd = nominalEnd + searchBytes.toLong()
             val windowEnd = minOf(total, searchEnd)
-            val cut = if (searchBytes > 0 && windowEnd > nominalEnd) {
-                SilenceCutter.findCut(pcm.copyPcmRange(nominalEnd, windowEnd))
-                    ?.let { nominalEnd + it }
-            } else null
-            if (cut == null && windowEnd < searchEnd) {
-                // window still growing and no silence yet — wait for more
-                // audio rather than splitting a word unnecessarily
+            if (searchBytes <= 0) {
+                // legacy fixed-offset cuts (#117 tests, searchBytes = 0)
+                encodeFragment(nextFragment, start, nominalEnd, silenceAligned = false)
+                nextFragment++
+                continue
+            }
+            if (windowEnd < searchEnd) {
+                // M spans the search span, which ends at the window end —
+                // wait for the full window rather than deciding on a
+                // partial span
                 return
             }
-            val forcedCut = if (cut == null && energyFallbackEnabled && searchBytes > 0) {
-                // #124: no qualifying silence in the FULL window — cut at
-                // the quietest 10-ms frame of the LATE half
-                // [nominalEnd + search/2, nominalEnd + search] (= [1.5S, 2S]
-                // when search = S), never below the nominal boundary
-                val from = nominalEnd + searchBytes.toLong() / 2
-                SilenceCutter.quietestFrameCut(pcm.copyPcmRange(from, searchEnd))
-                    ?.let { from + it } ?: nominalEnd
-            } else nominalEnd
-            encodeFragment(nextFragment, start, cut ?: forcedCut, silenceAligned = cut != null)
+            // #126: measure the search span (late half by default, the
+            // owner decision; the full window is the #129 A/B arm) on the
+            // high-passed copy and cut at the best candidate's
+            // margin-clamped area centroid — best-effort even with no
+            // candidate (the quietest span frame, tagged FORCED).
+            val spanStart = when (searchSpan) {
+                SearchSpan.LATE_HALF -> nominalEnd + searchBytes.toLong() / 2
+                SearchSpan.FULL_WINDOW -> nominalEnd
+            }
+            val result = SilenceQuality.evaluate(
+                pcm.copyPcmRange(spanStart, searchEnd),
+                sampleRate,
+                axisK,
+                axisC,
+                marginFrames = marginKMs / 10
+            )
+            if (result == null) {
+                // span below one analysis frame — hard cut at the nominal
+                // boundary (nothing was measured)
+                encodeFragment(nextFragment, start, nominalEnd, silenceAligned = false)
+            } else {
+                encodeFragment(
+                    nextFragment, start, spanStart + result.cutOffset,
+                    silenceAligned = result.candidateFound, metric = result,
+                    metricSpanStart = spanStart
+                )
+            }
             nextFragment++
         }
     }
@@ -448,7 +513,14 @@ class FragmentPreparer(
     private fun seamForcedAt(index: Int): Boolean =
         index > 0 && entries.getOrNull(index - 1)?.silenceAligned != true
 
-    private fun encodeFragment(index: Int, start: Long, end: Long, silenceAligned: Boolean) {
+    private fun encodeFragment(
+        index: Int,
+        start: Long,
+        end: Long,
+        silenceAligned: Boolean,
+        metric: SilenceQuality.Result? = null,
+        metricSpanStart: Long = 0L
+    ) {
         if (end <= start) return
         val data = pcm.copyPcmRange(start, end)
         val started = System.currentTimeMillis()
@@ -499,14 +571,14 @@ class FragmentPreparer(
             // session-level WAV fallback.
             preRoll = writePreRoll(index, start, ogg = true)
             writeManifest()
-            logFragment(index, data.size, end, silenceAligned, started)
+            logFragment(index, data.size, end, metric, metricSpanStart, start, started)
             notifyCommitted(index, "frag_%06d.ogg".format(index), preRoll, seamForcedAt(index))
             return
         }
         preRoll = writePreRoll(index, start, ogg = false)
         entries.add(Entry(file.name, file.length(), end, silenceAligned))
         writeManifest()
-        logFragment(index, data.size, end, silenceAligned, started)
+        logFragment(index, data.size, end, metric, metricSpanStart, start, started)
         notifyCommitted(index, file.name, preRoll, seamForcedAt(index))
     }
 
@@ -554,26 +626,42 @@ class FragmentPreparer(
     }
 
     /**
-     * Fragment evidence with the #117 boundary data: `pcmBytes` is the
-     * fragment's true PCM length (variable with silence-aligned cuts),
-     * `silenceAligned` records whether the cut came from the silence
-     * search rather than a hard/nominal boundary — the on-device seam
-     * quality check reads this from `prepare.json`.
+     * Fragment evidence (#117/#126): the cadence fields stay unchanged and
+     * the old `silenceAligned` flag is REPLACED by the #126 contract block —
+     * `M`, `min` (the P5-ish floor stat, not a single-frame min), `max`,
+     * `X`, `Q`, `centroidMs` (the cut position relative to the FRAGMENT
+     * start; the margin-clamped centroid — what the analyzer needs) and
+     * `stitched` (placeholder `false` until #128 fills it; the field exists
+     * now so the #129 analyzer contract is stable from day one). The block
+     * is present only when a search span was actually measured (the
+     * stop-tap tail and the `searchBytes = 0` legacy path carry none).
      */
-    private fun logFragment(index: Int, bytes: Int, end: Long, silenceAligned: Boolean, started: Long) {
-        logger?.log(
-            "prepare",
-            gson.toJson(
-                mapOf(
-                    "fragment" to index,
-                    "bytes" to bytes,
-                    "pcmEnd" to end,
-                    "silenceAligned" to silenceAligned,
-                    "encodeMs" to (System.currentTimeMillis() - started),
-                    "mode" to if (fallbackToWav) "wav" else "ogg"
-                )
-            )
+    private fun logFragment(
+        index: Int,
+        bytes: Int,
+        end: Long,
+        metric: SilenceQuality.Result?,
+        metricSpanStart: Long,
+        fragmentStart: Long,
+        started: Long
+    ) {
+        val record = linkedMapOf<String, Any?>(
+            "fragment" to index,
+            "bytes" to bytes,
+            "pcmEnd" to end,
+            "encodeMs" to (System.currentTimeMillis() - started),
+            "mode" to if (fallbackToWav) "wav" else "ogg"
         )
+        if (metric != null) {
+            record["M"] = metric.meanLevel
+            record["min"] = metric.floorLevel
+            record["max"] = metric.maxLevel
+            record["X"] = metric.axis
+            record["Q"] = metric.quality
+            record["centroidMs"] = (metricSpanStart + metric.cutOffset - fragmentStart) / 32.0
+            record["stitched"] = false
+        }
+        logger?.log("prepare", gson.toJson(record))
     }
 
     private fun writeWavFragment(index: Int, data: ByteArray): File {

@@ -1,7 +1,10 @@
 package com.georgernstgraf.polishedrecognition.audio
 
 
+import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.google.common.truth.Truth.assertThat
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -258,54 +261,89 @@ class FragmentPreparerTest {
     private fun noisy(size: Int, seed: Int = 1) =
         ByteArray(size) { i -> ((i * 31 + seed * 7) % 251).toByte() }
 
+    /**
+     * #126 Nyquist-square PCM (sample k alternates ±[amp]): zero-mean (the
+     * metric's 80-Hz high-pass passes it at ~0.985·amp, so frame levels are
+     * fully controllable), every full frame the SAME RMS, deterministic.
+     */
+    private fun nyquist(bytes: Int, amp: Int): ByteArray {
+        val out = ByteArray(bytes)
+        var sample = 0
+        for (i in 0 until bytes step 2) {
+            val v = if (sample % 2 == 0) amp else -amp
+            out[i] = (v and 0xFF).toByte()
+            out[i + 1] = ((v shr 8) and 0xFF).toByte()
+            sample++
+        }
+        return out
+    }
+
+    /**
+     * #126: [total] bytes of ±3000 "speech" except the frame-aligned [pauses]
+     * (byte ranges, exclusive end) which are floor (zeros).
+     */
+    private fun speechWithZeros(total: Int, vararg pauses: IntRange): ByteArray {
+        var pcm = ByteArray(0)
+        val frame = SilenceQuality.FRAME_BYTES
+        for (f in 0 until total / frame) {
+            val a = f * frame
+            val zero = pauses.any { it.first <= a && a + frame <= it.last + 1 }
+            pcm += nyquist(frame, if (zero) 0 else 3000)
+        }
+        return pcm + nyquist(total - pcm.size, 3000) // remainder — never scanned
+    }
+
     /** PCM payload of a wavMode fragment file (canonical 44-byte header). */
     private fun payload(file: File): ByteArray = file.readBytes().copyOfRange(44, file.readBytes().size)
 
-    private fun fragmentFiles() =
-        sessionDir.listFiles().orEmpty().filter { it.name.startsWith("frag_") }.sortedBy { it.name }
+    private fun fragmentFiles(dir: File = sessionDir) =
+        dir.listFiles().orEmpty().filter { it.name.startsWith("frag_") }.sortedBy { it.name }
 
     @Test
-    fun `silence-aligned cut lands inside the silence run`() {
+    fun `silence-quality cut lands inside the pause of the late-half search span`() {
         val data = noisy(1200) + ByteArray(1800) // speech, then a long pause
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
 
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
 
         val fragments = fragmentFiles()
-        // fragment 0 ends at the center of the zero region (window [1000, 3000):
-        // silent frames 1..5 → cut at byte 1000 + 3·320 = 1960), the tail takes
-        // the remainder whole (its end is the stream end — no seam follows)
+        // the measured span is the LATE half [2000, 3000) — all pause: one
+        // 3-frame below-axis candidate, cut at its midpoint frame's centre
+        // (2000 + 480 = 2480); the tail takes the remainder whole
         assertThat(fragments).hasSize(2)
-        assertThat(payload(fragments[0]).size).isEqualTo(1960)
-        assertThat(payload(fragments[0]).copyOfRange(1900, 1960)).isEqualTo(ByteArray(60))
-        assertThat(payload(fragments[1]).size).isEqualTo(1040)
+        assertThat(payload(fragments[0]).size).isEqualTo(2480)
+        assertThat(payload(fragments[0]).copyOfRange(2420, 2480)).isEqualTo(ByteArray(60))
+        assertThat(payload(fragments[1]).size).isEqualTo(520)
     }
 
     @Test
-    fun `continuous speech falls back to the hard cut at the nominal boundary`() {
-        val data = noisy(3500)
+    fun `continuous speech cuts at the quietest frame of the late half (forced)`() {
+        // #126: no frame of the late-half span falls below the axis — the
+        // best-effort path cuts at the span's quietest frame (the one-pole's
+        // start overshoot makes frame 1 the quietest full frame), tagged
+        // FORCED so FORCED_ONLY still applies pre-roll + prompt
+        val data = nyquist(3500, 3000)
         val p = FakePcm(data)
-        // energyFallbackEnabled = false → the #117 hard-cut behaviour; the
-        // #124 default (true) moves the cut into the late window half (see
-        // the energy-fallback tests below)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
             fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
-            energyFallbackEnabled = false
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
 
-        preparer.encodeAvailableFragments() // window complete, no silence → cut at 1000
+        preparer.encodeAvailableFragments() // window complete, no candidate → forced cut at 2480
         preparer.prepareTailSync()          // window incomplete → remainder whole
 
         val payloads = fragmentFiles().map { payload(it) }
         assertThat(payloads).hasSize(2)
-        assertThat(payloads[0].size).isEqualTo(1000)
-        assertThat(payloads[1].size).isEqualTo(2500)
+        assertThat(payloads.map { it.size }).containsExactly(2480, 1020).inOrder()
+        assertThat(preparer.committedFragments().map { it.seamForced })
+            .containsExactly(false, true).inOrder()
     }
 
     @Test
@@ -414,21 +452,22 @@ class FragmentPreparerTest {
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
             fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150,
             chunkMaxSeconds = 0.0625 // cap = 0.0625 s × 32000 B/s = 2000 PCM bytes
         )
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
-        // fragments: 1960 B (silence cut), 1000 B (hard cut), 2040 B (tail)
+        // fragments: 2480 B (silence-quality cut), 2520 B (tail)
 
         val chunks = preparer.assembleChunks()
-        // 1960 alone fits; adding 1000 would exceed 2000 → own chunk, etc.
+        // 2480 alone (the first fragment always joins a chunk); adding the
+        // 2520 B tail would exceed 2000 → own chunk
         assertThat(chunks.map { it.name }).containsExactly(
-            "recording_1.wav", "recording_2.wav", "recording_3.wav"
+            "recording_1.wav", "recording_2.wav"
         ).inOrder()
         val fragments = fragmentFiles()
         assertThat(chunks[0].readBytes()).isEqualTo(fragments[0].readBytes())
         assertThat(chunks[1].readBytes()).isEqualTo(fragments[1].readBytes())
-        assertThat(chunks[2].readBytes()).isEqualTo(fragments[2].readBytes())
     }
 
     // ---- #117 round 2: acoustic pre-roll ------------------------------------
@@ -586,34 +625,46 @@ class FragmentPreparerTest {
     }
 
     @Test
-    fun `forced-only keeps the pre-roll at hard cuts and drops it at a silence seam`() {
-        // frag0 [0,1000) forced · frag1 ends in silence (run [2000,5000)) ·
-        // frag2 [3000,4000) forced · frag3 [4000,5000) forced · tail [5000,7000)
-        // (energyFallbackEnabled = false keeps the #122 boundaries under study)
-        val data = noisy(2000) + ByteArray(3000) + noisy(2000)
+    fun `forced-only keeps the pre-roll at forced seams and drops it at a candidate seam`() {
+        // frag = search = 1 s → the measured span is the late half
+        // [nominal + 0.5 s, nominal + 1 s]. Floor pauses sit exactly at the
+        // spans of fragments 0 ([48000, 64000)) and 2 ([152320, 168320));
+        // everything else is continuous ±3000 speech. Cuts (mirrored):
+        // frag0 candidate-aligned at 56160, frag1 forced at 104640 (the
+        // quietest late-half frame), frag2 aligned at 160480, frag3 forced
+        // at 208960, tail whole → seamForced = (F, F, T, F, T).
+        val data = speechWithZeros(260_000, 48_000 until 64_000, 152_320 until 168_320)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, searchBytes = 2000, preRollBytes = 320,
-            seamPolicy = SeamPolicy.FORCED_ONLY, energyFallbackEnabled = false
+            fragmentBytes = 32_000, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.FORCED_ONLY,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
 
-        // the boundary before frag2 was silence-aligned → its pre-roll is gone
+        // the seams before fragments 2 and 4 were forced → their pre-rolls
+        // survive; the candidate seams (1, 3) get none
         assertThat(preRollFiles().map { it.name }).containsExactly(
-            "preroll_000001.ogg", "preroll_000003.ogg", "preroll_000004.ogg"
+            "preroll_000002.ogg", "preroll_000004.ogg"
         ).inOrder()
         assertThat(preparer.committedFragments().map { it.seamForced })
-            .containsExactly(false, true, false, true, true).inOrder()
+            .containsExactly(false, false, true, false, true).inOrder()
+        // sanity: the aligned cuts landed inside their pauses
+        val sizes = fragmentFiles().map { payload(it).size }
+        assertThat(sizes.take(3).sum()).isEqualTo(160_480) // frag2's end ∈ its pause
+        assertThat(sizes[0]).isGreaterThan(48_000)          // frag0's end ∈ its pause
+        assertThat(sizes[0]).isAtMost(64_000)
     }
 
     @Test
     fun `all policy writes the pre-roll at every seam`() {
-        val data = noisy(2000) + ByteArray(3000) + noisy(2000)
+        val data = speechWithZeros(260_000, 48_000 until 64_000, 152_320 until 168_320)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, searchBytes = 2000, preRollBytes = 320,
-            seamPolicy = SeamPolicy.ALL, energyFallbackEnabled = false
+            fragmentBytes = 32_000, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.ALL,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
@@ -636,29 +687,28 @@ class FragmentPreparerTest {
     private fun dip(size: Int, level: Int) = ByteArray(size) { level.toByte() }
 
     @Test
-    fun `energy fallback cuts at the quietest frame in the late half of the window`() {
-        // fragmentBytes = 1000 (nominal), searchBytes = 2000 → window
-        // [1000, 3000), fallback range [2000, 3000) (= [1.5S, 2S]). The GLOBAL
-        // quietest dip (level 2) sits in the EARLY half — the fallback must
-        // ignore it and cut at the late-half dip (level 3, frame-aligned at
-        // [2640, 2960)) → cut at its centre 2800.
-        val data = loud(1300) + dip(320, 2) + loud(380) +   // early half [1000,2000)
-            loud(640) + dip(320, 3) + loud(40) +            // late half  [2000,3000)
-            loud(500)                                        // tail region
+    fun `the search span is the late half - an earlier quieter dip is invisible`() {
+        // early half [1000, 2000): a dip at amp 300 (the QUIETER one); late
+        // half [2000, 3000): 2 speech frames + a dip at amp 500. Only the
+        // late half is measured — the cut lands at the LATE dip's frame
+        // centre (2800), and the single-frame below-axis candidate counts
+        // as found (the interim silenceAligned mapping; its low Q is what
+        // #128's qualityMin gate will judge)
+        val data = nyquist(1000, 3000) + nyquist(320, 300) + nyquist(680, 3000) +
+            nyquist(640, 3000) + nyquist(320, 500) + nyquist(40, 3000)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
 
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
 
         val payloads = fragmentFiles().map { payload(it) }
-        assertThat(payloads.map { it.size }).containsExactly(2800, 700).inOrder()
-        // the fallback cut is FORCED (not silence-aligned) → FORCED_ONLY would
-        // still apply the pre-roll + prompt at this seam
+        assertThat(payloads.map { it.size }).containsExactly(2800, 200).inOrder()
         assertThat(preparer.committedFragments().map { it.seamForced })
-            .containsExactly(false, true).inOrder()
+            .containsExactly(false, false).inOrder()
     }
 
     @Test
@@ -677,5 +727,106 @@ class FragmentPreparerTest {
         preparer.prepareTailSync()
         assertThat(fragmentFiles().map { payload(it).size }).containsExactly(400_000)
         assertThat(preparer.committedFragments().map { it.seamForced }).containsExactly(false)
+    }
+
+    // ---- #126: silence-quality metric in the seam path --------------------
+
+    @Test
+    fun `a whisper-quiet span takes the forced path - the pre-roll arms stitching`() {
+        // uniform ±400 whisper (a tight band over the axis — no frame below
+        // it): fragment 0's cut is FORCED, so under FORCED_ONLY the next
+        // seam carries the pre-roll — the #128 stitching precondition is
+        // armed exactly when quality is absent
+        val data = nyquist(96_000, 400)
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            seamPolicy = SeamPolicy.FORCED_ONLY,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        assertThat(preparer.committedFragments().map { it.seamForced })
+            .containsExactly(false, true).inOrder()
+        assertThat(preRollFiles().map { it.name }).containsExactly("preroll_000001.wav")
+    }
+
+    @Test
+    fun `late-half default ignores an early-half pause - the full-window arm uses it`() {
+        // the pause [32000, 48000) is the EARLY half of fragment 0's window
+        // [32000, 64000); the late half [48000, 64000) is continuous speech
+        val data = speechWithZeros(96_000, 32_000 until 48_000)
+
+        // default (LATE_HALF): no candidate in the measured span → forced
+        val lateDir = tmp.newFolder("late")
+        val late = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = lateDir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        late.encodeAvailableFragments()
+        late.prepareTailSync()
+        assertThat(late.committedFragments().map { it.seamForced })
+            .containsExactly(false, true).inOrder()
+
+        // FULL_WINDOW (the #129 A/B arm): the early pause IS the measured
+        // span → a 50-frame floor candidate → aligned cut at 40160, inside
+        // the pause
+        val fullDir = tmp.newFolder("full")
+        val full = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = fullDir,
+            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000,
+            searchSpan = SearchSpan.FULL_WINDOW,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150
+        )
+        full.encodeAvailableFragments()
+        full.prepareTailSync()
+        assertThat(full.committedFragments().map { it.seamForced })
+            .containsExactly(false, false).inOrder()
+        assertThat(payload(fragmentFiles(fullDir).first()).size).isEqualTo(40_160)
+    }
+
+    @Test
+    fun `prepare json carries the silence-quality contract block`() {
+        val logged = mutableListOf<String>()
+        val logger = mockk<RotatingJsonLogger>()
+        every { logger.log("prepare", any()) } answers { logged.add(secondArg()) }
+        val data = noisy(1200) + ByteArray(1800)
+        val preparer = FragmentPreparer(
+            pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
+            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            axisK = 0.65, axisC = 100.0, marginKMs = 150,
+            logger = logger
+        )
+
+        preparer.encodeAvailableFragments()
+        preparer.prepareTailSync()
+
+        assertThat(logged).hasSize(2)
+        val gson = Gson()
+        val frag0 = gson.fromJson(logged[0], JsonObject::class.java)
+        // cadence fields unchanged
+        assertThat(frag0.get("fragment").asInt).isEqualTo(0)
+        assertThat(frag0.get("bytes").asInt).isEqualTo(2480)
+        assertThat(frag0.get("pcmEnd").asLong).isEqualTo(2480)
+        assertThat(frag0.get("encodeMs").asInt).isAtLeast(0)
+        assertThat(frag0.get("mode").asString).isEqualTo("wav")
+        // the old flag is gone; the contract block is in (all-zero span:
+        // M = 0, X = c = 100, a 3-frame candidate at depth 1)
+        assertThat(frag0.has("silenceAligned")).isFalse()
+        assertThat(frag0.get("M").asDouble).isEqualTo(0.0)
+        assertThat(frag0.get("min").asDouble).isEqualTo(0.0)
+        assertThat(frag0.get("max").asDouble).isEqualTo(0.0)
+        assertThat(frag0.get("X").asDouble).isEqualTo(100.0)
+        assertThat(frag0.get("Q").asDouble).isEqualTo(3.0)
+        assertThat(frag0.get("centroidMs").asDouble).isEqualTo(77.5) // cut 2480 B / 32 B-per-ms
+        assertThat(frag0.get("stitched").asBoolean).isFalse()        // #128 placeholder
+        // the stop-tap tail is not a searched cut — cadence only, no block
+        val tail = gson.fromJson(logged[1], JsonObject::class.java)
+        assertThat(tail.get("fragment").asInt).isEqualTo(1)
+        assertThat(tail.has("Q")).isFalse()
+        assertThat(tail.has("stitched")).isFalse()
+        assertThat(tail.has("silenceAligned")).isFalse()
     }
 }

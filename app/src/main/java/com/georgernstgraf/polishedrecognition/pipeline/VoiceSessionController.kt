@@ -9,6 +9,7 @@ import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
 import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
+import com.georgernstgraf.polishedrecognition.audio.SearchSpan
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
@@ -65,9 +66,36 @@ class VoiceSessionController(
      * #124: pass-through of the preparer's quietest-frame forced-cut
      * fallback (see [FragmentPreparer.energyFallbackEnabled]). `true` in
      * production (the frozen config); the harness A/Bs it via
-     * `--ez energyFallback`.
+     * `--ez energyFallback`. **INERT since #126** — the silence-quality
+     * metric always finds a best-effort cut; kept accepted for harness
+     * stability (#129 reworks the knobs).
      */
     private val fragmentEnergyFallback: Boolean = true,
+    /**
+     * #126 silence-quality axis: the multiplicative term k in `X = k·M + c`
+     * (gain-invariant separation). Harness-only knob — no Settings UI.
+     * **PROVISIONAL default** ([FragmentPreparer.DEFAULT_AXIS_K]) — the
+     * #129 research pass on real audio determines the real value.
+     */
+    private val fragmentAxisK: Double = FragmentPreparer.DEFAULT_AXIS_K,
+    /**
+     * #126 silence-quality axis: the absolute anchor c in `X = k·M + c`,
+     * 16-bit amplitude units (whisper/quiet-room). Harness-only knob — no
+     * Settings UI. **PROVISIONAL default** — #129 decides.
+     */
+    private val fragmentAxisC: Double = FragmentPreparer.DEFAULT_AXIS_C,
+    /**
+     * #126: the cut's minimum distance from the best candidate's over-axis
+     * edges, in milliseconds. Harness-only knob — no Settings UI.
+     * **PROVISIONAL default** — #129 decides.
+     */
+    private val fragmentMarginKMs: Int = FragmentPreparer.DEFAULT_MARGIN_K_MS,
+    /**
+     * #126: which part of the forward search window the silence-quality
+     * metric measures — the LATE half (production default, owner decision)
+     * or the full window (the #129 harness A/B arm).
+     */
+    private val fragmentSearchSpan: SearchSpan = FragmentPreparer.DEFAULT_SEARCH_SPAN,
     /**
      * Whisper prompt window in characters (#122 study knob): passed through to
      * [FragmentTranscriber]. `<= 0` disables the prompt. Production keeps the
@@ -362,6 +390,10 @@ class VoiceSessionController(
         preRollBytes = fragmentPreRollBytes,
         seamPolicy = seamPolicy,
         energyFallbackEnabled = fragmentEnergyFallback,
+        axisK = fragmentAxisK,
+        axisC = fragmentAxisC,
+        marginKMs = fragmentMarginKMs,
+        searchSpan = fragmentSearchSpan,
         logger = logger
     )
 
