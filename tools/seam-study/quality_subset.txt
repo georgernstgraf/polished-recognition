@@ -1,0 +1,39 @@
+# Representative sample subset for the #129 quality-sweep stages
+# (tools/seam-study/run_quality.sh). One relative path per line under the
+# device's files/samples/ root; blank lines and #-comments are ignored.
+#
+# WHY THESE SAMPLES (11, across all 7 acoustic classes):
+#   - 7 x 60 s, one per class: the workhorse. Under the production cut
+#     geometry (fragment 10 s, search = S -> spans [S, 2S]) a 60-s cut
+#     yields ~3-5 fragments => ~2-4 seams each, ~30 measured seams per
+#     sweep level -- enough for a Q distribution without spending the
+#     server budget (gregor is C=1, ~20x realtime; every arm is strictly
+#     serial). 60 s also keeps the prepare-record count (<= 7) INSIDE the
+#     10-deep rotating-log window, so the per-seam contract block
+#     {M, min, max, X, Q, centroidMs, stitched} survives complete -- no
+#     rotation loss on the stages that decide axisK and qualityMin.
+#   - 3 x 30 s from acoustically distinct classes (German monologue,
+#     English interview, phone/radio): double the seam count per level
+#     at half the server time; short cuts exercise early-seam placement.
+#   - 1 x 150 s English monologue: the deliberate stress case. ~16
+#     prepare records vs the 10-deep window -- it measures how much of
+#     the stream the poll-merge recovers when the encoder bursts past
+#     the rotation depth (coverage is reported per arm as
+#     prepare_captured vs prepare_expected in quality_results.csv).
+#
+# KNOWN GAP (see SAMPLES.md): the corpus has NO bist-class samples yet
+# (German word-final /st/ + pause at a boundary, the live #126 failure).
+# Owner dictations via #127 retention must join the measurement set
+# BEFORE the final full-corpus factorial closes.
+
+de_monologue_male/de_monologue_male_60s.wav
+de_interview/de_interview_60s.wav
+en_monologue_male/en_monologue_male_60s.wav
+en_monologue_female/en_monologue_female_60s.wav
+en_interview/en_interview_60s.wav
+panel_multispeaker/panel_multispeaker_60s.wav
+phone_radio/phone_radio_60s.wav
+de_monologue_male/de_monologue_male_30s.wav
+en_interview/en_interview_30s.wav
+phone_radio/phone_radio_30s.wav
+en_monologue_male/en_monologue_male_150s.wav
