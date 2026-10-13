@@ -222,7 +222,8 @@ class VoiceSessionController(
 
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val recorder = AudioRecorder()
+    /** #136: capture PCM spools to disk — session RAM is O(1), not O(session). */
+    private val recorder = AudioRecorder(File(appContext.cacheDir, CAPTURE_SPOOL))
     private val gson = Gson()
 
     /** Session-scoped fragment preparation (#115), only with `compress_audio` on. */
@@ -523,11 +524,11 @@ class VoiceSessionController(
             accumulatedMs += System.currentTimeMillis() - segStartMs
         }
         segStartMs = 0L
-        // Non-destructive stop (#84): the PCM stays buffered so a failed
-        // pipeline can park the session as PAUSED with audio + timer intact.
-        // The buffer is discarded (flushBuffer) only after a successful
-        // upload below.
-        val wav = recorder.stopPreservingBuffer()
+        // Non-destructive stop (#84): the PCM stays SPOOLED ON DISK so a
+        // failed pipeline can park the session as PAUSED with audio + timer
+        // intact (#136 — RAM no longer holds the session). The spool is
+        // discarded (flushBuffer) only after a successful upload below.
+        val sessionWav = recorder.stopSessionWavFile()
         // The session is over — its bytes are in hand, so any process-death
         // snapshot is stale from here on.
         clearSnapshot()
@@ -536,7 +537,7 @@ class VoiceSessionController(
 
         transcribeJob = scope.launch {
             val result = try {
-                runTranscription(wav, callerPackage)
+                runTranscription(sessionWav, callerPackage)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -546,7 +547,8 @@ class VoiceSessionController(
             // failure — success is where the evidence used to be lost)
             // BEFORE clearPrepared() wipes the fragment session dir. Copy
             // only; the pipeline's own lifecycle is untouched.
-            retainAudioEvidence(wav)
+            retainAudioEvidence(sessionWav)
+            sessionWav.delete()
             // On success the prepared uploads are consumed; on failure
             // they stay committed so the retry reuses them instead of
             // re-encoding (#115 stage memoization).
@@ -605,6 +607,8 @@ class VoiceSessionController(
         preparer = null
         sessionId = null
         runCatching { recorder.cancel() }
+        // #136: the stop WAV of a failed in-flight attempt is garbage now.
+        File(appContext.cacheDir, AudioRecorder.SESSION_WAV_NAME).delete()
         clearSnapshot()
         accumulatedMs = 0L
         segStartMs = 0L
@@ -658,7 +662,9 @@ class VoiceSessionController(
         try {
             val total = accumulatedMs +
                 if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
-            File(appContext.cacheDir, SNAP_PCM).writeBytes(recorder.snapshotPcm())
+            // #136: a pure disk copy — the spool never materializes in RAM,
+            // however long the dictation.
+            recorder.snapshotToFile(File(appContext.cacheDir, SNAP_PCM))
             // The session id ties the snapshot to its committed fragment dir
             // (#115): after process death the restored session reuses the
             // already-encoded fragments instead of re-encoding everything.
@@ -667,11 +673,11 @@ class VoiceSessionController(
             )
             lastSnapshotError = null
         } catch (e: Throwable) {
-            // Best-effort: snapshotting must never break the live session —
-            // this explicitly includes OutOfMemoryError on absurdly large
-            // buffers, not just ordinary I/O failures. The swallow is
-            // VISIBLE (flake instrumentation, #117 watch item): a silently
-            // missing `session.meta` cost two debug rounds in the test suite.
+            // Best-effort: snapshotting must never break the live session.
+            // The swallow is VISIBLE (flake instrumentation, #117 watch
+            // item): a silently missing `session.meta` cost two debug
+            // rounds in the test suite. (#136: the copy is disk-to-disk —
+            // the old OOM-on-absurd-buffers failure class is gone.)
             lastSnapshotError = "${e.javaClass.simpleName}: ${e.message}"
             Log.w(TAG, "session snapshot failed (state=$state, sessionId=$sessionId)", e)
         }
@@ -718,7 +724,9 @@ class VoiceSessionController(
             val pcmFile = File(appContext.cacheDir, SNAP_PCM)
             if (!meta.exists() || !pcmFile.exists()) return false
             val parsed = parseSnapshotMeta(meta.readText()) ?: return false
-            recorder.restorePcm(pcmFile.readBytes())
+            // #136: the snapshot is adopted as the capture spool (renamed
+            // into place) — a restored session lives on disk, not in RAM.
+            recorder.restoreFromFile(pcmFile)
             meta.delete()
             pcmFile.delete()
             accumulatedMs = parsed.durationMs.coerceAtLeast(0L)
@@ -759,7 +767,7 @@ class VoiceSessionController(
      * fragments (compress off, or an empty recording) the legacy batch path
      * applies unchanged.
      */
-    private suspend fun runTranscription(wav: ByteArray, callerPackage: String?): Result<String> {
+    private suspend fun runTranscription(sessionWav: File, callerPackage: String?): Result<String> {
         rescuePartial = null
         ensureFragmentPreparer()
         val p = preparer
@@ -854,7 +862,7 @@ class VoiceSessionController(
             // empty recording → legacy single-file path below
         }
 
-        val files = prepareAudioFiles(wav)
+        val files = prepareAudioFiles(sessionWav)
         return pipeline.transcribe(files, callerPackage) { stage ->
             emit(Event.StageChanged(stage))
         }
@@ -1114,7 +1122,7 @@ class VoiceSessionController(
      * after a successful pipeline run and pruned when a different recording
      * is prepared, so at most one session's uploads ever sit in cacheDir.
      */
-    private suspend fun prepareAudioFiles(wav: ByteArray): List<File> {
+    private suspend fun prepareAudioFiles(sessionWav: File): List<File> {
         // Fragment path (#115/#116): the background worker has already encoded
         // 21-s fragments during the dictation — only the trailing partial
         // fragment and the chained-OGG assembly remain, both fast.
@@ -1133,6 +1141,12 @@ class VoiceSessionController(
             // empty recording → legacy single-file path below
         }
 
+        // #136: the legacy path below is reached only for EMPTY recordings
+        // (the fragment path above handles everything else from disk) — the
+        // session WAV is therefore tiny (a bare 44-byte header) and reading
+        // it into RAM is safe. The spool file means a non-empty recording
+        // never needs this branch.
+        val wav = withContext(Dispatchers.IO) { sessionWav.readBytes() }
         val prepared = preparedDirFor(wav)
         if (prepared.reused) {
             Log.i(TAG, "Prepared upload reused from cache: ${prepared.dir.name} (${prepared.manifest.size} files)")
@@ -1282,14 +1296,14 @@ class VoiceSessionController(
      * `Log.w`: evidence retention can never fail a session. Skipped
      * entirely when the recording is empty (a bare 44-byte WAV header).
      */
-    private suspend fun retainAudioEvidence(wav: ByteArray) {
+    private suspend fun retainAudioEvidence(sessionWav: File) {
         val store = audioEvidenceStore ?: return
         if (!audioEvidenceEnabled()) return
         val sid = sessionId ?: return
-        if (wav.size <= 44) return // empty recording — a header only, nothing to retain
+        if (sessionWav.length() <= 44) return // empty recording — a header only, nothing to retain
         try {
             withContext(Dispatchers.IO) {
-                if (!store.retainBytes(sid, EVIDENCE_SESSION_WAV, wav)) {
+                if (!store.retainFile(sid, sessionWav, EVIDENCE_SESSION_WAV)) {
                     Log.w(TAG, "audio evidence: session copy failed for $sid")
                 }
                 val fragmentDir = File(File(appContext.cacheDir, FRAGMENTS_DIR), sid)
@@ -1366,6 +1380,8 @@ class VoiceSessionController(
         private const val SNAP_META = "session.meta"
         private const val PREPARED_DIR = "prepared"
         private const val FRAGMENTS_DIR = "fragments"
+        /** #136: the capture spool — PCM never accumulates in RAM. */
+        private const val CAPTURE_SPOOL = "recording.pcm"
         /** Owns the shadow comparison's assembled chunks (#117) — deleted after use. */
         private const val SHADOW_DIR = "shadow"
 

@@ -3,31 +3,42 @@ package com.georgernstgraf.polishedrecognition.audio
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.RandomAccessFile
 
-class AudioRecorder : PcmSource {
+/**
+ * Captures 16-kHz mono PCM and spools it to DISK instead of accumulating it
+ * in RAM (#136, owner directive: "after a fragment comes back, the buffer
+ * gets free again" — with the spool the RAM cost of a dictation is O(1),
+ * not O(session): a 60-min dictation costs the same few MB as a 2-min one).
+ *
+ * Replaces both earlier designs: the original single `ByteArrayOutputStream`
+ * (whose per-fragment `toByteArray()` full copy OOMed long dictations on
+ * small-heap devices — the 2026-10-13 A03 crash, #135) and #135's
+ * in-RAM block chain (still O(session) RAM). Consumers read RANGES via
+ * [PcmSource] — seek+read from the spool under one lock; the fragment
+ * preparer's absolute-offset contract is untouched.
+ *
+ * Full-session artifacts are STREAMED, never materialized in RAM:
+ * - [stopSessionWavFile] writes the canonical WAV (header + spool) with a
+ *   64-KiB copy buffer — the controller threads the FILE to retention and
+ *   the legacy path; the shadow/full-context passes read the fragment
+ *   files directly and never see it.
+ * - [snapshotToFile] / [restoreFromFile] move the session between the
+ *   spool and the process-death snapshot (#67) as disk copies.
+ */
+class AudioRecorder(private val spoolFile: File) : PcmSource {
 
     private var audioRecord: AudioRecord? = null
     @Volatile private var isRecording = false
 
-    /**
-     * The session PCM as an append-only chain of fixed-size blocks under one
-     * lock (#135). Replaces the former single `ByteArrayOutputStream`: a
-     * BAOS forced EVERY ranged read (`copyPcmRange`) to copy the WHOLE
-     * session via `toByteArray()` — on a ~24-min dictation that transient
-     * (plus the ≤2× internal growth array) blew the 128-MB heap of low-RAM
-     * devices (A03 crash, trc.txt 2026-10-13). Blocks keep the per-read
-     * transient at O(requested range) and grow one block at a time — no
-     * contiguous double-allocation at any session length. All full-buffer
-     * consumers (snapshot, stop WAV) walk the blocks into their single
-     * result array instead of stacking full copies.
-     */
-    private val blocks = ArrayDeque<ByteArray>()
-    /** Total valid PCM bytes across [blocks] (all but the last are full). */
-    private var size = 0L
-    /** Bytes used in the last (possibly partially filled) block. */
-    private var tailUsed = 0
-
     private val lock = Any()
+    private var raf: RandomAccessFile? = null
+    /** Valid PCM bytes in the spool — the authoritative [PcmSource.pcmSize]. */
+    private var spooledBytes = 0L
 
     fun start(resetBuffer: Boolean = true) {
         if (isRecording) return
@@ -61,7 +72,7 @@ class AudioRecorder : PcmSource {
             while (isRecording && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: -1
                 if (bytesRead > 0) {
-                    append(buffer, bytesRead)
+                    synchronized(lock) { writeLocked(buffer, bytesRead) }
                 }
             }
         }.start()
@@ -82,20 +93,16 @@ class AudioRecorder : PcmSource {
         start(resetBuffer = false)
     }
 
-    fun stop(): ByteArray = stopPreservingBuffer().also { flushBuffer() }
+    fun stop(): File = stopSessionWavFile().also { flushBuffer() }
 
     /**
-     * Stops capture and returns the WAV without clearing the buffered PCM
-     * (#84): the buffer stays so a failed pipeline can park the session as
-     * PAUSED with the audio intact (retry re-sends, resume appends). Call
-     * [flushBuffer] (or [cancel]) to discard after a successful upload.
-     *
-     * The WAV is assembled directly into its final array (header via
-     * [WavWriter.writeHeader], PCM block-walked in) — exactly ONE full
-     * session copy, where the former `toByteArray()` + `write()` stacked
-     * two (#135).
+     * Stops capture and writes the full-session WAV to a FILE, keeping the
+     * spooled PCM for a parked retry (#84 semantics, now disk-backed): a
+     * failed pipeline parks the session as PAUSED with the audio intact in
+     * the spool; [flushBuffer] (or [cancel]) discards it after a successful
+     * upload. RAM peak is the copy buffer, not the session (#136).
      */
-    fun stopPreservingBuffer(): ByteArray {
+    fun stopSessionWavFile(): File {
         isRecording = false
         try {
             audioRecord?.stop()
@@ -104,13 +111,26 @@ class AudioRecorder : PcmSource {
         }
         audioRecord = null
 
+        val out = File(spoolFile.parentFile, SESSION_WAV_NAME)
         synchronized(lock) {
-            val dataSize = size.toInt()
-            val wav = ByteArray(WAV_HEADER_SIZE + dataSize)
-            WavWriter.writeHeader(wav, dataSize, 16000, 1, 16)
-            copyLockedInto(wav, WAV_HEADER_SIZE, 0L, size)
-            return wav
+            val raf = rafOrOpen()
+            val dataSize = spooledBytes.toInt()
+            FileOutputStream(out).use { fos ->
+                val header = ByteArray(WAV_HEADER_SIZE)
+                WavWriter.writeHeader(header, dataSize, 16000, 1, 16)
+                fos.write(header)
+                raf.seek(0)
+                val buf = ByteArray(COPY_BUFFER_BYTES)
+                var remaining = spooledBytes
+                while (remaining > 0) {
+                    val n = raf.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
+                    if (n < 0) break
+                    fos.write(buf, 0, n)
+                    remaining -= n
+                }
+            }
         }
+        return out
     }
 
     fun cancel() {
@@ -127,8 +147,8 @@ class AudioRecorder : PcmSource {
     /**
      * Discards the captured PCM without disturbing a live session (#86,
      * flush button): a running AudioRecord thread keeps capturing
-     * (RECORDING) or stays stopped (PAUSED) — only the buffered bytes are
-     * reset, so the user re-records from scratch in the same mode.
+     * (RECORDING) or stays stopped (PAUSED) — only the spooled bytes are
+     * truncated, so the user re-records from scratch in the same mode.
      */
     fun flushBuffer() {
         synchronized(lock) { resetLocked() }
@@ -136,14 +156,14 @@ class AudioRecorder : PcmSource {
 
     /**
      * Copies the captured raw PCM bytes without disturbing the session, for
-     * the process-death snapshot (`VoiceSessionController.snapshot`, #67).
-     * One full copy — unavoidable, the bytes leave via disk — walked block
-     * by block instead of stacking an intermediate BAOS copy (#135).
+     * callers that need the bytes themselves (tests, small buffers). The
+     * controller's process-death snapshot uses [snapshotToFile] instead —
+     * a disk copy that never materializes the session in RAM (#136).
      */
     fun snapshotPcm(): ByteArray =
         synchronized(lock) {
-            val out = ByteArray(size.toInt())
-            copyLockedInto(out, 0, 0L, size)
+            val out = ByteArray(spooledBytes.toInt())
+            readLocked(0L, out)
             out
         }
 
@@ -155,93 +175,116 @@ class AudioRecorder : PcmSource {
     fun restorePcm(pcm: ByteArray) {
         synchronized(lock) {
             resetLocked()
-            appendLocked(pcm, pcm.size)
+            writeLocked(pcm, pcm.size)
         }
     }
 
     /**
-     * [PcmSource] access for the fragment preparer (#115): the buffer is
+     * Copies the spooled PCM into [target] — the process-death snapshot
+     * (#67) as a pure disk operation: the session never materializes in
+     * RAM, however long the dictation (#136). A missing/empty spool yields
+     * an empty target file (pre-#136 semantics: an empty buffer snapshotted
+     * as an empty `session.pcm`).
+     */
+    fun snapshotToFile(target: File) {
+        synchronized(lock) {
+            if (!spoolFile.isFile || spooledBytes == 0L) {
+                target.writeBytes(ByteArray(0))
+            } else {
+                FileInputStream(spoolFile).use { input ->
+                    FileOutputStream(target).use { output ->
+                        input.channel.transferTo(0, spooledBytes, output.channel)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Adopts [source] as the spool after process death — RENAMED into place
+     * when possible (cheap; the caller deletes the snapshot meta either
+     * way), copied as a fallback. The session lives on disk from here;
+     * `resume()` appends to it.
+     */
+    fun restoreFromFile(source: File) {
+        synchronized(lock) {
+            resetLocked()
+            closeRafLocked()
+            if (!source.renameTo(spoolFile)) {
+                source.copyTo(spoolFile, overwrite = true)
+                source.delete()
+            }
+            spooledBytes = if (spoolFile.isFile) spoolFile.length() else 0L
+        }
+    }
+
+    /**
+     * [PcmSource] access for the fragment preparer (#115): the spool is
      * append-only while a session lives. Copies ONLY the requested range —
-     * a block walk that never materializes the whole session (#135; the
-     * former `toByteArray()` full copy OOMed long dictations on small-heap
-     * devices).
+     * a seek+read, never a full-session copy (#135/#136).
      */
     override fun pcmSize(): Long =
-        synchronized(lock) { size }
+        synchronized(lock) { spooledBytes }
 
     override fun copyPcmRange(start: Long, end: Long): ByteArray {
         require(start >= 0 && end >= start) { "invalid PCM range [$start, $end)" }
         synchronized(lock) {
-            require(end <= size) { "PCM range [$start, $end) beyond buffer (${size}B)" }
+            require(end <= spooledBytes) { "PCM range [$start, $end) beyond buffer (${spooledBytes}B)" }
             val target = ByteArray((end - start).toInt())
-            copyLockedInto(target, 0, start, end - start)
+            readLocked(start, target)
             return target
         }
     }
 
-    /** Appends [len] bytes of [data] under [lock]; shared by capture and [restorePcm]. */
-    private fun append(data: ByteArray, len: Int) {
-        synchronized(lock) { appendLocked(data, len) }
+    /** Opens (or reopens) the spool for append+read; caller holds [lock]. */
+    private fun rafOrOpen(): RandomAccessFile {
+        raf?.let { return it }
+        spoolFile.parentFile?.mkdirs()
+        val file = RandomAccessFile(spoolFile, "rw")
+        raf = file
+        return file
     }
 
-    private fun appendLocked(data: ByteArray, len: Int) {
+    private fun closeRafLocked() {
+        runCatching { raf?.close() }
+        raf = null
+    }
+
+    /** Appends [len] bytes of [data] at the spool end; caller holds [lock]. */
+    private fun writeLocked(data: ByteArray, len: Int) {
+        if (len <= 0) return
+        val file = rafOrOpen()
+        file.seek(spooledBytes)
+        file.write(data, 0, len)
+        spooledBytes += len
+    }
+
+    /** Reads exactly [target].size bytes from [start]; caller holds [lock]. */
+    private fun readLocked(start: Long, target: ByteArray) {
+        if (target.isEmpty()) return
+        val file = rafOrOpen()
+        file.seek(start)
         var offset = 0
-        while (offset < len) {
-            var tail = blocks.lastOrNull()
-            if (tail == null || tailUsed == tail.size) {
-                tail = ByteArray(BLOCK_BYTES)
-                blocks.addLast(tail)
-                tailUsed = 0
-            }
-            val n = minOf(len - offset, tail.size - tailUsed)
-            System.arraycopy(data, offset, tail, tailUsed, n)
-            tailUsed += n
+        while (offset < target.size) {
+            val n = file.read(target, offset, target.size - offset)
+            if (n < 0) throw IOException("spool shorter than expected at ${start + offset}")
             offset += n
-            size += n
         }
     }
 
     private fun resetLocked() {
-        blocks.clear()
-        size = 0L
-        tailUsed = 0
-    }
-
-    /**
-     * Copies [length] bytes starting at absolute offset [start] into [target]
-     * at [targetOffset], walking the block chain. Caller holds [lock]. Blocks
-     * before the last are exactly [BLOCK_BYTES]; the last holds [tailUsed].
-     */
-    private fun copyLockedInto(target: ByteArray, targetOffset: Int, start: Long, length: Long) {
-        if (length == 0L) return
-        var blockStart = 0L
-        var dst = targetOffset
-        var remaining = length
-        for (block in blocks) {
-            val blockEnd = blockStart + if (block === blocks.last()) tailUsed else block.size
-            val from = maxOf(start, blockStart)
-            val to = minOf(start + length, blockEnd)
-            if (to > from) {
-                System.arraycopy(
-                    block,
-                    (from - blockStart).toInt(),
-                    target,
-                    dst,
-                    (to - from).toInt()
-                )
-                dst += (to - from).toInt()
-                remaining -= (to - from)
-            }
-            blockStart = blockEnd
-            if (remaining <= 0L) break
+        closeRafLocked()
+        runCatching {
+            if (spoolFile.exists()) spoolFile.delete()
         }
+        spooledBytes = 0L
     }
 
-    private companion object {
-        /** ~0.5 MB per block: a fragment-sized ranged read (≤ 2S ≈ 640 KB)
-         *  touches ≤ 3 blocks, and a 24-min session is only ~92 entries —
-         *  the walk is arithmetic + 1–2 arraycopies, never a full copy. */
-        const val BLOCK_BYTES = 524_288
-        const val WAV_HEADER_SIZE = 44
+    companion object {
+        /** Written next to the spool; the controller deletes it after retention. */
+        internal const val SESSION_WAV_NAME = "session_stop.wav"
+
+        private const val WAV_HEADER_SIZE = 44
+        private const val COPY_BUFFER_BYTES = 64 * 1024
     }
 }
