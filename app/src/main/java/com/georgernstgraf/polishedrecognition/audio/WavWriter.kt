@@ -9,12 +9,29 @@ package com.georgernstgraf.polishedrecognition.audio
 object WavWriter {
 
     fun write(pcm: ByteArray, sampleRate: Int, channels: Int = 1, bitsPerSample: Int = 16): ByteArray {
+        val wav = ByteArray(HEADER_SIZE + pcm.size)
+        writeHeader(wav, pcm.size, sampleRate, channels, bitsPerSample)
+        System.arraycopy(pcm, 0, wav, HEADER_SIZE, pcm.size)
+        return wav
+    }
+
+    /**
+     * Writes the canonical 44-byte WAV header into the FIRST 44 bytes of
+     * [wav], describing [dataSize] PCM bytes that the caller places at
+     * offset 44. Lets a caller assemble the WAV directly into a
+     * pre-allocated array without an intermediate full PCM copy (#135 —
+     * [AudioRecorder.stopPreservingBuffer] streams the session buffer in).
+     */
+    fun writeHeader(
+        wav: ByteArray,
+        dataSize: Int,
+        sampleRate: Int,
+        channels: Int = 1,
+        bitsPerSample: Int = 16
+    ) {
         val byteRate = sampleRate * channels * bitsPerSample / 8
         val blockAlign = channels * bitsPerSample / 8
-        val dataSize = pcm.size
-        val headerSize = 44
-        val totalSize = headerSize + dataSize
-        val wav = ByteArray(totalSize)
+        val totalSize = HEADER_SIZE + dataSize
 
         wav[0] = 'R'.code.toByte()
         wav[1] = 'I'.code.toByte()
@@ -41,9 +58,6 @@ object WavWriter {
         wav[38] = 't'.code.toByte()
         wav[39] = 'a'.code.toByte()
         writeIntLE(wav, 40, dataSize)
-        System.arraycopy(pcm, 0, wav, 44, dataSize)
-
-        return wav
     }
 
     private fun writeIntLE(buf: ByteArray, offset: Int, value: Int) {
@@ -57,4 +71,6 @@ object WavWriter {
         buf[offset] = (value.toInt() and 0xFF).toByte()
         buf[offset + 1] = ((value.toInt() shr 8) and 0xFF).toByte()
     }
+
+    private const val HEADER_SIZE = 44
 }

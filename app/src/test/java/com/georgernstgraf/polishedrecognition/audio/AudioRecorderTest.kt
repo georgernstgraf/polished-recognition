@@ -103,4 +103,73 @@ class AudioRecorderTest {
 
         assertThat(recorder.snapshotPcm()).isEmpty()
     }
+
+    // ---- #135: blocked buffer — ranged reads never touch the whole session ----
+
+    /** A deterministic buffer larger than two blocks (block size 512 KB). */
+    private fun bigPcm(bytes: Int): ByteArray = ByteArray(bytes) { i -> (i % 251).toByte() }
+
+    @Test
+    fun `copyPcmRange returns the exact range across block boundaries (#135)`() {
+        val recorder = AudioRecorder()
+        val pcm = bigPcm(2 * 524_288 + 100_003)
+        recorder.restorePcm(pcm)
+        assertThat(recorder.pcmSize()).isEqualTo(pcm.size.toLong())
+
+        // a fragment-sized slice spanning all three blocks
+        val start = 524_288 - 1000L
+        val end = 2 * 524_288L + 50_000L
+        assertThat(recorder.copyPcmRange(start, end))
+            .isEqualTo(pcm.copyOfRange(start.toInt(), end.toInt()))
+    }
+
+    @Test
+    fun `copyPcmRange full-buffer round-trips through snapshot (#135)`() {
+        val recorder = AudioRecorder()
+        val pcm = bigPcm(524_288 + 123_457)
+        recorder.restorePcm(pcm)
+
+        assertThat(recorder.copyPcmRange(0, pcm.size.toLong())).isEqualTo(pcm)
+        assertThat(recorder.snapshotPcm()).isEqualTo(pcm)
+    }
+
+    @Test
+    fun `stopPreservingBuffer assembles the exact WAV without stacked copies (#135)`() {
+        val recorder = AudioRecorder()
+        val pcm = bigPcm(524_288 + 999)
+
+        recorder.restorePcm(pcm)
+        val wav = recorder.stopPreservingBuffer()
+
+        assertThat(wav.size).isEqualTo(44 + pcm.size)
+        assertThat(wav.copyOfRange(0, 44)).isEqualTo(WavWriter.write(pcm, 16000).copyOfRange(0, 44))
+        assertThat(wav.copyOfRange(44, wav.size)).isEqualTo(pcm)
+        recorder.cancel()
+    }
+
+    @Test
+    fun `copyPcmRange rejects out-of-bounds ranges (#135)`() {
+        val recorder = AudioRecorder()
+        recorder.restorePcm(pcmBuffer(1000, -1000))
+
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            recorder.copyPcmRange(0, 5)
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            recorder.copyPcmRange(3, 2)
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            recorder.copyPcmRange(-1, 1)
+        }
+    }
+
+    @Test
+    fun `restore after use replaces the whole buffer (#135)`() {
+        val recorder = AudioRecorder()
+        recorder.restorePcm(bigPcm(600_000))
+        recorder.restorePcm(pcmBuffer(1000, -1000))
+
+        assertThat(recorder.pcmSize()).isEqualTo(4L)
+        assertThat(recorder.snapshotPcm()).isEqualTo(pcmBuffer(1000, -1000))
+    }
 }
