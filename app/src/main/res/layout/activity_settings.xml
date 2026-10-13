@@ -228,6 +228,23 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="16dp" />
 
+        <!-- #133: auto-switch back to the typing keyboard after a successful send -->
+        <CheckBox
+            android:id="@+id/switch_back_after_send"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/switch_back_after_send"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/switch_back_after_send_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="16dp" />
+
         <!-- Provider Control Section -->
         <TextView
             android:layout_width="match_parent"

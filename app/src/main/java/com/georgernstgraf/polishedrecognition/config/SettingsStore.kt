@@ -102,6 +102,17 @@ class SettingsStore(
         set(value) = prefs.edit().putBoolean(COMPRESS_AUDIO_KEY, value).apply()
 
     /**
+     * After a successful send (#133), switch back to the user's typing
+     * keyboard (the target the keyboard-switch button resolves) instead of
+     * only hiding the voice keyboard — so the next focus opens the typing
+     * keyboard, not a fresh dictation. Default ON; the IME silently hides
+     * when no other keyboard is available.
+     */
+    var switchBackAfterSend: Boolean
+        get() = prefs.getBoolean(SWITCH_BACK_AFTER_SEND_KEY, true)
+        set(value) = prefs.edit().putBoolean(SWITCH_BACK_AFTER_SEND_KEY, value).apply()
+
+    /**
      * Audio-evidence retention (#127): when on, a finished dictation session
      * copies its fragments + manifest, composed uploads and full session PCM
      * into `files/audio/<sessionId>/` (ring-buffered, ~3 sessions / ≤ 50 MB)
@@ -427,6 +438,7 @@ class SettingsStore(
         private const val LLM_MODEL_LISTS_KEY = "llm_model_lists"
         private const val RAW_MODE_KEY = "raw_mode"
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
+        private const val SWITCH_BACK_AFTER_SEND_KEY = "switch_back_after_send"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"

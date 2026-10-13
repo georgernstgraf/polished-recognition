@@ -111,6 +111,21 @@ class SettingsStoreTest {
         assertThat(store.audioEvidence).isTrue()
     }
 
+    // ---- #133: auto-switch back to the typing keyboard after send -------------
+
+    @Test
+    fun `switchBackAfterSend defaults to true`() {
+        assertThat(freshStore().switchBackAfterSend).isTrue()
+    }
+
+    @Test
+    fun `switchBackAfterSend save and load round-trips`() {
+        store.switchBackAfterSend = false
+        assertThat(store.switchBackAfterSend).isFalse()
+        store.switchBackAfterSend = true
+        assertThat(store.switchBackAfterSend).isTrue()
+    }
+
     @Test
     fun `targetLanguage defaults to null`() {
         assertThat(store.targetLanguage).isNull()

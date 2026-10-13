@@ -486,6 +486,21 @@ class PolishedVoiceInputIME : InputMethodService() {
                     // recorded the target at start (#102 amendment); this captures
                     // the actual insertion target and is absorbed by the throttle.
                     currentCallerPackage()?.let { settings.recordKnownApp(it) }
+                    // #133: with the setting on (default), hand the field back to
+                    // the user's typing keyboard instead of letting the voice
+                    // keyboard re-open on the next focus. No target (Polished is
+                    // the only enabled keyboard) = silent hide. The recording is
+                    // already stopped here and the controller delivers Completed
+                    // before IDLE, so the switch only ever fires on a finished,
+                    // successfully inserted session.
+                    val target = currentDefaultImeId()?.let { resolveKeyKeyboardTarget(it) }
+                    val decision = PostSendSwitchPolicy.decide(
+                        autoSwitch = settings.switchBackAfterSend,
+                        target = target
+                    )
+                    if (decision == PostSendSwitchPolicy.Decision.SWITCH && target != null) {
+                        switchInputMethod(target)
+                    }
                     requestHideSelf(0)
                 } else {
                     Toast.makeText(
