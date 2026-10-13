@@ -7,72 +7,53 @@ import org.junit.Test
 class AutoStartPolicyTest {
 
     @Test
-    fun `IDLE with permission auto-starts`() {
+    fun `IDLE with permission fresh-starts`() {
         assertThat(
-            AutoStartPolicy.shouldAutoStart(VoiceSessionController.State.IDLE, true)
-        ).isTrue()
+            AutoStartPolicy.entryAction(VoiceSessionController.State.IDLE, sameField = true, true)
+        ).isEqualTo(AutoStartPolicy.EntryAction.FRESH_START)
+        assertThat(
+            AutoStartPolicy.entryAction(VoiceSessionController.State.IDLE, sameField = false, true)
+        ).isEqualTo(AutoStartPolicy.EntryAction.FRESH_START)
     }
 
     @Test
-    fun `IDLE without permission does not auto-start`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoStart(VoiceSessionController.State.IDLE, false)
-        ).isFalse()
+    fun `without mic permission nothing happens automatically`() {
+        VoiceSessionController.State.entries.forEach { state ->
+            assertThat(
+                AutoStartPolicy.entryAction(state, sameField = true, false)
+            ).isEqualTo(AutoStartPolicy.EntryAction.NONE)
+            assertThat(
+                AutoStartPolicy.entryAction(state, sameField = false, false)
+            ).isEqualTo(AutoStartPolicy.EntryAction.NONE)
+        }
     }
 
     @Test
-    fun `RECORDING never auto-starts`() {
+    fun `PAUSED on the same field resumes - the dictation survives the detour (#65)`() {
         assertThat(
-            AutoStartPolicy.shouldAutoStart(VoiceSessionController.State.RECORDING, true)
-        ).isFalse()
+            AutoStartPolicy.entryAction(VoiceSessionController.State.PAUSED, sameField = true, true)
+        ).isEqualTo(AutoStartPolicy.EntryAction.RESUME)
     }
 
     @Test
-    fun `PAUSED never auto-starts`() {
+    fun `PAUSED on a different field fresh-starts - no resurrection in another app (#134)`() {
         assertThat(
-            AutoStartPolicy.shouldAutoStart(VoiceSessionController.State.PAUSED, true)
-        ).isFalse()
+            AutoStartPolicy.entryAction(VoiceSessionController.State.PAUSED, sameField = false, true)
+        ).isEqualTo(AutoStartPolicy.EntryAction.FRESH_START)
     }
 
     @Test
-    fun `PROCESSING never auto-starts`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoStart(VoiceSessionController.State.PROCESSING, true)
-        ).isFalse()
-    }
-
-    @Test
-    fun `PAUSED with permission auto-resumes`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.PAUSED, true)
-        ).isTrue()
-    }
-
-    @Test
-    fun `PAUSED without permission does not auto-resume`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.PAUSED, false)
-        ).isFalse()
-    }
-
-    @Test
-    fun `IDLE never auto-resumes`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.IDLE, true)
-        ).isFalse()
-    }
-
-    @Test
-    fun `RECORDING never auto-resumes`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.RECORDING, true)
-        ).isFalse()
-    }
-
-    @Test
-    fun `PROCESSING never auto-resumes`() {
-        assertThat(
-            AutoStartPolicy.shouldAutoResume(VoiceSessionController.State.PROCESSING, true)
-        ).isFalse()
+    fun `live sessions are never touched automatically`() {
+        listOf(
+            VoiceSessionController.State.RECORDING,
+            VoiceSessionController.State.PROCESSING
+        ).forEach { state ->
+            assertThat(
+                AutoStartPolicy.entryAction(state, sameField = true, true)
+            ).isEqualTo(AutoStartPolicy.EntryAction.NONE)
+            assertThat(
+                AutoStartPolicy.entryAction(state, sameField = false, true)
+            ).isEqualTo(AutoStartPolicy.EntryAction.NONE)
+        }
     }
 }

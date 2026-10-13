@@ -310,11 +310,23 @@ class PolishedVoiceInputIME : InputMethodService() {
             ImeStartDecision.Outcome.CANCEL,
             ImeStartDecision.Outcome.PROCEED -> Unit
         }
-        if (AutoStartPolicy.shouldAutoResume(controller.state, hasMicPermission())) {
-            startMicForeground()
-            controller.resume()
-        } else if (AutoStartPolicy.shouldAutoStart(controller.state, hasMicPermission())) {
-            startIfPermitted()
+        when (AutoStartPolicy.entryAction(controller.state, sameField, hasMicPermission())) {
+            AutoStartPolicy.EntryAction.RESUME -> {
+                startMicForeground()
+                controller.resume()
+            }
+            AutoStartPolicy.EntryAction.FRESH_START -> {
+                // #134: a PAUSED leftover entered on a DIFFERENT field is not
+                // auto-resumed — discard it through the normal cancel path
+                // (#113 salvage keeps already-transcribed fragments in the
+                // clipboard) and start a fresh empty recording. IDLE needs no
+                // cancel (the buffer is already empty).
+                if (controller.state == VoiceSessionController.State.PAUSED) {
+                    controller.cancel()
+                }
+                startIfPermitted()
+            }
+            AutoStartPolicy.EntryAction.NONE -> Unit
         }
     }
 

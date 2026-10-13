@@ -41,8 +41,10 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  *   `PROVISIONAL_RESUME_DELAY_MS` at the call site): gate still stale and
  *   still PAUSED → resume per #65 (hide/show, switch return); gate fresh →
  *   rotation confirmed, stay frozen.
- * - [Outcome.PROCEED] — run the normal tail immediately (auto-resume PAUSED
- *   on a different field per #65/#83, auto-start IDLE).
+ * - [Outcome.PROCEED] — run the normal tail immediately (auto-start IDLE;
+ *   PAUSED on a different field is FRESH-STARTED — #134: salvage via cancel
+ *   + a fresh empty recording, superseding the old #65/#83 different-field
+ *   auto-resume).
  */
 object ImeStartDecision {
 
