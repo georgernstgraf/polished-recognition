@@ -1,0 +1,36 @@
+name: Play re-upload (v1.4.0 whatsnew fix)
+
+# TEMPORARY — v1.4.0's release.yml Play upload failed silently
+# (continue-on-error) because the en-GB whatsnew exceeded the 500-char
+# limit. This workflow re-uploads the ALREADY-RELEASED v1.4.0 AAB with
+# the trimmed whatsnew from main. DELETE this file after the upload
+# succeeds (do not leave it dispatchable).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download released v1.4.0 AAB
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p app/build/outputs/bundle/release
+          gh release download v1.4.0 \
+            --repo ${{ github.repository }} \
+            --pattern 'app-release.aab' \
+            --dir app/build/outputs/bundle/release
+
+      - name: Upload to Play Console
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.georgernstgraf.polishedrecognition
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          track: alpha
+          status: completed
+          whatsNewDirectory: distribution/whatsnew
