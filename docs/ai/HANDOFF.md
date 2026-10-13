@@ -36,4 +36,4 @@
 - **gregor** (SSH alias `gregor`, container `whisper`, `hwdsl2/whisper-server:cuda`, `large-v3`): strictly serial (C=1); `vad_filter=True` hardcoded; repetition-loops on repetitive/musical/noisy content in BOTH join and shadow — loop-mask before any join↔shadow diff (analyzer: `/tmp/opencode/seam-run/analyze.py`).
 - **Agent host has no attached device by default** — device-only checks are delegated to the owner.
 
-Last cleared: 2026-10-13 (**#133 CLOSED — auto-switch back to the typing keyboard after send, default ON, silent-hide fallback; #134 shipped — different-field paused leftover salvaged + fresh recording, same-field resume kept; #129 final (factorial + proposal) still gated on the owner's bist-class dictations — collectable on either device; #123 queued**).
+Last cleared: 2026-10-13 (**#133 + #134 CLOSED — auto-switch back to the typing keyboard after send (default ON, silent-hide fallback); different-field paused leftover salvaged + fresh recording, same-field resume kept; #129 final (factorial + proposal) still gated on the owner's bist-class dictations — collectable on either device; #123 queued**).
