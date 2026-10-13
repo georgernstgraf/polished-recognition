@@ -1,3 +1,4 @@
-• Long dictations: audio is chunked into ≤10-minute uploads, so Whisper no longer cuts off mid-text on long recordings. (#115)
-• Compression now runs while you dictate — sending a long recording no longer stalls on "Compressing to Ogg". (#115)
-• Long STT uploads no longer time out against slow (self-hosted) Whisper servers. (#115)
+• Live transcription of long dictations: speech is transcribed in fragments as you go, cut at natural pauses and joined into a clean text. (#116, #126, #128)
+• Much more memory-efficient — recording memory no longer grows with dictation length, so very long sessions can't exhaust the device. (#136)
+• After a successful send, the voice keyboard now switches back to your typing keyboard automatically. (#133)
+• A paused dictation opened on a different text field starts fresh — the old transcript stays in the clipboard. (#134)
