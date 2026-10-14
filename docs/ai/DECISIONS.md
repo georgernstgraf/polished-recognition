@@ -3,6 +3,12 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-14: v1.4.1 patch release (10401) — same-day re-ship after the v1.4.0 regression
+- **Trigger (owner directive):** v1.4.0 shipped a gross regression — the #133 auto-switch-back teardown salvaged the already-delivered text ("Diktierung verworfen" toast + clipboard overwrite). #138 fixed it on main the same day (`d0e7dbe`); the owner ordered a fast patch so both Play AND F-Droid pick up the fix: **1.4.1 / versionCode 10401** one day after the minor.
+- **Release shape (#140):** bump commit `805c732` (version + patch whatsnew, 418 chars — under the 500 limit by design), annotated tag `v1.4.1` pushed SEPARATELY (established pattern). Scope since v1.4.0: #138 (user-facing), #139 harness CI (not user-facing), docs.
+- **Verification done UP FRONT this time:** the Play-upload step's conclusion checked directly (`success`) AND the log grepped for `Successfully committed 16065703470121614937` (alpha edit id) — the #137 silent-failure incident is now a standard release checklist item, not a post-mortem.
+- **GitHub release assets verified:** `app-release.aab` (1.9 MB, release.yml) + `polished-recognition.apk` (2.4 MB, fdroid-apk.yml). Ship notices on #138 and #139 (the only issue-referencing commits since v1.4.0).
+
 ## 2026-10-14: #139 — device deployments run exclusively through CI release downloads (keyless local hosts by design) + harness CI workflow
 - **Signing facts (verified):** claw AND think hold NO signing keys — local `keystore.properties` has only `keyAlias=upload`, no keystore file, and the pass-wallet GPG secret is not in the local keyring, so local builds are UNSIGNED. Signing happens ONLY on GitHub (`RELEASE_KEYSTORE` + `RELEASE_*` secrets, consumed by build.yml). Owner decisions of 2026-10-14 are binding: no local signing repair; deployments exclusively via CI release downloads.
 - **New `.github/workflows/harness.yml`** (mirror of build.yml): triggers `workflow_dispatch` + push on main; keystore decode from the SAME release secrets → `./gradlew assembleHarness` (no test run — the suite already runs in build.yml; the harness buildType inherits `initWith(release)` + release signing → signed in-place-installable APK); artifact `app-harness` (7 d) + GitHub release tag `harness-${{ github.run_number }}` (`make_latest: false`), then the cleanup script. Verified: first run green, `harness-1` published, APK cert `62f9d7b0…a76a85` == release cert.
