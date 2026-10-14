@@ -555,6 +555,16 @@ class VoiceSessionController(
             if (result.isSuccess) clearPrepared()
             if (result.isSuccess) {
                 recorder.flushBuffer()
+                // #138: the transcripts are consumed the moment the result is
+                // delivered — drop the transcriber cache + preparer WITHOUT
+                // salvage (the return value is deliberately ignored). Before
+                // this, a post-delivery `cancel()` (the #133 switch-back
+                // destroys the IME → its onDestroy IDLE branch calls
+                // `cancel()`) mistook the cached success transcripts for
+                // undelivered work and emitted the #113 salvage event after
+                // the text was already inserted. The transcriber is lazily
+                // rebuilt for the next session.
+                discardFragmentSession()
                 deliver(result)
                 accumulatedMs = 0L
                 segStartMs = 0L
@@ -587,8 +597,16 @@ class VoiceSessionController(
         // work — publish them (evidence log + observer event) before the
         // teardown voids the session. In-flight fragments are not counted
         // (their transcripts belong to the discarded audio's tail).
+        // #138: salvage fires ONLY when a session actually exists. A cancel
+        // on an already-IDLE controller (e.g. the IME's onDestroy teardown
+        // after #133 switched the IME away post-success) must stay silent —
+        // the transcripts of a SUCCESSFULLY delivered session are consumed
+        // in the success path above, and any residual cache here is dropped
+        // without the event (duplication beats loss never applies: nothing
+        // was lost — the text is already in the field).
+        val salvage = state != State.IDLE
         val drained = discardFragmentSession()
-        drained?.takeIf { it.text.isNotBlank() }?.let { d ->
+        if (salvage) drained?.takeIf { it.text.isNotBlank() }?.let { d ->
             logger?.log(
                 "stt-text",
                 gson.toJson(

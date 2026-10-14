@@ -672,6 +672,57 @@ class VoiceSessionControllerTest {
     }
 
     /**
+     * #138 regression: a SUCCESSFULLY delivered session must stay silent on a
+     * post-delivery cancel. Before the fix, the #133 switch-back destroyed
+     * the IME after `Completed`, its onDestroy IDLE branch called `cancel()`,
+     * and the never-cleared transcriber success cache was salvaged — toast +
+     * clipboard copy of text that was already inserted into the field.
+     * Driven via the same restored-fragment-session pattern as the #113
+     * salvage test above, but the pipeline SUCCEEDS: the `Completed` event
+     * arrives, the state reaches IDLE, and the teardown cancel emits nothing.
+     */
+    @Test
+    fun `cancel after a successful delivery emits no salvage event`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
+        File(cacheDir, "session.pcm").writeBytes(pcm)
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } answers {
+            callIndex++
+            mockSttCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
+        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.success("polished")
+
+        val controller = newController(fragmentBytes = 10_000)
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        // The session delivered successfully and reached IDLE.
+        assertThat(events.filterIsInstance<VoiceSessionController.Event.Completed>()).hasSize(1)
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+
+        // The #133 switch-back destroys the IME → its onDestroy IDLE branch
+        // calls cancel(): pure teardown, no salvage of the delivered text.
+        val after = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { after.add(it) }
+        controller.cancel()
+        assertThat(after.filterIsInstance<VoiceSessionController.Event.CancelledWithTranscripts>())
+            .isEmpty()
+        clearSessionFiles()
+    }
+
+    /**
      * Process-death snapshot (#67, observed on Oplus across rotation): a
      * snapshot left on disk is restored as PAUSED with the timer continuing
      * from the saved duration. The snapshot is consumed — a second restore
