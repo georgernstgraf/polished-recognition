@@ -1,4 +1,2 @@
-• Live transcription of long dictations: speech is transcribed in fragments as you go, cut at natural pauses and joined into clean text.
-• Much more memory-efficient — recording memory no longer grows with dictation length, so very long sessions can't exhaust the device.
-• After a successful send, the voice keyboard now switches back to your typing keyboard automatically.
-• A paused dictation opened on a different text field starts fresh — the old transcript stays in the clipboard.
+• Bugfix: after a successful send, a "Dictation discarded" toast could appear and the just-inserted text could be replaced by your old clipboard content. Sending now always keeps the delivered text, and your clipboard is left untouched.
+• The previous release's changes all remain: live fragment transcription, long-dictation memory fix, auto-switch back to the typing keyboard, fresh start on a different text field.
