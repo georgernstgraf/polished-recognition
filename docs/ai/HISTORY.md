@@ -117,3 +117,8 @@ Origin file: docs/ai/PITFALLS.md. Reason superseded: debug-keystore era long ove
 - **Superseded convention:** "Every fragment is transcribed with the previous fragment's transcript tail as the Whisper `prompt` (~200 tokens, `PROMPT_MAX_CHARS`)" — implying 800 chars ≈ 30–60 s of prior context.
 - **Origin**: CONVENTIONS.md (and the round-1 DECISIONS entry).
 - **Reason**: the prompt is ONLY the previous fragment's transcript, whose length is bounded by one fragment (~90 chars at 10 s, ~190 at 21 s, ~550 at 60 s). `takeLast(800)` therefore never truncated anything; the 96-char seam-local default (#122) only begins to bind above ~10 s fragments, and prompt-length was a NULL lever in the 126-run study (0/96/320/800 identical). Replaced by the corrected convention line in CONVENTIONS.md.
+
+
+## 2026-10-14 (SUPERSEDED 2026-10-14, origin: PITFALLS, reason: #143 removed the shadow entirely — the full-context reference now lives offline in #144, where the same divergence hazard applies and the 5-min/loop-mask rules govern):
+
+- **The #117 shadow full-context pass is NOT ground truth on long recordings — it diverges in BOTH directions (#116 Phase 2 data, 2026-10-10).** The 2026-10-10 movie session showed it COLLAPSING (fullChars 1021 vs fragment concat 2310, VAD-crushed); the 2026-10-10 WAV verification showed it EXPANDING (`fullChars` 26 534 vs `fragmentChars` 11 531 on a ~14-min recording — 2.3×, ≈ 410 wpm, i.e. hallucination/looping). Read the shadow as a diagnostic breadcrumb only; never derive seam-loss or "correctness" from it on long audio. The reliable signals are `stt-latency.durationMs` (real vs the old constant 1000) and `insertion.length` == `stt-text.textLength`. [ACTIVE until #116]
