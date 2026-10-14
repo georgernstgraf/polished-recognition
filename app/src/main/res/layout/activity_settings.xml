@@ -211,13 +211,30 @@
             android:text="@string/compress_audio"
             android:layout_marginBottom="8dp" />
 
-        <!-- #127: audio-evidence retention toggle (default off in release) -->
-        <CheckBox
-            android:id="@+id/audio_evidence"
+        <!-- #142: audio-evidence retention — the 0→50-years log slider
+             (0 = "Keine Retention", complete off) -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/audio_evidence"
-            android:layout_marginBottom="4dp" />
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="2dp" />
+
+        <SeekBar
+            android:id="@+id/evidence_retention_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:id="@+id/evidence_retention_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="2dp" />
 
         <TextView
             android:layout_width="match_parent"

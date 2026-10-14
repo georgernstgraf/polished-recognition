@@ -4,42 +4,56 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * Per-session audio-evidence retention (#127): COPIES (never moves) a
- * dictation session's raw material — the full session PCM, the fragment
- * session dir (fragments + pre-rolls + manifest) and the composed
- * `upload_<i>` files — into `<rootDir>/<sessionId>/`, so seam/cut
- * post-mortems run on ground truth instead of inference. The root sits
- * next to `logs/` in the external files dir: the only location adb can
- * read on release devices (`cacheDir` needs `run-as`, which is dead on
- * the owner's OnePlus).
+ * Per-session audio-evidence retention (#127/#142): COPIES (never moves)
+ * the forensic bundle — the composed `uploads/` audio (ground truth at the
+ * provider) and the `session.json` manifest — into `<rootDir>/<sessionId>/`,
+ * so seam/cut post-mortems run on ground truth instead of inference. The
+ * root sits next to `logs/` in the external files dir: the only location
+ * adb can read on release devices (`cacheDir` needs `run-as`, which is dead
+ * on the owner's OnePlus).
  *
- * Ring buffer: every write touches the session dir's mtime (the injectable
- * [now] clock) and prunes — the NEWEST session always survives (it is the
- * one just written, even when it alone exceeds [maxTotalBytes]); older
- * sessions are deleted oldest-first until at most [maxSessions] remain and
- * their combined size is ≤ [maxTotalBytes]. A 5-min WAV dictation ≈ 10 MB
- * of PCM; fragments + composed uploads roughly triple that in WAV mode,
- * so the byte cap typically binds before the session cap.
+ * #142 — time-based eviction (replaces the #132 build-type ring buffer):
+ * the retention horizon is a USER setting (the 0→50-years log slider),
+ * supplied live via [retentionSeconds]. Every write (and every explicit
+ * [evict]) deletes session dirs older than the horizon and enforces the
+ * invisible STORAGE SAFETY VALVE: when the evidence root's free space
+ * falls below [minFreeBytes], the OLDEST sessions are deleted until the
+ * floor is restored — the NEWEST session always survives (it is the one
+ * just written). "50 years" therefore means "effectively never by age",
+ * with the valve as the last-resort guard the user never sees.
  *
- * Pure JVM with an injectable dir + clock (mirrors [RotatingJsonLogger])
- * so the ring-buffer semantics are fully unit-testable. Best-effort by
- * design: every method swallows its errors and reports success — evidence
- * retention must never fail a dictation session (callers log the failure).
+ * Session age comes from the dir name (#132: `yyyyMMdd-HHmm-<8hex>` LOCAL
+ * time) when parseable, from the dir mtime otherwise — legacy bare-UUID
+ * dirs (pre-#132) are dated by their last-modified stamp.
+ *
+ * Pure JVM with an injectable dir + clock (mirrors [RotatingJsonLogger]) so
+ * the eviction semantics are fully unit-testable. Best-effort by design:
+ * every method swallows its errors and reports success — evidence retention
+ * must never fail a dictation session (callers log the failure).
  */
 class AudioEvidenceStore(
     private val rootDir: File,
-    private val maxSessions: Int = DEFAULT_MAX_SESSIONS,
-    private val maxTotalBytes: Long = DEFAULT_MAX_TOTAL_BYTES,
+    /**
+     * The user's retention horizon in seconds. Default = "keep forever"
+     * (the store's own contract) — the APP wires the live user setting;
+     * a wired 0 means "nothing is retained" (the gate stops new writes and
+     * evict() clears all stragglers).
+     */
+    private val retentionSeconds: () -> Long = { Long.MAX_VALUE / 1000 },
+    /** The invisible safety valve: free space below this evicts oldest-first. */
+    private val minFreeBytes: Long = DEFAULT_MIN_FREE_BYTES,
     /** Injectable clock (#127): stamps session recency; tests inject a counter. */
     private val now: () -> Long = System::currentTimeMillis
 ) {
 
     companion object {
-        /** Keep the newest ~3 sessions (#127 issue body). */
-        const val DEFAULT_MAX_SESSIONS = 3
-
-        /** ≤ 50 MB total across retained sessions. */
-        const val DEFAULT_MAX_TOTAL_BYTES = 50L * 1024 * 1024
+        /**
+         * #142 safety valve floor: when the volume holding the evidence has
+         * less than this free, the oldest sessions are evicted. Chosen above
+         * Android's own storage-warning thresholds so the evidence retention
+         * never triggers the OS low-storage UX first.
+         */
+        const val DEFAULT_MIN_FREE_BYTES = 512L * 1024 * 1024
 
         private const val COPY_BUFFER_BYTES = 64 * 1024
     }
@@ -63,46 +77,103 @@ class AudioEvidenceStore(
 
     /**
      * Writes [bytes] into the session's evidence dir under [relativePath]
-     * (the full-session PCM). `false` on failure; never throws.
+     * (the `session.json` manifest). `false` on failure; never throws.
      */
     @Synchronized
     fun retainBytes(sessionId: String, relativePath: String, bytes: ByteArray): Boolean =
         copyInto(sessionId, relativePath) { it.writeBytes(bytes) }
 
     /**
-     * Copies every FILE of [sourceDir] (non-recursive — fragment session
-     * dirs are flat: `frag_*`, `preroll_*`, `manifest.json`) under
-     * [relativeDir]. Returns the number of files copied; 0 when the dir is
-     * missing or empty. Per-file best-effort: one unreadable file does not
-     * stop the rest.
+     * Time + space eviction over the whole evidence root: deletes session
+     * dirs older than the retention horizon, then — while the free space
+     * sits below the safety-valve floor — the oldest ones (the newest
+     * always survives). Called after every write; cheap (one listFiles +
+     * sort per call). Public so the app can also evict at startup.
      */
-    @Synchronized
-    fun retainDir(sessionId: String, sourceDir: File, relativeDir: String): Int {
-        val files = try {
-            sourceDir.listFiles()?.filter { it.isFile }.orEmpty()
+    fun evict() {
+        val retention = retentionSeconds()
+        val sessions = try {
+            rootDir.listFiles()?.filter { it.isDirectory }.orEmpty()
         } catch (_: Throwable) {
-            return 0
+            return
         }
-        var copied = 0
-        for (source in files) {
-            try {
-                if (copyInto(sessionId, "$relativeDir/${source.name}") { target ->
-                        source.inputStream().use { input ->
-                            FileOutputStream(target).use { input.copyTo(it, COPY_BUFFER_BYTES) }
-                        }
-                    }) copied++
-            } catch (_: Throwable) {
-                // best-effort per file — the next retention retries it
-            }
+        if (sessions.isEmpty()) return
+        val nowMs = now()
+        val newest = sessions.maxByOrNull { sessionTime(it) ?: 0L }
+        if (retention <= 0L) {
+            // 0 = off: nothing is supposed to exist — clear ALL stragglers
+            // (e.g. the horizon was just slid to 0; no "newest" exception —
+            // the gate stops new writes, so a survivor would linger forever)
+            for (dir in sessions) deleteQuietly(dir)
+            return
         }
-        return copied
+        for (dir in sessions) {
+            val at = sessionTime(dir) ?: continue // no parseable age → space valve only
+            if (nowMs - at > retention * 1000L) deleteQuietly(dir)
+        }
+        // Safety valve: oldest-first until the floor is restored — the newest
+        // session is never sacrificed (it is the one just written; note the
+        // AGE pass needs no such exception: a just-written session's name
+        // prefix is the current time, never older than the horizon).
+        var guard = 0
+        while (freeSpace() < minFreeBytes && guard++ < 10_000) {
+            val oldest = sessions
+                .filter { it !== newest && it.isDirectory }
+                .minByOrNull { sessionTime(it) ?: Long.MAX_VALUE }
+                ?: break
+            deleteQuietly(oldest)
+        }
+    }
+
+    /** Best-effort single delete; a failure is retried by the next evict(). */
+    private fun deleteQuietly(dir: File) {
+        try {
+            dir.deleteRecursively()
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun freeSpace(): Long = try {
+        rootDir.usableSpace
+    } catch (_: Throwable) {
+        Long.MAX_VALUE // unknown free space → the valve never fires
+    }
+
+    /**
+     * The session's epoch time: from the #132 name prefix
+     * (`yyyyMMdd-HHmm-<8hex>`, LOCAL time) when parseable, else the dir
+     * mtime. `null` for unparseable dirs (bare UUIDs) — those can only be
+     * removed by the space valve.
+     */
+    private fun sessionTime(dir: File): Long? {
+        val name = dir.name
+        val m = Regex("^(\\d{8})-(\\d{4})-").find(name) ?: return try {
+            dir.lastModified().takeIf { it > 0L }
+        } catch (_: Throwable) {
+            null
+        }
+        val (date, time) = m.destructured
+        return try {
+            val cal = java.util.Calendar.getInstance()
+            cal.set(
+                date.substring(0, 4).toInt(),
+                date.substring(4, 6).toInt() - 1,
+                date.substring(6, 8).toInt(),
+                time.substring(0, 2).toInt(),
+                time.substring(2, 4).toInt(),
+                0
+            )
+            cal.set(java.util.Calendar.MILLISECOND, 0)
+            cal.timeInMillis
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     /**
      * Writes one evidence file (tmp + rename, so a crashed copy can never
      * leave a HALF-written file that a post-mortem mistakes for ground
-     * truth), then touches the session dir's mtime (ring-buffer recency)
-     * and prunes. Never throws.
+     * truth), then runs the eviction. Never throws.
      */
     private fun copyInto(sessionId: String, relativePath: String, write: (File) -> Unit): Boolean {
         val session = sessionDir(sessionId)
@@ -120,47 +191,10 @@ class AudioEvidenceStore(
             }
             if (!target.isFile) return false
             session.setLastModified(now())
-            prune()
+            evict()
             true
         } catch (_: Throwable) {
             false
         }
-    }
-
-    /**
-     * Ring-buffer prune: the NEWEST session (by dir mtime) always
-     * survives; older sessions are deleted oldest-first until at most
-     * [maxSessions] remain and their combined size is ≤ [maxTotalBytes].
-     * A failed delete is retried by the next prune.
-     */
-    private fun prune() {
-        val sessions = try {
-            rootDir.listFiles()?.filter { it.isDirectory }.orEmpty()
-        } catch (_: Throwable) {
-            return
-        }
-        if (sessions.isEmpty()) return
-        val ordered = sessions.sortedByDescending { it.lastModified() }
-        val newest = ordered.first()
-        val kept = mutableListOf(newest)
-        var total = dirSize(newest)
-        for (candidate in ordered.drop(1)) {
-            val size = dirSize(candidate)
-            if (kept.size < maxSessions && total + size <= maxTotalBytes) {
-                kept.add(candidate)
-                total += size
-            } else {
-                try {
-                    candidate.deleteRecursively()
-                } catch (_: Throwable) {
-                }
-            }
-        }
-    }
-
-    private fun dirSize(dir: File): Long = try {
-        dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
-    } catch (_: Throwable) {
-        0L
     }
 }

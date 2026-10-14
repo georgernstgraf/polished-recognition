@@ -100,7 +100,14 @@ class FragmentTranscriber(
      */
     private val audioEvidenceStore: AudioEvidenceStore? = null,
     /** Gate for the #127 evidence copy: the Settings toggle, wired by the controller. */
-    private val audioEvidenceEnabled: () -> Boolean = { false }
+    private val audioEvidenceEnabled: () -> Boolean = { false },
+    /**
+     * #142: the session's forensic manifest — the transcriber records each
+     * fragment's upload (what was REALLY sent), pre-roll length, raw + trimmed
+     * STT text, echo-trim tokens and the conditioning prompt here as they
+     * happen. `null` in tests without a bundle.
+     */
+    private val bundle: SessionBundle? = null
 ) {
 
     data class CommittedFragment(
@@ -346,16 +353,18 @@ class FragmentTranscriber(
             // owned by the preparer and must survive). #127: the evidence
             // copy runs BEFORE the delete so a post-mortem sees exactly
             // what the server saw; a cancelled worker skips the copy.
-            if (upload != fragment.file) {
-                try {
-                    retainUploadEvidence(upload)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Throwable) {
-                    // best-effort by design — never fail a fragment over evidence
-                }
-                upload.delete()
+            // #142 FIX: the copy runs for BARE uploads too — before, an
+            // upload without a pre-roll (WAV mode, compose failure) was
+            // never retained at all (the copy was skipped when the upload
+            // IS the fragment file), losing the only audio record.
+            try {
+                retainUploadEvidence(upload)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                // best-effort by design — never fail a fragment over evidence
             }
+            if (upload != fragment.file) upload.delete()
         }
         result.fold(
             onSuccess = { response ->
@@ -366,11 +375,31 @@ class FragmentTranscriber(
                 val trim = trimEcho(fragment, response)
                 transcripts[fragment.index] = trim.response
                 recordSeamEvidence(fragment, trim, prompt)
+                // #142: the forensic record — what was REALLY uploaded, the
+                // untrimmed response, the trim outcome and the prompt sent.
+                bundle?.let { b ->
+                    val f = b.fragment(fragment.index)
+                    f.uploadFile = upload.name
+                    f.preRollMs = fragment.preRoll?.takeIf { it.isFile }
+                        ?.let { AudioDuration.estimateMs(it) }
+                    f.sttRaw = response.text
+                    f.sttTrimmed = trim.response.text
+                    f.echoTokens = trim.echoTokens
+                    f.prompt = prompt
+                    f.sttError = null
+                }
             },
             onFailure = { e ->
                 val ex = e as? SttRequestRunner.SttRequestException
                     ?: SttRequestRunner.SttRequestException(e.message ?: e.javaClass.simpleName)
                 failures[fragment.index] = ex
+                bundle?.let { b ->
+                    val f = b.fragment(fragment.index)
+                    f.uploadFile = upload.name
+                    f.preRollMs = fragment.preRoll?.takeIf { it.isFile }
+                        ?.let { AudioDuration.estimateMs(it) }
+                    f.sttError = ex.message
+                }
             }
         )
     }

@@ -22,6 +22,7 @@ import android.widget.EditText
 import android.widget.Filter
 import android.widget.Filterable
 import android.widget.ImageButton
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.gson.Gson
@@ -29,6 +30,7 @@ import com.georgernstgraf.polishedrecognition.BuildConfig
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.CustomLanguages
+import com.georgernstgraf.polishedrecognition.config.EvidenceRetention
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
@@ -63,7 +65,9 @@ class SettingsActivity : Activity() {
 
     private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
     private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
-    private val audioEvidenceCheckbox: CheckBox by lazy { findViewById(R.id.audio_evidence) }
+    /** #142: the 0→50-years log slider (0 = no retention, complete off). */
+    private val evidenceRetentionSlider: SeekBar by lazy { findViewById(R.id.evidence_retention_slider) }
+    private val evidenceRetentionLabel: TextView by lazy { findViewById(R.id.evidence_retention_label) }
     private val switchBackAfterSendCheckbox: CheckBox by lazy { findViewById(R.id.switch_back_after_send) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
@@ -322,7 +326,20 @@ class SettingsActivity : Activity() {
 
         rawModeCheckbox.isChecked = settings.rawMode
         compressAudioCheckbox.isChecked = settings.compressAudio
-        audioEvidenceCheckbox.isChecked = settings.audioEvidence
+        // #142: the retention slider — the label tracks the position
+        evidenceRetentionSlider.max = EvidenceRetention.MAX_POSITION
+        val retentionPosition = EvidenceRetention.positionFor(settings.evidenceRetentionSeconds)
+        evidenceRetentionSlider.progress = retentionPosition
+        evidenceRetentionLabel.text = EvidenceRetention.labelFor(retentionPosition)
+        evidenceRetentionSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                evidenceRetentionLabel.text = EvidenceRetention.labelFor(progress)
+            }
+
+            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+        })
         switchBackAfterSendCheckbox.isChecked = settings.switchBackAfterSend
         wrapWidthField.setText(settings.wrapWidth.toString())
         settings.fragmentSecondsOverride?.let { override ->
@@ -1029,7 +1046,8 @@ class SettingsActivity : Activity() {
 
         settings.rawMode = rawModeCheckbox.isChecked
         settings.compressAudio = compressAudioCheckbox.isChecked
-        settings.audioEvidence = audioEvidenceCheckbox.isChecked
+        // #142: the retention horizon (0 = no retention)
+        settings.evidenceRetentionSeconds = EvidenceRetention.secondsFor(evidenceRetentionSlider.progress)
         settings.switchBackAfterSend = switchBackAfterSendCheckbox.isChecked
         val wrapWidth = parseWrapWidth()
         if (wrapWidth == null) {

@@ -52,14 +52,13 @@ class SettingsStore(
         Thread(r, "known-app-writer").apply { isDaemon = true }
     },
     /**
-     * Default of the audio-evidence retention toggle (#127): OFF in release
-     * (it persists dictated audio on disk), ON in debug/harness — wired from
-     * `BuildConfig.AUDIO_EVIDENCE_DEFAULT` in `PolishedRecognitionApp` so
-     * the owner's test builds keep their evidence while F-Droid/Play ships
-     * the privacy-safe default. Injectable so the Settings tests can pin
-     * both defaults.
+     * Default of the audio-evidence RETENTION horizon (#142): 0 seconds (no
+     * retention) in release — it persists dictated audio on disk; the
+     * owner's test builds default to 30 days — wired from
+     * `BuildConfig.AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS` in
+     * `PolishedRecognitionApp`. Injectable so the Settings tests can pin it.
      */
-    private val audioEvidenceDefault: Boolean = false
+    private val evidenceRetentionDefaultSeconds: Long = 0L
 ) {
 
     private val appContext = context.applicationContext
@@ -113,15 +112,42 @@ class SettingsStore(
         set(value) = prefs.edit().putBoolean(SWITCH_BACK_AFTER_SEND_KEY, value).apply()
 
     /**
-     * Audio-evidence retention (#127): when on, a finished dictation session
-     * copies its fragments + manifest, composed uploads and full session PCM
-     * into `files/audio/<sessionId>/` (ring-buffered, ~3 sessions / ≤ 50 MB)
-     * so seam/cut post-mortems run on ground truth. Retains dictated audio
-     * on the device — default OFF in release ([audioEvidenceDefault]).
+     * #142: audio-evidence RETENTION HORIZON in seconds — how long a finished
+     * dictation's forensic bundle (`files/audio/<sessionId>/` = `uploads/` +
+     * `session.json`) stays on the device before the age-based eviction
+     * deletes it. **0 = no retention** (nothing is written, the complete
+     * off). Replaces the #127 boolean toggle; the legacy `audio_evidence`
+     * pref migrates: `true` → 30 days (the wide-diagnostic intent), `false`
+     * → 0. Default OFF in release (privacy — dictated audio on disk); the
+     * owner's test builds default ON (30 days).
      */
-    var audioEvidence: Boolean
-        get() = prefs.getBoolean(AUDIO_EVIDENCE_KEY, audioEvidenceDefault)
-        set(value) = prefs.edit().putBoolean(AUDIO_EVIDENCE_KEY, value).apply()
+    var evidenceRetentionSeconds: Long
+        get() {
+            if (prefs.contains(EVIDENCE_RETENTION_KEY)) {
+                return prefs.getLong(EVIDENCE_RETENTION_KEY, 0L).coerceAtLeast(0L)
+            }
+            // One-time legacy migration (#127 → #142): the old boolean toggle
+            // maps ON → 30 days, OFF → 0; persisted so the migration is done.
+            val legacyOn = if (prefs.contains(AUDIO_EVIDENCE_KEY)) {
+                prefs.getBoolean(AUDIO_EVIDENCE_KEY, false)
+            } else {
+                evidenceRetentionDefaultSeconds > 0L
+            }
+            val migrated = if (legacyOn) THIRTY_DAYS_SECONDS else 0L
+            prefs.edit().putLong(EVIDENCE_RETENTION_KEY, migrated).apply()
+            return migrated
+        }
+        set(value) = prefs.edit()
+            .putLong(EVIDENCE_RETENTION_KEY, value.coerceAtLeast(0L))
+            .apply()
+
+    /**
+     * Derived master gate (the #127 contract, kept for the existing wiring —
+     * controller, transcriber, harness): evidence is collected exactly when
+     * a retention horizon is set.
+     */
+    val audioEvidence: Boolean
+        get() = evidenceRetentionSeconds > 0L
 
     var targetLanguage: String?
         get() = prefs.getString(TARGET_LANGUAGE_KEY, null)
@@ -419,6 +445,9 @@ class SettingsStore(
     companion object {
         private const val TAG = "SettingsStore"
         private const val PREFS_NAME = "polished_recognition_settings"
+
+        /** The #142 legacy-toggle migration target: ON → 30 days. */
+        const val THIRTY_DAYS_SECONDS = 30L * 24 * 60 * 60
         /**
          * Learned dictation targets live in their own file (#100) so the
          * frequent learner writes and the OS backup stay isolated from the
@@ -440,6 +469,7 @@ class SettingsStore(
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val SWITCH_BACK_AFTER_SEND_KEY = "switch_back_after_send"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"
+        private const val EVIDENCE_RETENTION_KEY = "evidence_retention_seconds"
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
         private const val WRAP_WIDTH_KEY = "wrap_width"

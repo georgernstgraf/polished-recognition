@@ -278,13 +278,14 @@ class VoiceSessionControllerTest {
     // ---- #127: per-session audio-evidence retention --------------------------
 
     /**
-     * A finished session (SUCCESS) copies its full session PCM and its
-     * fragment session dir (fragments + manifest) into the evidence store
-     * BEFORE clearPrepared() wipes the cacheDir originals. Driven via a
-     * restored snapshot (the hand-crafted pattern, see PITFALLS).
+     * A finished session (SUCCESS) writes the forensic bundle into the
+     * evidence store BEFORE clearPrepared() wipes the cacheDir originals:
+     * #142 shape — `uploads/` (the actually-uploaded fragment audio) +
+     * `session.json` (the manifest). NO session.wav, NO fragments/.
+     * Driven via a restored snapshot (the hand-crafted pattern, PITFALLS).
      */
     @Test
-    fun `finished session retains pcm and fragments as audio evidence`() {
+    fun `finished session retains uploads and sessionJson as audio evidence`() {
         clearSessionFiles()
         settings.compressAudio = false
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
@@ -302,14 +303,23 @@ class VoiceSessionControllerTest {
         controller.awaitIdle()
 
         val session = File(evidenceRoot, "testsess")
-        // full session PCM: the restored 40 000 PCM bytes as a WAV
-        val sessionWav = File(session, "session.wav")
-        assertThat(sessionWav.isFile).isTrue()
-        assertThat(sessionWav.length()).isEqualTo(40_044L)
-        // fragments + manifest from the session dir, before clearPrepared()
-        val fragments = File(session, "fragments")
-        assertThat(File(fragments, "manifest.json").isFile).isTrue()
-        assertThat(File(fragments, "frag_000000.wav").isFile).isTrue()
+        // the manifest: complete forensic record
+        val manifest = File(session, "session.json")
+        assertThat(manifest.isFile).isTrue()
+        val parsed = com.google.gson.Gson().fromJson(manifest.readText(), Map::class.java) as Map<String, Any>
+        assertThat(parsed["sessionId"]).isEqualTo("testsess")
+        assertThat(parsed["startedAt"]).isNotNull()
+        assertThat(parsed["endedAt"]).isNotNull()
+        val result = parsed["result"] as Map<*, *>
+        assertThat(result["deliveryKind"]).isEqualTo("inserted")
+        assertThat(result["finalText"]).isEqualTo("hi")
+        assertThat(parsed["provider"]).isNotNull()
+        // uploads/: the actually-uploaded fragment audio (40 kB PCM → several)
+        val uploads = File(session, "uploads").listFiles().orEmpty()
+        assertThat(uploads).isNotEmpty()
+        // the OLD artifacts are GONE (#142: no session.wav, no fragments/)
+        assertThat(File(session, "session.wav").exists()).isFalse()
+        assertThat(File(session, "fragments").exists()).isFalse()
         // the cacheDir originals are gone (success path) — the evidence is
         // the only surviving copy, exactly the point of #127
         assertThat(File(cacheDir, "fragments").exists()).isFalse()
@@ -340,12 +350,12 @@ class VoiceSessionControllerTest {
     }
 
     /**
-     * A FAILED session retains its evidence too — failure already preserves
-     * the cacheDir state, but the adb-readable copy is what a post-mortem
-     * can actually reach (run-as is dead on the release OnePlus).
+     * A FAILED session retains its evidence too — the manifest records the
+     * error (`deliveryKind` = "error") so a post-mortem can reach the whole
+     * picture days later (run-as is dead on the release OnePlus).
      */
     @Test
-    fun `failed session retains audio evidence too`() {
+    fun `failed session retains uploads and sessionJson too`() {
         clearSessionFiles()
         settings.compressAudio = false
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
@@ -365,8 +375,13 @@ class VoiceSessionControllerTest {
         controller.awaitState(VoiceSessionController.State.PAUSED)
 
         val session = File(evidenceRoot, "testsess")
-        assertThat(File(session, "session.wav").isFile).isTrue()
-        assertThat(File(File(session, "fragments"), "manifest.json").isFile).isTrue()
+        assertThat(File(session, "session.json").isFile).isTrue()
+        val parsed = com.google.gson.Gson().fromJson(
+            File(session, "session.json").readText(), Map::class.java
+        ) as Map<String, Any>
+        val result = parsed["result"] as Map<*, *>
+        assertThat(result["deliveryKind"]).isEqualTo("error")
+        assertThat(result["error"]).isEqualTo("LLM down")
         clearSessionFiles()
     }
 

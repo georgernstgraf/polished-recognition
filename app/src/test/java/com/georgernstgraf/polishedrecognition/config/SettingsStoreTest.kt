@@ -20,6 +20,14 @@ class SettingsStoreTest {
 
     private fun freshStore() = SettingsStore(RuntimeEnvironment.getApplication(), directExecutor)
 
+    /** Clears the settings prefs (the Robolectric sandbox shares the app's
+     *  prefs across tests — a leaked key masquerades as a default, #142). */
+    private fun clearPrefs() {
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+            .edit().clear().commit()
+    }
+
     private fun knownAppsPrefs() =
         RuntimeEnvironment.getApplication().getSharedPreferences("known_apps", 0)
 
@@ -87,28 +95,78 @@ class SettingsStoreTest {
         assertThat(store.rawMode).isTrue()
     }
 
-    // ---- #127: audio-evidence retention toggle -------------------------------
+    // ---- #142: audio-evidence retention (0→50-years slider) -------------------
 
     @Test
-    fun `audioEvidence defaults to false`() {
+    fun `evidenceRetentionSeconds defaults to 0 (audioEvidence false)`() {
+        clearPrefs() // the migration tests persist 30 days — leak-safe reset
+        assertThat(freshStore().evidenceRetentionSeconds).isEqualTo(0L)
         assertThat(freshStore().audioEvidence).isFalse()
     }
 
     @Test
-    fun `audioEvidence default true is honored until the user chooses`() {
-        // the debug/harness build-type default (BuildConfig.AUDIO_EVIDENCE_DEFAULT)
+    fun `retention default is honored until the user chooses`() {
+        clearPrefs() // the migration tests persist 30 days — leak-safe reset
+        // the debug/harness build-type default (BuildConfig.AUDIO_EVIDENCE_
+        // RETENTION_DEFAULT_SECONDS): 30 days
         val store = SettingsStore(
-            RuntimeEnvironment.getApplication(), directExecutor, audioEvidenceDefault = true
+            RuntimeEnvironment.getApplication(), directExecutor,
+            evidenceRetentionDefaultSeconds = SettingsStore.THIRTY_DAYS_SECONDS
         )
+        assertThat(store.evidenceRetentionSeconds).isEqualTo(SettingsStore.THIRTY_DAYS_SECONDS)
         assertThat(store.audioEvidence).isTrue()
-        store.audioEvidence = false
+        // the user's explicit 0 wins over the default
+        store.evidenceRetentionSeconds = 0L
         assertThat(store.audioEvidence).isFalse()
     }
 
     @Test
-    fun `audioEvidence save and load round-trips`() {
-        store.audioEvidence = true
+    fun `legacy audio_evidence toggle migrates ON to 30 days`() {
+        val ctx = RuntimeEnvironment.getApplication()
+        ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
+        ctx.getSharedPreferences("polished_recognition_settings", 0).edit()
+            .putBoolean("audio_evidence", true).commit()
+        val migrated = SettingsStore(ctx, directExecutor)
+        assertThat(migrated.evidenceRetentionSeconds).isEqualTo(SettingsStore.THIRTY_DAYS_SECONDS)
+        assertThat(migrated.audioEvidence).isTrue()
+    }
+
+    @Test
+    fun `legacy audio_evidence toggle migrates OFF to 0`() {
+        val ctx = RuntimeEnvironment.getApplication()
+        ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
+        ctx.getSharedPreferences("polished_recognition_settings", 0).edit()
+            .putBoolean("audio_evidence", false).commit()
+        val migrated = SettingsStore(ctx, directExecutor)
+        assertThat(migrated.evidenceRetentionSeconds).isEqualTo(0L)
+    }
+
+    @Test
+    fun `evidenceRetentionSeconds save and load round-trips`() {
+        store.evidenceRetentionSeconds = 7_776_000L // 3 months
+        assertThat(store.evidenceRetentionSeconds).isEqualTo(7_776_000L)
         assertThat(store.audioEvidence).isTrue()
+    }
+
+    @Test
+    fun `negative retention is clamped to 0`() {
+        store.evidenceRetentionSeconds = -5L
+        assertThat(store.evidenceRetentionSeconds).isEqualTo(0L)
+    }
+
+    @Test
+    fun `slider position mapping covers the 0-to-50-years scale`() {
+        // 0 → off; 30 days → 1 month; 50 years → the top position
+        assertThat(EvidenceRetention.positionFor(0L)).isEqualTo(0)
+        assertThat(EvidenceRetention.positionFor(2_592_000L)).isEqualTo(9)
+        assertThat(EvidenceRetention.positionFor(1_576_800_000L)).isEqualTo(EvidenceRetention.MAX_POSITION)
+        assertThat(EvidenceRetention.positionFor(4_000_000_000_000L)).isEqualTo(EvidenceRetention.MAX_POSITION)
+        // round-trip: every position's seconds map back to itself
+        for (p in 0..EvidenceRetention.MAX_POSITION) {
+            assertThat(EvidenceRetention.positionFor(EvidenceRetention.secondsFor(p))).isEqualTo(p)
+        }
+        assertThat(EvidenceRetention.labelFor(0)).isEqualTo("No retention")
+        assertThat(EvidenceRetention.labelFor(EvidenceRetention.MAX_POSITION)).isEqualTo("50 years")
     }
 
     // ---- #133: auto-switch back to the typing keyboard after send -------------

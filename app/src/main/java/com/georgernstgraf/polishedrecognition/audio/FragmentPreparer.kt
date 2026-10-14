@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.audio
 
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
+import com.georgernstgraf.polishedrecognition.pipeline.SessionBundle
 import com.google.gson.Gson
 import java.io.File
 import java.io.FileOutputStream
@@ -169,6 +170,13 @@ class FragmentPreparer(
      */
     private val qualityMin: Double = DEFAULT_QUALITY_MIN,
     private val pollIntervalMs: Long = 500,
+    /**
+     * #142: the session's forensic manifest — the preparer records each
+     * fragment's boundaries + its START-seam decision/quality block here at
+     * commit time (mirroring the `prepare` stream, which stays the live
+     * debug view). `null` in tests without a bundle.
+     */
+    private val bundle: SessionBundle? = null,
     private val logger: RotatingJsonLogger? = null
 ) {
 
@@ -755,6 +763,31 @@ class FragmentPreparer(
             record["Q"] = metric.quality
             record["centroidMs"] = (metricSpanStart + metric.cutOffset - fragmentStart) / 32.0
             record["stitched"] = seamStitchedAt(index + 1)
+        }
+        // #142: mirror the record into the forensic session manifest — the
+        // fragment's boundaries + its START-seam decision, and the END cut's
+        // metric block lands on the NEXT fragment (it IS that fragment's
+        // start seam: the cut that ends fragment index starts index + 1).
+        bundle?.let { b ->
+            val own = b.fragment(index)
+            own.startMs = fragmentStart / 32L
+            own.endMs = end / 32L
+            own.stitched = seamStitchedAt(index)
+            own.seamForced = seamForcedAt(index)
+            if (metric != null) {
+                val next = b.fragment(index + 1)
+                next.startMs = end / 32L
+                next.stitched = seamStitchedAt(index + 1)
+                next.seamForced = seamForcedAt(index + 1)
+                next.quality = linkedMapOf(
+                    "M" to metric.meanLevel,
+                    "min" to metric.floorLevel,
+                    "max" to metric.maxLevel,
+                    "X" to metric.axis,
+                    "Q" to metric.quality,
+                    "centroidMs" to (metricSpanStart + metric.cutOffset - fragmentStart) / 32.0
+                )
+            }
         }
         logger?.log("prepare", gson.toJson(record))
     }

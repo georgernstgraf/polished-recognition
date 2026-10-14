@@ -206,6 +206,24 @@ class VoiceSessionController(
      */
     private var transcriber: FragmentTranscriber? = null
 
+    /**
+     * #142: the forensic session manifest — filled incrementally by the
+     * preparer (cut metadata) and the transcriber (upload + STT outcomes),
+     * finalized by the transcribe job (result + LLM pass) and written as
+     * `session.json` into the evidence dir. `null` when evidence retention
+     * is off (or a legacy flow without a session) — every collector treats
+     * null as "no recording wanted".
+     */
+    private var sessionBundle: SessionBundle? = null
+
+    init {
+        // #142: the pipeline reports its per-session outcome (raw text + the
+        // LLM pass) into whatever session bundle is CURRENT — the hook is set
+        // once per controller and reads the live bundle. In unit tests the
+        // pipeline is a mock whose stubbed methods never reach this hook.
+        pipeline.onOutcome = { outcome -> sessionBundle?.recordOutcome(outcome) }
+    }
+
     var state: State = State.IDLE
         private set
 
@@ -296,6 +314,10 @@ class VoiceSessionController(
         transcriber = null
         if (newSession || sessionId == null) {
             sessionId = newSessionId()
+            // #142: the forensic manifest — only when retention is on
+            sessionBundle = if (audioEvidenceEnabled()) SessionBundle(sessionId!!).apply {
+                startedAt = System.currentTimeMillis()
+            } else null
             // bound the fragment cache to one session: prune other sessions
             val root = File(appContext.cacheDir, FRAGMENTS_DIR)
             root.mkdirs()
@@ -342,6 +364,7 @@ class VoiceSessionController(
         logger = logger,
         seamEvidence = seamEvidence,
         promptMaxChars = promptMaxChars,
+        bundle = sessionBundle,
         audioEvidenceStore = audioEvidenceStore,
         audioEvidenceEnabled = audioEvidenceEnabled
     )
@@ -354,7 +377,13 @@ class VoiceSessionController(
      */
     private fun ensureFragmentPreparer() {
         if (preparer != null) return
-        if (sessionId == null) sessionId = newSessionId()
+        if (sessionId == null) {
+            sessionId = newSessionId()
+            // #142: restore-path sessions get their manifest too
+            sessionBundle = if (audioEvidenceEnabled()) SessionBundle(sessionId!!).apply {
+                startedAt = System.currentTimeMillis()
+            } else null
+        }
         File(appContext.cacheDir, FRAGMENTS_DIR).mkdirs()
         val p = buildPreparer()
         preparer = p
@@ -378,6 +407,7 @@ class VoiceSessionController(
         marginKMs = fragmentMarginKMs,
         searchSpan = fragmentSearchSpan,
         qualityMin = fragmentQualityMin,
+        bundle = sessionBundle,
         logger = logger
     )
 
@@ -512,11 +542,13 @@ class VoiceSessionController(
             } catch (e: Exception) {
                 Result.failure(e)
             }
-            // #127: retain the session's audio evidence (both success and
-            // failure — success is where the evidence used to be lost)
-            // BEFORE clearPrepared() wipes the fragment session dir. Copy
-            // only; the pipeline's own lifecycle is untouched.
-            retainAudioEvidence(sessionWav)
+            // #142: record the outcome + write the forensic session.json
+            // (both success and failure — the retry overwrites it with the
+            // final outcome) BEFORE clearPrepared() wipes the working dirs.
+            // Copy-only for the audio (the transcriber retains each upload
+            // as it is used); cancel/flush stay deliberate discards (#127).
+            recordSessionOutcome(result)
+            finalizeSessionEvidence()
             sessionWav.delete()
             // On success the prepared uploads are consumed; on failure
             // they stay committed so the retry reuses them instead of
@@ -593,6 +625,9 @@ class VoiceSessionController(
         }
         preparer = null
         sessionId = null
+        // #142: the cancelled session is a deliberate discard (#127) — no
+        // session.json; the bundle goes so nothing can write into it late.
+        sessionBundle = null
         runCatching { recorder.cancel() }
         // #136: the stop WAV of a failed in-flight attempt is garbage now.
         File(appContext.cacheDir, AudioRecorder.SESSION_WAV_NAME).delete()
@@ -719,6 +754,12 @@ class VoiceSessionController(
             accumulatedMs = parsed.durationMs.coerceAtLeast(0L)
             segStartMs = 0L
             sessionId = parsed.sessionId
+            // #142: the restored session gets its manifest — the original
+            // bundle died with the process; `startedAt` becomes the restore
+            // moment (the original Wall-Clock start is unrecoverable).
+            sessionBundle = if (parsed.sessionId != null && audioEvidenceEnabled()) {
+                SessionBundle(parsed.sessionId!!).apply { startedAt = System.currentTimeMillis() }
+            } else null
             // Fragment state is recovered lazily: the preparer comes alive
             // on resume()/stopAndTranscribe() and picks the manifest up.
             preparer = null
@@ -775,6 +816,11 @@ class VoiceSessionController(
                     val failedIndex = drained.failedIndex!! + 1
                     val where = "fragment $failedIndex/${drained.chunkCount}"
                     if (!settings.rawMode) {
+                        // #142: the session failed at STT — record the partial
+                        // join as the raw text (the LLM pass never ran)
+                        sessionBundle?.recordOutcome(
+                            TranscriptionPipeline.PipelineOutcome(rawText = drained.text, rawMode = settings.rawMode)
+                        )
                         return Result.failure(Exception("$where: ${failure.message}"))
                     }
                     rescuePartial = Event.PartialInfo(failedIndex, drained.chunkCount)
@@ -1002,36 +1048,58 @@ class VoiceSessionController(
             .joinToString("") { "%02x".format(it) }
 
     /**
-     * #127: copies the finished session's audio evidence into the
-     * adb-readable evidence dir — the full session PCM (`session.wav`, the
-     * `stopPreservingBuffer()` WAV) and the fragment session dir (fragments
-     * + pre-rolls + manifest, under `fragments/`); the composed uploads are
-     * retained per-fragment by [FragmentTranscriber]. Runs on BOTH the
-     * success and the failure path and BEFORE [clearPrepared] deletes the
-     * fragment dir (on failure the dir survives for the retry — the copy is
-     * idempotent and simply overwrites). Copy failures are best-effort
-     * `Log.w`: evidence retention can never fail a session. Skipped
-     * entirely when the recording is empty (a bare 44-byte WAV header).
+     * #142: records the session outcome into the forensic manifest — the
+     * provider configuration (the state the session ran with), the raw
+     * full text (from the pipeline outcome; the partial join when the STT
+     * failed before the LLM pass), the final delivered text, the delivery
+     * kind (`inserted` | `error`) and the Wall-Clock delivery time. Called
+     * on the success AND the failure path; a later retry overwrites.
      */
-    private suspend fun retainAudioEvidence(sessionWav: File) {
+    private fun recordSessionOutcome(result: Result<String>) {
+        val bundle = sessionBundle ?: return
+        val now = System.currentTimeMillis()
+        bundle.endedAt = now
+        val outcome = bundle.pipelineOutcome
+        bundle.result = SessionBundle.ResultRecord(
+            rawFullText = outcome?.rawText,
+            finalText = result.getOrNull(),
+            deliveredAt = now,
+            deliveryKind = if (result.isSuccess) "inserted" else "error",
+            error = result.exceptionOrNull()?.message
+        )
+        bundle.provider = SessionBundle.ProviderInfo(
+            sttBaseUrl = settings.sttProvider?.baseUrl,
+            sttModel = settings.sttProvider?.model,
+            llmBaseUrl = settings.llmProvider?.baseUrl,
+            llmModel = settings.llmProvider?.model,
+            rawMode = settings.rawMode,
+            compressAudio = settings.compressAudio
+        )
+    }
+
+    /**
+     * #142: writes the forensic manifest as `session.json` into the
+     * session's evidence dir (uploads/ is retained per-fragment by the
+     * transcriber as it works). Best-effort — evidence retention can never
+     * fail a session. A retention turn-OFF mid-session skips the write
+     * (deliberate discard).
+     */
+    private suspend fun finalizeSessionEvidence() {
         val store = audioEvidenceStore ?: return
-        if (!audioEvidenceEnabled()) return
         val sid = sessionId ?: return
-        if (sessionWav.length() <= 44) return // empty recording — a header only, nothing to retain
+        val bundle = sessionBundle ?: return
+        if (!audioEvidenceEnabled()) return
         try {
+            val bytes = bundle.write().toByteArray(Charsets.UTF_8)
             withContext(Dispatchers.IO) {
-                if (!store.retainFile(sid, sessionWav, EVIDENCE_SESSION_WAV)) {
-                    Log.w(TAG, "audio evidence: session copy failed for $sid")
-                }
-                val fragmentDir = File(File(appContext.cacheDir, FRAGMENTS_DIR), sid)
-                if (fragmentDir.isDirectory) {
-                    store.retainDir(sid, fragmentDir, EVIDENCE_FRAGMENTS_DIR)
+                if (!store.retainBytes(sid, SessionBundle.FILE_NAME, bytes)) {
+                    Log.w(TAG, "audio evidence: session.json write failed for $sid")
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            Log.w(TAG, "audio evidence retention failed for session $sid", e)
+            Log.w(TAG, "audio evidence: session manifest write failed for $sid", e)
         }
     }
 
@@ -1099,10 +1167,6 @@ class VoiceSessionController(
         private const val FRAGMENTS_DIR = "fragments"
         /** #136: the capture spool — PCM never accumulates in RAM. */
         private const val CAPTURE_SPOOL = "recording.pcm"
-
-        /** #127: evidence layout inside `files/audio/<sessionId>/`. */
-        private const val EVIDENCE_SESSION_WAV = "session.wav"
-        private const val EVIDENCE_FRAGMENTS_DIR = "fragments"
     }
 }
 

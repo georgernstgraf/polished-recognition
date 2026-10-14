@@ -18,7 +18,7 @@
     <string name="raw_mode">Raw mode (skip LLM, return Whisper text only)</string>
     <string name="compress_audio">Upload format: OGG/Opus when on (smaller on slow connections), WAV when off — live transcription runs either way</string>
     <string name="audio_evidence">Keep session audio for diagnostics</string>
-    <string name="audio_evidence_hint">Dictated audio is retained locally for diagnostics (last few sessions, up to ~50 MB, adb-readable under files/audio); off by default.</string>
+    <string name="audio_evidence_hint">Dictated audio is retained locally for diagnostics: the actually-uploaded fragments plus a session.json manifest (timestamps, statistics, transcripts, delivery) under files/audio, adb-readable. The slider sets how long — from no retention (nothing is written) up to 50 years. Storage pressure evicts the oldest sessions invisibly.</string>
     <string name="switch_back_after_send">Switch back to typing keyboard after send</string>
     <string name="switch_back_after_send_hint">After a successful send, the last-used typing keyboard re-opens on the next tap into the field instead of the voice keyboard. Silent if no other keyboard is enabled.</string>
     <string name="target_language">Target language</string>

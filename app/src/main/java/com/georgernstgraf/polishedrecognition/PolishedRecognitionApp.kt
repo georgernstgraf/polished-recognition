@@ -47,15 +47,25 @@ class PolishedRecognitionApp : Application() {
             Process.killProcess(Process.myPid())
             System.exit(2)
         }
+        // #142: time-based evidence eviction at startup — a retention-horizon
+        // change takes effect even when no dictation follows. Best-effort and
+        // off the main thread (deleteRecursively on old bundles may take a
+        // moment); failures are silent by store contract.
+        Thread {
+            try {
+                audioEvidenceStore.evict()
+            } catch (_: Throwable) {
+            }
+        }.apply {
+            priority = Thread.MIN_PRIORITY
+            start()
+        }
     }
 
     /**
-     * #132: the per-stream log history is a BUILD-TYPE property
-     * (`LOG_ROTATION_DEPTH`: 9 in release, 99 in debug/harness) — the
-     * owner's test builds keep ~99 rows (rows are tiny vs the retained
-     * audio). NOTE (#143): the shadow streams that motivated the deep
-     * debug/harness history are REMOVED; the depth stays per build type
-     * until the #141 bundle rework unifies it.
+     * #132: the per-stream log history — since #142 a SINGLE unified depth
+     * for every build type (the streams are live debugging only; the
+     * forensic record lives in `session.json` per session).
      */
     val jsonLogger by lazy {
         RotatingJsonLogger(
@@ -78,27 +88,27 @@ class PolishedRecognitionApp : Application() {
     }
 
     val settingsStore by lazy {
-        SettingsStore(this, audioEvidenceDefault = BuildConfig.AUDIO_EVIDENCE_DEFAULT)
+        SettingsStore(this, evidenceRetentionDefaultSeconds = BuildConfig.AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS)
     }
     val promptStore by lazy { PromptStore(this) }
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
 
     /**
-     * #127: per-session audio-evidence ring buffer
+     * #127/#142: per-session audio-evidence retention
      * (`files/audio/<sessionId>/`, next to `logs/` — the adb-readable root
-     * on release devices). Retention is gated by the Settings toggle
-     * (`audio_evidence`, default `BuildConfig.AUDIO_EVIDENCE_DEFAULT`:
-     * OFF in release, ON in debug/harness). #132: the ring capacity is a
-     * BUILD-TYPE property (`AUDIO_EVIDENCE_MAX_SESSIONS`/`_BYTES`: 3/50 MB
-     * in release, 99/1 GB in debug/harness) so the owner's test builds can
-     * bridge multi-day gaps between dictation and analysis; release keeps
-     * the #127 defaults.
+     * on release devices). The forensic bundle is `uploads/` + `session.json`
+     * (#142); the retention horizon is a USER setting (the 0→50-years log
+     * slider, default `BuildConfig.AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS`:
+     * 0 in release — privacy —, 30 days in debug/harness). Age-based eviction
+     * + the invisible storage safety valve live in the store.
      */
     val audioEvidenceStore by lazy {
         AudioEvidenceStore(
             File(getExternalFilesDir(null) ?: filesDir, "audio"),
-            maxSessions = BuildConfig.AUDIO_EVIDENCE_MAX_SESSIONS,
-            maxTotalBytes = BuildConfig.AUDIO_EVIDENCE_MAX_BYTES
+            // #142: the retention horizon is a USER setting (SettingsStore),
+            // read live so a slider change takes effect immediately; the
+            // storage safety valve is a constant, invisible to the user.
+            retentionSeconds = { settingsStore.evidenceRetentionSeconds }
         )
     }
 

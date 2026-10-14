@@ -55,6 +55,31 @@ class TranscriptionPipeline(
     }
 
     /**
+     * #142 forensic hook: set ONCE by the controller (which owns the live
+     * session bundle) — invoked at the END of every [finishTranscription]
+     * with the outcome (raw text + the LLM pass). The closure reads the
+     * CURRENT session bundle, so per-session wiring is unnecessary. The
+     * theoretical multi-controller race (harness + IME controller on the
+     * SAME pipeline instance) cannot happen in practice: only one
+     * PROCESSING session at a time.
+     */
+    var onOutcome: ((PipelineOutcome) -> Unit)? = null
+
+    /**
+     * #142: what the pipeline DID with the session's raw input — the raw
+     * transcript, whether polish ran, and the full LLM pass (prompts +
+     * response, or the error). The forensic record consumes it.
+     */
+    data class PipelineOutcome(
+        val rawText: String,
+        val rawMode: Boolean,
+        val systemPrompt: String? = null,
+        val userPrompt: String? = null,
+        val llmResponse: String? = null,
+        val llmError: String? = null
+    )
+
+    /**
      * The post-STT half of [transcribe], exposed for the live fragment
      * worker path (#116): the worker has already transcribed the committed
      * fragments DURING dictation and the controller hands in the ordered
@@ -122,7 +147,10 @@ class TranscriptionPipeline(
         val userPrompt = promptStore.userPromptTemplate
             .replace("{{text}}", whisper.text)
 
-        if (rawMode) return@withContext Result.success(LineWrapPolicy.wrap(whisper.text, wrapWidth))
+        if (rawMode) {
+            onOutcome?.invoke(PipelineOutcome(rawText = whisper.text, rawMode = true))
+            return@withContext Result.success(LineWrapPolicy.wrap(whisper.text, wrapWidth))
+        }
 
         val llmConfig = settingsStore.llmProvider
             ?: return@withContext Result.failure(Exception("LLM provider not configured"))
@@ -149,10 +177,30 @@ class TranscriptionPipeline(
         ).execute()
 
         if (!response.isSuccessful || response.body() == null) {
-            return@withContext Result.failure(Exception("LLM post-processing failed: HTTP ${response.code()}"))
+            val error = "LLM post-processing failed: HTTP ${response.code()}"
+            onOutcome?.invoke(
+                PipelineOutcome(
+                    rawText = whisper.text,
+                    rawMode = false,
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    llmError = error
+                )
+            )
+            return@withContext Result.failure(Exception(error))
         }
 
-        Result.success(LineWrapPolicy.wrap(response.body()!!.getContent().trim(), wrapWidth))
+        val polished = response.body()!!.getContent().trim()
+        onOutcome?.invoke(
+            PipelineOutcome(
+                rawText = whisper.text,
+                rawMode = false,
+                systemPrompt = systemPrompt,
+                userPrompt = userPrompt,
+                llmResponse = polished
+            )
+        )
+        Result.success(LineWrapPolicy.wrap(polished, wrapWidth))
     }
 
     /**

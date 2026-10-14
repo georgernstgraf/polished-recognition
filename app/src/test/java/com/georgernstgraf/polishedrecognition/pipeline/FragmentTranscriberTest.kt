@@ -351,8 +351,11 @@ class FragmentTranscriberTest {
         val retained = File(File(session, "uploads"), "upload_000001.wav")
         assertThat(retained.isFile).isTrue()
         assertThat(retained.readBytes()).isEqualTo(uploaded[1].second)
-        // fragment 0 uploaded BARE (no pre-roll) → nothing composed, nothing retained
-        assertThat(File(File(session, "uploads"), "upload_000000.wav").exists()).isFalse()
+        // #142: fragment 0 uploaded BARE (no pre-roll) — the bare fragment is
+        // retained too now (the #127 gap where bare uploads were lost is fixed)
+        val bareRetained = File(File(session, "uploads"), "frag_000000.wav")
+        assertThat(bareRetained.isFile).isTrue()
+        assertThat(bareRetained.readBytes()).isEqualTo(uploaded[0].second)
         // the pipeline's own behaviour is unchanged: the composed file is gone,
         // the preparer-owned sources survive
         assertThat(File(tmp.root, "upload_000001.wav").exists()).isFalse()
