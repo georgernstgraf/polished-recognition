@@ -42,10 +42,9 @@ class SttRequestRunner(
     /**
      * Successful-completion hook (#116 Phase 2): the per-provider latency
      * profile's sample feed. Invoked on the caller's context for every
-     * successful request WITH evidence on (the shadow pass runs with
-     * evidence off and must not pollute the profile). `durationMs` is the
-     * uploaded audio duration (pre-roll included — the uploaded-size truth),
-     * `elapsedMs` this single attempt's round-trip.
+     * successful request. `durationMs` is the uploaded audio duration
+     * (pre-roll included — the uploaded-size truth), `elapsedMs` this
+     * single attempt's round-trip.
      */
     private val onCompletion: ((Completion) -> Unit)? = null
 ) {
@@ -70,25 +69,20 @@ class SttRequestRunner(
      * [prompt] (#117): optional Whisper conditioning prompt — the tail of
      * the previous fragment's transcript. Conditioned text is NOT echoed
      * into the output, so no join-side dedup is needed.
-     *
-     * [evidence] = false suppresses the `stt-upload`/`stt-latency` records
-     * (used by the #117 shadow comparison, whose requests must not pollute
-     * the Phase 2 latency-profile input streams).
      */
     suspend fun run(
         audioFile: File,
         config: SttProviderConfig,
         chunk: Int? = null,
         chunkCount: Int? = null,
-        prompt: String? = null,
-        evidence: Boolean = true
+        prompt: String? = null
     ): Result<SttResponse> {
         val mediaType = if (isOgg(audioFile)) "audio/ogg" else "audio/wav"
         val uploadName = if (isOgg(audioFile)) "audio.ogg" else "audio.wav"
         val durationMs = AudioDuration.estimateMs(audioFile)
 
         // Pre-send evidence (#115 semantics, unchanged shape).
-        if (evidence) logger?.log(
+        logger?.log(
             "stt-upload",
             gson(SttRequestLog(
                 chunk = chunk,
@@ -118,15 +112,15 @@ class SttRequestRunner(
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
 
                 if (response.isSuccessful && response.body() != null) {
-                    logCompletion(audioFile, config, mediaType, durationMs, attempt, response.code(), elapsedMs, null, prompt, evidence)
-                    if (evidence && durationMs != null) {
+                    logCompletion(audioFile, config, mediaType, durationMs, attempt, response.code(), elapsedMs, null, prompt)
+                    if (durationMs != null) {
                         onCompletion?.invoke(Completion(config, mediaType, durationMs, elapsedMs, attempt))
                     }
                     return Result.success(response.body()!!)
                 }
                 val code = response.code()
                 val errorKind = if (response.isSuccessful) "emptyBody" else null
-                logCompletion(audioFile, config, mediaType, durationMs, attempt, code, elapsedMs, errorKind, prompt, evidence)
+                logCompletion(audioFile, config, mediaType, durationMs, attempt, code, elapsedMs, errorKind, prompt)
                 val failure = if (response.isSuccessful) {
                     SttRequestException("HTTP $code (empty response body)", httpCode = code)
                 } else {
@@ -136,7 +130,7 @@ class SttRequestRunner(
                 lastFailure = failure
             } catch (e: IOException) {
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
-                logCompletion(audioFile, config, mediaType, durationMs, attempt, null, elapsedMs, e.javaClass.simpleName, prompt, evidence)
+                logCompletion(audioFile, config, mediaType, durationMs, attempt, null, elapsedMs, e.javaClass.simpleName, prompt)
                 lastFailure = SttRequestException(e.message ?: e.javaClass.simpleName)
             }
             if (attempt < MAX_ATTEMPTS) sleep(backoffMs[zeroBased])
@@ -155,10 +149,8 @@ class SttRequestRunner(
         httpCode: Int?,
         elapsedMs: Long,
         error: String?,
-        prompt: String? = null,
-        evidence: Boolean = true
+        prompt: String? = null
     ) {
-        if (!evidence) return
         logger?.log(
             "stt-latency",
             gson(SttRequestLog(

@@ -25,8 +25,8 @@ import java.io.RandomAccessFile
  * Full-session artifacts are STREAMED, never materialized in RAM:
  * - [stopSessionWavFile] writes the canonical WAV (header + spool) with a
  *   64-KiB copy buffer — the controller threads the FILE to retention and
- *   the legacy path; the shadow/full-context passes read the fragment
- *   files directly and never see it.
+ *   the legacy path; the fragment pipeline reads the fragment files
+ *   directly and never sees it.
  * - [snapshotToFile] / [restoreFromFile] move the session between the
  *   spool and the process-death snapshot (#67) as disk copies.
  */

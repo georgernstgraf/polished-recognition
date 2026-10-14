@@ -102,12 +102,9 @@ android {
         buildConfigField("String", "VERSION_DISPLAY", "\"$versionDisplay\"")
 
         // #125: the shadow comparison and the full-context-at-stop strategy
-        // are DIAGNOSTICS, not delivery features — release ships BOTH OFF
-        // (the fragment join is the only delivery path; the shadow is
-        // unreliable on long/noisy audio, #122). debug/harness override both
-        // to true below.
-        buildConfigField("boolean", "SHADOW_STT", "false")
-        buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "false")
+        // were DIAGNOSTICS, not delivery features. REMOVED (#143) — the
+        // offline bundle analysis (Epic #141, PC-side) replaces both; the
+        // fragment join is the only delivery path.
 
         // #127: the audio-evidence retention DEFAULT (the Settings toggle
         // users see). OFF in release — it persists dictated audio on disk
@@ -156,9 +153,6 @@ android {
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
-            // #125: diagnostics stay available in debug (and harness below).
-            buildConfigField("boolean", "SHADOW_STT", "true")
-            buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
             // #127: evidence retention defaults ON in the owner's test builds.
             buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "true")
             // #132: wide evidence + log capacity for days-later analysis.
@@ -180,9 +174,6 @@ android {
             if (releaseKeystore.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // #125: diagnostics stay available in the harness.
-            buildConfigField("boolean", "SHADOW_STT", "true")
-            buildConfigField("boolean", "FULL_CONTEXT_AT_STOP", "true")
             // #127: evidence retention defaults ON in the harness.
             buildConfigField("boolean", "AUDIO_EVIDENCE_DEFAULT", "true")
             // #132: wide evidence + log capacity for days-later analysis.

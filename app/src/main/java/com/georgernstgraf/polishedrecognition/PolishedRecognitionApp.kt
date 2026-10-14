@@ -52,9 +52,10 @@ class PolishedRecognitionApp : Application() {
     /**
      * #132: the per-stream log history is a BUILD-TYPE property
      * (`LOG_ROTATION_DEPTH`: 9 in release, 99 in debug/harness) — the
-     * shadow rows (`stt-shadow`) are the days-later seam analysis entry
-     * points, so the owner's test builds keep ~99 of them (rows are tiny
-     * vs the retained audio).
+     * owner's test builds keep ~99 rows (rows are tiny vs the retained
+     * audio). NOTE (#143): the shadow streams that motivated the deep
+     * debug/harness history are REMOVED; the depth stays per build type
+     * until the #141 bundle rework unifies it.
      */
     val jsonLogger by lazy {
         RotatingJsonLogger(
@@ -137,13 +138,6 @@ class PolishedRecognitionApp : Application() {
     val voiceSessionController by lazy {
         val fragmentSizer = SttFragmentSizer(settingsStore)
         VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger,
-            // #125: both diagnostics are OFF in release (BuildConfig gates,
-            // false in defaultConfig) and ON in debug/harness. The shadow's
-            // old LAN-endpoint gate (SttEndpointPolicy) is gone with it —
-            // the shadow is diagnostic-only and unreliable on long/noisy
-            // audio (#122), so release never runs it at all.
-            shadowSttEnabled = { BuildConfig.SHADOW_STT },
-            fullContextAtStopEnabled = BuildConfig.FULL_CONTEXT_AT_STOP,
             fragmentSizeProvider = { fragmentSizer.fragmentSeconds() },
             // #127: audio-evidence retention (Settings toggle; the default
             // comes from BuildConfig.AUDIO_EVIDENCE_DEFAULT — OFF in

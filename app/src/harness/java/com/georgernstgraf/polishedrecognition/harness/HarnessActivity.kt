@@ -17,8 +17,8 @@ import java.io.File
  * #122 seam-study harness. Lives ONLY in the `harness` build variant
  * (`src/harness/`) — never part of release/F-Droid. It decodes a 16 kHz mono
  * 16-bit WAV, injects the raw PCM through the production restore seam, drives
- * ONE real transcription through the fragment pipeline, waits for the shadow
- * reference and writes a `harness.json` result. Started by adb with an
+ * ONE real transcription through the fragment pipeline and writes a
+ * `harness.json` result. Started by adb with an
  * explicit component + extras, e.g.:
  *
  * ```
@@ -33,8 +33,7 @@ import java.io.File
  * Recognised extras: `file` (required), `label`, `mode` (raw|german|polish),
  * `format` (ogg|wav), `policy` (all|forced|off|qgate, DEFAULT qgate = the
  * #128 production arm), `fragmentSeconds`, `searchSeconds`,
- * `preRollSeconds`, `promptChars` (int), `reference` (bool, default true =
- * run the shadow as the seam reference), `timeoutSeconds` (int), and the
+ * `preRollSeconds`, `promptChars` (int), `timeoutSeconds` (int), and the
  * #126/#128 silence-quality knobs (#129 research pass): `axisK` (float,
  * default 0.65), `axisC` (float, default 100.0), `qualityMin` (float,
  * default 10.0), `marginKMs` (int, default 150), `searchSpan`
@@ -60,7 +59,6 @@ class HarnessActivity : Activity() {
     private var searchSeconds = 2f
     private var preRollSeconds = 1f
     private var promptChars = 96
-    private var reference = true
     private var axisK = FragmentPreparer.DEFAULT_AXIS_K
     private var axisC = FragmentPreparer.DEFAULT_AXIS_C
     private var qualityMin = FragmentPreparer.DEFAULT_QUALITY_MIN
@@ -68,9 +66,6 @@ class HarnessActivity : Activity() {
     private var searchSpan = "lateHalf"
 
     private var completed: VoiceSessionController.Event.Completed? = null
-    private var shadowFull: String? = null
-    private var shadowError: String? = null
-    private var shadowDone = false
 
     private var savedRawMode = false
     private var savedCompress = false
@@ -87,7 +82,6 @@ class HarnessActivity : Activity() {
         searchSeconds = intent.getFloatExtra("searchSeconds", 2f)
         preRollSeconds = intent.getFloatExtra("preRollSeconds", 1f)
         promptChars = intent.getIntExtra("promptChars", 96)
-        reference = intent.getBooleanExtra("reference", true)
         // #129 research-pass knobs — defaults = the PROVISIONAL production
         // values (#126/#128); am start's --ef/--ei carry the sweep arms.
         axisK = intent.getFloatExtra("axisK", FragmentPreparer.DEFAULT_AXIS_K.toFloat()).toDouble()
@@ -106,8 +100,8 @@ class HarnessActivity : Activity() {
         settings.rawMode = mode.equals("raw", ignoreCase = true)
         settings.compressAudio = format.equals("ogg", ignoreCase = true)
         settings.targetLanguage = if (mode.equals("german", ignoreCase = true)) "German" else null
-        // 2. no learned profile: the study pins the size and needs the fragment
-        //    join (fullContextAtStop is disabled below) — clear the fit input.
+        // 2. no learned profile: the study pins the exact upload sizes and
+        //    needs clean (S, t) samples — clear the fit input.
         settings.clearSttProfiles()
 
         // 3. inject the sample through the production restore seam
@@ -142,15 +136,7 @@ class HarnessActivity : Activity() {
             fragmentMarginKMs = marginKMs,
             fragmentSearchSpan = parseSearchSpan(searchSpan),
             seamEvidence = true,
-            onShadowResult = { _, full, err ->
-                shadowFull = full.ifBlank { null }
-                shadowError = err
-                shadowDone = true
-                maybeFinish()
-            },
-            fullContextAtStopEnabled = false,
             logger = app.jsonLogger,
-            shadowSttEnabled = { reference },
             // #127: retain the harness run's audio evidence too — the
             // harness BuildConfig defaults the toggle ON, and study runs
             // are exactly the material post-mortems want.
@@ -179,9 +165,9 @@ class HarnessActivity : Activity() {
     }
 
     private fun maybeFinish() {
-        // done when the fragment join is delivered AND (if requested) the
-        // shadow reference has been written
-        if (completed != null && (!reference || shadowDone)) finishRun(true, null)
+        // done when the fragment join is delivered (the seam reference comes
+        // from the PC-side offline Whisper comparison, #144)
+        if (completed != null) finishRun(true, null)
     }
 
     private fun finishRun(success: Boolean, error: String?) {
@@ -200,7 +186,6 @@ class HarnessActivity : Activity() {
             "searchSeconds" to searchSeconds,
             "preRollSeconds" to preRollSeconds,
             "promptChars" to promptChars,
-            "reference" to reference,
             // #129: every knob is recorded so sweep arms are attributable
             // in analysis — the results file is the single source for what
             // an arm actually ran with.
@@ -214,9 +199,6 @@ class HarnessActivity : Activity() {
             "redelivered" to (completed?.redelivered ?: false),
             "partial" to completed?.partial?.let { "${it.failedIndex}/${it.chunkCount}" },
             "sttError" to completed?.result?.exceptionOrNull()?.message,
-            "shadowFullText" to shadowFull,
-            "shadowError" to shadowError,
-            "shadowWordCount" to shadowFull?.split(Regex("\\s+"))?.count { it.isNotBlank() },
             "elapsedMs" to if (startedAt == 0L) null else System.currentTimeMillis() - startedAt
         )
         val dir = File(getExternalFilesDir(null) ?: filesDir, "harness").apply { mkdirs() }

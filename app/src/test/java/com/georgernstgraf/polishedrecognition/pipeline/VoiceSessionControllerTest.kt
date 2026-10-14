@@ -55,7 +55,6 @@ class VoiceSessionControllerTest {
         File(ctx.cacheDir, "session.meta").delete()
         File(ctx.cacheDir, "fragments").deleteRecursively()
         File(ctx.cacheDir, "prepared").deleteRecursively()
-        File(ctx.cacheDir, "shadow").deleteRecursively()
         ctx.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         settings = SettingsStore(ctx)
         // The live fragment worker (#116) resolves the provider itself.
@@ -87,8 +86,7 @@ class VoiceSessionControllerTest {
         seamPolicy: SeamPolicy = SeamPolicy.Q_GATE, // #128 production default
         fragmentQualityMin: Double = FragmentPreparer.DEFAULT_QUALITY_MIN, // #128 gate
         sessionIdInMeta: String? = null,
-        shadowSttEnabled: () -> Boolean = { false },
-        mainDispatcher: Boolean = false, // true = production-like queued main-looper (#117 shadow)
+        mainDispatcher: Boolean = false, // true = production-like queued main-looper
         logger: RotatingJsonLogger? = null,
         fragmentSizeProvider: (() -> Double?)? = null, // Phase 2 auto-sizer (#116)
         audioEvidenceStore: AudioEvidenceStore? = null, // #127 evidence retention
@@ -112,7 +110,6 @@ class VoiceSessionControllerTest {
         // with zero backoff so failure-path tests stay fast
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
         logger = logger,
-        shadowSttEnabled = shadowSttEnabled,
         fragmentSizeProvider = fragmentSizeProvider,
         audioEvidenceStore = audioEvidenceStore,
         audioEvidenceEnabled = audioEvidenceEnabled
@@ -1330,77 +1327,6 @@ class VoiceSessionControllerTest {
         clearSessionFiles()
     }
 
-    /**
-     * #117 shadow comparison: after a successful fragment session the
-     * assembled full recording is transcribed once more (evidence off) and
-     * both texts land in `stt-shadow.json`. Production dispatches the
-     * shadow on the MAIN looper behind the transcribe job — the test
-     * replicates that (mainDispatcher = true) and pumps the looper until
-     * the log record appears.
-     */
-    @Test
-    fun `shadow comparison logs the full-context STT next to the fragment transcripts`() {
-        clearSessionFiles()
-        settings.compressAudio = true
-        every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(firstArg()) }
-        }
-        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        val pcm = ByteArray(40_000) { i -> (i % 97).toByte() }
-        File(cacheDir, "session.pcm").writeBytes(pcm)
-        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
-
-        val logDir = File(cacheDir, "shadow-test-logs").apply { deleteRecursively(); mkdirs() }
-        val controller = newController(
-            fragmentBytes = 10_000,
-            shadowSttEnabled = { true },
-            mainDispatcher = true,
-            logger = RotatingJsonLogger(logDir)
-        )
-        controller.restore()
-        val events = mutableListOf<VoiceSessionController.Event>()
-        controller.attach { events.add(it) }
-
-        // 4 fragment responses, then the shadow's single full-context call
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
-            listOf(
-                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(Response.success(SttResponse(text = "two", language = null))),
-                mockSttCall(Response.success(SttResponse(text = "three", language = null))),
-                mockSttCall(Response.success(SttResponse(text = "four", language = null))),
-                mockSttCall(Response.success(SttResponse(text = "one two three four FULL", language = null)))
-            )
-        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
-        // the shadow runs on the pipeline's REAL runner (production), not on
-        // a relaxed mock — otherwise its failure is swallowed invisibly
-        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
-
-        controller.stopAndTranscribe()
-        val shadowFile = File(logDir, "stt-shadow.json")
-        val deadline = System.currentTimeMillis() + 10_000
-        while ((controller.state != VoiceSessionController.State.IDLE || !shadowFile.exists()) &&
-            System.currentTimeMillis() < deadline
-        ) {
-            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-            Thread.sleep(10)
-        }
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-
-        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
-        verify(atLeast = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
-        assertThat(shadowFile.exists()).isTrue()
-        val shadow = com.google.gson.Gson().fromJson(
-            shadowFile.readText(), Map::class.java
-        ) as Map<String, Any>
-        assertThat(shadow["fragmentText"]).isEqualTo("one two three four")
-        assertThat(shadow["fullText"]).isEqualTo("one two three four FULL")
-        assertThat(shadow["chunks"]).isEqualTo(1.0)
-        assertThat(shadow["error"]).isNull()
-        // #132: the row points straight at its session (retained evidence dir)
-        assertThat(shadow["sessionId"]).isEqualTo("testsess")
-        clearSessionFiles()
-    }
-
     // ---- #132: timestamped session IDs ----------------------------------------
 
     /**
@@ -1534,169 +1460,6 @@ class VoiceSessionControllerTest {
     fun `adaptive search keeps the largest fragment span within the chunk cap`() {
         assertThat(2.0 * SttLatencyProfile.MAX_FRAGMENT_SECONDS)
             .isAtMost(WavChunker.MAX_CHUNK_SECONDS)
-    }
-
-    /**
-     * #116 Phase 2 full-context-at-stop: when the measured profile predicts
-     * the whole recording transcribes within the latency target, the awaited
-     * full-context pass REPLACES the fragment join as the delivered text
-     * (chunkCount 1 — no seams). Here the profile is fast (~500× realtime),
-     * the recording 0.625 s → predicted ≈ 0.16 s ≤ 1.3 s.
-     */
-    @Test
-    fun `fast profile delivers the full-context text at stop`() {
-        clearSessionFiles()
-        settings.compressAudio = true
-        every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(firstArg()) }
-        }
-        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
-        File(cacheDir, "session.meta").writeText("""{"durationMs":625,"sessionId":"testsess"}""")
-        feedProfile(count = 12, msPerSecond = 2L) // ≈ 500× realtime
-
-        val controller = newController()
-        controller.restore()
-        val events = mutableListOf<VoiceSessionController.Event>()
-        controller.attach { events.add(it) }
-        // 1 fragment response, then the awaited full-context pass
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
-            listOf(
-                mockSttCall(Response.success(
-                    SttResponse(text = "one", language = "de", languageProbability = 0.9f))),
-                mockSttCall(Response.success(
-                    SttResponse(text = "FULL", language = "de", languageProbability = 0.9f)))
-            )
-        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
-        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
-        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
-
-        controller.stopAndTranscribe()
-        controller.awaitIdle()
-
-        val stt = sttSlot.captured.getOrThrow()
-        assertThat(stt.text).isEqualTo("FULL")
-        assertThat(stt.chunkCount).isEqualTo(1)
-        assertThat(stt.chunkLengths).containsExactly(4)
-        assertThat(stt.language).isEqualTo("de")
-        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
-        clearSessionFiles()
-    }
-
-    /** The strategy can only improve, never lose: a failed full pass falls back to the join. */
-    @Test
-    fun `full-context failure falls back to the fragment join`() {
-        clearSessionFiles()
-        settings.compressAudio = true
-        every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(firstArg()) }
-        }
-        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
-        File(cacheDir, "session.meta").writeText("""{"durationMs":625,"sessionId":"testsess"}""")
-        feedProfile(count = 12, msPerSecond = 2L)
-
-        val controller = newController()
-        controller.restore()
-        val events = mutableListOf<VoiceSessionController.Event>()
-        controller.attach { events.add(it) }
-        val http500 =
-            @Suppress("DEPRECATION")
-            Response.error<SttResponse>(500, ResponseBody.create(null, "boom"))
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
-            listOf(
-                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(http500), // full pass: 3 transient-retried attempts, then failure
-                mockSttCall(http500),
-                mockSttCall(http500)
-            )
-        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
-        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
-        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
-
-        controller.stopAndTranscribe()
-        controller.awaitIdle()
-
-        val stt = sttSlot.captured.getOrThrow()
-        assertThat(stt.text).isEqualTo("one")
-        assertThat(stt.chunkCount).isEqualTo(1)
-        verify(exactly = 4) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
-        clearSessionFiles()
-    }
-
-    /** Bootstrap gate: below 12 usable samples the strategy never fires. */
-    @Test
-    fun `strategy does not fire before the profile has enough samples`() {
-        clearSessionFiles()
-        settings.compressAudio = true
-        every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(firstArg()) }
-        }
-        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
-        File(cacheDir, "session.meta").writeText("""{"durationMs":625,"sessionId":"testsess"}""")
-        feedProfile(count = SttLatencyProfile.MIN_SAMPLES - 1, msPerSecond = 2L)
-
-        val controller = newController()
-        controller.restore()
-        val events = mutableListOf<VoiceSessionController.Event>()
-        controller.attach { events.add(it) }
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
-            listOf(
-                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(Response.success(SttResponse(text = "FULL", language = null)))
-            )
-        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
-        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
-        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
-
-        controller.stopAndTranscribe()
-        controller.awaitIdle()
-
-        assertThat(sttSlot.captured.getOrThrow().text).isEqualTo("one")
-        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
-        clearSessionFiles()
-    }
-
-    /**
-     * The gregor-unsafe guard (2026-10-10 measurement): a slow profile
-     * (~22× realtime, the measured gregor slope) NEVER fires the strategy —
-     * the predicted full-context time for a multi-minute recording exceeds
-     * the target, so the fragment join is delivered even though samples
-     * exist. This is what protects long recordings from the VAD collapse.
-     */
-    @Test
-    fun `slow profile never fires the full-context strategy`() {
-        clearSessionFiles()
-        settings.compressAudio = true
-        every { transcoder.transcode(any(), any()) } answers {
-            secondArg<File>().apply { writeBytes(firstArg()) }
-        }
-        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        File(cacheDir, "session.pcm").writeBytes(ByteArray(20_000) { i -> (i % 97).toByte() })
-        // 15-minute recording — the movie-session shape
-        File(cacheDir, "session.meta").writeText("""{"durationMs":900000,"sessionId":"testsess"}""")
-        feedProfile(count = 12, msPerSecond = 45L) // ≈ 22× realtime
-
-        val controller = newController()
-        controller.restore()
-        val events = mutableListOf<VoiceSessionController.Event>()
-        controller.attach { events.add(it) }
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returnsMany
-            listOf(
-                mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(Response.success(SttResponse(text = "FULL", language = null)))
-            )
-        every { pipeline.sttRequestRunner } returns SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L))
-        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
-        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } returns Result.success("hi")
-
-        controller.stopAndTranscribe()
-        controller.awaitIdle()
-
-        assertThat(sttSlot.captured.getOrThrow().text).isEqualTo("one")
-        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
-        clearSessionFiles()
     }
 
     // ---- #128: Q-gated stitching, end-to-end over the restore seam ----------

@@ -236,15 +236,4 @@ class SttRequestRunnerTest {
         assertThat(promptSlot.captured).isNull()
         assertThat(readLog("stt-latency").containsKey("promptChars")).isFalse()
     }
-
-    @Test
-    fun `evidence=false suppresses upload and latency records`() = kotlinx.coroutines.runBlocking {
-        mockStt(success())
-
-        val result = runner().run(wavFile(), config, chunk = 1, evidence = false)
-
-        assertThat(result.isSuccess).isTrue()
-        assertThat(File(logDir, "stt-upload.json").exists()).isFalse()
-        assertThat(File(logDir, "stt-latency.json").exists()).isFalse()
-    }
 }

@@ -122,23 +122,6 @@ class VoiceSessionController(
      */
     private val seamEvidence: Boolean = false,
     /**
-     * #122 study hook: invoked when the shadow pass finishes, with the joined
-     * fragment text, the full-context text (empty on failure) and an error
-     * string (null on success). The harness uses it as its "run is done"
-     * signal and as the seam reference. `null` in production.
-     */
-    private val onShadowResult: ((fragmentText: String, fullText: String, error: String?) -> Unit)? = null,
-    /**
-     * #122 study gate: when false, the full-context-at-stop strategy is
-     * disabled so the delivered text is ALWAYS the fragment join (otherwise
-     * short samples can bypass the seams under study). #125: release wiring
-     * passes `BuildConfig.FULL_CONTEXT_AT_STOP` (`false` in release — the
-     * strategy is a debug/harness diagnostic, and with the #124 adaptive
-     * search its benefit window mostly vanishes anyway); the constructor
-     * default stays `true` so debug/harness and the tests keep the strategy.
-     */
-    private val fullContextAtStopEnabled: Boolean = true,
-    /**
      * Overrides the pipeline's shared [SttRequestRunner] for the live
      * fragment worker (#116); tests inject a fast-backoff runner. `null` in
      * production — the runner comes from the pipeline (same Retrofit cache
@@ -147,20 +130,6 @@ class VoiceSessionController(
     private val sttRunnerOverride: SttRequestRunner? = null,
     /** adb-readable encode evidence (fragment cadence), null in unit tests. */
     private val logger: RotatingJsonLogger? = null,
-    /**
-     * Gate for the #117 shadow comparison: when it returns true, a
-     * successfully drained fragment session additionally transcribes the
-     * FULL recording in one pass after the result is delivered and logs
-     * both texts side by side into `stt-shadow.json` — the objective seam
-     * quality evidence (joined fragment transcripts vs full-context STT of
-     * the same audio). Deliberately fire-and-forget: it must never delay
-     * the result, fail the session, or pollute the Phase 2 measurement
-     * streams (its requests run with evidence off). #125: release wiring
-     * passes `BuildConfig.SHADOW_STT` (`false` in release — the shadow is
-     * diagnostic-only and unreliable on long/noisy audio, #122); the
-     * harness wires its own reference gate.
-     */
-    private val shadowSttEnabled: () -> Boolean = { false },
     /**
      * #127 audio-evidence retention: when non-null AND [audioEvidenceEnabled]
      * returns true, a FINISHED dictation session (success OR failure) copies
@@ -822,56 +791,6 @@ class VoiceSessionController(
                         )
                     )
                 }
-                // Full-context-at-stop (#116 Phase 2): when the provider's
-                // measured profile predicts the WHOLE recording transcribes
-                // within the latency target, deliver the seamless full-context
-                // text instead of the fragment join — the fragments were the
-                // live-cadence vehicle, the full pass is the better product.
-                // The profile gate makes this self-limiting: predicted
-                // t(S_total) ≤ 1.3 s bounds S_total by ~1.3/b, which is far
-                // below the multi-minute uploads where gregor's server-side
-                // VAD collapses (measured 2026-10-10, see PITFALLS). Any
-                // failure or empty result falls back to the fragment join.
-                if (drained.failure == null && fullContextAtStopEnabled) {
-                    val fullContext = maybeFullContextAtStop(p, drained)
-                    if (fullContext != null) {
-                        return pipeline.finishTranscription(
-                            Result.success(fullContext),
-                            callerPackage
-                        ) { stage -> emit(Event.StageChanged(stage)) }
-                    }
-                }
-                // Shadow comparison (#117): assemble the full recording into
-                // a DEDICATED dir — `clearPrepared()` deletes the session dir
-                // on success, and the main-looper-queued shadow coroutine
-                // only reads its files later (the assembly race was found in
-                // the first on-device verify). The coroutine deletes the dir
-                // when it is done. #125: the whole block — breadcrumb
-                // included — sits behind the gate, so a release build writes
-                // NO `stt-shadow.json` at all (the shadow is a diagnostic,
-                // not a delivery feature); harness/debug keep the gate
-                // breadcrumb so a silently-absent shadow record stays
-                // diagnosable there ("feature did nothing" vs "feature
-                // failed").
-                if (shadowSttEnabled()) {
-                    logger?.log(
-                        "stt-shadow",
-                        gson.toJson(
-                            mapOf(
-                                "event" to "gate",
-                                // #132: captured NOW — the async shadow coroutine
-                                // must not read the nullable field later (a
-                                // following cancel() nulls it, line ~603)
-                                "sessionId" to sessionId,
-                                "chunkCount" to drained.chunkCount
-                            )
-                        )
-                    )
-                    val shadowFiles = withContext(Dispatchers.IO) {
-                        p.assembleChunks(File(appContext.cacheDir, SHADOW_DIR).apply { deleteRecursively(); mkdirs() })
-                    }
-                    if (shadowFiles.isNotEmpty()) launchShadowStt(shadowFiles, drained.text, sessionId)
-                }
                 return pipeline.finishTranscription(
                     Result.success(drained.toSttResult()),
                     callerPackage
@@ -894,226 +813,6 @@ class VoiceSessionController(
         chunkLengths = chunkLengths
     )
 
-    /**
-     * The #116 Phase 2 full-context-at-stop strategy: when the provider's
-     * measured latency profile predicts the FULL recording transcribes within
-     * the stop→raw target (`a + b·S_total ≤ 1.3 s`), transcribe the assembled
-     * recording in one awaited pass and return its result — the fragment join
-     * stays the fallback for every failure and empty result, so the strategy
-     * can only improve, never lose, the delivered text.
-     *
-     * The requests run with evidence ON: they are real `(S, t)` samples of
-     * the same provider — SMALL-S points: the gate caps the recording at
-     * `a + b·S_total ≤ 1.3 s`, which bounds `S_total` at ~15 s (the gregor
-     * fit: a=0.566, b=0.050 → S_total ≤ 14.7 s), far below the multi-minute
-     * uploads on which the server-side VAD collapses (2026-10-10
-     * measurement, PITFALLS). OFF in release (#125 — the strategy is a
-     * debug/harness diagnostic; the fragment join is the only delivery
-     * path).
-     *
-     * Returns `null` whenever the strategy does not fire or does not produce
-     * usable text — the caller then proceeds with the fragment join exactly
-     * as before this strategy existed.
-     */
-    private suspend fun maybeFullContextAtStop(
-        p: FragmentPreparer,
-        drained: FragmentTranscriber.Drained
-    ): TranscriptionPipeline.SttResult? {
-        val config = settings.sttProvider ?: return null
-        val totalSeconds = accumulatedMs / 1000.0
-        if (totalSeconds <= 0.0) return null
-        val mediaType = if (settings.compressAudio) "audio/ogg" else "audio/wav"
-        val profile = settings.sttProfile(config.baseUrl, config.model, mediaType) ?: return null
-        val fit = SttLatencyProfile.fit(profile.samples) ?: return null
-        val predictedSeconds = fit.interceptSeconds + fit.slopeSecondsPerSecond * totalSeconds
-        if (predictedSeconds > SttLatencyProfile.TARGET_STOP_TO_RAW_SECONDS) return null
-
-        val shadowDir = File(appContext.cacheDir, SHADOW_DIR)
-        try {
-            val files = withContext(Dispatchers.IO) {
-                p.assembleChunks(shadowDir.apply { deleteRecursively(); mkdirs() })
-            }
-            if (files.isEmpty()) return null
-            var language: String? = null
-            var languageProbability: Float? = null
-            val parts = mutableListOf<String>()
-            for ((index, file) in files.withIndex()) {
-                // IO dispatcher REQUIRED (SttRequestRunner runs on the CALLER's
-                // context — the shadow crash, #117).
-                val result = withContext(Dispatchers.IO) {
-                    pipeline.sttRequestRunner.run(
-                        audioFile = file,
-                        config = config,
-                        chunk = index + 1,
-                        chunkCount = files.size
-                    )
-                }
-                val body = result.getOrNull()
-                if (body == null) {
-                    logger?.log(
-                        "stt-fullcontext",
-                        gson.toJson(
-                            mapOf(
-                                "event" to "fullContextAtStop",
-                                "outcome" to "failed",
-                                "error" to (result.exceptionOrNull()?.message ?: "unknown error"),
-                                "predictedSeconds" to predictedSeconds
-                            )
-                        )
-                    )
-                    return null
-                }
-                if (!body.language.isNullOrBlank() && language == null) {
-                    language = body.language
-                    languageProbability = body.languageProbability
-                }
-                parts.add(body.text)
-            }
-            val fullText = parts.filter { it.isNotBlank() }.joinToString(" ").trim()
-            if (fullText.isEmpty()) {
-                logger?.log(
-                    "stt-fullcontext",
-                    gson.toJson(
-                        mapOf(
-                            "event" to "fullContextAtStop",
-                            "outcome" to "empty",
-                            "predictedSeconds" to predictedSeconds
-                        )
-                    )
-                )
-                return null
-            }
-            logger?.log(
-                "stt-fullcontext",
-                gson.toJson(
-                    mapOf(
-                        "event" to "fullContextAtStop",
-                        "outcome" to "delivered",
-                        "predictedSeconds" to predictedSeconds,
-                        "totalSeconds" to totalSeconds,
-                        "fullChars" to fullText.length,
-                        "fragmentChars" to drained.text.length
-                    )
-                )
-            )
-            return TranscriptionPipeline.SttResult(
-                text = fullText,
-                language = language,
-                languageProbability = languageProbability,
-                chunkCount = 1,
-                chunkLengths = listOf(fullText.length)
-            )
-        } catch (crashed: Throwable) {
-            // never lose the fragment join over a strategy crash — but never
-            // silently either (the #117 silent-catch lesson)
-            Log.w(TAG, "full-context-at-stop crashed; falling back to the fragment join", crashed)
-            return null
-        } finally {
-            // the assembled full-context chunks are single-use
-            try {
-                shadowDir.deleteRecursively()
-            } catch (_: Throwable) {
-            }
-        }
-    }
-
-    /**
-     * Fire-and-forget full-context STT of the same recording the live
-     * fragment worker transcribed (#117): joins the per-chunk texts and
-     * logs them next to the joined fragment transcripts in
-     * `stt-shadow.json`. Runs in its OWN coroutine so the delivered result
-     * is never delayed. The STT requests run with evidence off so
-     * `stt-upload`/`stt-latency` (the Phase 2 profile input) stay
-     * unpolluted. Every failure — including a crash of the shadow body —
-     * is logged into the stream: a silently absent record cost a
-     * diagnose round in the first on-device verify. #132: [sessionId] is
-     * captured by the caller BEFORE the async body runs (the nullable
-     * field can be nulled by a subsequent cancel) and rides EVERY row of
-     * this stream, so a days-old shadow record points straight at its
-     * retained audio-evidence dir.
-     */
-    private fun launchShadowStt(files: List<File>, fragmentText: String, sessionId: String?) {
-        scope.launch {
-            try {
-                val config = settings.sttProvider
-                if (config == null) {
-                    logger?.log(
-                        "stt-shadow",
-                        gson.toJson(mapOf("sessionId" to sessionId, "error" to "STT provider not configured"))
-                    )
-                    return@launch
-                }
-                val parts = mutableListOf<String>()
-                var error: String? = null
-                for ((index, file) in files.withIndex()) {
-                    // IO dispatcher REQUIRED: SttRequestRunner.execute() runs on
-                    // the CALLER's context — the fragment worker and the batch
-                    // pipeline wrap it in Dispatchers.IO; the shadow's
-                    // main-dispatched coroutine must do the same (the missing
-                    // wrapper surfaced as NetworkOnMainThreadException in the
-                    // first on-device run).
-                    val result = withContext(Dispatchers.IO) {
-                        pipeline.sttRequestRunner.run(
-                            audioFile = file,
-                            config = config,
-                            chunk = index + 1,
-                            chunkCount = files.size,
-                            evidence = false
-                        )
-                    }
-                    val body = result.getOrNull()
-                    if (body == null) {
-                        error = result.exceptionOrNull()?.message ?: "unknown error"
-                        break
-                    }
-                    parts.add(body.text)
-                }
-                val fullText = parts.filter { it.isNotBlank() }.joinToString(" ").trim()
-                logger?.log(
-                    "stt-shadow",
-                    gson.toJson(
-                        mapOf(
-                            "sessionId" to sessionId,
-                            "chunks" to files.size,
-                            "fragmentChars" to fragmentText.length,
-                            "fullChars" to fullText.length,
-                            "fragmentText" to fragmentText,
-                            "fullText" to fullText,
-                            "error" to error
-                        )
-                    )
-                )
-                onShadowResult?.invoke(fragmentText, fullText, error)
-            } catch (crashed: Throwable) {
-                // pure diagnostics — never a pipeline failure, but NEVER silent
-                val stack = crashed.stackTrace
-                    .take(8)
-                    .joinToString(" | ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
-                logger?.log(
-                    "stt-shadow",
-                    gson.toJson(
-                        mapOf(
-                            "sessionId" to sessionId,
-                            "error" to "shadow crashed",
-                            "exception" to crashed.javaClass.name,
-                            "message" to (crashed.message ?: ""),
-                            "stack" to stack
-                        )
-                    )
-                )
-                onShadowResult?.invoke(
-                    fragmentText, "",
-                    "shadow crashed: ${crashed.javaClass.name}: ${crashed.message ?: ""}"
-                )
-            } finally {
-                // the assembled shadow chunks are single-use
-                try {
-                    File(appContext.cacheDir, SHADOW_DIR).deleteRecursively()
-                } catch (_: Throwable) {
-                }
-            }
-        }
-    }
 
     /**
      * Prepares the recording(s) for upload. With `compress_audio` enabled the
@@ -1400,8 +1099,6 @@ class VoiceSessionController(
         private const val FRAGMENTS_DIR = "fragments"
         /** #136: the capture spool — PCM never accumulates in RAM. */
         private const val CAPTURE_SPOOL = "recording.pcm"
-        /** Owns the shadow comparison's assembled chunks (#117) — deleted after use. */
-        private const val SHADOW_DIR = "shadow"
 
         /** #127: evidence layout inside `files/audio/<sessionId>/`. */
         private const val EVIDENCE_SESSION_WAV = "session.wav"
