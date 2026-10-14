@@ -122,3 +122,15 @@ Origin file: docs/ai/PITFALLS.md. Reason superseded: debug-keystore era long ove
 ## 2026-10-14 (SUPERSEDED 2026-10-14, origin: PITFALLS, reason: #143 removed the shadow entirely — the full-context reference now lives offline in #144, where the same divergence hazard applies and the 5-min/loop-mask rules govern):
 
 - **The #117 shadow full-context pass is NOT ground truth on long recordings — it diverges in BOTH directions (#116 Phase 2 data, 2026-10-10).** The 2026-10-10 movie session showed it COLLAPSING (fullChars 1021 vs fragment concat 2310, VAD-crushed); the 2026-10-10 WAV verification showed it EXPANDING (`fullChars` 26 534 vs `fragmentChars` 11 531 on a ~14-min recording — 2.3×, ≈ 410 wpm, i.e. hallucination/looping). Read the shadow as a diagnostic breadcrumb only; never derive seam-loss or "correctness" from it on long audio. The reliable signals are `stt-latency.durationMs` (real vs the old constant 1000) and `insertion.length` == `stt-text.textLength`. [ACTIVE until #116]
+
+
+## 2026-10-14 (SUPERSEDED 2026-10-14, origin: STATE, reason: superseded by the v1.5.0 release, #145 — kept as the release record):
+
+## v1.4.1 release — what shipped (2026-10-14, #140)
+
+- **Version:** 1.4.1 / 10401 (patch per owner — v1.4.0 carried the #133 regression). Bump commit `805c732` (version + patch whatsnew, 418 chars).
+- **Scope (user-facing):** #138 only — the post-send teardown no longer salvages the delivered text. #139 harness CI + docs are also in the tag but not user-facing.
+- **CI:** release.yml `38603907903` green — Play step conclusion `success` AND log `Successfully committed 16065703470121614937` (alpha edit id); fdroid-apk.yml `38603907912` green. GitHub release `v1.4.1`: `app-release.aab` (1,885,478 B) + `polished-recognition.apk` (2,402,489 B).
+- **Ship notices:** #138 (fix shipped; on-device verify still pending, rides on the owner's installs) + #139 (no impact — harness buildType is never shipped).
+- **Watch:** F-Droid pickup of 1.4.1 (`AutoUpdateMode: Version`, ~3–5 days) — superseded by this release, but the 1.4.0 pickup watch becomes moot once fdroidbot sees 1.4.1.
+- Origin: STATE.md. Reason: superseded by the v1.5.0 release (#145); details preserved above.

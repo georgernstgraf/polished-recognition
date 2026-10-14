@@ -1,14 +1,14 @@
 # Project State
 
-Current status as of 2026-10-14: **v1.4.1 (10401) RELEASED and DEPLOYED (A03 = v1.4.1 release, OnePlus = harness-1 CI APK, both verified). Epic #141 (forensisches Session-Bundle): #143 SHIPPED AND CLOSED (`3c4f90a` — shadow + full-context removed, 475 green) and #142 SHIPPED AND CLOSED (`e150a74` — the forensic bundle: `uploads/` + `session.json` ONLY, time-based Retention slider 0→50 Jahre with age eviction + storage safety valve, `LOG_ROTATION_DEPTH` unified at 32; 485 tests green). Remaining in the epic: #144 (PC-Bundle-Analyzer + Offline-Whisper-Gegenprobe — #129's new analysis path) and the owner on-device spot checks. #123 queued.**
+Current status as of 2026-10-14: **v1.5.0 (10500) RELEASED and VERIFIED (#145 CLOSED — GitHub AAB+APK, Play alpha edit `00897222044843544691` im Log; F-Droid pickup watch läuft). The A03 still runs v1.4.1 (10401) and the OnePlus still runs the harness-1 CI APK — device updates to 1.5.0 are pending (per owner decision: CI release downloads only). Epic #141 (forensisches Session-Bundle): #142 and #143 SHIPPED AND CLOSED and IN THE RELEASE; remaining: #144 (PC-Bundle-Analyzer — #129's analysis path) and the owner on-device spot checks. #123 queued.**
 
-## v1.4.1 release — what shipped (2026-10-14, #140)
+## v1.5.0 release — what shipped (2026-10-14, #145)
 
-- **Version:** 1.4.1 / 10401 (patch per owner — v1.4.0 carried the #133 regression). Bump commit `805c732` (version + patch whatsnew, 418 chars).
-- **Scope (user-facing):** #138 only — the post-send teardown no longer salvages the delivered text. #139 harness CI + docs are also in the tag but not user-facing.
-- **CI:** release.yml `38603907903` green — Play step conclusion `success` AND log `Successfully committed 16065703470121614937` (alpha edit id); fdroid-apk.yml `38603907912` green. GitHub release `v1.4.1`: `app-release.aab` (1,885,478 B) + `polished-recognition.apk` (2,402,489 B).
-- **Ship notices:** #138 (fix shipped; on-device verify still pending, rides on the owner's installs) + #139 (no impact — harness buildType is never shipped).
-- **Watch:** F-Droid pickup of 1.4.1 (`AutoUpdateMode: Version`, ~3–5 days) — superseded by this release, but the 1.4.0 pickup watch becomes moot once fdroidbot sees 1.4.1.
+- **Version:** 1.5.0 / 10500 (minor — #142 is a user-visible feature: the Retention slider replaces the #127/#132 build-type model). Bump commit `6db018e` (version + whatsnew, 369 chars — no 500-char problem this time).
+- **Scope (user-facing):** #142 — Settings-Retention-Slider (0 = aus/nichts geschrieben bis 50 Jahre, dynamisches Label), forensisches Bundle `uploads/` + `session.json`, age eviction + 512-MB-Notbremse. Release-Default 0 (Privatsphäre) → für den Standard-Nutzer ändert sich in 1.5.0 gegenüber 1.4.1 NICHTS. #143 ist release-neutral (shadow/full-context waren per #125-Gate schon OFF).
+- **CI:** ALLE 4 Workflows green — release.yml `38634013138` (Play alpha, whatsnew committed `00897222044843544691`, im Log verifiziert — #137-Regel), fdroid-apk.yml `38634012859`, build.yml `38633927767`, harness.yml `38633927800`. GitHub release `v1.5.0`: `app-release.aab` (1,891,674 B) + `polished-recognition.apk` (2,418,681 B), ist GitHub "Latest".
+- **Ship notices:** #142 (Slider in allen Varianten, Default 0 in Release) + #143 (harness: genau EIN STT-Request pro Diktation ab `3c4f90a`).
+- **Watch:** F-Droid pickup of 1.5.0 (~3–5 days after the 2026-10-14 tag).
 
 ## #139 — what shipped (`e1fdff6`, 2026-10-14)
 
@@ -126,10 +126,10 @@ Epic #141 (forensisches Session-Bundle) is the active workstream. #143 (shadow/f
 - [ ] **#120 re-check (owner)**: > 5-min dictation on the release build → `stt-upload`/`stt-latency` every `durationMs ≤ 300_000`, no mid-text cut-off → then close #120.
 - [ ] **#123 loop guard** — filed with the #122 evidence; queued behind the seam work.
 - [ ] **#118 Phase B** (delivery policy), **#112/#113** owner items, **#116 Phase 2** remaining owner decisions (auto-size floor now 10 s; shadow diagnostic-only, now debug/harness-only), **#110**, **#101**, **#99/#101/#75**, **#74 marketing**, **#109** visual check.
-- [ ] **F-Droid 1.4.1 pickup watch** (tag `v1.4.1` = 10401, pushed 2026-10-14; ~3–5 days after the tag).
+- [ ] **F-Droid 1.5.0 pickup watch** (tag `v1.5.0` = 10500, pushed 2026-10-14; ~3–5 days after the tag — supersedes the 1.4.1 watch).
 
 ## Device Notes
 - `f6de166c` = OnePlus 7T — **harness-1 CI APK installed 2026-10-14** (DEBUGGABLE verified, `run-as` works, versionName 1.4.0/10400 — harness builds don't bump; carries #138 + the removal of shadow/full-context, so every dictation now runs ONE STT request, not two — gregor decongested). The owner's DAILY DRIVER. To return to release: `adb -s f6de166c install -r` a release APK (same signing key, in-place).
-- `R7SRB06XF5K` = SM-A032F — **v1.4.1 (10401) release APK installed 2026-10-14** (in-place, config + RECORD_AUDIO preserved; the OOM-crash device now carries the crash fix + #138): `run-as` dead, release retention (3/50 MB) until #142 lands, no harness knobs. The full study corpus (38 WAVs) stays at `files/samples/`.
+- `R7SRB06XF5K` = SM-A032F — **v1.4.1 (10401) release APK installed 2026-10-14** (in-place, config + RECORD_AUDIO preserved; the OOM-crash device now carries the crash fix + #138): `run-as` dead, still release retention (3/50 MB) as shipped in v1.4.1 — #142 replaces it in v1.5.0 (the device picks it up with the next update), no harness knobs. The full study corpus (38 WAVs) stays at `files/samples/`.
 - gregor up (2026-10-12): reachable via `htl.graf.priv.at` (nginx 80→443, OpenAI-compatible `/v1/`); the #129 research arms measured ~16–20 s per arm (probe 16 s end-to-end incl. join + shadow reference).
 - Research results LIVE IN THE REPO (git-ignored, /tmp is unreliable): `samples/results/` (per-arm dirs + `winners.txt`), corpus `samples/corpus/` (38 WAVs, sha256-verified), retained pulls `samples/retained/` (3 research-run sessions, md5-verified). Derived CSV: `tools/seam-study/quality_results.csv` (git-ignored, regenerated per arm).
