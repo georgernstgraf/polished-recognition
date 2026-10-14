@@ -95,6 +95,24 @@ Builds release APK and AAB signed with the same keystore as local builds for Git
 - Keeps newest 7 `build-*` releases, cleans up older ones (v* releases excluded)
 - Keystore decoded from `RELEASE_KEYSTORE` secret
 
+### `harness.yml` — Harness APK (push on main + dispatch, #139)
+
+Builds the SIGNED harness APK for device deployments — local hosts are keyless by design (see DECISIONS 2026-10-14), so every deployment APK comes from CI.
+
+```yaml
+- name: Build signed harness APK
+  run: ./gradlew assembleHarness
+  env:
+    RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+    RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+    RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+```
+
+- Triggers: `workflow_dispatch` + `push` on `main` — a push fires BOTH workflows in parallel
+- NO test run (the suite runs in `build.yml`); the `harness` buildType inherits `initWith(release)` + release signing → in-place-installable
+- Publishes the APK as GitHub Release (`harness-N`; `run_number` is per-workflow-counted → no tag collisions with `build-N`)
+- Keeps newest 7 per prefix (`build-` / `harness-`) via the cleanup script's symmetric prefix loop; `v*` untouched
+
 ### `release.yml` — Play Store Release (tag `v*`)
 
 Builds AAB signed with upload keystore from secrets, uploads to Play Console alpha track.
@@ -120,6 +138,7 @@ Builds AAB signed with upload keystore from secrets, uploads to Play Console alp
 |-------|---------|-------|
 | `installRelease` / `assembleRelease` local | `signingConfigs.release` → `app/release.keystore` (proper RSA-2048 release key), passwords from gitignored `keystore.properties` (restored from the pass wallet) | On your machine |
 | `build.yml` APK & AAB | `RELEASE_KEYSTORE` secret decoded to `app/release.keystore` + `RELEASE_*` env vars | CI |
+| `harness.yml` APK | Same secrets as `build.yml` → signed harness APK (the `harness` buildType inherits the release signing config) | CI |
 | `release.yml` AAB | Upload keystore via injected properties (CI) — **different key** (Play upload key), unaffected by the APK release key | CI |
 | `fdroid-apk.yml` APK | `RELEASE_KEYSTORE` secret → `app/release.keystore` + `RELEASE_*` env vars → signed APK for F-Droid reproducible verification | CI |
 
