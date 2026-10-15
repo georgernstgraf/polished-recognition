@@ -21,15 +21,20 @@ value).
 analyzer/build/install/analyzer/bin/analyzer <command> [options]
 ```
 
-## Corpus convention (binding, owner decision 2)
+## Corpus convention (binding, owner decision 2; local-only rule 2026-10-15)
 
 ```
 corpora/<name>/
-  manifest.json      — COMMITTED (documentation-by-example; no secrets)
-  wavs/              — git-ignored material (16 kHz mono s16le WAVs, per-class dirs)
-  bundles/           — git-ignored device bundles (uploads/ + session.json per session)
-  results/<run-id>/  — git-ignored analyzer output (canonical result JSON)
+  manifest.json      — LOCAL ONLY (never committed — see below)
+  wavs/              — local material (16 kHz mono s16le WAVs, per-class dirs)
+  bundles/           — local device bundles (uploads/ + session.json per session)
+  results/<run-id>/  — local analyzer output (canonical result JSON)
 ```
+
+**The whole `corpora/` tree is git-ignored (owner privacy decision, 2026-10-15):
+corpora contain real-life, probably private, spoken words — nothing under
+`corpora/` is ever committed, including manifests.** Share findings and
+parameter conclusions via issues; provenance stays on the working host.
 
 `manifest.json` fields: `name`, `createdAt`, `description`, `source`
 (where the material came from + the build.sh recipe), `kinds` (e.g.

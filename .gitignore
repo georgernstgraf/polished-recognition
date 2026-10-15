@@ -1,5 +1,6 @@
 *.iml
 .gradle/
+.kotlin/
 /local.properties
 /.idea/
 .DS_Store
@@ -10,24 +11,23 @@
 /captures
 .externalNativeBuild/
 .cxx/
-local.properties
 keystore.properties
 *.apk
 *.aab
 *.jks
 *.keystore
+*.hprof
 .env
 SCRATCH.md
 /tmp/
 /samples/corpus/
 /samples/results/
-# #146 corpus-first convention: the corpus MATERIAL (WAVs) + device bundles
-# + analyzer results are local; the manifest.json is committed as
-# documentation-by-example (no secrets).
-/corpora/*/wavs/
-/corpora/*/bundles/
-/corpora/*/results/
-/corpora/*/raw/
+# Corpus trees are LOCAL-ONLY (owner privacy decision, 2026-10-15): corpora
+# contain real-life, probably private, spoken words. NOTHING under corpora/
+# is ever committed — including manifest.json (a manifest leaks session
+# timestamps/ids and source-library structure). Provenance stays on the
+# working host; share findings via issues, never via committed manifests.
+/corpora/
 /samples/retained/*
 !/samples/retained/.gitkeep
 /tools/testcaller/build/

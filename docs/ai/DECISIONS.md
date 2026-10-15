@@ -24,6 +24,13 @@ Each entry documents WHAT was decided and WHY.
 - **Verification done UP FRONT this time:** the Play-upload step's conclusion checked directly (`success`) AND the log grepped for `Successfully committed 16065703470121614937` (alpha edit id) — the #137 silent-failure incident is now a standard release checklist item, not a post-mortem.
 - **GitHub release assets verified:** `app-release.aab` (1.9 MB, release.yml) + `polished-recognition.apk` (2.4 MB, fdroid-apk.yml). Ship notices on #138 and #139 (the only issue-referencing commits since v1.4.0).
 
+## 2026-10-15: corpus privacy — the whole `corpora/` tree is local-only (owner decision)
+
+- **Decision (owner, binding):** NOTHING under `corpora/` is ever committed — the granular "manifest.json committed as documentation-by-example" convention (set during #146) was an agent invention the owner overrides: corpora contain real-life, probably private, spoken words (the a03-evidence corpus IS daily dictations; the bist-01 corpus will be deliberate dictation recordings).
+- **Rationale:** even a manifest leaks private metadata — session timestamps/ids (e.g. "dictated 2026-10-14 00:14–00:28") and source-library structure. The seam-study-01 manifest (committed before this decision) exposed murl audiobook paths in the public repo; per owner decision the HISTORY is NOT rewritten (accepted residual leak — library structure only, no private speech), but `git rm --cached` untracked the manifest so it stays out of all future commits.
+- **Implementation:** `.gitignore` now carries a single `/corpora/` rule with the rationale as its comment; `analyzer/README.md`'s corpus convention corrected (manifest = LOCAL ONLY); findings/conclusions travel via issues, provenance stays on the working host.
+- **Known related exposure (accepted):** `tools/seam-study/corpus/samples.json` + `REPORT.md` (murl paths, #122 era) remain committed under `tools/` — outside the corpora scope of this decision; untracking them is possible later on owner request. `corpora/bist-01/{README.md,build.sh}` (scaffold, committed) contain only generic instructions — kept.
+
 ## 2026-10-15: #147 — deployment rule corrected: local `gradlew installRelease` on USB hosts; "keyless/signing" facts were claw-only
 
 - **Provenance correction (owner, binding):** the 2026-10-14 rule "deployments exclusively via CI release downloads" was an agent overgeneralization of the owner's one-time statement *"I have currently *only* github actions available to install an apk"* — a capability statement made from the headless VPS, never a standing deployment policy.
