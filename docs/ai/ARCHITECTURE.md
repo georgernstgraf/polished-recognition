@@ -7,6 +7,16 @@ Overwritten when structural changes occur during a session.
 
 Polished Recognition is an Android **voice IME** (`InputMethodService`) that captures audio via `AudioRecord`, transcribes it via any OpenAI-compatible `/v1/audio/transcriptions` endpoint, optionally post-processces it via any `/v1/chat/completions` endpoint, and `commitText`s the result into the focused field through the standard `InputConnection`. The bound `PolishedRecognitionService` was removed in #43 and the `VoiceRecognitionActivity` overlay in #61 — **the IME is the sole surface**.
 
+## Module layout (since #146)
+
+Three Gradle modules; **zero drift** — `:analyzer` compiles the REAL production classes:
+
+| Module | Type | Content |
+|--------|------|---------|
+| `:app` | Android application | The IME/service/UI + Android-bound pieces (recorder, OpusOggTranscoder, SettingsStore, OpenAiChatApiService). Depends on `:core`. |
+| `:core` | Kotlin-JVM library | The transcription/audio/API core, package names UNCHANGED: `audio/` (SilenceQuality, PcmConditioner, SeamPolicy, SearchSpan, SeamOverlap, WavAssembler, WavChunker, WavReader, WavWriter, WavPcm, AudioDuration, FragmentPreparer, PcmSource, AudioTranscoder), `pipeline/` (RotatingJsonLogger, SessionBundle, FragmentTranscriber, SttRequestRunner, AudioEvidenceStore, PipelineOutcome, CoreLog, CoreOs, **LoopMask** — the #122/#129 loop-mask port, #123's production loop-guard core), `api/` (OpenAiSttApiService + dto), `config/` (SttProviderConfig). Pure JVM by contract: no `android.*`/`androidx.*`; platform Log/Process behind the `CoreLog`/`CoreOs` shims. |
+| `:analyzer` | Kotlin-JVM application | The PC-side corpus-first analysis CLI (`analyzer/README.md` is canonical for its commands + corpus convention): `analysis/` (the #122/#129 analysis-core port: seam attribution, cleanliness, stats, reliability filter), `corpus/` (manifest convention, `run`, `pull`), `bundle/` (`scan`, `report`, session.json read DTOs — round-trip-guarded), `compare/`. Kotlin 2.2.10 pinned in the root build (AGP 9.1.1's built-in version); Java-21 toolchain in every module. |
+
 ## Components
 
 | Component | Package | Role |

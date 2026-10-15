@@ -20,9 +20,15 @@ Follow these without question. Do not deviate unless explicitly told.
 - `ui/` — Activities and layouts
 - `assets/` — JSON config files (`prompts.json`, `provider_presets.json`)
 
+## Analyzer module (`:analyzer`, since #146)
+- Package `com.georgernstgraf.polishedrecognition.analyzer.*`; commands dispatched by a plain `when(args[0])` in `Main.kt` — NO arg-parsing dependency. `analyzer/README.md` is the canonical doc (commands, corpus convention, canonical result format).
+- The analyzer compiles the REAL production pipeline via `:core` — never duplicate pipeline logic there; analysis-specific code (seam attribution, stats) lives in `analyzer/src/main/.../analysis/`.
+- Corpus convention (binding): `corpora/<name>/{manifest.json,wavs/,bundles/,results/<run-id>/}` — the manifest is COMMITTED (no secrets), the material git-ignored. Per-class confidence + provenance go into the manifest from the build report.
+- STT credentials: CLI option or env var only (`ANALYZER_STT_TOKEN`/`ANALYZER_STT_URL`) — never hardcoded, never committed, never echoed to logs.
+- Analyzer runs are strictly serial (C=1) and never upload >300 s; reference passes slice via `WavChunker` and the comparison loop-masks BOTH texts (`:core` `LoopMask`).
+
 ## API Patterns
-- Retrofit base URLs must end with `/v1/` (or the path prefix the provider uses)
-- All API calls use `Bearer <token>` authorization header
+- Retrofit base URLs must end with `/v1/` (or the path prefix the provider uses)- All API calls use `Bearer <token>` authorization header
 - **Cleartext HTTP is allowed app-wide (#114):** `res/xml/network_security_config.xml` (`base-config cleartextTrafficPermitted="true"`, wired via `android:networkSecurityConfig`) — users point the app at arbitrary self-hosted OpenAI-compatible endpoints (HTTP LAN servers, HTTPS cloud), so no per-domain exceptions; keep the permissive base config.
 - STT multipart: `file` part, media type + filename **derived from the file extension** (`.ogg` → `audio/ogg`/`audio.ogg`, else `audio/wav`/`audio.wav`) — never hardcode WAV (since #60)
 - LLM request: standard `{"model": "...", "messages": [...]}` JSON body

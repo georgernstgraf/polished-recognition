@@ -1,6 +1,14 @@
 # Project State
 
-Current status as of 2026-10-14: **v1.5.0 (10500) RELEASED and VERIFIED (#145 CLOSED — GitHub AAB+APK, Play alpha edit `00897222044843544691` im Log; F-Droid pickup watch läuft). The A03 still runs v1.4.1 (10401) and the OnePlus still runs the harness-1 CI APK — device updates to 1.5.0 are pending (per owner decision: CI release downloads only). Epic #141 (forensisches Session-Bundle): #142 and #143 SHIPPED AND CLOSED and IN THE RELEASE; remaining: #144 (PC-Bundle-Analyzer — #129's analysis path) and the owner on-device spot checks. #123 queued.**
+Current status as of 2026-10-15: **#146 Phase 2 SHIPPED (commits `314e0b1` + `047f5bc`): the `:analyzer` CLI is live as the harness successor — corpus-first, compiles the REAL :core pipeline, Korpus #1 (seam-study-01) imported and clean-baseline-run. 523 tests green. Remaining in #146: push + (Phase 3) #147 harness removal; #129's real qualityMin still owner-gated (bist dictations).**
+
+## #146 Phase 2 — what shipped (2026-10-15)
+
+- **`:core` `pipeline/LoopMask`** (`314e0b1`): `loop_spans`/`compress_loops` ported verbatim from `tools/seam-study/analyze.py` (phrase runs len 1–8 repeated ≥4× → one `<loop>` sentinel BEFORE any diff). Pure function over token lists; doubles as the #123 production loop-guard core. 16 unit tests.
+- **`:analyzer` CLI** (`047f5bc`): Kotlin-JVM application module on :core — commands `run` / `scan` / `report` / `compare` / `pull`, plain `when` dispatch, no arg-parsing deps. Runs the REAL production pipeline (FragmentPreparer + FragmentTranscriber + SttRequestRunner + SessionBundle) per corpus WAV; full-context reference via ≤300-s WavChunker slices; canonical `result.json` (format documented once in analyzer/README.md); session.json written per sample (the app's own shape). STT: gregor `http://10.8.0.16:11437/v1/` large-v3, strictly serial, token via `ANALYZER_STT_TOKEN` only.
+- **Corpus convention**: `corpora/<name>/{manifest.json,wavs/,bundles/,results/}` — manifest committed, material git-ignored. Korpus #1 = `seam-study-01` (37 WAVs, 7 classes, 10–600 s, sha256-verified, confidence/provenance from REPORT.md). Manifest generator: `tools/seam-study/generate_corpus_manifest.py`.
+- **Fixture regression**: `analyzer/src/test/resources/quality-fixture/` mirrors the #129 fixture; FixtureRegressionTest asserts every analyze.py --selftest value; SessionBundleRoundTripTest guards bundle-DTO drift.
+- **Clean-baseline run** (`clean-baseline-20261015`, production knobs): 37/37 succeeded, 12.6 min wall, 32/37 reliable (5 reference collapses: en_interview ×2, phone_radio ×2, panel_multispeaker ×1 — the reference's VAD, exactly the documented caveat). Per class (reliable mean err/100w): de_interview 1.92, en_monologue_male 3.01, en_monologue_female 4.90, de_monologue_male 5.77, en_interview 18.54, phone_radio 18.97, panel_multispeaker 29.59 — overall 9.90. 243 fragments, 206 seams: 82 stitched under Q_GATE (Q<10), 124 bare, 42 unclean (overlap/split flags), 5 trim false positives. Results in `corpora/seam-study-01/results/clean-baseline-20261015/` (git-ignored).
 
 ## v1.5.0 release — what shipped (2026-10-14, #145)
 
