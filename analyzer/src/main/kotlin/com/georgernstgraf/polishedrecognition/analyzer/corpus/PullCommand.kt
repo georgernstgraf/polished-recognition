@@ -63,35 +63,66 @@ object PullCommand {
 
         var pulled = 0
         for (sessionId in sessions) {
-            val files = listOrEmpty(adb("shell", "ls", "-1", "$DEVICE_AUDIO_ROOT/$sessionId"))
-            if (files.isEmpty()) {
-                println("  $sessionId: SKIPPED (unlistable — vanished or access denied)")
+            val sessionDir = File(dest, sessionId)
+            try {
+                pullTree({ cmd -> adb(*cmd) }, "$DEVICE_AUDIO_ROOT/$sessionId", sessionDir, depth = 1)
+            } catch (e: Exception) {
+                println("  $sessionId: SKIPPED (${e.message?.lineSequence()?.first() ?: "error"})")
                 continue
             }
-            val sessionDir = File(dest, sessionId)
-            sessionDir.mkdirs()
-            for (name in files) {
-                val target = File(sessionDir, name)
-                val content = run(adb("exec-out", "cat", "$DEVICE_AUDIO_ROOT/$sessionId/$name"))
-                target.writeBytes(content)
-            }
             pulled++
-            println("  $sessionId (${files.size} files)")
+            println("  $sessionId")
         }
         println("pulled $pulled sessions -> ${dest.path}")
     }
 
-    private fun run(pb: ProcessBuilder): ByteArray {
+    /**
+     * Walks one device directory and pulls it file-by-file. Directories are
+     * recognized via `ls -1p`'s trailing "/" (toybox marks them) and recursed
+     * one level — the bundle layouts are flat (`uploads/`, `fragments/`), so a
+     * single level covers both the #142 format (uploads/ + session.json) and
+     * the pre-#142 one (session.wav + fragments/).
+     */
+    private fun pullTree(adbCmd: (Array<out String>) -> ProcessBuilder, devicePath: String, targetDir: File, depth: Int) {
+        val entries = listOrEmpty(adbCmd(arrayOf("shell", "ls", "-1p", devicePath)))
+        if (entries.isEmpty()) throw CorpusException("unlistable (vanished or access denied)")
+        targetDir.mkdirs()
+        for (entry in entries) {
+            if (entry.endsWith("/")) {
+                val name = entry.trimEnd('/')
+                if (depth > 0) pullTree(adbCmd, "$devicePath/$name", File(targetDir, name), depth - 1)
+                continue
+            }
+            val content = run(adbCmd(arrayOf("exec-out", "cat", "$devicePath/$entry")))
+            File(targetDir, entry).writeBytes(content)
+        }
+    }
+
+    /**
+     * Runs an adb command and returns its merged stdout/stderr. The output is
+     * DRAINED on a background thread BEFORE `waitFor` — reading after a
+     * `waitFor` deadlocks on any output larger than the OS pipe buffer
+     * (~64 KB): the child blocks writing, never exits, and the wait burns its
+     * whole timeout (the 2026-10-15 A03 pull crashed exactly there on the
+     * 356-KB session.wav while the small `ls` listings sailed through).
+     */
+    internal fun run(pb: ProcessBuilder, timeoutSec: Long = 60): ByteArray {
         val process = pb.start()
-        val finished = process.waitFor(60, TimeUnit.SECONDS)
+        val out = java.io.ByteArrayOutputStream()
+        val reader = kotlin.concurrent.thread(isDaemon = true) {
+            process.inputStream.copyTo(out)
+        }
+        val finished = process.waitFor(timeoutSec, TimeUnit.SECONDS)
         if (!finished) {
             process.destroyForcibly()
+            reader.join(1000)
             throw CorpusException("adb command timed out: ${pb.command()}")
         }
+        reader.join(5000)
         if (process.exitValue() != 0) {
             throw CorpusException("adb command failed (${process.exitValue()}): ${pb.command()}")
         }
-        return process.inputStream.readBytes()
+        return out.toByteArray()
     }
 
     /** Best-effort listing: returns empty on adb failure (a vanished session, e.g.). */
