@@ -1,6 +1,6 @@
 # Project State
 
-Current status as of 2026-10-15: **#147 Phase 3 SHIPPED (harness build type REMOVED — app, CI workflow, cleanup symmetry, tooling docs, superseded Python study tooling; research runs live in `:analyzer`). 523 tests green. REMAINING: the OWNER's device return — install the release APK over the OnePlus harness build AND turn the #142 retention slider up himself (HARD prerequisite for the #129 natural-find track); #147 stays OPEN until then. #129's real qualityMin still owner-gated (bist dictations).**
+Current status as of 2026-10-15: **#147 Phase 3 SHIPPED (harness build type REMOVED — app, CI workflow, cleanup symmetry, tooling docs, superseded Python study tooling; research runs live in `:analyzer`). 523 tests green. #144 CLOSED (fully delivered by the `:analyzer` — inspection = `scan`, Gegenprobe = `run` reference slices, provider performance = `report`; closing comment on #144). REMAINING: the OWNER's device return — install the release APK over the OnePlus harness build AND turn the #142 retention slider up himself (HARD prerequisite for the #129 natural-find track); #147 stays OPEN until then. #146 stays OPEN with exactly ONE unverified acceptance item: `pull` + `scan` against a real device (no device attached at session end 2026-10-15). #129's real qualityMin still owner-gated (bist dictations; natural find decides, corpus sweep double-checks — see the updated #129 issue body).**
 
 ## #147 Phase 3 — what shipped (2026-10-15)
 
