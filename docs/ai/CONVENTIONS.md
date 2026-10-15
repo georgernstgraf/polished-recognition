@@ -133,3 +133,9 @@ The transcription pipeline resolves the following template variables at runtime.
 - **Exact provider/model IDs in public copy** — use the preset identifiers verbatim: Groq STT `whisper-large-v3` (default `whisper-large-v3-turbo`, up to 300× real-time), demo polish LLM `qwen3.8-27b`. Never paraphrased variants such as `whisper-v3-large`.
 - **Long toots become threads** — toot 1 keeps the demo + pitch, the CTA/link block moves into the reply. Mastodon counts every URL as 23 chars regardless of length (a single toot must stay ≤ 500).
 - **External-service claims** (e.g. "GROQ's free tier covers it") are re-checked per wave before posting — free-tier terms and model availability change.
+
+## Host Separation (owner rule, 2026-10-15)
+
+- **The agent runs on the VPS `claw.graf.priv.at`; the owner works on host `think`.** All device-attached work (adb, installs, deployments, dictation recordings) happens on **think** — never assume a device or an owner-run artifact on claw.
+- **Always label every command/path with its target host** when handing instructions to the owner (`think:` / `claw:`): an unlabeled ADB command or file path is meaningless across hosts. Local artifacts on claw (e.g. a downloaded APK) are NOT usable for device work — the owner downloads fresh on think (`gh release download`; think is keyless by design, see #139).
+- Cross-host resources the agent may use via SSH: `think` (corpus WAVs under `/tmp/opencode/seam-corpus`, sshfs murl mounts) and `gregor` (whisper container config, `sudo docker inspect`).
