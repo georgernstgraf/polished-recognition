@@ -152,7 +152,13 @@ analyzer report corpora/seam-study-01/bundles
 ```
 
 Per provider (baseUrl+model): sessions, fragments, audio seconds,
-pre-roll seconds, stitched/forced seam counts, STT failures.
+pre-roll seconds, stitched/forced seam counts, STT failures — and since
+#148 the per-request STT timing: timed requests, mean request latency
+(`req(s)`), mean real-time factor (`RTF` = request duration / audio
+duration; `< 1` is faster than realtime, the serial pipeline's streaming
+budget), mean upload size (`up(kB)`), plus the slowest request and worst
+RTF across all sessions. Fragments without timing (legacy bundles) simply
+contribute no timed request.
 
 ### `compare` — cross-corpus comparison
 

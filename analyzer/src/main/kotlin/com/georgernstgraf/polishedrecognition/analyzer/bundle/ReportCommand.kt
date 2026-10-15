@@ -8,8 +8,9 @@ import java.io.File
  * `report` — provider-performance aggregation (#146, the #144c core):
  * aggregates many `session.json` bundles into a per-provider table —
  * sessions, fragments, audio seconds transcribed, stitched/forced seam
- * counts, STT failures and pre-roll coverage. Runs over a bundles dir or a
- * corpus's `bundles/`.
+ * counts, STT failures, pre-roll coverage and the #148 per-request STT
+ * timing (request latency + real-time factor). Runs over a bundles dir or
+ * a corpus's `bundles/`.
  */
 object ReportCommand {
 
@@ -31,7 +32,16 @@ object ReportCommand {
             var stitched: Int = 0,
             var forced: Int = 0,
             var failures: Int = 0,
-            var uploads: Int = 0
+            var uploads: Int = 0,
+            // #148: per-request STT timing over fragments with a successful
+            // attempt (mean/max request duration, mean/max real-time factor,
+            // mean upload size). Fragment-local accumulators, folded below.
+            var requests: Int = 0,
+            var requestMsTotal: Long = 0,
+            var requestMsMax: Long = 0,
+            var rtfTotal: Double = 0.0,
+            var rtfMax: Double = 0.0,
+            var uploadBytesTotal: Long = 0
         )
 
         val byProvider = LinkedHashMap<String, Agg>()
@@ -47,19 +57,30 @@ object ReportCommand {
                 if (f.stitched == true) agg.stitched++
                 if (f.seamForced == true) agg.forced++
                 if (f.sttError != null) agg.failures++
+                BundleIo.requestMs(f)?.let { req ->
+                    agg.requests++
+                    agg.requestMsTotal += req
+                    if (req > agg.requestMsMax) agg.requestMsMax = req
+                    BundleIo.realTimeFactor(f)?.let { rtf ->
+                        agg.rtfTotal += rtf
+                        if (rtf > agg.rtfMax) agg.rtfMax = rtf
+                    }
+                }
+                f.uploadBytes?.let { agg.uploadBytesTotal += it }
             }
         }
 
         println("provider performance over ${bundles.size} sessions in ${dir.path}")
         println()
         println(
-            "%-42s %8s %6s %9s %8s %7s %6s %6s %8s".format(
-                "provider", "sessions", "frags", "audio(s)", "preroll", "stitch", "forced", "fail", "uploads"
+            "%-42s %8s %6s %9s %8s %7s %6s %6s %8s %6s %9s %7s %7s".format(
+                "provider", "sessions", "frags", "audio(s)", "preroll", "stitch", "forced", "fail", "uploads",
+                "reqs", "req(s)", "RTF", "up(kB)"
             )
         )
         for ((key, a) in byProvider) {
             println(
-                "%-42s %8d %6d %9.1f %8.1f %7d %6d %6d %8d".format(
+                "%-42s %8d %6d %9.1f %8.1f %7d %6d %6d %8d %6d %9.2f %7.2f %7.0f".format(
                     key,
                     a.sessions,
                     a.fragments,
@@ -68,9 +89,24 @@ object ReportCommand {
                     a.stitched,
                     a.forced,
                     a.failures,
-                    a.uploads
+                    a.uploads,
+                    a.requests,
+                    if (a.requests > 0) a.requestMsTotal / 1000.0 / a.requests else 0.0,
+                    if (a.requests > 0) a.rtfTotal / a.requests else 0.0,
+                    if (a.uploads > 0) a.uploadBytesTotal / 1024.0 / a.uploads else 0.0
                 )
             )
+        }
+        val timed = byProvider.values.sumOf { it.requests }
+        if (timed > 0) {
+            val maxReq = byProvider.values.maxOf { it.requestMsMax }
+            val maxRtf = byProvider.values.maxOf { it.rtfMax }
+            println()
+            println(
+                "timing (#148, successful attempts): $timed requests, " +
+                    "slowest ${maxReq / 1000.0} s, worst RTF %.2f".format(maxRtf)
+            )
+            println("RTF = request duration / audio duration (serial pipeline: the streaming budget)")
         }
         val totalFrags = byProvider.values.sumOf { it.fragments }
         val totalFailures = byProvider.values.sumOf { it.failures }

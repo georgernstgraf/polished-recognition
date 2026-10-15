@@ -70,6 +70,9 @@ class SessionBundleRoundTripTest {
         f1.sttTrimmed = "trimmed text"
         f1.echoTokens = 2
         f1.prompt = "the conditioning prompt"
+        f1.sttSentAt = 1_760_510_130_000L
+        f1.sttReceivedAt = 1_760_510_130_850L
+        f1.uploadBytes = 123_456L
         val f2 = bundle.fragment(2)
         f2.seamForced = true
         f2.sttError = "HTTP 401"
@@ -108,6 +111,14 @@ class SessionBundleRoundTripTest {
         assertThat(p1.quality?.get("centroidMs")).isEqualTo(512.5)
         assertThat(p1.echoTokens).isEqualTo(2)
         assertThat(p1.prompt).isEqualTo("the conditioning prompt")
+        // #148: per-request STT timing survives the round-trip
+        assertThat(p1.sttSentAt).isEqualTo(1_760_510_130_000L)
+        assertThat(p1.sttReceivedAt).isEqualTo(1_760_510_130_850L)
+        assertThat(p1.uploadBytes).isEqualTo(123_456L)
+        assertThat(BundleIo.requestMs(p1)).isEqualTo(850L)
+        // RTF vs the fragment's audio span (21_000..40_500 = 19_500 ms)
+        assertThat(BundleIo.realTimeFactor(p1)!!).isWithin(1e-9).of(850.0 / 19_500.0)
+        assertThat(BundleIo.requestMs(p0)).isNull() // no timing recorded
         val p2 = parsed.fragments[2]
         assertThat(p2.seamForced).isTrue()
         assertThat(p2.sttError).isEqualTo("HTTP 401")

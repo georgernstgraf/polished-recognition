@@ -75,6 +75,12 @@ class FragmentDto(
     val sttTrimmed: String? = null,
     val echoTokens: Int? = null,
     val prompt: String? = null,
+    /** #148: wall-clock (epoch ms) of the successful attempt's send. */
+    val sttSentAt: Long? = null,
+    /** #148: wall-clock (epoch ms) when the successful response arrived. */
+    val sttReceivedAt: Long? = null,
+    /** #148: the composed upload's size in bytes. */
+    val uploadBytes: Long? = null,
     val sttError: String? = null
 )
 
@@ -115,5 +121,24 @@ object BundleIo {
         val start = fragment.startMs ?: return null
         val end = fragment.endMs ?: return null
         return (end - start).coerceAtLeast(0)
+    }
+
+    /** #148: request duration in ms (successful attempt's wall-clock span), or null. */
+    fun requestMs(fragment: FragmentDto): Long? {
+        val sent = fragment.sttSentAt ?: return null
+        val received = fragment.sttReceivedAt ?: return null
+        return (received - sent).coerceAtLeast(0)
+    }
+
+    /**
+     * #148: the real-time factor of one fragment — request duration vs audio
+     * duration (`RTF < 1` means faster than realtime; the pipeline is serial,
+     * so this is the streaming budget). Null without timing or boundaries.
+     */
+    fun realTimeFactor(fragment: FragmentDto): Double? {
+        val req = requestMs(fragment)?.toDouble() ?: return null
+        val audio = durationMs(fragment)?.toDouble() ?: return null
+        if (audio <= 0.0) return null
+        return req / audio
     }
 }

@@ -388,6 +388,68 @@ class FragmentTranscriberTest {
     }
 
     @Test
+    fun `bundle records the successful attempt's timing and upload size`() = runBlocking {
+        // #148: per-request STT timing forensics — the bundle carries the
+        // wall-clock of the SUCCESSFUL attempt and the upload's byte size.
+        // The size is captured at composition time: a composed (pre-roll)
+        // upload is deleted in the finally-block BEFORE the outcome fold,
+        // so a length() read there would record 0.
+        val bundle = SessionBundle("test-session")
+        val timingTranscriber = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            bundle = bundle
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers { ok("text") }
+
+        timingTranscriber.start()
+        timingTranscriber.offer(fragment(0)) // bare upload
+        timingTranscriber.offer(fragment(1, preRollSeconds = 1)) // composed upload
+        timingTranscriber.drain()
+
+        val f0 = bundle.fragments[0]!!
+        assertThat(f0.uploadFile).isEqualTo("frag_000000.wav")
+        assertThat(f0.uploadBytes).isEqualTo(File(tmp.root, "frag_000000.wav").length())
+        assertThat(f0.sttSentAt).isNotNull()
+        assertThat(f0.sttReceivedAt).isNotNull()
+        assertThat(f0.sttReceivedAt!!).isAtLeast(f0.sttSentAt!!)
+        val f1 = bundle.fragments[1]!!
+        assertThat(f1.uploadFile).isEqualTo("upload_000001.wav")
+        // pre-roll + fragment: strictly bigger than the bare fragment file
+        assertThat(f1.uploadBytes!!).isGreaterThan(File(tmp.root, "frag_000001.wav").length())
+        assertThat(f1.sttSentAt).isNotNull()
+        assertThat(f1.sttReceivedAt).isNotNull()
+    }
+
+    @Test
+    fun `bundle failure record carries the upload size without timing`() = runBlocking {
+        // #148 minimal shape: the timing pair is the SUCCESSFUL attempt's —
+        // a failed fragment records what was sent (uploadBytes) and the
+        // error, but no sttSentAt/sttReceivedAt.
+        val bundle = SessionBundle("test-session")
+        val timingTranscriber = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            bundle = bundle
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns
+            Result.failure(SttRequestRunner.SttRequestException("HTTP 500", httpCode = 500))
+
+        timingTranscriber.start()
+        timingTranscriber.offer(fragment(0))
+        timingTranscriber.drain()
+
+        val f0 = bundle.fragments[0]!!
+        assertThat(f0.uploadFile).isEqualTo("frag_000000.wav")
+        assertThat(f0.uploadBytes).isEqualTo(File(tmp.root, "frag_000000.wav").length())
+        assertThat(f0.sttSentAt).isNull()
+        assertThat(f0.sttReceivedAt).isNull()
+        assertThat(f0.sttError).isEqualTo("HTTP 500")
+    }
+
+    @Test
     fun `missing pre-roll file uploads the bare fragment`() = runBlocking {
         val uploaded = mutableListOf<File>()
         coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {

@@ -323,15 +323,26 @@ class FragmentTranscriber(
         // afterwards. A 400 retry on the bare fragment would silently drop
         // the pre-roll and change the audio between attempts.
         val upload = composeUpload(fragment)
+        // the size is captured BEFORE the finally-delete — by the time the
+        // outcome fold runs, a composed upload is already gone (length() = 0)
+        val uploadBytes = upload.length()
+        // #148: wall-clock around EACH attempt — the pair that survives is
+        // the SUCCESSFUL attempt's (a 400-retry below resets both, so the
+        // failed attempt's latency never contaminates the recorded one).
+        // The bracket includes the runner's internal retry loop: it IS the
+        // request duration as the app saw it.
+        var sttSentAt: Long? = null
+        var sttReceivedAt: Long? = null
         val result = try {
             withContext(Dispatchers.IO) {
+                sttSentAt = System.currentTimeMillis()
                 sttRunner.run(
                     audioFile = upload,
                     config = config,
                     chunk = fragment.index + 1,
                     prompt = prompt
                 )
-            }.let { first ->
+            }.also { sttReceivedAt = System.currentTimeMillis() }.let { first ->
                 // A provider without prompt support rejects the field with 400:
                 // retry THIS fragment without it and skip prompts for the rest
                 // of the session (#117 graceful fallback).
@@ -340,12 +351,13 @@ class FragmentTranscriber(
                 ) {
                     promptDisabled = true
                     withContext(Dispatchers.IO) {
+                        sttSentAt = System.currentTimeMillis()
                         sttRunner.run(
                             audioFile = upload,
                             config = config,
                             chunk = fragment.index + 1
                         )
-                    }
+                    }.also { sttReceivedAt = System.currentTimeMillis() }
                 } else first
             }
         } finally {
@@ -380,12 +392,15 @@ class FragmentTranscriber(
                 bundle?.let { b ->
                     val f = b.fragment(fragment.index)
                     f.uploadFile = upload.name
+                    f.uploadBytes = uploadBytes
                     f.preRollMs = fragment.preRoll?.takeIf { it.isFile }
                         ?.let { AudioDuration.estimateMs(it) }
                     f.sttRaw = response.text
                     f.sttTrimmed = trim.response.text
                     f.echoTokens = trim.echoTokens
                     f.prompt = prompt
+                    f.sttSentAt = sttSentAt
+                    f.sttReceivedAt = sttReceivedAt
                     f.sttError = null
                 }
             },
@@ -396,6 +411,7 @@ class FragmentTranscriber(
                 bundle?.let { b ->
                     val f = b.fragment(fragment.index)
                     f.uploadFile = upload.name
+                    f.uploadBytes = uploadBytes
                     f.preRollMs = fragment.preRoll?.takeIf { it.isFile }
                         ?.let { AudioDuration.estimateMs(it) }
                     f.sttError = ex.message

@@ -16,10 +16,11 @@ import java.util.concurrent.ConcurrentSkipListMap
  *   `uploadFile` (what was REALLY uploaded, pre-roll included),
  *   `preRollMs`, `sttRaw` (the untrimmed Whisper response), `sttTrimmed`,
  *   `echoTokens` (what the trim removed), `prompt` (the conditioning text
- *   sent), `sttError` (when the fragment failed), and the START-seam
+ *   sent), `sttError` (when the fragment failed), the START-seam
  *   quality block `M`/`min`/`max`/`X`/`Q`/`centroidMs` + `stitched`/
  *   `seamForced` (the decision that governed THIS fragment's pre-roll,
- *   prompt and trim).
+ *   prompt and trim), and the #148 STT timing fields `sttSentAt`/
+ *   `sttReceivedAt` (wall-clock of the successful attempt) + `uploadBytes`.
  * - session level: `sessionId`, `startedAt`/`endedAt` (Wall-Clock),
  *   `provider` (STT + LLM base URL/model, `rawMode`, `compressAudio`),
  *   `llm` (system prompt, user prompt, response — or `rawMode: true` /
@@ -63,6 +64,21 @@ class SessionBundle(val sessionId: String) {
         var echoTokens: Int? = null,
         /** The Whisper conditioning prompt actually sent (null = none). */
         var prompt: String? = null,
+        /**
+         * #148: wall-clock (epoch ms) when the SUCCESSFUL attempt was sent.
+         * Brackets the whole runner call (its internal retry loop included) —
+         * the request duration as the app saw it. Null on legacy bundles and
+         * on fragments that never succeeded.
+         */
+        var sttSentAt: Long? = null,
+        /** #148: wall-clock (epoch ms) when the successful attempt's response arrived. */
+        var sttReceivedAt: Long? = null,
+        /**
+         * #148: the composed upload's size in bytes. Derivable from disk,
+         * but recorded so the bundle stays self-contained once `uploads/`
+         * ages out (retention eviction).
+         */
+        var uploadBytes: Long? = null,
         /** Final STT failure of this fragment (after the runner's retries). */
         var sttError: String? = null
     )
