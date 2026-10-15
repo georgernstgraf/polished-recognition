@@ -107,7 +107,7 @@ class SettingsStoreTest {
     @Test
     fun `retention default is honored until the user chooses`() {
         clearPrefs() // the migration tests persist 30 days — leak-safe reset
-        // the debug/harness build-type default (BuildConfig.AUDIO_EVIDENCE_
+        // the debug build-type default (BuildConfig.AUDIO_EVIDENCE_
         // RETENTION_DEFAULT_SECONDS): 30 days
         val store = SettingsStore(
             RuntimeEnvironment.getApplication(), directExecutor,

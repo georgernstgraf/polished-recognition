@@ -86,8 +86,8 @@ class FragmentTranscriber(
      * #122: when true, every fragment's transcript evidence is appended to
      * `stt-fragment.json` — index, words, chars, language, seam type, the
      * actual prompt text, echo-trim tokens and the seam-overlap metric. Off
-     * in production (the harness turns it on): the array is rewritten per
-     * fragment, which is cheap for a study but unnecessary for daily use.
+     * in production (the analyzer study turns it on): the array is rewritten
+     * per fragment, which is cheap for a study but unnecessary for daily use.
      */
     private val seamEvidence: Boolean = false,
     /**

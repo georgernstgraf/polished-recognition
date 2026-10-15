@@ -54,7 +54,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * ([seamStitchedAt]), and flows to the transcriber through
  * [Committed.stitched] and the commit hook — pre-roll, prompt and trim can
  * never disagree. The old cut-type rule survives verbatim inside
- * [SeamPolicy.FORCED_ONLY] as a frozen harness A/B arm (#129).
+ * [SeamPolicy.FORCED_ONLY] as a frozen study arm (#129).
  *
  * **Acoustic pre-roll (#117 round 2):** the text prompt conditions only the
  * decoder — it cannot add acoustic context, and a server-side VAD can trim
@@ -120,7 +120,7 @@ class FragmentPreparer(
      * (pre-roll composed + prompt sent + echo trim armed), decided per seam
      * by [seamStitchedAt]. [SeamPolicy.Q_GATE] is the production default
      * (stitch iff the seam's Q < [qualityMin]); ALL/FORCED_ONLY/OFF keep
-     * their exact pre-#128 semantics as frozen harness A/B arms (#129).
+     * their exact pre-#128 semantics as frozen study arms (#129).
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.ALL,
     /**
@@ -129,7 +129,7 @@ class FragmentPreparer(
      * #126:** the silence-quality metric ALWAYS finds a best-effort cut (the
      * quietest span frame is its built-in no-candidate path), so there is no
      * "hard cut at the nominal boundary" variant left to disable. The
-     * parameter stays accepted so the harness/controller call sites keep
+     * parameter stays accepted so the analyzer/controller call sites keep
      * compiling — its rework is #129's job; do not rewire its semantics.
      */
     private val energyFallbackEnabled: Boolean = true,
@@ -156,7 +156,7 @@ class FragmentPreparer(
     /**
      * #126: which part of the forward search window the metric measures —
      * the LATE half (production default, owner decision) or the full window
-     * (the #129 harness A/B arm).
+     * (the #129 study arm).
      */
     private val searchSpan: SearchSpan = DEFAULT_SEARCH_SPAN,
     /**
@@ -166,7 +166,7 @@ class FragmentPreparer(
      * ≈ the minimum pause duration in frames. **PROVISIONAL default**
      * ([DEFAULT_QUALITY_MIN]) — the #126 fixtures bracket it (solid pause
      * Q ≈ 40 → bare, whisper threading Q ≈ 2.3 → stitch); the #129
-     * research pass on real audio determines the real value. Harness-only
+     * research pass on real audio determines the real value. Study-only
      * knob — no Settings UI.
      */
     private val qualityMin: Double = DEFAULT_QUALITY_MIN,
@@ -291,7 +291,7 @@ class FragmentPreparer(
 
         /**
          * #126 provisional axis defaults — PLACEHOLDERS until the #129
-         * research pass on real audio picks the real values (harness knobs,
+         * research pass on real audio picks the real values (study knobs,
          * no Settings UI).
          */
         const val DEFAULT_AXIS_K = 0.65
@@ -301,7 +301,7 @@ class FragmentPreparer(
 
         /**
          * #128 provisional stitching-gate threshold — PLACEHOLDER until the
-         * #129 research pass on real audio picks the real value (harness
+         * #129 research pass on real audio picks the real value (study
          * knob, no Settings UI). The #126 fixtures bracket it: a solid
          * pause reads Q ≈ 40 (bare), the whisper-threading regime Q ≈ 2.3
          * (stitch).

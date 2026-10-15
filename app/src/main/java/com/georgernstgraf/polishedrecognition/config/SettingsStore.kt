@@ -135,7 +135,7 @@ class SettingsStore(
 
     /**
      * Derived master gate (the #127 contract, kept for the existing wiring —
-     * controller, transcriber, harness): evidence is collected exactly when
+     * controller, transcriber): evidence is collected exactly when
      * a retention horizon is set.
      */
     val audioEvidence: Boolean

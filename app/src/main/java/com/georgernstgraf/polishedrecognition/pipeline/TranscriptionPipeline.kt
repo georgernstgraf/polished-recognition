@@ -59,7 +59,8 @@ class TranscriptionPipeline(
      * session bundle) — invoked at the END of every [finishTranscription]
      * with the outcome (raw text + the LLM pass). The closure reads the
      * CURRENT session bundle, so per-session wiring is unnecessary. The
-     * theoretical multi-controller race (harness + IME controller on the
+     * theoretical multi-controller race (a study controller + the IME
+     * controller on the
      * SAME pipeline instance) cannot happen in practice: only one
      * PROCESSING session at a time.
      */

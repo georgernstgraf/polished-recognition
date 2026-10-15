@@ -3,9 +3,13 @@
 # Prune GitHub binary assets so only the newest KEEP remain.
 #
 #   - Actions workflow artifacts: keep newest KEEP PER artifact name
-#   - build-*/harness-* releases: keep newest KEEP EACH (delete release page AND git tag)
-#   - orphan build-*/harness-* git tags (page already gone): keep newest KEEP EACH
+#   - build-* releases: keep newest KEEP EACH (delete release page AND git tag)
+#   - orphan build-* git tags (page already gone): keep newest KEEP EACH
 #   - v* releases: NEVER pruned (F-Droid Binaries: per-version URLs + tags)
+#   - (harness-N tags/releases are NO LONGER created — the harness build type
+#     was removed in #147; existing harness-N releases/tags stay until pruned
+#     by hand or they age out of the history — deliberate, historical releases
+#     stay fetchable.)
 #
 # Requires GH_TOKEN with:
 #   contents:write  -> releases + git refs
@@ -48,44 +52,40 @@ gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
     fi
   done
 
-# --- 2. build-*/harness-* releases: keep newest KEEP each (page + tag) ------
-for prefix in build harness; do
-  log "${prefix}-* releases: keep newest $KEEP (page + tag)"
-  while IFS= read -r tag; do
-    [ -n "$tag" ] || continue
-    if dry; then
-      log "  [dry-run] delete release+tag $tag"
-    else
-      log "  delete release+tag $tag"
-      gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 \
-        || log "    (failed $tag)"
-    fi
-  done < <(
-    gh release list --limit 1000 --json tagName,createdAt \
-      --jq "sort_by(.createdAt) | reverse | .[] | select(.tagName | startswith(\"${prefix}-\")) | .tagName" \
-    | tail -n +$((KEEP + 1)) || true
-  )
-done
+# --- 2. build-* releases: keep newest KEEP each (page + tag) ----------------
+log "build-* releases: keep newest $KEEP (page + tag)"
+while IFS= read -r tag; do
+  [ -n "$tag" ] || continue
+  if dry; then
+    log "  [dry-run] delete release+tag $tag"
+  else
+    log "  delete release+tag $tag"
+    gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 \
+      || log "    (failed $tag)"
+  fi
+done < <(
+  gh release list --limit 1000 --json tagName,createdAt \
+    --jq 'sort_by(.createdAt) | reverse | .[] | select(.tagName | startswith("build-")) | .tagName' \
+  | tail -n +$((KEEP + 1)) || true
+)
 
-# --- 3. orphan build-*/harness-* git tags: keep newest KEEP numerically -----
-for prefix in build harness; do
-  log "${prefix}-* git tags: keep newest $KEEP (orphans included)"
-  while IFS= read -r tag; do
-    [ -n "$tag" ] || continue
-    if dry; then
-      log "  [dry-run] delete tag $tag"
-    else
-      log "  delete tag $tag"
-      gh api --method DELETE "repos/$REPO/git/refs/tags/$tag" >/dev/null 2>&1 \
-        || log "    (failed $tag)"
-    fi
-  done < <(
-    git ls-remote --tags "https://github.com/$REPO.git" 2>/dev/null \
-    | awk '{print $2}' | sed 's|refs/tags/||; s|\^{}||' \
-    | grep -E "^${prefix}-[0-9]+$" | sort -u \
-    | sort -t- -k2,2n | head -n "-$KEEP" || true
-  )
-done
+# --- 3. orphan build-* git tags: keep newest KEEP numerically ---------------
+log "build-* git tags: keep newest $KEEP (orphans included)"
+while IFS= read -r tag; do
+  [ -n "$tag" ] || continue
+  if dry; then
+    log "  [dry-run] delete tag $tag"
+  else
+    log "  delete tag $tag"
+    gh api --method DELETE "repos/$REPO/git/refs/tags/$tag" >/dev/null 2>&1 \
+      || log "    (failed $tag)"
+  fi
+done < <(
+  git ls-remote --tags "https://github.com/$REPO.git" 2>/dev/null \
+  | awk '{print $2}' | sed 's|refs/tags/||; s|\^{}||' \
+  | grep -E "^build-[0-9]+$" | sort -u \
+  | sort -t- -k2,2n | head -n "-$KEEP" || true
+)
 
 # --- 4. v* releases: NEVER pruned ------------------------------------------
 # fdroiddata's Binaries: URL is per-version

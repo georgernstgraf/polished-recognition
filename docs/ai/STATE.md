@@ -1,6 +1,17 @@
 # Project State
 
-Current status as of 2026-10-15: **#146 Phase 2 SHIPPED (commits `314e0b1` + `047f5bc`): the `:analyzer` CLI is live as the harness successor — corpus-first, compiles the REAL :core pipeline, Korpus #1 (seam-study-01) imported and clean-baseline-run. 523 tests green. Remaining in #146: push + (Phase 3) #147 harness removal; #129's real qualityMin still owner-gated (bist dictations).**
+Current status as of 2026-10-15: **#147 Phase 3 SHIPPED (harness build type REMOVED — app, CI workflow, cleanup symmetry, tooling docs, superseded Python study tooling; research runs live in `:analyzer`). 523 tests green. REMAINING: the OWNER's device return — install the release APK over the OnePlus harness build AND turn the #142 retention slider up himself (HARD prerequisite for the #129 natural-find track); #147 stays OPEN until then. #129's real qualityMin still owner-gated (bist dictations).**
+
+## #147 Phase 3 — what shipped (2026-10-15)
+
+- **`app/build.gradle.kts`:** the whole `create("harness")` build type deleted (incl. its doc comment + the 30-d retention buildConfigField); `debug` KEEPS its 30-d retention default (the owner's test path).
+- **Deleted:** `app/src/harness/` (AndroidManifest + HarnessActivity — WavPcm already in :core since Phase 1) and `.github/workflows/harness.yml` (it fired on every main push and produced dead `harness-N` releases).
+- **`scripts/cleanup-github-assets.sh`:** steps 2+3 back to `build`-only KEEP=7; header notes that `harness-N` releases/tags remain until pruned by hand or they age out (deliberate — historical releases stay fetchable).
+- **`tools/seam-study/`:** the superseded Python device-driven tooling DELETED (`analyze.py`, `merge_prepare.py`, `run_matrix.sh`, `run_prompt.sh`, `run_prompt2.sh`, `run_quality.sh` — ported into `:core` LoopMask + `:analyzer` analysis/`run`); KEPT: `corpus/` (build.sh + samples.json + REPORT.md — Korpus-1 provenance + the build blueprint), `testdata/quality-fixture/` (provenance; the analyzer's own copy in `analyzer/src/test/resources/` is self-sufficient for tests), `quality_subset.txt`, `results.csv`, `generate_corpus_manifest.py`, `pull_retained.sh` (still the SAMPLES.md workflow; the analyzer `pull` command writes into `corpora/<name>/bundles/`), `SAMPLES.md` (updated). README rewritten: research runs go through `:analyzer` (`run` corpus mode, `scan` bundle Q-scan, `pull` adb, `compare`/`report`).
+- **Comment-only cleanup:** harness wording reworded to "study/analyzer" semantics in PolishedRecognitionApp, VoiceSessionController, SettingsStore, TranscriptionPipeline, FragmentTranscriber, FragmentPreparer, SeamPolicy, SilenceQuality, WavPcm, SettingsStoreTest, analyzer/README + RunCommand — NO code changes.
+- **Verification:** 523 tests green (332 :app + 169 :core + 22 :analyzer — the harness variant contributed none), `assembleRelease` green, `grep -ri harness` clean outside historical records + the deliberate tag comment, `./gradlew tasks` lists no `installHarness`/`assembleHarness` variants.
+
+- **DEVICE RETURN (owner action, HARD prerequisite for #129):** the OnePlus (`f6de166c`, daily driver) STILL runs the CI harness APK (`harness-1`). The owner installs the release APK over it — `adb -s f6de166c install -r <release-apk>` (in place, same key, config preserved; download a CI build per the keyless-hosts rule) — AND turns the #142 retention slider up himself (release defaults to 0/off; the slider exists in every build). Until that happens there is NO retention on the daily driver. Only then: bist-class dictations → `analyzer pull` → `scan` Q-scan → Gegenprobe.
 
 ## #146 Phase 2 — what shipped (2026-10-15)
 
@@ -127,13 +138,14 @@ The adaptive search eliminates forced seams on Tier-1 classes; the energy fallba
 Epic #141 (forensisches Session-Bundle) is the active workstream. #143 (shadow/full-context removal) is DONE (`3c4f90a`, 475 tests green). Next: **#142** (uploads+session.json bundle + the 0–50-years Retention slider) then **#144** (PC analyzer — which becomes #129's offline analysis path: `pull_retained.sh` → bundles → gregor → diff; the old join-vs-shadow staged-run path is gone). #123 (loop guard) stays queued. **The fragment join is the ONLY delivery path (the #125 full-context reversal is now moot — the strategy is removed entirely).**
 
 ## Pending
-- [ ] **#138 send-check (owner)**: NOW UNBLOCKED — v1.4.1 on the A03, harness-1 on the OnePlus; send a dictation → text inserts → NO "Diktierung verworfen" toast, clipboard untouched.
-- [ ] **#129 FINAL (gated on owner dictations)**: bist-class dictations on either device → bundles land in `files/audio/` → analysis via #144's offline path (gregor comparison of the bundle uploads, loop-masked) → parameter proposal (adopt `axisK=0.75`; the REAL `qualityMin` from sick-seam data) → epic #130 close-out.
+- [ ] **#147 DEVICE RETURN (owner, HARD prerequisite for the #129 track)**: install the release APK over the OnePlus harness build — `adb -s f6de166c install -r <release-apk>` (in place, same key, config preserved; CI download per the keyless-hosts rule) — AND turn the #142 retention slider up on the OnePlus himself (release defaults to 0/off). Until then the daily driver has NO retention. #147 closes after this.
+- [ ] **#138 send-check (owner)**: NOW UNBLOCKED — v1.4.1 on the A03, harness-1 on the OnePlus (both carry the fix; the OnePlus returns to release with the #147 device return): send a dictation → text inserts → NO "Diktierung verworfen" toast, clipboard untouched.
+- [ ] **#129 FINAL (gated on owner dictations)**: after the device return — bist-class dictations on either device → bundles land in `files/audio/` → analysis via the analyzer path (`analyzer pull` → `scan` Q-scan → offline Gegenprobe, loop-masked) → parameter proposal (adopt `axisK=0.75`; the REAL `qualityMin` from sick-seam data) → epic #130 close-out.
 - [ ] **#142 on-device spot check (owner)**: after the bundle rework — `files/audio/<sessionId>/` shows ONLY `uploads/` + `session.json`; Retention slider visible with dynamic label; 0 = nothing retained.
 - [ ] **Owner dictation check (~25 s)** on the release build: `session.json` cadence (~10 s nominal, growth ≤ 2S) with REAL `stitched` values, stop→raw ≤ ~2.4 s worst case, Settings fragment field blank. NOTE: release builds still carry the PROVISIONAL defaults (0.65/100/10.0) until #129 concludes.
 - [ ] **#120 re-check (owner)**: > 5-min dictation on the release build → `stt-upload`/`stt-latency` every `durationMs ≤ 300_000`, no mid-text cut-off → then close #120.
 - [ ] **#123 loop guard** — filed with the #122 evidence; queued behind the seam work.
-- [ ] **#118 Phase B** (delivery policy), **#112/#113** owner items, **#116 Phase 2** remaining owner decisions (auto-size floor now 10 s; shadow diagnostic-only, now debug/harness-only), **#110**, **#101**, **#99/#101/#75**, **#74 marketing**, **#109** visual check.
+- [ ] **#118 Phase B** (delivery policy), **#112/#113** owner items, **#116 Phase 2** owner decisions residue (auto-size floor now 10 s; the rest resolved with the #143 shadow removal), **#110**, **#101**, **#99/#101/#75**, **#74 marketing**, **#109** visual check.
 - [ ] **F-Droid 1.5.0 pickup watch** (tag `v1.5.0` = 10500, pushed 2026-10-14; ~3–5 days after the tag — supersedes the 1.4.1 watch).
 
 ## Device Notes

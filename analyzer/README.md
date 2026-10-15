@@ -1,6 +1,6 @@
 # The `:analyzer` CLI — corpus-first analysis (#146)
 
-The harness's CODE lives on here, on the PC. `:analyzer` is a Kotlin-JVM CLI
+The study's CODE lives on here, on the PC. `:analyzer` is a Kotlin-JVM CLI
 that compiles the REAL production pipeline sources via `:core` (zero drift:
 `FragmentPreparer`, `FragmentTranscriber`, `SttRequestRunner`,
 `SessionBundle` are the same classes the device runs), plus the ported
@@ -8,9 +8,10 @@ analysis core of the #122/#129 seam study.
 
 The old `analyze.py` compatibility is STRUCK (owner decision, 2026-10-15):
 `:analyzer` defines its own canonical result format (below) once. The
-Python tools in `tools/seam-study/` remain for the historical record; the
-#122/#129 fixtures serve as regression tests of the ported logic
-(`FixtureRegressionTest` asserts every `analyze.py --selftest` value).
+Python study tooling was deleted in #147 (superseded); the #122/#129
+fixtures serve as regression tests of the ported logic
+(`FixtureRegressionTest` asserts every former `analyze.py --selftest`
+value).
 
 ## Build & run
 

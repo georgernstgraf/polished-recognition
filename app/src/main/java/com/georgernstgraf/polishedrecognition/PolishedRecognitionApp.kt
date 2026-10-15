@@ -129,7 +129,7 @@ class PolishedRecognitionApp : Application() {
      * on release devices). The forensic bundle is `uploads/` + `session.json`
      * (#142); the retention horizon is a USER setting (the 0→50-years log
      * slider, default `BuildConfig.AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS`:
-     * 0 in release — privacy —, 30 days in debug/harness). Age-based eviction
+     * 0 in release — privacy —, 30 days in debug). Age-based eviction
      * + the invisible storage safety valve live in the store.
      */
     val audioEvidenceStore by lazy {
@@ -181,7 +181,7 @@ class PolishedRecognitionApp : Application() {
             fragmentSizeProvider = { fragmentSizer.fragmentSeconds() },
             // #127: audio-evidence retention (Settings toggle; the default
             // comes from BuildConfig.AUDIO_EVIDENCE_DEFAULT — OFF in
-            // release, ON in debug/harness).
+            // release, ON in debug).
             audioEvidenceStore = audioEvidenceStore,
             audioEvidenceEnabled = { settingsStore.audioEvidence })
     }

@@ -19,8 +19,8 @@ never enters the repository; re-pull it from the device when needed.
   re-pull ever disagrees, the pull is broken, not the manifest.
 - The **same corpus lives on the Samsung A03** (`R7SRB06XF5K`) at
   `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/samples/`
-  (17 top-level entries, per-class subdirs) and keeps serving as the harness's
-  on-device input — do NOT delete or modify anything there.
+  (17 top-level entries, per-class subdirs) and stays as the on-device
+  re-pull source — do NOT delete or modify anything there.
 - Re-pull from the device (adb pull is BLOCKED on the app dir; `exec-out` tar
   is binary-safe, `adb shell` would mangle the stream):
 
@@ -49,5 +49,6 @@ Empty today — the installed release build on the Samsung predates #127, so
 The corpus currently LACKS samples of the **bist failure class** (#126):
 German word-final /st/ + pause at a fragment boundary ("bist", "ist", "lest"
 …). Before the final factorial sweep of #129, targeted owner dictations of
-that class must land in `samples/retained/` via the #127 retention (a
-debug/harness build with audio evidence ON) and join the measurement set.
+that class must land in `samples/retained/` via the #127 retention (any
+build with the retention slider turned up — it is a user setting since
+#142) and join the measurement set.

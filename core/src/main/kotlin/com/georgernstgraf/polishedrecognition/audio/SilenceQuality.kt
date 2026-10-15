@@ -244,7 +244,7 @@ object SilenceQuality {
 
 /**
  * Which part of the forward search window the #126 metric measures (#129
- * harness A/B arm; the owner decision for production is the late half).
+ * study arm; the owner decision for production is the late half).
  */
 enum class SearchSpan {
     /**

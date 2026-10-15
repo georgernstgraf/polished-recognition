@@ -1,16 +1,16 @@
 package com.georgernstgraf.polishedrecognition.audio
 
 /**
- * #122 harness-only lenient WAV parser. The app's [com.georgernstgraf
+ * Lenient WAV parser for non-recorder WAV material. The app's [com.georgernstgraf
  * .polishedrecognition.audio.WavReader] deliberately expects the recorder's
  * canonical 44-byte header; ffmpeg-produced corpus files carry extra chunks
- * (a `LIST`/`bext` before `data`), so the harness walks the RIFF chunk list
+ * (a `LIST`/`bext` before `data`), so this object walks the RIFF chunk list
  * instead. Accepts ONLY the mic format the pipeline assumes: 16 kHz, mono,
  * 16-bit PCM.
  */
-// #146: was `internal` in the single-module harness source set — :core is a
-// separate module now, and both :app's harness variant and :analyzer compile
-// against this object from their own modules.
+// #146: was `internal` in the app's single-module source set before :core was
+// extracted — :core is a separate module now, and the :analyzer corpus
+// pipeline compiles against this object from its own module.
 object WavPcm {
 
     fun extract(wav: ByteArray): ByteArray {

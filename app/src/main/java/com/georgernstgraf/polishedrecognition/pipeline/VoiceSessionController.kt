@@ -64,49 +64,53 @@ class VoiceSessionController(
      * [SeamPolicy.Q_GATE] (#128: stitch iff the seam's silence quality
      * `Q < fragmentQualityMin` — the cut is best-effort, the stitch is the
      * guarantee); ALL/FORCED_ONLY/OFF keep their exact pre-#128 semantics
-     * as frozen harness A/B arms (#129). The harness selects the arm per
-     * run.
+     * as frozen study arms (#129) — the `:analyzer run --policy` knob
+     * selects the arm per run.
      */
     private val seamPolicy: SeamPolicy = SeamPolicy.Q_GATE,
     /**
      * #124: pass-through of the preparer's quietest-frame forced-cut
      * fallback (see [FragmentPreparer.energyFallbackEnabled]). `true` in
-     * production (the frozen config); the harness A/Bs it via
-     * `--ez energyFallback`. **INERT since #126** — the silence-quality
-     * metric always finds a best-effort cut; kept accepted for harness
-     * stability (#129 reworks the knobs).
+     * production (the frozen config); the analyzer A/Bs it via its
+     * knob options. **INERT since #126** — the silence-quality
+     * metric always finds a best-effort cut; kept accepted for
+     * call-site stability (#129 reworks the knobs).
      */
     private val fragmentEnergyFallback: Boolean = true,
     /**
      * #126 silence-quality axis: the multiplicative term k in `X = k·M + c`
-     * (gain-invariant separation). Harness-only knob — no Settings UI.
+     * (gain-invariant separation). Study-only knob — no Settings UI
+     * (the `:analyzer` CLI drives it).
      * **PROVISIONAL default** ([FragmentPreparer.DEFAULT_AXIS_K]) — the
      * #129 research pass on real audio determines the real value.
      */
     private val fragmentAxisK: Double = FragmentPreparer.DEFAULT_AXIS_K,
     /**
      * #126 silence-quality axis: the absolute anchor c in `X = k·M + c`,
-     * 16-bit amplitude units (whisper/quiet-room). Harness-only knob — no
-     * Settings UI. **PROVISIONAL default** — #129 decides.
+     * 16-bit amplitude units (whisper/quiet-room). Study-only knob — no
+     * Settings UI (the `:analyzer` CLI drives it).
+     * **PROVISIONAL default** — #129 decides.
      */
     private val fragmentAxisC: Double = FragmentPreparer.DEFAULT_AXIS_C,
     /**
      * #126: the cut's minimum distance from the best candidate's over-axis
-     * edges, in milliseconds. Harness-only knob — no Settings UI.
+     * edges, in milliseconds. Study-only knob — no Settings UI
+     * (the `:analyzer` CLI drives it).
      * **PROVISIONAL default** — #129 decides.
      */
     private val fragmentMarginKMs: Int = FragmentPreparer.DEFAULT_MARGIN_K_MS,
     /**
      * #126: which part of the forward search window the silence-quality
      * metric measures — the LATE half (production default, owner decision)
-     * or the full window (the #129 harness A/B arm).
+     * or the full window (the #129 study arm).
      */
     private val fragmentSearchSpan: SearchSpan = FragmentPreparer.DEFAULT_SEARCH_SPAN,
     /**
      * #128 stitching gate: the minimum silence quality a seam must reach to
      * stay BARE (no pre-roll/prompt/trim) under [SeamPolicy.Q_GATE] —
-     * stitch iff `Q < fragmentQualityMin`. Harness-only knob — no Settings
-     * UI. **PROVISIONAL default** ([FragmentPreparer.DEFAULT_QUALITY_MIN])
+     * stitch iff `Q < fragmentQualityMin`. Study-only knob — no Settings
+     * UI (the `:analyzer` CLI drives it). **PROVISIONAL default**
+     * ([FragmentPreparer.DEFAULT_QUALITY_MIN])
      * — the #129 research pass on real audio determines the real value.
      */
     private val fragmentQualityMin: Double = FragmentPreparer.DEFAULT_QUALITY_MIN,
@@ -118,7 +122,7 @@ class VoiceSessionController(
     private val promptMaxChars: Int = FragmentTranscriber.DEFAULT_PROMPT_MAX_CHARS,
     /**
      * #122: turn on the per-fragment `stt-fragment.json` seam evidence. Off
-     * in production; the study harness builds its own controller with it on.
+     * in production; the analyzer study builds its own controller with it on.
      */
     private val seamEvidence: Boolean = false,
     /**
@@ -431,9 +435,10 @@ class VoiceSessionController(
      * window GROWS with the fragment size, `max(fragmentSearchBytes,
      * resolvedFragmentBytes())` — a fragment then spans `[S, 2S]` and the
      * silence scan sees a full fragment's worth of audio past the nominal
-     * boundary. Without a provider (tests, the harness — explicit injected
-     * values) the constructor value keeps its exact semantics; an explicitly
-     * injected 0 stays the legacy fixed-offset cut. Invariant: `2S ≤
+     * boundary. Without a provider (tests, the analyzer study — explicit
+     * injected values) the constructor value keeps its exact semantics; an
+     * explicitly injected 0 stays the legacy fixed-offset cut. Invariant:
+     * `2S ≤
      * chunkMaxSeconds` holds by construction — the sizer clamps S to
      * [SttLatencyProfile.MAX_FRAGMENT_SECONDS] (60 s) and the chunk cap is
      * 300 s (#120).

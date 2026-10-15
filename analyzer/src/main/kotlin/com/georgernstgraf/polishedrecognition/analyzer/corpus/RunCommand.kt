@@ -33,7 +33,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 /**
- * `run` — corpus mode (#146): the ex-HarnessActivity capability on the PC.
+ * `run` — corpus mode (#146): the PC-side corpus runner (successor of the
+ * on-device study activity retired with the #147 build-type removal).
  * For every corpus WAV: `WavPcm` → file-backed [PcmSource] → the REAL
  * [FragmentPreparer] (pinned knobs, defaulting to the frozen production
  * config) → the REAL [FragmentTranscriber] (prompt carry, trim, stitch

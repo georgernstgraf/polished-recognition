@@ -14,8 +14,9 @@ package com.georgernstgraf.polishedrecognition.audio
  * perfect.
  *
  * [ALL] / [FORCED_ONLY] / [OFF] keep their exact pre-#128 semantics as
- * frozen harness A/B arms for the #129 research pass — production never
- * selects them (the controller default is [Q_GATE]).
+ * frozen study arms for the #129 research pass — production never
+ * selects them (the controller default is [Q_GATE]); the `:analyzer`
+ * CLI can select them per run.
  */
 enum class SeamPolicy {
     /** Apply the pre-roll + prompt to EVERY seam (the pre-#122 behaviour). */

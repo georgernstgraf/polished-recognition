@@ -108,8 +108,8 @@ android {
 
         // #142: the audio-evidence RETENTION DEFAULT (seconds; 0 = no
         // retention — dictated audio stays off the disk in release). The
-        // owner's test builds default to 30 days (overridden below), and
-        // the user can slide 0 → 50 years in Settings at any time.
+        // owner's test build (debug) defaults to 30 days (overridden below),
+        // and the user can slide 0 → 50 years in Settings at any time.
         buildConfigField("long", "AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS", "0L")
 
         // #142: the log streams are LIVE DEBUGGING only now — the forensic
@@ -149,25 +149,8 @@ android {
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
-            // #142: the owner's test builds default to 30 days of evidence.
-            buildConfigField("long", "AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS", "2592000L")
-        }
-        /**
-         * #122 seam-study harness — NEVER shipped: F-Droid/Play/CI build only
-         * `release`, and this variant's manifest/service set exists only under
-         * `src/harness/`. It reuses release's applicationId + signing key so it
-         * installs in place over the release app and shares the device's
-         * provider config. Build/install with `./gradlew installHarness`.
-         */
-        create("harness") {
-            initWith(getByName("release"))
-            isMinifyEnabled = false
-            isDebuggable = true
-            if (releaseKeystore.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
-            // #127: evidence retention defaults ON in the harness.
-            // #142: the harness defaults to 30 days of evidence too.
+            // #142: the owner's test build (debug) defaults to 30 days of
+            // evidence.
             buildConfigField("long", "AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS", "2592000L")
         }
     }
