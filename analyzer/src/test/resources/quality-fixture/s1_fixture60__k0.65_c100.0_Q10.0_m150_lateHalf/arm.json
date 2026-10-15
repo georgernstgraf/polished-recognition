@@ -1,0 +1,19 @@
+{
+  "arm": "s1_fixture60__k0.65_c100.0_Q10.0_m150_lateHalf",
+  "stage": 1,
+  "swept": "axisK",
+  "level": "0.65",
+  "sample": "fixture_class/fixture_class_60s.wav",
+  "class": "fixture_class",
+  "axisK": 0.65,
+  "axisC": 100.0,
+  "qualityMin": 10.0,
+  "marginKMs": 150,
+  "searchSpan": "lateHalf",
+  "policy": "qgate",
+  "fragmentSeconds": 10,
+  "searchSeconds": 10,
+  "preRollSeconds": 1,
+  "promptChars": 96,
+  "format": "wav"
+}

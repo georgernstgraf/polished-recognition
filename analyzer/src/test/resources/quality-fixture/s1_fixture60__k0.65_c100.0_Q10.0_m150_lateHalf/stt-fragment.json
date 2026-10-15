@@ -1,0 +1,50 @@
+[
+  {
+    "fragment": 0,
+    "pcmBytes": 320000,
+    "words": 6,
+    "chars": 28,
+    "language": "de",
+    "languageProbability": 0.99,
+    "seamForced": false,
+    "uploadWithPreRoll": false,
+    "promptChars": 0,
+    "prompt": null,
+    "echoTokens": 0,
+    "seamOverlapTokens": 0,
+    "seamOverlapText": null,
+    "text": "Hallo Welt ich hab fieber und"
+  },
+  {
+    "fragment": 1,
+    "pcmBytes": 352000,
+    "words": 7,
+    "chars": 43,
+    "language": "de",
+    "languageProbability": 0.98,
+    "seamForced": false,
+    "uploadWithPreRoll": true,
+    "promptChars": 28,
+    "prompt": "Hallo Welt ich hab fieber und",
+    "echoTokens": 0,
+    "seamOverlapTokens": 2,
+    "seamOverlapText": "fieber und",
+    "text": "fieber und schnupfen und das ist schlecht."
+  },
+  {
+    "fragment": 2,
+    "pcmBytes": 288000,
+    "words": 5,
+    "chars": 25,
+    "language": "de",
+    "languageProbability": 0.99,
+    "seamForced": false,
+    "uploadWithPreRoll": true,
+    "promptChars": 43,
+    "prompt": "fieber und schnupfen und das ist schlecht.",
+    "echoTokens": 2,
+    "seamOverlapTokens": 0,
+    "seamOverlapText": null,
+    "text": "morgen geht es mir besser"
+  }
+]

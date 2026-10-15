@@ -21,6 +21,12 @@ SCRATCH.md
 /tmp/
 /samples/corpus/
 /samples/results/
+# #146 corpus-first convention: the corpus MATERIAL (WAVs) + device bundles
+# + analyzer results are local; the manifest.json is committed as
+# documentation-by-example (no secrets).
+/corpora/*/wavs/
+/corpora/*/bundles/
+/corpora/*/results/
 /samples/retained/*
 !/samples/retained/.gitkeep
 /tools/testcaller/build/

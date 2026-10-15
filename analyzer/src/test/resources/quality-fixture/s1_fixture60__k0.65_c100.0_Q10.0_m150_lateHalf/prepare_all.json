@@ -1,0 +1,37 @@
+[
+  {
+    "fragment": 0,
+    "bytes": 320000,
+    "pcmEnd": 320000,
+    "encodeMs": 12,
+    "mode": "wav",
+    "M": 5312.4,
+    "min": 120.5,
+    "max": 18110.2,
+    "X": 3553.1,
+    "Q": 2.0,
+    "centroidMs": 512.5,
+    "stitched": true
+  },
+  {
+    "fragment": 1,
+    "bytes": 352000,
+    "pcmEnd": 672000,
+    "encodeMs": 11,
+    "mode": "wav",
+    "M": 4890.0,
+    "min": 210.0,
+    "max": 16002.0,
+    "X": 3185.0,
+    "Q": 40.0,
+    "centroidMs": 1400.0,
+    "stitched": false
+  },
+  {
+    "fragment": 2,
+    "bytes": 288000,
+    "pcmEnd": 960000,
+    "encodeMs": 9,
+    "mode": "wav"
+  }
+]
