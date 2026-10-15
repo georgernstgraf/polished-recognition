@@ -27,6 +27,7 @@ SCRATCH.md
 /corpora/*/wavs/
 /corpora/*/bundles/
 /corpora/*/results/
+/corpora/*/raw/
 /samples/retained/*
 !/samples/retained/.gitkeep
 /tools/testcaller/build/
