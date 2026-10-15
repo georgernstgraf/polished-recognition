@@ -16,9 +16,9 @@ value).
 ## Build & run
 
 ```bash
-./gradlew :analyzer:installDist           # build/analyzer/install/analyzer/bin/analyzer
+./gradlew :analyzer:installDist           # analyzer/build/install/analyzer/bin/analyzer
 ./gradlew :analyzer:test                  # the suite (incl. the fixture regression)
-build/analyzer/install/analyzer/bin/analyzer <command> [options]
+analyzer/build/install/analyzer/bin/analyzer <command> [options]
 ```
 
 ## Corpus convention (binding, owner decision 2)
