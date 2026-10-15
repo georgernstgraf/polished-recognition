@@ -187,6 +187,41 @@ listings are `\r`-stripped; every adb call redirects stdin from
 `/dev/null`; the serial is pinned (`-s`, two devices usually attached:
 `f6de166c` = OnePlus 7T, `R7SRB06XF5K` = A03).
 
+### `reconstruct` — bundles → session WAVs (#149)
+
+```bash
+analyzer reconstruct --corpus <name> [--session ID-SUBSTR] [--dry-run]
+```
+
+Rebuilds a **continuous session WAV** from every post-#142 bundle
+(`uploads/` + `session.json` — the bundles have no `session.wav`), so the
+daily driver's real dictations become corpus material for the #129
+fragment-size sweep and future sizing studies:
+
+- Tiling: fragments in index order; every composed `upload_*` carries the
+  pre-roll in its head — cut `preRollMs` so the piece aligns with the
+  PCM-derived `startMs`/`endMs` boundaries. A bare `frag_*` upload
+  (degraded composition) is copied whole — it does NOT carry the head even
+  though `preRollMs` is recorded.
+- Format detection is **per fragment** from the `uploadFile` extension —
+  never from `provider.compressAudio` (a session-start snapshot that is
+  legitimately wrong in the two designed mixed-bundle cases: the OGG→WAV
+  transcoder-fallback rebuild, and process-death recovery across a
+  settings flip). WAV pieces cut pure-Kotlin (:core WavReader/WavWriter);
+  OGG pieces decode via host **ffmpeg** (documented host dependency).
+- **Strict gate (owner decision):** a bundle whose audio is incomplete —
+  `sttError`, missing upload file, gap/overlap, or a piece deviating more
+  than ±3 ms from its boundary span — is **discarded whole**. No splicing,
+  no silence-fill; corpus material is never silently glued.
+- Output: `wavs/<sessionId>.wav` (16 kHz mono s16le) + a manifest entry
+  (class `reconstructed`, sha256, seconds — idempotent per path), so
+  `analyzer run` consumes it like any corpus WAV. `--dry-run` validates
+  and reports without writing.
+- Privacy: reconstructions land under `corpora/` — LOCAL-ONLY, never
+  committed.
+
+Typical pipeline: `pull` → `reconstruct` → `run` (the fragment-size sweep).
+
 ## The loop-mask port (the analysis heart)
 
 - **`:core` `pipeline/LoopMask`** — `loop_spans`/`compress_loops`, verbatim
