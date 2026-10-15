@@ -63,21 +63,15 @@ class TranscriptionPipeline(
      * SAME pipeline instance) cannot happen in practice: only one
      * PROCESSING session at a time.
      */
-    var onOutcome: ((PipelineOutcome) -> Unit)? = null
-
     /**
      * #142: what the pipeline DID with the session's raw input — the raw
      * transcript, whether polish ran, and the full LLM pass (prompts +
      * response, or the error). The forensic record consumes it.
+     * #146: extracted to its own top-level file in :core so [SessionBundle]
+     * can reference it without dragging :app's pipeline wiring along;
+     * same package, type unchanged.
      */
-    data class PipelineOutcome(
-        val rawText: String,
-        val rawMode: Boolean,
-        val systemPrompt: String? = null,
-        val userPrompt: String? = null,
-        val llmResponse: String? = null,
-        val llmError: String? = null
-    )
+    var onOutcome: ((PipelineOutcome) -> Unit)? = null
 
     /**
      * The post-STT half of [transcribe], exposed for the live fragment

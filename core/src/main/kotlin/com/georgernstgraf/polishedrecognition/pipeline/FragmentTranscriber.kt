@@ -1,8 +1,8 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
-import android.util.Log
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioDuration
+import com.georgernstgraf.polishedrecognition.audio.SeamOverlap
 import com.georgernstgraf.polishedrecognition.audio.WavAssembler
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.gson.Gson
@@ -453,7 +453,7 @@ class FragmentTranscriber(
         val copied = withContext(Dispatchers.IO) {
             store.retainFile(sessionId, upload, "uploads/${upload.name}")
         }
-        if (!copied) Log.w(TAG, "audio evidence: upload copy failed (${upload.name})")
+        if (!copied) CoreLog.w(TAG, "audio evidence: upload copy failed (${upload.name})")
     }
 
     /**

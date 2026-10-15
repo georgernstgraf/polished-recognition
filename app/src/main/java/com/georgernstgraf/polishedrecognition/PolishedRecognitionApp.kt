@@ -3,6 +3,7 @@ package com.georgernstgraf.polishedrecognition
 import android.app.Application
 import android.content.Intent
 import android.os.Process
+import android.util.Log
 import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
@@ -10,6 +11,8 @@ import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.AudioEvidenceStore
+import com.georgernstgraf.polishedrecognition.pipeline.CoreLog
+import com.georgernstgraf.polishedrecognition.pipeline.CoreOs
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
@@ -29,6 +32,33 @@ class PolishedRecognitionApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // #146: :core no longer imports android.util.Log directly — route its
+        // output through the same android.util.Log (identical tags/priorities)
+        // so behavior is unchanged. Must happen before any pipeline code logs.
+        CoreLog.install(object : CoreLog.Backend {
+            override fun d(tag: String, message: String) {
+                Log.d(tag, message)
+            }
+
+            override fun i(tag: String, message: String) {
+                Log.i(tag, message)
+            }
+
+            override fun w(tag: String, message: String) {
+                Log.w(tag, message)
+            }
+
+            override fun e(tag: String, message: String, throwable: Throwable?) {
+                if (throwable != null) Log.e(tag, message, throwable) else Log.e(tag, message)
+            }
+        })
+        // #146: :core worker threads get their os-level priority through the
+        // CoreOs hook — same call FragmentPreparer made inline before the move.
+        CoreOs.install(object : CoreOs.Backend {
+            override fun setThreadPriority(priority: Int) {
+                android.os.Process.setThreadPriority(priority)
+            }
+        })
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             val type = throwable.javaClass.name
             val message = throwable.message ?: ""

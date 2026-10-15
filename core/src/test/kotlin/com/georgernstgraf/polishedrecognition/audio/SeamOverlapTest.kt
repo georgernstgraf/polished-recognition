@@ -1,4 +1,4 @@
-package com.georgernstgraf.polishedrecognition.pipeline
+package com.georgernstgraf.polishedrecognition.audio
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test

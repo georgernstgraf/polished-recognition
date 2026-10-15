@@ -47,7 +47,7 @@ class SessionBundleTest {
     fun `recordOutcome fills the llm block and stashes the raw text transiently`() {
         val bundle = SessionBundle("testsess")
         bundle.recordOutcome(
-            TranscriptionPipeline.PipelineOutcome(
+            PipelineOutcome(
                 rawText = "raw transcript",
                 rawMode = false,
                 systemPrompt = "system",
@@ -72,7 +72,7 @@ class SessionBundleTest {
     fun `llm error reaches the llm block`() {
         val bundle = SessionBundle("testsess")
         bundle.recordOutcome(
-            TranscriptionPipeline.PipelineOutcome(
+            PipelineOutcome(
                 rawText = "raw",
                 rawMode = false,
                 llmError = "LLM post-processing failed: HTTP 500"
@@ -86,7 +86,7 @@ class SessionBundleTest {
     fun `the transient outcome never leaks into the JSON`() {
         val bundle = SessionBundle("testsess")
         bundle.recordOutcome(
-            TranscriptionPipeline.PipelineOutcome(rawText = "raw transcript", rawMode = true)
+            PipelineOutcome(rawText = "raw transcript", rawMode = true)
         )
         bundle.fragment(0).let { f ->
             f.startMs = 0L

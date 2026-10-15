@@ -819,7 +819,8 @@ class VoiceSessionController(
                         // #142: the session failed at STT — record the partial
                         // join as the raw text (the LLM pass never ran)
                         sessionBundle?.recordOutcome(
-                            TranscriptionPipeline.PipelineOutcome(rawText = drained.text, rawMode = settings.rawMode)
+                            // #146: PipelineOutcome is a top-level class in :core now.
+                            PipelineOutcome(rawText = drained.text, rawMode = settings.rawMode)
                         )
                         return Result.failure(Exception("$where: ${failure.message}"))
                     }

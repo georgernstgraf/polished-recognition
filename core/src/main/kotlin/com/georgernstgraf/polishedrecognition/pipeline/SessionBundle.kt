@@ -110,7 +110,8 @@ class SessionBundle(val sessionId: String) {
      * compose the `result` record with the raw text when it finalizes.
      */
     @Transient
-    internal var pipelineOutcome: TranscriptionPipeline.PipelineOutcome? = null
+    var pipelineOutcome: PipelineOutcome? = null
+        private set
 
     /**
      * #142: consumes the pipeline's outcome — the LLM block and the raw text
@@ -118,7 +119,7 @@ class SessionBundle(val sessionId: String) {
      * by the controller) or directly for the fragment-failure path (which
      * returns before the LLM pass ever runs).
      */
-    fun recordOutcome(outcome: TranscriptionPipeline.PipelineOutcome) {
+    fun recordOutcome(outcome: PipelineOutcome) {
         pipelineOutcome = outcome
         llm = LlmPass(
             rawMode = outcome.rawMode,

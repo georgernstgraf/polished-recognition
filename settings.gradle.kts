@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "polished-recognition"
 include(":app")
+include(":core")
+include(":analyzer")

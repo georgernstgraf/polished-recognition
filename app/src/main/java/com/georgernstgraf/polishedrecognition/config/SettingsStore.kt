@@ -7,14 +7,6 @@ import com.google.gson.reflect.TypeToken
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
-data class SttProviderConfig(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val displayName: String,
-    val baseUrl: String,
-    val apiToken: String,
-    val model: String
-)
-
 data class LlmProviderConfig(
     val id: String = java.util.UUID.randomUUID().toString(),
     val displayName: String,

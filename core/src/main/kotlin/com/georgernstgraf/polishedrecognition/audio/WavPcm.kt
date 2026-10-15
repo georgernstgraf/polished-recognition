@@ -1,4 +1,4 @@
-package com.georgernstgraf.polishedrecognition.harness
+package com.georgernstgraf.polishedrecognition.audio
 
 /**
  * #122 harness-only lenient WAV parser. The app's [com.georgernstgraf
@@ -8,7 +8,10 @@ package com.georgernstgraf.polishedrecognition.harness
  * instead. Accepts ONLY the mic format the pipeline assumes: 16 kHz, mono,
  * 16-bit PCM.
  */
-internal object WavPcm {
+// #146: was `internal` in the single-module harness source set — :core is a
+// separate module now, and both :app's harness variant and :analyzer compile
+// against this object from their own modules.
+object WavPcm {
 
     fun extract(wav: ByteArray): ByteArray {
         require(wav.size >= 12) { "WAV too short (${wav.size} B)" }

@@ -9,6 +9,7 @@ import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.SearchSpan
 import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
+import com.georgernstgraf.polishedrecognition.audio.WavPcm
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.google.gson.GsonBuilder
 import java.io.File

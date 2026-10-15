@@ -1,4 +1,4 @@
-package com.georgernstgraf.polishedrecognition.pipeline
+package com.georgernstgraf.polishedrecognition.audio
 
 /**
  * Seam overlap detection (#122): how much of a fragment's transcript head

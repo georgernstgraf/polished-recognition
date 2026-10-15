@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.audio
 
+import com.georgernstgraf.polishedrecognition.pipeline.CoreOs
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SessionBundle
 import com.google.gson.Gson
@@ -384,9 +385,11 @@ class FragmentPreparer(
         running = true
         workerThread = Thread {
             try {
-                android.os.Process.setThreadPriority(
-                    android.os.Process.THREAD_PRIORITY_BACKGROUND
-                )
+                // #146: was the platform Process.setThreadPriority(...) call
+                // inline — routed through the CoreOs hook (identical on
+                // device; no-op in :core/:analyzer). The platform Process
+                // backend installed at app start performs the real call.
+                CoreOs.setThreadPriority(CoreOs.THREAD_PRIORITY_BACKGROUND)
             } catch (_: Throwable) {
             }
             while (running) {
