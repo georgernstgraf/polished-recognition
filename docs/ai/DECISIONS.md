@@ -3,6 +3,13 @@
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-10-19: #151 release 1.5.1 — patch bump carrying #148 + the save-path robustness fix; #150 NOT shipped
+- **Scope decision (owner):** 1.5.1 = #148 (STT timing reaches devices, HANDOFF-announced as "next release build") + the save-path robustness fix; everything else since v1.5.0 rides along unchanged (:analyzer CLI, harness removal, :core extraction). A PATCH, not a minor bump — no user-visible feature was added on the app side.
+- **#150 is NOT a blocker for the release** (owner's instruction when choosing "triage #150 first"): triaged, not reproducible on OxygenOS, left OPEN pending the reporter.
+- **Save-path robustness (the #150 finding that DID warrant code):** `saveAndClose()` had seven silent early returns; the offending field can be off-screen (per-app wrap width at the bottom of the list), so "Save and Back does nothing" was a plausible UI reading. Owner decision: every abort names the failed check in a TOAST as well as the red field error, and appends a `settings-save-aborted` record to `logs/settings.json` (the adb-readable rotating log via `RotatingJsonLogger`, base name `settings`) plus one logcat line. Rationale: the next bug report of this class self-diagnoses without a round-trip.
+- **Provider-write ordering is a diagnostic FACT, not a design goal:** the provider config is written BEFORE the `wrap-width`/`fragment-seconds` checks but AFTER all provider checks — so "config empty after restart" can only mean an EARLY abort (or lost prefs), never a late one. Recorded so future triage does not re-derive it.
+- **The toast carries the check key** (`R.string.settings_save_blocked`, `%1$s` = key like `stt-model-not-in-list`) — deliberately technical: it is what a reporter quotes back, and the log line uses the same string.
+
 ## 2026-10-15: #148 — per-request STT timing in the bundle: the SUCCESSFUL attempt's wall-clock only
 - **Fields:** `FragmentRecord.sttSentAt` / `sttReceivedAt` (epoch ms wall-clock bracketing the whole `SttRequestRunner.run` call — its internal retry loop included, i.e. the request duration as the app saw it) + `uploadBytes` (the composed upload's size, so the bundle stays self-contained once `uploads/` ages out under retention eviction).
 - **Minimal shape (per the issue):** the failure branch records `uploadBytes` + `sttError` but NO timing — the RTF metric only makes sense for successes; per-retry timestamps are explicitly deferred ("retry counts optional later").
