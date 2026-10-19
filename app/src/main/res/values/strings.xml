@@ -52,6 +52,7 @@
     <string name="restore_defaults">Restore all prompts to default</string>
     <string name="save">\u2190 save / back</string>
     <string name="saved">Settings saved</string>
+    <string name="settings_save_blocked">Not saved — fix the highlighted field (%1$s). It may be further down the screen.</string>
     <string name="token_valid">Token valid</string>
     <string name="token_invalid">Invalid token or no access</string>
     <string name="no_models_endpoint">Provider does not support model listing — enter model name manually</string>

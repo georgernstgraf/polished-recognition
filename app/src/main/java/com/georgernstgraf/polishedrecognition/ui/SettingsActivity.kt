@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.os.Process
 import android.provider.Settings
 import android.text.Editable
 import android.text.Html
@@ -35,6 +36,7 @@ import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
+import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1002,7 +1004,7 @@ class SettingsActivity : Activity() {
 
     private fun saveAndClose() {
         // Validate the per-app field before any settings are mutated (#100).
-        if (!commitAppWrapField()) return
+        if (!commitAppWrapField()) return saveAborted("app-wrap-width")
         val sttName = sttProviderDropdown.text.toString()
         val llmName = llmProviderDropdown.text.toString()
         val sttBaseUrl = sttUrlField.text.toString()
@@ -1012,22 +1014,22 @@ class SettingsActivity : Activity() {
 
         if (sttModel.isEmpty()) {
             sttModelDropdown.error = getString(R.string.select_or_enter_model)
-            return
+            return saveAborted("stt-model-empty")
         }
         val sttModels = settings.getSttModels(sttBaseUrl)
         if (sttModels.isNotEmpty() && sttModel !in sttModels) {
             sttModelDropdown.error = getString(R.string.select_model_from_list)
-            return
+            return saveAborted("stt-model-not-in-list")
         }
 
         if (llmModel.isEmpty()) {
             llmModelDropdown.error = getString(R.string.select_or_enter_model)
-            return
+            return saveAborted("llm-model-empty")
         }
         val llmModels = settings.getLlmModels(llmBaseUrl)
         if (llmModels.isNotEmpty() && llmModel !in llmModels) {
             llmModelDropdown.error = getString(R.string.select_model_from_list)
-            return
+            return saveAborted("llm-model-not-in-list")
         }
 
         settings.sttProvider = SttProviderConfig(
@@ -1052,7 +1054,7 @@ class SettingsActivity : Activity() {
         val wrapWidth = parseWrapWidth()
         if (wrapWidth == null) {
             wrapWidthField.error = getString(R.string.wrap_width_error)
-            return
+            return saveAborted("wrap-width")
         }
         settings.wrapWidth = wrapWidth
         // Fragment-size override (#116 Phase 2): blank = auto, else 10–60 s (#122).
@@ -1063,7 +1065,7 @@ class SettingsActivity : Activity() {
                 fragmentOverride > com.georgernstgraf.polishedrecognition.config.SttLatencyProfile.MAX_FRAGMENT_SECONDS)
         ) {
             fragmentSecondsField.error = getString(R.string.fragment_seconds_error)
-            return
+            return saveAborted("fragment-seconds")
         }
         settings.fragmentSecondsOverride = fragmentOverride
         settings.saveKnownAppWidths(appWrapWidths.toMap())
@@ -1079,5 +1081,26 @@ class SettingsActivity : Activity() {
 
         Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
         finish()
+    }
+
+    /**
+     * A save attempt that stops at a validation check must never look like
+     * "nothing happened" (#150): the offending field can sit off-screen (the
+     * per-app wrap width at the bottom of the list), so the red field error
+     * alone is missable and a user report degenerates into "Save and Back does
+     * nothing". Name the failed check in a toast, in logcat and in the
+     * adb-readable rotating log, then leave the screen open.
+     */
+    private fun saveAborted(check: String): Unit {
+        Toast.makeText(this, getString(R.string.settings_save_blocked, check), Toast.LENGTH_LONG).show()
+        runCatching {
+            val line = """{"ts":${System.currentTimeMillis()},"pid":${Process.myPid()},"event":"settings-save-aborted","check":"$check"}"""
+            app.jsonLogger.log("settings", line)
+        }.onFailure { android.util.Log.w(TAG, "settings-save log failed for $check", it) }
+        android.util.Log.w(TAG, "settings-save-aborted check=$check")
+    }
+
+    companion object {
+        private const val TAG = "SettingsActivity"
     }
 }
