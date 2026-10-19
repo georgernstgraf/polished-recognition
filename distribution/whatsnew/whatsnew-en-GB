@@ -1,1 +1,2 @@
-• New diagnostics setting: keep session audio for diagnostics on your own device — pick a retention time from off (nothing is written) up to 50 years; when storage runs low, the oldest sessions are evicted automatically. Retained sessions store the actually-uploaded audio plus a complete session.json manifest with timestamps, transcripts and the delivery outcome.
+• Settings now tell you when a save is blocked: instead of closing silently, "Save and Back" names the field that needs fixing — previously an invalid value further down the screen (e.g. per-app line wrapping) looked like the screen did nothing.
+• Diagnostics: retained sessions record the request start and response time of every transcription, so slow providers become visible in the session manifest.
