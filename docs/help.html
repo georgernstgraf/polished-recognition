@@ -250,10 +250,6 @@
     <div class="demo">
         <div class="ime" id="ime">
             <div class="ime-row top">
-                <button class="key top" data-btn="switch" aria-label="Switch keyboard">
-                    <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zM11 8h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
-                    <span class="lab">Keyboard</span>
-                </button>
                 <button class="key top" data-btn="settings" aria-label="Settings">
                     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.74 8.87a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.61.22l2.39-.96c.5.39 1.04.7 1.62.94l.36 2.54c.05.24.25.42.5.42h3.84c.25 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.62-.94l2.39.96c.22.08.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
                     <span class="lab">Settings</span>
@@ -266,9 +262,9 @@
                 <span class="chip">LLM</span>
             </div>
             <div class="ime-row bottom">
-                <button class="key" data-btn="cancel" aria-label="Cancel">
+                <button class="key" data-btn="switch" aria-label="Switch keyboard">
                     <svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
-                    <span class="lab">Cancel</span>
+                    <span class="lab">Keyboard</span>
                 </button>
                 <button class="key" data-btn="delete" aria-label="Delete word">
                     <svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>
@@ -317,7 +313,10 @@
 <section id="dictating">
     <h2>Dictating</h2>
     <h3>Pause &amp; resume</h3>
-    <p>Need a moment to think, or an interruption? Tap <strong>Pause</strong>. Everything you have recorded so far is kept; tap again to resume and keep going. You can even switch to your normal typing keyboard and back — the dictation stays paused and continues when you return.</p>
+    <p>Need a moment to think, or an interruption? Tap <strong>Pause</strong>. Everything you have recorded so far is kept; tap again to resume and keep going. You can even switch to your normal typing keyboard and back — tap the <strong>X</strong> in the bottom row and the field returns to the keyboard you came from, with the dictation paused; it continues when you come back. The X always switches, whatever the <em>switch back after send</em> setting says.</p>
+
+    <h3>Discarding a take</h3>
+    <p>The <strong>Discard</strong> (trash) button throws the recorded audio and timer away and keeps you in the keyboard, ready for a fresh take. The X never discards — it only hands the field back to your typing keyboard.</p>
 
     <h3>LLM on or off</h3>
     <p>The <strong>LLM</strong> checkbox in the keyboard bar decides whether your language model polishes the dictation. Checked (the default): the transcription is polished — and translated when you picked a target language; <strong>LLM, keep language</strong> polishes in the language you spoke. Unchecked: the plain transcription is inserted, with no LLM call and zero extra latency. The switch lives only in the keyboard bar and remembers its state.</p>
@@ -378,15 +377,14 @@ adb pull /sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs/
 <script>
 (function () {
     var ACTIONS = {
-        switch:   { tap: "Go back to your text keyboard (if none is available, the keyboard settings open).", long: "Show the on-screen hint." },
         settings: { tap: "Open Settings — providers, language and prompts.", long: "Open this Help." },
-        cancel:   { tap: "Discard the recording and close the keyboard.", long: "Show the on-screen hint." },
+        switch:   { tap: "Go back to your text keyboard (if none is available, the keyboard settings open).", long: "Show the on-screen hint." },
         delete:   { tap: "Delete the last word from the field.", long: "Clear the whole field." },
         flush:    { tap: "Discard the audio and reset the timer, but stay recording.", long: "Show the on-screen hint." },
         pause:    { tap: "Pause or resume — the recorded audio is kept.", long: "Show the on-screen hint." },
         send:     { tap: "Transcribe, polish and insert the text.", long: "Show the on-screen hint." }
     };
-    var LABELS = { switch:"Keyboard", settings:"Settings", cancel:"Cancel", delete:"Delete", flush:"Discard", pause:"Pause", send:"Send" };
+    var LABELS = { settings:"Settings", switch:"Keyboard", delete:"Delete", flush:"Discard", pause:"Pause", send:"Send" };
 
     var keys = Array.prototype.slice.call(document.querySelectorAll('.key'));
     var title = document.getElementById('explain-title');

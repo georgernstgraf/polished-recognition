@@ -10,15 +10,15 @@ import com.georgernstgraf.polishedrecognition.R
  * recording auto-starts, so no microphone wording remains. Returns the
  * string resource for the hint, or null for views without one. The
  * settings gear has no hint: its long-press opens the Help screen
- * instead (#107).
+ * instead (#107). Since #155 the bottom-row X is the keyboard switch, so
+ * it carries the keyboard hint.
  */
 object ImeHintPolicy {
     fun hintFor(viewId: Int): Int? = when (viewId) {
-        R.id.ime_cancel_button -> R.string.ime_cancel_hint
+        R.id.ime_switch_button -> R.string.ime_switch_hint
         R.id.ime_flush_button -> R.string.ime_flush_hint
         R.id.ime_pause_resume_button -> R.string.ime_pause_resume_hint
         R.id.ime_send_button -> R.string.ime_send_hint
-        R.id.ime_switch_keyboard_button -> R.string.ime_switch_hint
         else -> null
     }
 }

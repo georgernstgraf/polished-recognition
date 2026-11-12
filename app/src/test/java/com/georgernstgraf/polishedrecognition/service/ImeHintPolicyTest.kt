@@ -12,8 +12,9 @@ class ImeHintPolicyTest {
 
     @Test
     fun `lower-row buttons map to their fixed hints`() {
-        assertThat(ImeHintPolicy.hintFor(R.id.ime_cancel_button))
-            .isEqualTo(R.string.ime_cancel_hint)
+        // #155: the X is the keyboard switch, so it carries the keyboard hint.
+        assertThat(ImeHintPolicy.hintFor(R.id.ime_switch_button))
+            .isEqualTo(R.string.ime_switch_hint)
         assertThat(ImeHintPolicy.hintFor(R.id.ime_flush_button))
             .isEqualTo(R.string.ime_flush_hint)
         assertThat(ImeHintPolicy.hintFor(R.id.ime_pause_resume_button))
@@ -25,8 +26,8 @@ class ImeHintPolicyTest {
     @Test
     fun `hints explain what the button ultimately does`() {
         val ctx = RuntimeEnvironment.getApplication()
-        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_cancel_button)!!))
-            .isEqualTo("Cancel — discard the recording and close")
+        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_switch_button)!!))
+            .isEqualTo("Keyboard — back to your text keyboard")
         assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_flush_button)!!))
             .isEqualTo("Discard — clear audio and timer, stay here")
         assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_pause_resume_button)!!))
@@ -37,14 +38,9 @@ class ImeHintPolicyTest {
 
     @Test
     fun `top-row buttons map to their hints`() {
-        assertThat(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button))
-            .isEqualTo(R.string.ime_switch_hint)
         // The settings gear has no press-hold hint: its long-press opens the
         // Help screen instead (#107).
         assertThat(ImeHintPolicy.hintFor(R.id.ime_settings_button)).isNull()
-        val ctx = RuntimeEnvironment.getApplication()
-        assertThat(ctx.getString(ImeHintPolicy.hintFor(R.id.ime_switch_keyboard_button)!!))
-            .isEqualTo("Keyboard — back to your text keyboard")
     }
 
     @Test

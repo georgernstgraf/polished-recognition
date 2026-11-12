@@ -111,8 +111,9 @@ fallback to free-text entry for providers that don't support it).
 ### Voice keyboard (IME)
 
 - **Instant recording** — switching to the keyboard starts the mic right away
-- **Two-line control surface** — keyboard-switch icon, settings gear, target language, LLM toggle on top; cancel / pause / send below
-- **One-tap keyboard switch** — the switch icon jumps straight back to the keyboard you came from; if no typing keyboard is available it opens the keyboard settings so you can enable one
+- **Two-line control surface** — settings gear, target language, LLM toggle on top; keyboard switch (the X), delete-word, discard, pause and send below
+- **One-tap keyboard switch** — the X in the bottom row pauses the dictation and hands the field straight back to the keyboard you came from; if no typing keyboard is available it opens the keyboard settings so you can enable one. It always switches — the "switch back after send" setting only controls the automatic switch after a successful send
+- **Discard is its own button** — the trash icon clears the audio and timer without leaving the keyboard, so throwing a take away never costs you the way back
 - **Dictation survives keyboard switches** — while you type on the other keyboard the recording is preserved (paused); switching back auto-resumes and appends to the same audio
 - **Live stage display** — shows exactly what's happening: *Recording*, *Transcribing (STT)*, *Polishing (LLM)*
 - **Recording pulse** — the send button breathes with your voice

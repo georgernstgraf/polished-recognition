@@ -92,15 +92,12 @@
     <string name="ime_stage_llm_words">%1$d words \u2192 LLM</string>
     <string name="ime_settings_desc">Settings</string>
     <string name="ime_switch_keyboard_desc">Switch keyboard</string>
-    <string name="ime_cancel">Cancel</string>
-    <string name="ime_cancel_desc">Cancel</string>
     <string name="ime_pause_desc">Pause</string>
     <string name="ime_resume_desc">Resume</string>
     <string name="ime_send_desc">Send</string>
     <string name="ime_send_hint">Send — transcribe, polish and insert the text</string>
     <string name="ime_switch_hint">Keyboard — back to your text keyboard</string>
     <string name="ime_pause_resume_hint">Pause / resume — recorded audio is kept</string>
-    <string name="ime_cancel_hint">Cancel — discard the recording and close</string>
     <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>
     <string name="ime_flush_desc">Discard recording</string>
     <string name="ime_delete_word_desc">Delete last word</string>

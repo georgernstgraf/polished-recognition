@@ -52,13 +52,12 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var rowButtons: View? = null
     private var sendButton: ImageButton? = null
     private var pauseResumeButton: ImageButton? = null
-    private var cancelButton: ImageButton? = null
+    private var switchButton: ImageButton? = null
     private var deleteWordButton: ImageButton? = null
     private var flushButton: ImageButton? = null
     private var languageSpinner: Spinner? = null
     private var llmCheckbox: CheckBox? = null
     private var settingsGear: ImageButton? = null
-    private var switchKeyboardButton: ImageButton? = null
     private var quickSettingsDivider: View? = null
     private var recTimer: TextView? = null
     private var stageText: TextView? = null
@@ -126,13 +125,12 @@ class PolishedVoiceInputIME : InputMethodService() {
         rowButtons = view.findViewById(R.id.ime_row_buttons)
         sendButton = view.findViewById(R.id.ime_send_button)
         pauseResumeButton = view.findViewById(R.id.ime_pause_resume_button)
-        cancelButton = view.findViewById(R.id.ime_cancel_button)
+        switchButton = view.findViewById(R.id.ime_switch_button)
         deleteWordButton = view.findViewById(R.id.ime_delete_word_button)
         flushButton = view.findViewById(R.id.ime_flush_button)
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
         llmCheckbox = view.findViewById(R.id.ime_llm)
         settingsGear = view.findViewById(R.id.ime_settings_button)
-        switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard_button)
         quickSettingsDivider = view.findViewById(R.id.ime_quick_settings_divider)
         recTimer = view.findViewById(R.id.ime_rec_timer)
         stageText = view.findViewById(R.id.ime_stage_text)
@@ -158,9 +156,25 @@ class PolishedVoiceInputIME : InputMethodService() {
                 else -> Unit
             }
         }
-        cancelButton?.setOnClickListener {
-            controller.cancel()
-            requestHideSelf(0)
+        // #155: the X hands the field back to the last-used typing keyboard.
+        // It pauses a running take first (the audio stays, the #134 salvage
+        // resumes it on return) and never discards — that is the trash
+        // button's job. Deliberately NOT gated by the "switch back after
+        // send" setting: it is the only manual way out of the voice keyboard.
+        switchButton?.setOnClickListener {
+            if (controller.state == VoiceSessionController.State.RECORDING) {
+                controller.pause()
+            }
+            val selfId = currentDefaultImeId() ?: return@setOnClickListener
+            val target = resolveKeyKeyboardTarget(selfId)
+            if (target == null) {
+                openKeyboardSettings()
+                return@setOnClickListener
+            }
+            switchInputMethod(target)
+            if (currentDefaultImeId() == selfId) {
+                openKeyboardSettings()
+            }
         }
         // Delete-word button (#90): tap deletes the last word from the
         // editor, long-press clears the whole field. Deliberately no
@@ -172,8 +186,8 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
         flushButton?.setOnClickListener {
             // Flush (#86): discard the audio but stay in the mode — a fresh
-            // take in RECORDING, an empty pause in PAUSED. Closing is
-            // cancel's job.
+            // take in RECORDING, an empty pause in PAUSED. Leaving the
+            // keyboard is the X's job (#155), discarding the trash's.
             when (controller.state) {
                 VoiceSessionController.State.RECORDING,
                 VoiceSessionController.State.PAUSED -> controller.flush()
@@ -184,11 +198,10 @@ class PolishedVoiceInputIME : InputMethodService() {
         // area above the buttons while the finger is down. The listener
         // returns false so the normal click still fires on release.
         listOf(
-            cancelButton to R.id.ime_cancel_button,
+            switchButton to R.id.ime_switch_button,
             flushButton to R.id.ime_flush_button,
             pauseResumeButton to R.id.ime_pause_resume_button,
-            sendButton to R.id.ime_send_button,
-            switchKeyboardButton to R.id.ime_switch_keyboard_button
+            sendButton to R.id.ime_send_button
         ).forEach { (button, id) ->
             ImeHintPolicy.hintFor(id)?.let { hint -> attachPressHint(button, hint) }
         }
@@ -220,21 +233,6 @@ class PolishedVoiceInputIME : InputMethodService() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
             switchInputMethod(target)
-        }
-        switchKeyboardButton?.setOnClickListener {
-            if (controller.state == VoiceSessionController.State.RECORDING) {
-                controller.pause()
-            }
-            val selfId = currentDefaultImeId() ?: return@setOnClickListener
-            val target = resolveKeyKeyboardTarget(selfId)
-            if (target == null) {
-                openKeyboardSettings()
-                return@setOnClickListener
-            }
-            switchInputMethod(target)
-            if (currentDefaultImeId() == selfId) {
-                openKeyboardSettings()
-            }
         }
         // #154: the checkbox says "LLM" — checked means the LLM polishes the
         // dictation, unchecked means raw transcription. The stored domain flag
@@ -637,11 +635,10 @@ class PolishedVoiceInputIME : InputMethodService() {
     private fun applyUiState() {
         val ms = sendButton ?: return
         val pr = pauseResumeButton ?: return
-        val cb = cancelButton ?: return
+        val sw = switchButton ?: return
         val dw = deleteWordButton ?: return
         val fb = flushButton ?: return
         val gear = settingsGear ?: return
-        val switchButton = switchKeyboardButton ?: return
         val s = controller.state
         setFlashing(s == VoiceSessionController.State.RECORDING)
         // Delete-word edits the editor, not the session — always enabled (#90).
@@ -654,10 +651,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.setImageResource(R.drawable.ic_pause)
                 pr.contentDescription = getString(R.string.ime_pause_desc)
                 pr.isEnabled = false
-                cb.isEnabled = true
+                sw.isEnabled = true
                 fb.isEnabled = false
                 gear.isEnabled = true
-                switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
@@ -668,10 +664,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.setImageResource(R.drawable.ic_pause)
                 pr.contentDescription = getString(R.string.ime_pause_desc)
                 pr.isEnabled = true
-                cb.isEnabled = true
+                sw.isEnabled = true
                 fb.isEnabled = true
                 gear.isEnabled = true
-                switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
@@ -682,10 +677,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.setImageResource(R.drawable.ic_resume)
                 pr.contentDescription = getString(R.string.ime_resume_desc)
                 pr.isEnabled = true
-                cb.isEnabled = true
+                sw.isEnabled = true
                 fb.isEnabled = true
                 gear.isEnabled = true
-                switchButton.isEnabled = true
                 setQuickSettingsEnabled(true)
                 setQuickSettingsVisible(true)
             }
@@ -696,10 +690,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                 pr.setImageResource(R.drawable.ic_pause)
                 pr.contentDescription = getString(R.string.ime_pause_desc)
                 pr.isEnabled = false
-                cb.isEnabled = false
+                sw.isEnabled = false
                 fb.isEnabled = false
                 gear.isEnabled = false
-                switchButton.isEnabled = false
                 setQuickSettingsEnabled(false)
                 setQuickSettingsVisible(false)
             }
