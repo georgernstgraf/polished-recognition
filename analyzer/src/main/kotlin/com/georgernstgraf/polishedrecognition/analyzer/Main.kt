@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.analyzer
 
 import com.georgernstgraf.polishedrecognition.analyzer.bundle.ReconstructCommand
+import com.georgernstgraf.polishedrecognition.analyzer.bundle.ReplayCommand
 import com.georgernstgraf.polishedrecognition.analyzer.bundle.ScanCommand
 import com.georgernstgraf.polishedrecognition.analyzer.bundle.ReportCommand
 import com.georgernstgraf.polishedrecognition.analyzer.compare.CompareCommand
@@ -18,6 +19,7 @@ import kotlin.system.exitProcess
  * - `compare`  — cross-corpus comparison over results directories
  * - `pull`     — adb encapsulation: device bundles -> corpora/<name>/bundles/
  * - `reconstruct` — post-#142 bundles -> continuous session WAVs for the corpus (#149)
+ * - `replay`   — bundle mode: re-send the EXACT uploads the device sent (#129)
  *
  * Dispatch is a plain `when` — no heavyweight arg-parsing dependency (owner
  * decision; see analyzer/README.md for the full command surface).
@@ -34,6 +36,7 @@ fun main(args: Array<String>) {
         "compare" -> CompareCommand.run(Args(args.drop(1)))
         "pull" -> PullCommand.run(Args(args.drop(1)))
         "reconstruct" -> ReconstructCommand.run(Args(args.drop(1)))
+        "replay" -> ReplayCommand.run(Args(args.drop(1)))
         "help", "--help", "-h" -> usage()
         else -> {
             System.err.println("unknown command: ${args[0]}")
@@ -67,6 +70,11 @@ private fun usage() {
                    rebuild continuous session WAVs from post-#142 bundles
                    (--corpus NAME [--session ID] [--dry-run]) — incomplete
                    bundles are discarded whole; OGG uploads decode via ffmpeg
+          replay   re-send the EXACT uploads the device sent, with the recorded
+                   prompt/model/endpoint, and diff against sttRaw
+                   (--corpus NAME [--session ID] [--repeat N] [--ab] [--limit N]
+                    [--only-stitched] [--run-id ID] [--stt-url URL] [--model M])
+                   — --ab adds the stitching A/B (composed vs bare vs bare+prompt)
 
         STT credentials: --stt-token or ANALYZER_STT_TOKEN (never committed);
         endpoint: --stt-url or ANALYZER_STT_URL (default the local whisper

@@ -131,6 +131,43 @@ per-fragment sttRaw/sttTrimmed/echoTokens/prompt + the START-seam quality
 block), `session/` (fragments + uploads retained), `logs/` (the live-debug
 evidence streams).
 
+### `replay` — bundle mode: re-send EXACTLY what the device uploaded (#129)
+
+```bash
+analyzer replay --corpus <name> [--session ID] [--repeat N] [--ab] [--only-stitched] [--limit N]
+```
+
+The bundle IS the request: `uploads/<uploadFile>` is the exact audio the phone
+sent (composed with the acoustic pre-roll when the seam was stitched),
+`fragments[i].prompt` is the conditioning prompt that went with it,
+`provider.sttModel`/`provider.sttBaseUrl` are the model and endpoint, and
+`sttRaw` is the answer. `replay` re-sends that request through the REAL
+`:core` `SttRequestRunner` (same multipart shape) and diffs the result against
+the recorded text.
+
+- **It measures the noise floor** every text claim needs: identical input, N
+  repeats → is the provider deterministic at all? On whisper.kik
+  (`large-v3`-class, the gregor entry point) it is: 41/41 fragments replayed
+  twice were byte-identical in text AND identical to the device's recorded
+  answer (2026-11-12).
+- **`--ab` measures the stitching gate at the seam itself**, three arms on the
+  same audio: `composed` (upload + pre-roll + prompt — what the app sent for a
+  stitched seam), `bare` (no pre-roll, no prompt — what it would have sent had
+  the gate said bare), `bare+prompt` (the arm that separates the two
+  ingredients the app couples under `stitched`).
+- **The bare arm is derived, not stored**: `uploads/` holds what the server
+  saw, so a stitched seam has no bare sibling. `replay` decodes the composed
+  upload, drops the recorded `preRollMs` head, holds the boundary span and
+  re-encodes in the same container (WAV pure-Kotlin; OGG via ffmpeg libopus
+  at 24 kbps, the app's bitrate — Android's MediaCodec is not available on the
+  JVM, so that is a documented second-order difference).
+- **The recorded model can be stale**: a bundle keeps the model name it was
+  sent with, and endpoints do rename models (`large-v3` → `whisper-large-v3`
+  on whisper.kik). A 400 therefore means "use `--model <current>`", not "the
+  bundle is broken".
+
+Output: table + `results/<run-id>/replay.json` (LOCAL-ONLY).
+
 ### `scan` — bundle mode (the #129 natural-find detector)
 
 ```bash
