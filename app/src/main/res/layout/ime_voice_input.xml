@@ -69,10 +69,10 @@
             android:layout_height="wrap_content" />
 
         <CheckBox
-            android:id="@+id/ime_raw"
+            android:id="@+id/ime_llm"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/quick_raw"
+            android:text="@string/quick_llm"
             android:textColor="@color/recording_text_primary"
             android:textSize="13sp"
             android:buttonTint="@color/recording_text_primary" />

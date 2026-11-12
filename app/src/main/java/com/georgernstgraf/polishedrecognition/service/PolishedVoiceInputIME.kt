@@ -56,7 +56,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private var deleteWordButton: ImageButton? = null
     private var flushButton: ImageButton? = null
     private var languageSpinner: Spinner? = null
-    private var rawCheckbox: CheckBox? = null
+    private var llmCheckbox: CheckBox? = null
     private var settingsGear: ImageButton? = null
     private var switchKeyboardButton: ImageButton? = null
     private var quickSettingsDivider: View? = null
@@ -130,7 +130,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         deleteWordButton = view.findViewById(R.id.ime_delete_word_button)
         flushButton = view.findViewById(R.id.ime_flush_button)
         languageSpinner = view.findViewById(R.id.ime_language_spinner)
-        rawCheckbox = view.findViewById(R.id.ime_raw)
+        llmCheckbox = view.findViewById(R.id.ime_llm)
         settingsGear = view.findViewById(R.id.ime_settings_button)
         switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard_button)
         quickSettingsDivider = view.findViewById(R.id.ime_quick_settings_divider)
@@ -236,9 +236,13 @@ class PolishedVoiceInputIME : InputMethodService() {
                 openKeyboardSettings()
             }
         }
-        rawCheckbox?.setOnCheckedChangeListener { _, isChecked ->
+        // #154: the checkbox says "LLM" — checked means the LLM polishes the
+        // dictation, unchecked means raw transcription. The stored domain flag
+        // is the inverse (rawMode = skip the LLM), so no preference migration
+        // is needed.
+        llmCheckbox?.setOnCheckedChangeListener { _, isChecked ->
             if (silenceLangListener) return@setOnCheckedChangeListener
-            settings.rawMode = isChecked
+            settings.rawMode = !isChecked
             updateLanguageEnabled()
         }
         setupLanguageSpinner()
@@ -412,7 +416,7 @@ class PolishedVoiceInputIME : InputMethodService() {
             silenceLangListener = false
         }
         silenceLangListener = true
-        rawCheckbox?.isChecked = settings.rawMode
+        llmCheckbox?.isChecked = !settings.rawMode
         silenceLangListener = false
         updateLanguageEnabled()
     }
@@ -421,7 +425,9 @@ class PolishedVoiceInputIME : InputMethodService() {
         LanguageOptions.buildLanguageList(settings.customLanguages)
 
     private fun updateLanguageEnabled() {
-        val disabled = rawCheckbox?.isChecked == true
+        // #154: the spinner is only usable when the LLM runs — without it there
+        // is no translation/polish step the language could target.
+        val disabled = llmCheckbox?.isChecked != true
         languageSpinner?.isEnabled = !disabled
         languageSpinner?.alpha = if (disabled) 0.4f else 1.0f
     }
@@ -815,17 +821,17 @@ class PolishedVoiceInputIME : InputMethodService() {
         val visibility = if (visible) View.VISIBLE else View.GONE
         languageSpinner?.visibility = visibility
         quickSettingsDivider?.visibility = visibility
-        rawCheckbox?.visibility = visibility
+        llmCheckbox?.visibility = visibility
     }
 
     private fun setQuickSettingsEnabled(enabled: Boolean) {
         val sp = languageSpinner ?: return
-        val raw = rawCheckbox ?: return
+        val llm = llmCheckbox ?: return
         silenceLangListener = true
         sp.isEnabled = enabled
         sp.alpha = if (enabled) 1.0f else 0.4f
-        raw.isEnabled = enabled
-        raw.alpha = if (enabled) 1.0f else 0.4f
+        llm.isEnabled = enabled
+        llm.alpha = if (enabled) 1.0f else 0.4f
         silenceLangListener = false
     }
 

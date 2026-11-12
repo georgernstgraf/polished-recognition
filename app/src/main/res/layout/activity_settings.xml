@@ -28,13 +28,6 @@
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="8dp" />
 
-        <CheckBox
-            android:id="@+id/raw_mode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/raw_mode"
-            android:layout_marginBottom="8dp" />
-
         <AutoCompleteTextView
             android:id="@+id/target_language"
             android:layout_width="match_parent"

@@ -65,7 +65,6 @@ class SettingsActivity : Activity() {
     private val fetchLlmModelsButton: Button by lazy { findViewById(R.id.fetch_llm_models) }
     private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
-    private val rawModeCheckbox: CheckBox by lazy { findViewById(R.id.raw_mode) }
     private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
     /** #142: the 0→50-years log slider (0 = no retention, complete off). */
     private val evidenceRetentionSlider: SeekBar by lazy { findViewById(R.id.evidence_retention_slider) }
@@ -326,7 +325,6 @@ class SettingsActivity : Activity() {
             updateModelDropdown(llmModelDropdown, settings.getLlmModels(it.baseUrl))
         }
 
-        rawModeCheckbox.isChecked = settings.rawMode
         compressAudioCheckbox.isChecked = settings.compressAudio
         // #142: the retention slider — the label tracks the position
         evidenceRetentionSlider.max = EvidenceRetention.MAX_POSITION
@@ -1046,7 +1044,6 @@ class SettingsActivity : Activity() {
             model = llmModel
         )
 
-        settings.rawMode = rawModeCheckbox.isChecked
         settings.compressAudio = compressAudioCheckbox.isChecked
         // #142: the retention horizon (0 = no retention)
         settings.evidenceRetentionSeconds = EvidenceRetention.secondsFor(evidenceRetentionSlider.progress)

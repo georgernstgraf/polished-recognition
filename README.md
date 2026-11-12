@@ -31,8 +31,8 @@ starts listening immediately — no extra tap, no learning a new typing UI.
 4. **The LLM polishes the text** using your custom prompt — fix filler words and punctuation, restructure, or translate to another language
 5. **Flawless text lands in the app you're typing in**
 
-Don't need the polish? **Raw mode** skips the LLM entirely and inserts the
-plain transcription — zero extra latency.
+Don't need the polish? Uncheck **LLM** in the keyboard bar: the LLM is skipped
+entirely and the plain transcription is inserted — zero extra latency.
 
 ## Why it's different
 
@@ -111,7 +111,7 @@ fallback to free-text entry for providers that don't support it).
 ### Voice keyboard (IME)
 
 - **Instant recording** — switching to the keyboard starts the mic right away
-- **Two-line control surface** — keyboard-switch icon, settings gear, target language, Raw toggle on top; cancel / pause / send below
+- **Two-line control surface** — keyboard-switch icon, settings gear, target language, LLM toggle on top; cancel / pause / send below
 - **One-tap keyboard switch** — the switch icon jumps straight back to the keyboard you came from; if no typing keyboard is available it opens the keyboard settings so you can enable one
 - **Dictation survives keyboard switches** — while you type on the other keyboard the recording is preserved (paused); switching back auto-resumes and appends to the same audio
 - **Live stage display** — shows exactly what's happening: *Recording*, *Transcribing (STT)*, *Polishing (LLM)*
@@ -120,10 +120,11 @@ fallback to free-text entry for providers that don't support it).
 
 ### Your pipeline, your rules
 
-- **Polish only vs. Raw mode** — with no target language set, the LLM still
-  polishes your dictation (punctuation, structure, filler-word removal);
-  flip **Raw mode** to bypass the LLM completely and insert the raw
-  transcription
+- **LLM switch** — checked (default) the LLM polishes every dictation: with a
+  target language it translates, **LLM, keep language** polishes in the
+  language you spoke; uncheck the **LLM** toggle in the keyboard bar to bypass
+  the LLM completely and insert the plain transcription. The toggle lives in
+  the keyboard bar (not in Settings) and remembers its state
 - **Editable prompts** — System Prompt with `{{source_language_clause}}` /
   `{{target_language_clause}}` variables, plus the translation clause with
   `{{target_language}}`; reset individually or all at once
