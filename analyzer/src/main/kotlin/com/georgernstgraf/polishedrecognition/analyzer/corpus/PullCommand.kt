@@ -62,10 +62,23 @@ object PullCommand {
         println("${sessions.size} session dirs; pulling each into ${dest.path}")
 
         var pulled = 0
+        var legacy = 0
         for (sessionId in sessions) {
             val sessionDir = File(dest, sessionId)
+            val deviceDir = "$DEVICE_AUDIO_ROOT/$sessionId"
             try {
-                pullTree({ cmd -> adb(*cmd) }, "$DEVICE_AUDIO_ROOT/$sessionId", sessionDir, depth = 1)
+                val entries = listOrEmpty(adb("shell", "ls", "-1p", deviceDir))
+                if (entries.isEmpty()) throw CorpusException("unlistable (vanished or access denied)")
+                // A bundle is `uploads/` + session.json (#142). Pre-#142 sessions
+                // (session.wav + fragments/) carry no forensic record and cannot be
+                // scanned — pulling them only pollutes the corpus with bundles that
+                // every scan has to skip (and, before the tolerant loader, aborted it).
+                if (!isBundleListing(entries)) {
+                    legacy++
+                    println("  $sessionId: SKIPPED (pre-#142 session — no session.json)")
+                    continue
+                }
+                pullEntries({ cmd -> adb(*cmd) }, deviceDir, sessionDir, entries, depth = 1)
             } catch (e: Exception) {
                 println("  $sessionId: SKIPPED (${e.message?.lineSequence()?.first() ?: "error"})")
                 continue
@@ -73,24 +86,38 @@ object PullCommand {
             pulled++
             println("  $sessionId")
         }
-        println("pulled $pulled sessions -> ${dest.path}")
+        println("pulled $pulled bundles -> ${dest.path}" + if (legacy > 0) " ($legacy pre-#142 sessions skipped)" else "")
     }
 
     /**
-     * Walks one device directory and pulls it file-by-file. Directories are
-     * recognized via `ls -1p`'s trailing "/" (toybox marks them) and recursed
-     * one level — the bundle layouts are flat (`uploads/`, `fragments/`), so a
-     * single level covers both the #142 format (uploads/ + session.json) and
-     * the pre-#142 one (session.wav + fragments/).
+     * A device session dir is a BUNDLE only when it carries `session.json`
+     * (#142). Pre-#142 dirs (`session.wav` + `fragments/`) hold no forensic
+     * record, so they are skipped instead of being pulled into the corpus.
      */
-    private fun pullTree(adbCmd: (Array<out String>) -> ProcessBuilder, devicePath: String, targetDir: File, depth: Int) {
-        val entries = listOrEmpty(adbCmd(arrayOf("shell", "ls", "-1p", devicePath)))
-        if (entries.isEmpty()) throw CorpusException("unlistable (vanished or access denied)")
+    internal fun isBundleListing(entries: List<String>): Boolean =
+        entries.any { !it.endsWith("/") && it == "session.json" }
+
+    /**
+     * Pulls one device directory file-by-file, recursing one level. Directories
+     * are recognized via `ls -1p`'s trailing "/" (toybox marks them) — the
+     * bundle layouts are flat (`uploads/`), so a single level covers the #142
+     * format (uploads/ + session.json).
+     */
+    private fun pullEntries(
+        adbCmd: (Array<out String>) -> ProcessBuilder,
+        devicePath: String,
+        targetDir: File,
+        entries: List<String>,
+        depth: Int
+    ) {
         targetDir.mkdirs()
         for (entry in entries) {
             if (entry.endsWith("/")) {
                 val name = entry.trimEnd('/')
-                if (depth > 0) pullTree(adbCmd, "$devicePath/$name", File(targetDir, name), depth - 1)
+                if (depth > 0) {
+                    val sub = listOrEmpty(adbCmd(arrayOf("shell", "ls", "-1p", "$devicePath/$name")))
+                    pullEntries(adbCmd, "$devicePath/$name", File(targetDir, name), sub, depth - 1)
+                }
                 continue
             }
             val content = run(adbCmd(arrayOf("exec-out", "cat", "$devicePath/$entry")))

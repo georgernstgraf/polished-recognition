@@ -145,6 +145,10 @@ stitch) plus `STITCHED-BUT-CLEAN` inconsistencies. This is the automated
 natural-find detector for #129: real dictations whose seams fall below the
 provisional gate tell us where the real `qualityMin` boundary sits.
 
+An unparseable `session.json` is **skipped with a stderr warning** — a corpus
+is real material and one bad bundle must not blind the scan (live case:
+2026-11-12, the 140-byte adb-error bundles above).
+
 ### `report` — provider-performance aggregation (#144c)
 
 ```bash
@@ -186,6 +190,12 @@ into `corpora/<name>/bundles/`. Encapsulates the hard-won adb gotchas:
 listings are `\r`-stripped; every adb call redirects stdin from
 `/dev/null`; the serial is pinned (`-s`, two devices usually attached:
 `f6de166c` = OnePlus 7T, `R7SRB06XF5K` = A03).
+
+**Only bundles are pulled**: a session dir without `session.json` (pre-#142:
+`session.wav` + `fragments/`) is skipped with a note — it has no forensic
+record, and pulling it used to write adb's "No such file" text into a 140-byte
+`session.json` that then aborted every scan of the corpus (2026-11-12, 101 of
+481 opo dirs).
 
 ### Timing analysis from bundles (the #124 / #116 evidence recipe)
 

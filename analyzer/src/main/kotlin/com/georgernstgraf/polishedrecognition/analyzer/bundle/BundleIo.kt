@@ -102,13 +102,26 @@ object BundleIo {
     /**
      * Every `session.json` directly under [dir] (one session dir per child
      * directory), sorted by session id. Missing files / unparseable ones are
-     * reported, not fatal.
+     * reported, not fatal — a corpus is REAL material, and one bad bundle must
+     * not blind the whole scan (live case: 101 pre-#142 sessions whose pull
+     * wrote adb's error text into `session.json`, which aborted every scan of
+     * the 481-bundle opo corpus).
      */
     fun loadAll(dir: File): List<Pair<File, BundleDto>> {
         val out = mutableListOf<Pair<File, BundleDto>>()
+        var skipped = 0
         for (child in dir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: emptyList()) {
             val f = File(child, "session.json")
-            if (f.isFile) out.add(f to load(f))
+            if (!f.isFile) continue
+            try {
+                out.add(f to load(f))
+            } catch (e: Exception) {
+                skipped++
+                System.err.println("skipped ${f.path}: ${e.message?.lineSequence()?.firstOrNull() ?: e.javaClass.simpleName}")
+            }
+        }
+        if (skipped > 0) {
+            System.err.println("$skipped unparseable bundle(s) under ${dir.path} — skipped, ${out.size} loaded")
         }
         return out
     }
