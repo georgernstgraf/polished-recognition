@@ -45,7 +45,7 @@ class FragmentTranscriberTest {
             sttRunner = sttRunner,
             configProvider = { config },
             scope = CoroutineScope(Dispatchers.Unconfined),
-            onProgress = { progresses.add(it) }
+            onFragmentTranscribing = { progresses.add(it) }
         )
     }
 
@@ -141,20 +141,18 @@ class FragmentTranscriberTest {
     }
 
     @Test
-    fun `progress reports pending audio seconds while draining`() = runBlocking {
+    fun `transcribing event reports the fragment's own audio seconds`() = runBlocking {
         coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
             Result.success(SttResponse(text = "x"))
         }
 
-        // offer BOTH fragments before the worker starts (drain() starts it):
-        // pending is deterministically 14 s when processing begins
         transcriber.offer(fragment(0))
         transcriber.offer(fragment(1))
         transcriber.drain()
 
-        // pending ticks down as the serial worker completes fragments
-        assertThat(progresses.first()).isEqualTo(7)
-        assertThat(progresses.last()).isEqualTo(0)
+        // #116 (owner decision 2026-11-12): one event per request START, each
+        // carrying THAT fragment's audio length — never the backlog.
+        assertThat(progresses).isEqualTo(listOf(7, 7))
     }
 
     @Test

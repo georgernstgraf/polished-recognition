@@ -243,9 +243,9 @@ class PolishedRecognitionService : RecognitionService() {
                 getString(R.string.ime_stage_compressing)
             is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                 getString(R.string.ime_stage_stt)
-            // #116: same live drain progress as the IME stage line.
-            is TranscriptionPipeline.TranscriptionStage.RequestingSttProgress ->
-                getString(R.string.ime_stage_stt_seconds, s.pendingAudioSeconds)
+            // #116: same per-fragment stage line as the IME.
+            is TranscriptionPipeline.TranscriptionStage.RequestingSttFragment ->
+                getString(R.string.ime_stage_stt_seconds, s.audioSeconds)
             is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
                 getString(R.string.ime_stage_llm_words, s.wordCount)
         }

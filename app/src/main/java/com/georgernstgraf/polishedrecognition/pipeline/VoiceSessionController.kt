@@ -358,10 +358,12 @@ class VoiceSessionController(
         sttRunner = sttRunnerOverride ?: pipeline.sttRequestRunner,
         configProvider = { settings.sttProvider },
         scope = scope,
-        onProgress = { pendingSeconds ->
-            if (pendingSeconds > 0) {
+        onFragmentTranscribing = { audioSeconds ->
+            // #116: one event per request start — the number is the audio
+            // length of the fragment going out, never the queue.
+            if (audioSeconds > 0) {
                 emit(Event.StageChanged(
-                    TranscriptionPipeline.TranscriptionStage.RequestingSttProgress(pendingSeconds)
+                    TranscriptionPipeline.TranscriptionStage.RequestingSttFragment(audioSeconds)
                 ))
             }
         },
@@ -812,9 +814,8 @@ class VoiceSessionController(
             t.resetFailures()
             emit(Event.StageChanged(TranscriptionPipeline.TranscriptionStage.CompressingAudio))
             withContext(Dispatchers.IO) { p.prepareTailSync() }
-            emit(Event.StageChanged(
-                TranscriptionPipeline.TranscriptionStage.RequestingSttProgress(t.pendingAudioSeconds())
-            ))
+            // #116: no backlog emit here — the per-fragment event fires when
+            // the tail's (or the in-flight fragment's) request actually starts.
             val drained = t.drain()
             if (drained.chunkCount > 0) {
                 drained.failure?.let { failure ->

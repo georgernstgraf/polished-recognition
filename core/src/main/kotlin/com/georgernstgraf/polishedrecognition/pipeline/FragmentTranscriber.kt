@@ -69,7 +69,15 @@ class FragmentTranscriber(
     private val sttRunner: SttRequestRunner,
     private val configProvider: () -> SttProviderConfig?,
     private val scope: CoroutineScope,
-    private val onProgress: ((pendingAudioSeconds: Int) -> Unit)? = null,
+    /**
+     * #116 (owner decision 2026-11-12): fires with the AUDIO LENGTH of the
+     * fragment that is about to be transcribed — emitted at request start, so
+     * the stage line always describes the running request. It used to carry
+     * the *backlog* ([pendingAudioSeconds]), which the user read as a
+     * countdown: the measured backlog was median 10.7 s / p90 22.0 s while
+     * the real stop→raw wait was median 1.65 s (RTF 0.07).
+     */
+    private val onFragmentTranscribing: ((audioSeconds: Int) -> Unit)? = null,
     /** adb-readable trim evidence (`stt-trim.json`), null in unit tests. */
     private val logger: RotatingJsonLogger? = null,
     /**
@@ -218,6 +226,9 @@ class FragmentTranscriber(
             for (item in channel) {
                 when (item) {
                     is WorkerItem.Fragment -> {
+                        // #116: report THIS fragment's audio length at request
+                        // start (never the backlog — see onFragmentTranscribing).
+                        onFragmentTranscribing?.invoke(((item.durationMs + 999) / 1000).toInt())
                         try {
                             process(item.fragment)
                         } catch (e: CancellationException) {
@@ -231,7 +242,6 @@ class FragmentTranscriber(
                             )
                         }
                         pendingAudioMs.addAndGet(-item.durationMs)
-                        onProgress?.invoke(pendingAudioSeconds())
                     }
                     WorkerItem.CheckIdle -> Unit
                 }
@@ -256,7 +266,10 @@ class FragmentTranscriber(
         return snapshot()
     }
 
-    /** Audio seconds still awaiting transcription (drain-progress figure). */
+    /**
+     * Audio seconds still awaiting transcription (the BACKLOG — logs and
+     * evidence only; never rendered as a duration on the stage line, #116).
+     */
     fun pendingAudioSeconds(): Int = ((pendingAudioMs.get() + 999) / 1000).toInt()
 
     /**

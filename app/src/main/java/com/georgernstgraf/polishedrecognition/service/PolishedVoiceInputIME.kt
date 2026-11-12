@@ -465,9 +465,9 @@ class PolishedVoiceInputIME : InputMethodService() {
                         getString(R.string.ime_stage_compressing)
                     is TranscriptionPipeline.TranscriptionStage.RequestingStt ->
                         getString(R.string.ime_stage_stt)
-                    // #116: live drain progress — "56s → STT", then "120 words → LLM".
-                    is TranscriptionPipeline.TranscriptionStage.RequestingSttProgress ->
-                        getString(R.string.ime_stage_stt_seconds, stage.pendingAudioSeconds)
+                    // #116: the audio length of the fragment going out now.
+                    is TranscriptionPipeline.TranscriptionStage.RequestingSttFragment ->
+                        getString(R.string.ime_stage_stt_seconds, stage.audioSeconds)
                     is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
                         getString(R.string.ime_stage_llm_words, stage.wordCount)
                 }

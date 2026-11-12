@@ -34,8 +34,12 @@ class TranscriptionPipeline(
     sealed class TranscriptionStage {
         object CompressingAudio : TranscriptionStage()
         object RequestingStt : TranscriptionStage()
-        /** Live drain progress (#116): audio seconds still awaiting STT. */
-        data class RequestingSttProgress(val pendingAudioSeconds: Int) : TranscriptionStage()
+        /**
+         * #116 (owner decision 2026-11-12): the AUDIO LENGTH of the fragment
+         * currently being transcribed — not the backlog. The stage line reads
+         * "STT · 16 s Audio" and always describes the running request.
+         */
+        data class RequestingSttFragment(val audioSeconds: Int) : TranscriptionStage()
         data class RequestingLlm(val wordCount: Int) : TranscriptionStage()
     }
 
