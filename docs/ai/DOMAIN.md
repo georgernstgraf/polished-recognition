@@ -2,6 +2,53 @@
 
 Business rules and domain relationships not obvious from code.
 
+## Begriffe (canonical vocabulary, owner decision 2026-11-12)
+
+The one place where the fragment/cut language is defined. Code uses the
+English term; the German gloss is for conversation and docs. When a term
+here conflicts with prose elsewhere, this list wins.
+
+### The cut (audio side)
+
+| Term | Definition | Do not say |
+|---|---|---|
+| **Slice** | The fixed PCM budget of one fragment — its *maximum* length (e.g. 21 s). Where the slice boundary falls is arbitrary and irrelevant. | "fragment size" (ambiguous), "chunk" |
+| **Search window** | The last `p` % of the slice (e.g. 30 % → 6.3 s of a 21-s slice). The only region a cut may land in. | "cutting area", "search span", "late half", "full window" |
+| **Cut** | The actual decision where a fragment ends and the next begins. Has a position and a quality. | "boundary", "split point" |
+| **Fragment** | The PCM span from the previous cut to this cut. Length ∈ `[Slice·(1−p), Slice]`. | "piece", "part" |
+| **Forced cut** | No silence candidate in the search window → cut at the quietest frame, `Q = 0`. | "fallback", "hard cut" |
+| **Silence quality Q** | Dimensionless deficit area under the axis `X = k·M + c` (see the rules below). | "silence score" |
+| **Candidate** | A contiguous below-axis region; the cut lands at its area centroid, clamped by the margin. | — |
+| **Tail** | The last fragment: from the last cut to the stop-tap. Taken **whole** — never searched, never split. | "last fragment" (ambiguous) |
+| **Stop-tap** | The user's press on the send key. It *ends* the tail; it is not a cut. | "send" |
+
+**Cut is audio, seam is text.** One cut produces one seam.
+
+### The seam (text side)
+
+| Term | Definition |
+|---|---|
+| **Seam** | The place where two fragment transcripts meet. |
+| **Stitch** | The ONE per-seam decision: pre-roll + prompt + echo trim. All three or none. |
+| **Pre-roll** | The last 1 s of PCM before the cut, prepended to the **upload only** (fragment files stay gapless). |
+| **Echo trim** | Removing the pre-roll's re-transcribed text from the transcript head. |
+| **Quality threshold** (`qualityMin`) | `Q < threshold` → stitch. The only Boolean downstream of the cut. |
+
+### Time and cost
+
+| Term | Definition |
+|---|---|
+| **Fragment length** | The *actual* length of a fragment. Never conflate with the slice. |
+| **Backlog** | Audio seconds committed but not yet transcribed, **including the in-flight request**. Lives in the logs; never displayed as a duration. |
+| **Drain** | Working the backlog off at send time. |
+| **RTF** | Request duration ÷ audio duration. `< 1` is faster than realtime. |
+| **STOP → raw text** | Stop-tap to finished Whisper text. The only figure the user feels. |
+| **`a + b·L`** | The per-request cost model: `a` = fixed network/server cost (0.55 s Groq, 0.76 s gregor), `b` = cost per audio second (1.95 %/s Groq, 2.57 %/s gregor/ogg). |
+| **Encode rate** | Local encode time ÷ audio length, per format: OGG 7.9 %/s, WAV 0.1 %/s. Paid **before** the request, so it lengthens the in-flight window. |
+
+**The rule that prevents the old confusion:** the stage line shows the audio
+length of the fragment currently being transcribed — never the backlog.
+
 ## Entities
 - **RecognitionService**: Android system service that processes voice input. Lifecycle: `onStartListening` → capture audio → `onStopListening` → process → `callback.results()`. The system calls these in response to keyboard mic interactions.
 - **OpenAI API compatibility**: Not just OpenAI — GROQ, OpenRouter, ZAI, Ollama, LM Studio all implement the same contract. Two endpoints matter: `/v1/audio/transcriptions` (STT) and `/v1/chat/completions` (LLM).
