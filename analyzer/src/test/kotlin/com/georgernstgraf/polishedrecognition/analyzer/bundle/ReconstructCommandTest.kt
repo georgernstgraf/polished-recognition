@@ -42,7 +42,13 @@ class ReconstructCommandTest {
         /** Override the recorded pre-roll (a lying record → tolerance discard). */
         val preRollRecordedMs: Int? = null,
         /** Shift this fragment's startMs off the previous endMs (gap/overlap). */
-        val startShiftMs: Int = 0
+        val startShiftMs: Int = 0,
+        /**
+         * Extra silence appended to the upload's audio AFTER the recorded
+         * boundary (codec padding / trailing junk) — the piece then decodes
+         * LONGER than the span without any audio being missing.
+         */
+        val padAudioMs: Int = 0
     )
 
     private val ffmpegAvailable: Boolean by lazy {
@@ -106,11 +112,16 @@ class ReconstructCommandTest {
                 } else {
                     fragPcm
                 }
+                val uploadAudio = if (spec.padAudioMs > 0) {
+                    audio + ByteArray(spec.padAudioMs * 32) // trailing silence (codec padding)
+                } else {
+                    audio
+                }
                 val name = if (isComposed) "upload_%06d.%s".format(i, if (spec.ogg) "ogg" else "wav")
                 else "frag_%06d.%s".format(i, if (spec.ogg) "ogg" else "wav")
                 val target = File(uploads, name)
-                if (spec.ogg) encodeOgg(WavWriter.write(audio, 16_000), target)
-                else target.writeBytes(WavWriter.write(audio, 16_000))
+                if (spec.ogg) encodeOgg(WavWriter.write(uploadAudio, 16_000), target)
+                else target.writeBytes(WavWriter.write(uploadAudio, 16_000))
                 f.uploadFile = name
                 f.uploadBytes = target.length()
             }
@@ -189,6 +200,29 @@ class ReconstructCommandTest {
         assertThat(r.pcm!!.size.toLong()).isAtLeast(expected - 3 * 32)
         assertThat(r.pcm.size.toLong()).isAtMost(expected + 3 * 32)
         assertThat(r.pcm.any { it != 0.toByte() }).isTrue()
+    }
+
+    @Test
+    fun `an OGG piece with codec padding is trimmed, not discarded`() {
+        assumeTrue(ffmpegAvailable)
+        val corpus = newCorpus()
+        // A span that is NOT a multiple of the Opus frame size (20 ms) — the
+        // encoder pads the last frame, so the decoded piece overshoots the
+        // recorded boundary span by ~13 ms. The whole opo corpus looked like
+        // this: 7 of 10 #129 candidate sessions were discarded by the strict
+        // ±3 ms gate although no audio was missing (2026-11-12).
+        buildSession(
+            corpus, "20261102-1300-padded01",
+            listOf(Spec(5485, ogg = true, padAudioMs = 13), Spec(7613, ogg = true))
+        )
+
+        val results = reconstruct(corpus)
+
+        val r = results.single()
+        assertThat(r.kind).isEqualTo(ReconstructCommand.Kind.RECONSTRUCTED)
+        assertThat(r.notes.joinToString("\n")).contains("Opus decoder padding")
+        // Trimmed to the recorded boundaries — the tiled length is exact.
+        assertThat(r.pcm!!.size).isEqualTo((5485 + 7613) * 32)
     }
 
     @Test

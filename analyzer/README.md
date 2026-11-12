@@ -292,7 +292,13 @@ fragment-size sweep and future sizing studies:
   OGG pieces decode via host **ffmpeg** (documented host dependency).
 - **Strict gate (owner decision):** a bundle whose audio is incomplete —
   `sttError`, missing upload file, gap/overlap, or a piece deviating more
-  than ±3 ms from its boundary span — is **discarded whole**. No splicing,
+  than ±3 ms from its boundary span — is **discarded whole**. One exception
+  is codec padding, not missing audio (#129, measured 2026-11-12): a decoded
+  OGG piece is systematically longer than its span — **+12.8 ms** for bare
+  fragments (last Opus frame padded) and **+30.7 ms** for composed
+  `upload_*` pieces (same padding + the recorded `preRollMs` being truncated
+  to 980 ms), WAV 0 ms. An overshoot up to **40 ms** is trimmed back to the
+  span and noted; a SHORT piece is always fatal. No splicing,
   no silence-fill; corpus material is never silently glued.
 - Output: `wavs/<sessionId>.wav` (16 kHz mono s16le) + a manifest entry
   (class `reconstructed`, sha256, seconds — idempotent per path), so

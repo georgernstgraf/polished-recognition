@@ -278,6 +278,14 @@ object RunCommand {
         val sessionId = stem + "-" +
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
         val sessionDir = File(outDir, "session")
+        // A FAILED attempt (e.g. the 400 on a wrong model name) leaves its
+        // fragments + manifest behind. FragmentPreparer.recover() would then
+        // resume at the last committed boundary — the whole PCM is already
+        // "consumed", NOTHING is offered to the transcriber, and the run
+        // reports success with an empty join (ratio 0.0). Found 2026-11-12 on
+        // the opo Gegenprobe. result.json is the resume marker, so a session
+        // dir without one is stale by definition.
+        sessionDir.deleteRecursively()
         val logger = RotatingJsonLogger(File(outDir, "logs"))
         val bundle = SessionBundle(sessionId = sessionId)
         bundle.startedAt = startedAtMs
@@ -350,6 +358,13 @@ object RunCommand {
             throw IllegalStateException(
                 "fragment ${drained.failedIndex} failed: ${drained.failure?.message}"
             )
+        }
+        // A corpus WAV always yields at least the tail fragment — zero
+        // fragments means the pipeline never ran (stale session dir, a
+        // restored preparer), and an empty join would silently poison every
+        // ratio/err figure of the run.
+        if (bundle.fragments.isEmpty()) {
+            throw IllegalStateException("no fragments committed — the pipeline never ran (stale session dir?)")
         }
         val joinText = drained.text
 

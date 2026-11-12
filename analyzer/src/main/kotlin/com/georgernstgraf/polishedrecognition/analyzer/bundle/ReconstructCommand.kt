@@ -65,6 +65,25 @@ object ReconstructCommand {
      */
     private const val TOLERANCE_MS = 3L
 
+    /**
+     * Opus/OGG **decoder padding** is not missing audio (#129, measured
+     * 2026-11-12 on the opo corpus): the decoded piece is systematically
+     * LONGER than the recorded boundary span, in two exact classes —
+     * **+12.8 ms** for bare fragments (the encoder pads the last frame to a
+     * full frame) and **+30.7 ms** for composed `upload_*` pieces (the same
+     * padding PLUS the recorded `preRollMs` being truncated: 980 ms recorded
+     * vs ~997.9 ms of real head, leaving the residue in the piece). WAV
+     * pieces: 0 ms. Under the strict ±3 ms gate 7 of 10 #129 candidate
+     * sessions were discarded although nothing was missing — that strictness
+     * exists to catch DATA GAPS, not codec silence.
+     *
+     * A piece that OVERSHOOTS by at most this much is trimmed back to its
+     * boundary span (and noted); anything beyond stays fatal, and a piece that
+     * is SHORT is always fatal (a real gap). 40 ms = 20 ms pre-roll record
+     * truncation + 13 ms padding + 3 ms boundary rounding, rounded up.
+     */
+    private const val PADDING_TOLERANCE_MS = 40L
+
     private val prettyGson = GsonBuilder().setPrettyPrinting().create()
 
     enum class Kind { RECONSTRUCTED, DISCARDED, SKIPPED }
@@ -217,20 +236,34 @@ object ReconstructCommand {
                 }
                 val piece = pcm.copyOfRange(cutBytes.toInt(), pcm.size)
                 val expectedBytes = (end - start) * BYTES_PER_MS
-                val delta = piece.size - expectedBytes
-                if (abs(delta) > TOLERANCE_MS * BYTES_PER_MS) {
+                val codecPadded = file.extension.lowercase() in setOf("ogg", "opus")
+                val allowedOverrun = if (codecPadded) PADDING_TOLERANCE_MS * BYTES_PER_MS else TOLERANCE_MS * BYTES_PER_MS
+                val rawDelta = piece.size - expectedBytes
+                if (rawDelta < -TOLERANCE_MS * BYTES_PER_MS || rawDelta > allowedOverrun) {
                     throw Discard(
                         "fragment ${f.index}: piece ${piece.size / BYTES_PER_MS} ms ≠ boundary span " +
-                            "${end - start} ms (Δ ${delta / BYTES_PER_MS} ms beyond the ±$TOLERANCE_MS ms tolerance)"
+                            "${end - start} ms (Δ ${rawDelta / BYTES_PER_MS} ms beyond the " +
+                            "±$TOLERANCE_MS ms tolerance" +
+                            (if (codecPadded) ", +$PADDING_TOLERANCE_MS ms codec padding" else "") + ")"
                     )
+                }
+                // Overshoot inside the codec-padding window: trim the decoder's
+                // padded tail. The audio start is untouched, so the alignment holds.
+                val aligned = if (rawDelta > TOLERANCE_MS * BYTES_PER_MS) {
+                    notes.add(
+                        "fragment ${f.index}: trimmed ${rawDelta / BYTES_PER_MS} ms of Opus decoder padding"
+                    )
+                    piece.copyOfRange(0, expectedBytes.toInt())
+                } else {
+                    piece
                 }
                 prevEnd?.let {
                     if (start != it) {
                         throw Discard("fragment ${f.index}: startMs $start ≠ previous endMs $it (gap/overlap)")
                     }
                 }
-                maxDeltaBytes = maxOf(maxDeltaBytes, abs(delta))
-                out.write(piece)
+                maxDeltaBytes = maxOf(maxDeltaBytes, abs(aligned.size - expectedBytes))
+                out.write(aligned)
                 prevEnd = end
             }
 
