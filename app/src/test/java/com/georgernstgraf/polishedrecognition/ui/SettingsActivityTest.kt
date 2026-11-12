@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.ui
 
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
@@ -59,6 +60,8 @@ class SettingsActivityTest {
         Robolectric.buildActivity(SettingsActivity::class.java).setup().get()
 
     private fun SettingsActivity.textField(id: Int): EditText = findViewById(id)
+
+    private fun SettingsActivity.checkbox(id: Int): CheckBox = findViewById(id)
 
     /** Fills both providers so only the check under test can fire. */
     private fun SettingsActivity.fillValidProviders() {
@@ -136,10 +139,20 @@ class SettingsActivityTest {
     }
 
     @Test
-    fun invalidFragmentSeconds_abortsNamingTheCheck() {
-        assertAborted("fragment-seconds", SEED, R.id.fragment_seconds) {
+    fun invalidSliceSeconds_abortsNamingTheCheck() {
+        assertAborted("slice-seconds", SEED, R.id.slice_seconds) {
             fillValidProviders()
-            textField(R.id.fragment_seconds).setText("5")
+            checkbox(R.id.slice_auto).isChecked = false
+            textField(R.id.slice_seconds).setText("2")
+        }
+    }
+
+    @Test
+    fun invalidSearchPercent_abortsNamingTheCheck() {
+        assertAborted("search-percent", SEED, R.id.search_percent) {
+            fillValidProviders()
+            checkbox(R.id.search_auto).isChecked = false
+            textField(R.id.search_percent).setText("90")
         }
     }
 

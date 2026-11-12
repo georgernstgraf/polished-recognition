@@ -33,6 +33,8 @@ import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.CustomLanguages
 import com.georgernstgraf.polishedrecognition.config.EvidenceRetention
 import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
+import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
+import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
@@ -73,7 +75,10 @@ class SettingsActivity : Activity() {
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
     private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
-    private val fragmentSecondsField: EditText by lazy { findViewById(R.id.fragment_seconds) }
+    private val sliceAutoCheckbox: CheckBox by lazy { findViewById(R.id.slice_auto) }
+    private val sliceSecondsField: EditText by lazy { findViewById(R.id.slice_seconds) }
+    private val searchAutoCheckbox: CheckBox by lazy { findViewById(R.id.search_auto) }
+    private val searchPercentField: EditText by lazy { findViewById(R.id.search_percent) }
     private val appWrapDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.app_wrap_app) }
     private val appWrapWidthField: EditText by lazy { findViewById(R.id.app_wrap_width) }
     private val appWrapForgetButton: Button by lazy { findViewById(R.id.app_wrap_forget) }
@@ -178,13 +183,33 @@ class SettingsActivity : Activity() {
             override fun afterTextChanged(s: Editable?) {}
         })
 
-        fragmentSecondsField.addTextChangedListener(object : TextWatcher {
+        sliceSecondsField.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                fragmentSecondsField.error = null
+                sliceSecondsField.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+
+        searchPercentField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                searchPercentField.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        // #124: the auto checkboxes own the fields — checked = locked, showing
+        // the RESOLVED value in grey; unchecking keeps that value as the start.
+        sliceAutoCheckbox.setOnCheckedChangeListener { _, checked ->
+            setFieldLocked(sliceSecondsField, checked)
+        }
+        searchAutoCheckbox.setOnCheckedChangeListener { _, checked ->
+            setFieldLocked(searchPercentField, checked)
+        }
+        // The resolved values depend on provider + model + FORMAT — the format
+        // is switched on this very screen, so re-resolve when it flips.
+        compressAudioCheckbox.setOnCheckedChangeListener { _, _ -> refreshAutoValues() }
 
         findViewById<Button>(R.id.wrap_80).setOnClickListener { wrapWidthField.setText("80") }
         findViewById<Button>(R.id.wrap_120).setOnClickListener { wrapWidthField.setText("120") }
@@ -199,6 +224,49 @@ class SettingsActivity : Activity() {
      * field (empty = global) and a forget button. The dropdown uses the same
      * tap-to-open pattern as the other Settings dropdowns.
      */
+    /**
+     * #124: loads the fragment geometry. Auto (the default) shows the
+     * RESOLVED value in grey — the same value the next session will use, from
+     * the auto-sizer or the adaptive percentage rule. Unchecking auto keeps
+     * that value as the editable starting point.
+     */
+    private fun loadFragmentGeometry() {
+        sliceAutoCheckbox.isChecked = settings.sliceSecondsOverride == null
+        searchAutoCheckbox.isChecked = settings.searchPercentOverride == null
+        settings.sliceSecondsOverride?.let { sliceSecondsField.setText(formatNumber(it)) }
+        settings.searchPercentOverride?.let { searchPercentField.setText(formatNumber(it)) }
+        refreshAutoValues()
+    }
+
+    /** Re-resolves the grey auto values (provider/model/format dependent). */
+    private fun refreshAutoValues() {
+        val sizer = SttFragmentSizer(settings)
+        if (sliceAutoCheckbox.isChecked) {
+            val slice = sizer.sliceSeconds() ?: SttLatencyProfile.BOOTSTRAP_SLICE_SECONDS
+            sliceSecondsField.setText(formatNumber(slice.toFloat()))
+        }
+        if (searchAutoCheckbox.isChecked) {
+            val percent = sizer.searchPercent() ?: SttLatencyProfile.BOOTSTRAP_SEARCH_PERCENT
+            searchPercentField.setText(formatNumber(percent.toFloat()))
+        }
+        setFieldLocked(sliceSecondsField, sliceAutoCheckbox.isChecked)
+        setFieldLocked(searchPercentField, searchAutoCheckbox.isChecked)
+    }
+
+    private fun setFieldLocked(field: EditText, locked: Boolean) {
+        field.isEnabled = !locked
+        field.setTextColor(themeColor(if (locked) android.R.attr.textColorTertiary else android.R.attr.textColorPrimary))
+    }
+
+    private fun themeColor(attr: Int): Int {
+        val value = android.util.TypedValue()
+        theme.resolveAttribute(attr, value, true)
+        return value.data
+    }
+
+    private fun formatNumber(value: Float): String =
+        if (value % 1f == 0f) value.toInt().toString() else value.toString()
+
     private fun setupAppWrapSection() {
         appWrapDropdown.threshold = Int.MAX_VALUE
         appWrapDropdown.setOnClickListener { if (appWrapOrder.isNotEmpty()) appWrapDropdown.showDropDown() }
@@ -342,11 +410,7 @@ class SettingsActivity : Activity() {
         })
         switchBackAfterSendCheckbox.isChecked = settings.switchBackAfterSend
         wrapWidthField.setText(settings.wrapWidth.toString())
-        settings.fragmentSecondsOverride?.let { override ->
-            fragmentSecondsField.setText(
-                if (override % 1f == 0f) override.toInt().toString() else override.toString()
-            )
-        }
+        loadFragmentGeometry()
         loadAppWrapSection()
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
         settings.targetLanguage?.let { tl ->
@@ -1054,17 +1118,35 @@ class SettingsActivity : Activity() {
             return saveAborted("wrap-width")
         }
         settings.wrapWidth = wrapWidth
-        // Fragment-size override (#116 Phase 2): blank = auto, else 10–60 s (#122).
-        val fragmentText = fragmentSecondsField.text.toString().trim()
-        val fragmentOverride = if (fragmentText.isEmpty()) null else fragmentText.toFloatOrNull()
-        if (fragmentText.isNotEmpty() && (fragmentOverride == null ||
-                fragmentOverride < com.georgernstgraf.polishedrecognition.config.SttLatencyProfile.MIN_FRAGMENT_SECONDS ||
-                fragmentOverride > com.georgernstgraf.polishedrecognition.config.SttLatencyProfile.MAX_FRAGMENT_SECONDS)
-        ) {
-            fragmentSecondsField.error = getString(R.string.fragment_seconds_error)
-            return saveAborted("fragment-seconds")
+        // #124 fragment geometry: auto = null, manual = the field's value.
+        if (!sliceAutoCheckbox.isChecked) {
+            val text = sliceSecondsField.text.toString().trim()
+            val value = text.toFloatOrNull()
+            if (value == null ||
+                value < SttLatencyProfile.MIN_SLICE_SECONDS ||
+                value > SttLatencyProfile.MAX_SLICE_SECONDS
+            ) {
+                sliceSecondsField.error = getString(R.string.slice_seconds_error)
+                return saveAborted("slice-seconds")
+            }
+            settings.sliceSecondsOverride = value
+        } else {
+            settings.sliceSecondsOverride = null
         }
-        settings.fragmentSecondsOverride = fragmentOverride
+        if (!searchAutoCheckbox.isChecked) {
+            val text = searchPercentField.text.toString().trim()
+            val value = text.toFloatOrNull()
+            if (value == null ||
+                value < SttLatencyProfile.MIN_SEARCH_PERCENT ||
+                value > SttLatencyProfile.MAX_SEARCH_PERCENT
+            ) {
+                searchPercentField.error = getString(R.string.search_percent_error)
+                return saveAborted("search-percent")
+            }
+            settings.searchPercentOverride = value
+        } else {
+            settings.searchPercentOverride = null
+        }
         settings.saveKnownAppWidths(appWrapWidths.toMap())
         val tl = targetLanguageDropdown.text.toString()
         val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl

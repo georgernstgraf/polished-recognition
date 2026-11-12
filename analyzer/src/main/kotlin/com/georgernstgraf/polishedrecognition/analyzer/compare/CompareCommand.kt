@@ -56,7 +56,8 @@ object CompareCommand {
         "qualityMin" to 10.0,
         "axisC" to 100.0,
         "marginKMs" to 150,
-        "searchSpan" to "lateHalf"
+        "sliceSeconds" to 21.0,
+        "searchPercent" to 30.0
     )
 
     fun run(args: Args) {

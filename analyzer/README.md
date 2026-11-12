@@ -65,8 +65,8 @@ ANALYZER_STT_TOKEN=... analyzer run --corpus seam-study-01 \
     [--run-id ID] [--only SUBSTR] [--no-reference] \
     [--stt-url URL] [--model large-v3] \
     [--axis-k 0.65] [--axis-c 100.0] [--quality-min 10.0] [--margin-k-ms 150] \
-    [--search-span lateHalf] [--policy qgate] [--fragment-seconds 21] \
-    [--search-seconds 2] [--pre-roll-seconds 1] [--prompt-chars 96]
+    [--policy qgate] [--slice-seconds 21] \
+    [--search-percent 30] [--pre-roll-seconds 1] [--prompt-chars 96]
 ```
 
 For every corpus WAV (sha256-verified against the manifest): `WavPcm` →
@@ -103,8 +103,8 @@ production too, so this exercises the same code paths.
   "durationSeconds": 60.0,
   "startedAtMs": 1760520000000, "endedAtMs": 1760520024000,
   "knobs": { "axisK": 0.65, "axisC": 100.0, "qualityMin": 10.0,
-             "marginKMs": 150, "searchSpan": "lateHalf", "policy": "qgate",
-             "fragmentSeconds": 21.0, "searchSeconds": 2.0,
+             "marginKMs": 150, "policy": "qgate",
+             "sliceSeconds": 21.0, "searchPercent": 30.0,
              "preRollSeconds": 1.0, "promptChars": 96 },
   "stt": { "baseUrl": "…", "model": "large-v3" },
   "success": true, "error": null,

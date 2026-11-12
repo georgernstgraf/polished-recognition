@@ -9,7 +9,6 @@ import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.OpusOggTranscoder
 import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
-import com.georgernstgraf.polishedrecognition.audio.SearchSpan
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
@@ -38,23 +37,27 @@ class VoiceSessionController(
     private val chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
     /** Upload-duration limit per chunk in seconds (#115). */
     private val chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
-    /** PCM bytes per background-encoded fragment (#115); tests inject huge values. */
-    private val fragmentBytes: Int = FragmentPreparer.DEFAULT_FRAGMENT_BYTES,
     /**
-     * Forward silence-search window around the nominal fragment boundary
-     * (#117); tests inject 0 to reproduce the legacy fixed-offset cuts.
-     * #124: when a [fragmentSizeProvider] is wired (production) the effective
-     * window grows to `max(fragmentSearchBytes, fragmentBytes)` — see
-     * [resolvedSearchBytes].
+     * #124: the SLICE in PCM bytes — a fragment's maximum length. Tests
+     * inject explicit values; production derives it from
+     * [sliceSizeProvider].
      */
-    private val fragmentSearchBytes: Int = FragmentPreparer.DEFAULT_SEARCH_BYTES,
+    private val sliceBytes: Int = FragmentPreparer.DEFAULT_SLICE_BYTES,
+    /**
+     * #124: the search window in PCM bytes — the last part of the slice, the
+     * only region a cut may land in. Tests inject explicit values (0 =
+     * legacy hard cut at the slice end); production derives it from the
+     * resolved search-window percentage ([searchPercentProvider], default
+     * 30 %) times the resolved slice — see [resolvedSearchWindowBytes].
+     */
+    private val searchWindowBytes: Int = FragmentPreparer.DEFAULT_SEARCH_WINDOW_BYTES,
     /**
      * Acoustic pre-roll prepended to each fragment's UPLOAD (#117 round 2):
      * PCM bytes of the previous fragment re-sent ahead of the current one so
      * Whisper gets real acoustic context at the seam (fragment files stay
      * gapless; the echoed pre-roll text is trimmed by token-matching in
      * [FragmentTranscriber]). Tests inject 0 (off), mirroring
-     * [fragmentSearchBytes].
+     * [searchWindowBytes].
      */
     private val fragmentPreRollBytes: Int = FragmentPreparer.DEFAULT_PRE_ROLL_BYTES,
     /**
@@ -100,12 +103,6 @@ class VoiceSessionController(
      */
     private val fragmentMarginKMs: Int = FragmentPreparer.DEFAULT_MARGIN_K_MS,
     /**
-     * #126: which part of the forward search window the silence-quality
-     * metric measures — the LATE half (production default, owner decision)
-     * or the full window (the #129 study arm).
-     */
-    private val fragmentSearchSpan: SearchSpan = FragmentPreparer.DEFAULT_SEARCH_SPAN,
-    /**
      * #128 stitching gate: the minimum silence quality a seam must reach to
      * stay BARE (no pre-roll/prompt/trim) under [SeamPolicy.Q_GATE] —
      * stitch iff `Q < fragmentQualityMin`. Study-only knob — no Settings
@@ -150,13 +147,21 @@ class VoiceSessionController(
     /** Gate for the #127 evidence retention: the Settings toggle, wired in [com.georgernstgraf.polishedrecognition.PolishedRecognitionApp]. */
     private val audioEvidenceEnabled: () -> Boolean = { false },
     /**
-     * Resolves the fragment size for a NEW session in SECONDS (#116 Phase 2):
-     * the per-provider auto-sizer or the manual override. `null` (or a null
-     * result) falls back to the constructor [fragmentBytes]. Production
-     * wires the profile-driven sizer; tests inject explicit [fragmentBytes]
-     * and leave this null, so their size expectations stay untouched.
+     * Resolves the SLICE for a NEW session in SECONDS (#124): the
+     * per-provider auto-sizer or the manual override. `null` (or a null
+     * result) falls back to the constructor [sliceBytes]. Production wires
+     * the profile-driven sizer; tests inject explicit [sliceBytes] and leave
+     * this null, so their geometry expectations stay untouched.
      */
-    private val fragmentSizeProvider: (() -> Double?)? = null
+    private val sliceSizeProvider: (() -> Double?)? = null,
+    /**
+     * Resolves the SEARCH-WINDOW percentage (the last N % of the slice) for a
+     * NEW session (#124): the per-provider adaptive rule or the manual
+     * override. `null` (or a null result) falls back to
+     * [FragmentPreparer.DEFAULT_SEARCH_PERCENT]. Production wires it; tests
+     * leave it null and inject [searchWindowBytes] directly.
+     */
+    private val searchPercentProvider: (() -> Double?)? = null
 ) {
 
     enum class State { IDLE, RECORDING, PAUSED, PROCESSING }
@@ -396,59 +401,72 @@ class VoiceSessionController(
         attachTranscriber(p)
     }
 
-    private fun buildPreparer(): FragmentPreparer = FragmentPreparer(
-        pcm = recorder,
-        transcoder = transcoder,
-        sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sessionId),
-        fragmentBytes = resolvedFragmentBytes(),
-        wavMode = !settings.compressAudio,
-        chunkMaxBytes = chunkMaxBytes,
-        chunkMaxSeconds = chunkMaxSeconds,
-        searchBytes = resolvedSearchBytes(),
-        preRollBytes = fragmentPreRollBytes,
-        seamPolicy = seamPolicy,
-        energyFallbackEnabled = fragmentEnergyFallback,
-        axisK = fragmentAxisK,
-        axisC = fragmentAxisC,
-        marginKMs = fragmentMarginKMs,
-        searchSpan = fragmentSearchSpan,
-        qualityMin = fragmentQualityMin,
-        bundle = sessionBundle,
-        logger = logger
-    )
+    private fun buildPreparer(): FragmentPreparer {
+        val preparer = FragmentPreparer(
+            pcm = recorder,
+            transcoder = transcoder,
+            sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sessionId),
+            sliceBytes = resolvedSliceBytes(),
+            wavMode = !settings.compressAudio,
+            chunkMaxBytes = chunkMaxBytes,
+            chunkMaxSeconds = chunkMaxSeconds,
+            searchWindowBytes = resolvedSearchWindowBytes(),
+            preRollBytes = fragmentPreRollBytes,
+            seamPolicy = seamPolicy,
+            energyFallbackEnabled = fragmentEnergyFallback,
+            axisK = fragmentAxisK,
+            axisC = fragmentAxisC,
+            marginKMs = fragmentMarginKMs,
+            qualityMin = fragmentQualityMin,
+            bundle = sessionBundle,
+            logger = logger
+        )
+        // #124: feed the per-provider profile with the two signals the slice
+        // model needs — the local encode rate and the forced-cut rate. Both
+        // fire on the encoder thread; the writes are cheap and synchronized.
+        val config = settings.sttProvider
+        if (config != null) {
+            val mediaType = if (settings.compressAudio) "audio/ogg" else "audio/wav"
+            preparer.onSeamCut = { forced ->
+                runCatching { settings.recordSeam(config.baseUrl, config.model, mediaType, forced) }
+            }
+            preparer.onFragmentEncoded = { audioMs, encodeMs ->
+                runCatching {
+                    settings.recordEncodeSample(config.baseUrl, config.model, mediaType, audioMs, encodeMs)
+                }
+            }
+        }
+        return preparer
+    }
 
     /**
-     * The fragment size in PCM bytes for this session (#116 Phase 2): the
-     * auto-sizer's seconds when a [fragmentSizeProvider] is wired, the
-     * constructor [fragmentBytes] otherwise (tests). Defensively clamped to
-     * the upload cap — a bogus resolved size must never exceed the 300-s
-     * chunk limit the preparer's assembly relies on (#120).
+     * The SLICE in PCM bytes for this session (#124): the auto-sizer's
+     * seconds when [sliceSizeProvider] is wired, the constructor [sliceBytes]
+     * otherwise (tests). Defensively clamped to the upload cap — a bogus
+     * resolved size must never exceed the 300-s chunk limit the preparer's
+     * assembly relies on (#120).
      */
-    private fun resolvedFragmentBytes(): Int {
-        val seconds = fragmentSizeProvider?.invoke()
-            ?: return fragmentBytes
+    private fun resolvedSliceBytes(): Int {
+        val seconds = sliceSizeProvider?.invoke()
+            ?: return sliceBytes
         val clamped = seconds.coerceIn(1.0, chunkMaxSeconds)
         return (clamped * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt()
     }
 
     /**
-     * The silence-search window in PCM bytes for this session (#124): with a
-     * [fragmentSizeProvider] wired (production — auto-sized fragments), the
-     * window GROWS with the fragment size, `max(fragmentSearchBytes,
-     * resolvedFragmentBytes())` — a fragment then spans `[S, 2S]` and the
-     * silence scan sees a full fragment's worth of audio past the nominal
-     * boundary. Without a provider (tests, the analyzer study — explicit
-     * injected values) the constructor value keeps its exact semantics; an
-     * explicitly injected 0 stays the legacy fixed-offset cut. Invariant:
-     * `2S ≤
-     * chunkMaxSeconds` holds by construction — the sizer clamps S to
-     * [SttLatencyProfile.MAX_FRAGMENT_SECONDS] (60 s) and the chunk cap is
-     * 300 s (#120).
+     * The SEARCH WINDOW in PCM bytes for this session (#124): the resolved
+     * percentage (adaptive per provider, or the manual override) of the
+     * resolved slice, so the window can never exceed the slice — a fragment
+     * is at least `slice − window` long. Without a [searchPercentProvider]
+     * (tests, the analyzer's explicit values) the constructor
+     * [searchWindowBytes] keeps its exact semantics; an injected 0 stays the
+     * legacy hard cut at the slice end.
      */
-    private fun resolvedSearchBytes(): Int = when {
-        fragmentSearchBytes <= 0 -> fragmentSearchBytes
-        fragmentSizeProvider == null -> fragmentSearchBytes
-        else -> maxOf(fragmentSearchBytes, resolvedFragmentBytes())
+    private fun resolvedSearchWindowBytes(): Int {
+        val percent = searchPercentProvider?.invoke()
+            ?: return searchWindowBytes
+        val slice = resolvedSliceBytes()
+        return (slice * percent / 100.0).toInt().coerceIn(0, slice)
     }
 
     /**

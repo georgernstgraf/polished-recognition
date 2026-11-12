@@ -80,15 +80,21 @@ class VoiceSessionControllerTest {
     private fun newController(
         chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
         chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
+        /**
+         * Adapter for the pre-#124 vocabulary (see FragmentPreparerTest):
+         * `fragmentBytes + fragmentSearchBytes` is the slice, the late half of
+         * the old forward window is the new search window.
+         */
         fragmentBytes: Int = 1 shl 30,
-        fragmentSearchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
+        fragmentSearchBytes: Int = 0,
         fragmentPreRollBytes: Int = 0, // pre-roll off unless a test opts in (#117 round 2)
         seamPolicy: SeamPolicy = SeamPolicy.Q_GATE, // #128 production default
         fragmentQualityMin: Double = FragmentPreparer.DEFAULT_QUALITY_MIN, // #128 gate
         sessionIdInMeta: String? = null,
         mainDispatcher: Boolean = false, // true = production-like queued main-looper
         logger: RotatingJsonLogger? = null,
-        fragmentSizeProvider: (() -> Double?)? = null, // Phase 2 auto-sizer (#116)
+        sliceSizeProvider: (() -> Double?)? = null, // #124 auto-sizer
+        searchPercentProvider: (() -> Double?)? = null, // #124 adaptive window
         audioEvidenceStore: AudioEvidenceStore? = null, // #127 evidence retention
         audioEvidenceEnabled: () -> Boolean = { false }
     ): VoiceSessionController = VoiceSessionController(
@@ -101,8 +107,8 @@ class VoiceSessionControllerTest {
         ),
         chunkMaxBytes = chunkMaxBytes,
         chunkMaxSeconds = chunkMaxSeconds,
-        fragmentBytes = fragmentBytes,
-        fragmentSearchBytes = fragmentSearchBytes,
+        sliceBytes = fragmentBytes + fragmentSearchBytes,
+        searchWindowBytes = fragmentSearchBytes / 2,
         fragmentPreRollBytes = fragmentPreRollBytes,
         seamPolicy = seamPolicy,
         fragmentQualityMin = fragmentQualityMin,
@@ -110,7 +116,8 @@ class VoiceSessionControllerTest {
         // with zero backoff so failure-path tests stay fast
         sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
         logger = logger,
-        fragmentSizeProvider = fragmentSizeProvider,
+        sliceSizeProvider = sliceSizeProvider,
+        searchPercentProvider = searchPercentProvider,
         audioEvidenceStore = audioEvidenceStore,
         audioEvidenceEnabled = audioEvidenceEnabled
     )
@@ -1382,13 +1389,13 @@ class VoiceSessionControllerTest {
     }
 
     /**
-     * #116 Phase 2 fragment-size resolution: a wired [fragmentSizeProvider]
-     * converts seconds → PCM bytes (32 000 B/s) and overrides the static
-     * default — 2 s over a 200 kB buffer yields 3 full fragments + tail
-     * instead of the single giant fragment the default size would encode.
+     * #124 slice resolution: a wired [sliceSizeProvider] converts seconds →
+     * PCM bytes (32 000 B/s) and overrides the static default — a 2-s slice
+     * over a 200 kB buffer yields 3 full fragments + tail instead of the
+     * single giant fragment the default size would encode.
      */
     @Test
-    fun `fragmentSizeProvider overrides the fragment size in PCM bytes`() {
+    fun `sliceSizeProvider overrides the slice in PCM bytes`() {
         clearSessionFiles()
         settings.compressAudio = true
         every { transcoder.transcode(any(), any()) } answers {
@@ -1398,7 +1405,7 @@ class VoiceSessionControllerTest {
         File(cacheDir, "session.pcm").writeBytes(ByteArray(200_000) { i -> (i % 97).toByte() })
         File(cacheDir, "session.meta").writeText("""{"durationMs":6250,"sessionId":"testsess"}""")
 
-        val controller = newController(fragmentSizeProvider = { 2.0 })
+        val controller = newController(sliceSizeProvider = { 2.0 })
         controller.restore()
         val events = mutableListOf<VoiceSessionController.Event>()
         controller.attach { events.add(it) }
@@ -1417,26 +1424,28 @@ class VoiceSessionControllerTest {
     }
 
     /**
-     * #124 adaptive silence search: a wired [fragmentSizeProvider] (the
-     * production auto-sizer wiring) grows the search window with the fragment
-     * size — `max(2 s, S)` → fragment spans `[S, 2S]`. Here S = 10 s (the
-     * production floor), 40 s of continuous speech with two 1-s pauses at
-     * 15 s and 28 s: both sit BEYOND a fixed 2-s search window ([10, 12] s /
-     * [25.5, 27.5] s) but INSIDE the derived 10-s windows ([10, 20] s /
-     * [25.5, 35.5] s) — so both cuts are silence-aligned (15.5 s and 28.5 s)
-     * and the session lands on 3 fragments. With the old fixed 2-s search
-     * (and the hard cut, no energy fallback) the same audio cuts at the
-     * nominal 10-s boundaries → 4 fragments, both pauses missed.
+     * #124: the search window is `p` % of the slice, and it GROWS INTO the
+     * slice — so a larger percentage cuts earlier and therefore yields more,
+     * shorter fragments. That is exactly the trade-off the adaptive rule
+     * exploits: as small a window as the silence hunting allows, because a
+     * small window means long fragments and few seams.
      */
     @Test
-    fun `fragmentSizeProvider grows the silence search with the fragment size`() {
+    fun `searchPercentProvider derives the search window from the slice`() {
+        val wide = chunkCountFor(percent = 60.0) // 6 s window of a 10 s slice
+        val narrow = chunkCountFor(percent = 10.0) // 1 s window
+        assertThat(wide).isGreaterThan(narrow)
+    }
+
+    /** Runs one 40-s dictation (two 1-s pauses) with the given window % and returns the chunk count. */
+    private fun chunkCountFor(percent: Double): Int {
         clearSessionFiles()
         settings.compressAudio = true
         every { transcoder.transcode(any(), any()) } answers {
             secondArg<File>().apply { writeBytes(firstArg()) }
         }
         val cacheDir = RuntimeEnvironment.getApplication().cacheDir
-        // 40 s of loud speech, pauses (zero runs) at [15, 16] s and [28, 29] s
+        // loud speech with zero runs at [15, 16] s and [28, 29] s
         val data = ByteArray(1_280_000) { i ->
             val silence = (i in 480_000 until 512_000) || (i in 896_000 until 928_000)
             if (silence) 0 else if (i % 2 == 0) 0x55 else 0xAA.toByte()
@@ -1445,8 +1454,8 @@ class VoiceSessionControllerTest {
         File(cacheDir, "session.meta").writeText("""{"durationMs":40000,"sessionId":"testsess"}""")
 
         val controller = newController(
-            fragmentSearchBytes = FragmentPreparer.DEFAULT_SEARCH_BYTES, // production default (2 s)
-            fragmentSizeProvider = { 10.0 } // the auto-sizer floor
+            sliceSizeProvider = { 10.0 }, // 10 s slice
+            searchPercentProvider = { percent }
         )
         controller.restore()
         val events = mutableListOf<VoiceSessionController.Event>()
@@ -1458,23 +1467,17 @@ class VoiceSessionControllerTest {
 
         controller.stopAndTranscribe()
         controller.awaitIdle()
-
-        val stt = sttSlot.captured.getOrThrow()
-        assertThat(stt.chunkCount).isEqualTo(3)
-        verify(exactly = 3) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
-        clearSessionFiles()
+        return sttSlot.captured.getOrThrow().chunkCount
     }
 
     /**
-     * #124 invariant: the largest possible fragment span with
-     * `search = max(2 s, S)` is `2S` — at the sizer's 60-s ceiling that is
-     * 120 s, which must stay within the 300-s upload chunk cap (#120). A
-     * guard against future cap drift in either constant.
+     * #124 invariant: a fragment is never longer than its slice, so the
+     * sizer's MAX_SLICE_SECONDS must stay within the 300-s upload chunk cap
+     * (#120) — plus the 1-s pre-roll. A guard against future cap drift.
      */
     @Test
-    fun `adaptive search keeps the largest fragment span within the chunk cap`() {
-        assertThat(2.0 * SttLatencyProfile.MAX_FRAGMENT_SECONDS)
-            .isAtMost(WavChunker.MAX_CHUNK_SECONDS)
+    fun `the maximum slice stays within the chunk cap`() {
+        assertThat(SttLatencyProfile.MAX_SLICE_SECONDS + 1.0 <= WavChunker.MAX_CHUNK_SECONDS).isTrue()
     }
 
     // ---- #128: Q-gated stitching, end-to-end over the restore seam ----------

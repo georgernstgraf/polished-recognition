@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Encodes the live recording into small OGG fragments WHILE the user is
- * still dictating (#115, owner design): every ~[FRAGMENT_SECONDS] of
+ * still dictating (#115, owner design): every ~[DEFAULT_SLICE_SECONDS] of
  * accumulated PCM is transcoded in its own MediaCodec/Muxer run and
  * **committed** to the session directory with a manifest entry.
  *
@@ -23,26 +23,22 @@ import java.util.concurrent.CopyOnWriteArrayList
  * is therefore assembled at stop time by byte-concatenating its fragments —
  * no custom muxer involved.
  *
- * **Silence-quality-aligned boundaries (#117 → #126):** the fixed 7-s byte
- * cuts split words at the seams (the owner observed consistent word drops),
- * and each fragment's transcript started cold. The cut point is therefore
- * * MOVED into silence: the nominal boundary stays at [FRAGMENT_SECONDS],
- * but the encoder waits for the forward search window and hands the
- * **search span** — by default the window's LATE half
- * `[nominalEnd + search/2, nominalEnd + search]` (owner decision #126,
- * "immer in der zweiten Hälfte des Windows") — to [SilenceQuality]: a
- * per-fragment adaptive axis `X = k·M + c`, a normalized deficit curve,
- * candidates as contiguous below-axis regions, the cut at the AREA CENTROID
- * of the best deficit-area candidate Q, clamped to a K-ms margin from the
- * candidate's over-axis edges. The stream stays GAPLESS: fragment *i+1*
- * starts exactly where *i* ended, so the assembled chunks still reproduce
- * the original PCM byte-for-byte. No candidate (min ≈ M — continuous
- * speech, or a whisper room under the absolute anchor) → best-effort forced
- * cut at the QUIETEST frame of the span (the #124 semantics, now the only
- * forced path, Q = 0). Because the metric's M spans the search span (which
- * ends at the window end), the decision ALWAYS waits for the full window —
- * the #117 early-commit-on-found-silence is gone; every fragment commits
- * at ≤ S+search bytes of audio, which was the old worst case anyway.
+ * **Slice + search window (#124, owner decision 2026-11-12):** the PCM is
+ * divided into fixed **slices** of [sliceBytes] — a slice is a fragment's
+ * MAXIMUM length, and where its boundary falls is arbitrary. The only region
+ * a cut may land in is the **search window**: the last part of the slice
+ * (`[sliceEnd − searchWindowBytes, sliceEnd]`). The window is handed to
+ * [SilenceQuality]: a per-fragment adaptive axis `X = k·M + c`, a normalized
+ * deficit curve, candidates as contiguous below-axis regions, the cut at the
+ * AREA CENTROID of the best deficit-area candidate Q, clamped to a K-ms
+ * margin from the candidate's over-axis edges. The stream stays GAPLESS:
+ * fragment *i+1* starts exactly where *i* ended, so the assembled chunks
+ * still reproduce the original PCM byte-for-byte. No candidate (min ≈ M —
+ * continuous speech, or a whisper room under the absolute anchor) →
+ * best-effort forced cut at the QUIETEST frame of the window (Q = 0).
+ * Because the metric's M spans the window (which ends at the slice end), the
+ * decision ALWAYS waits for the full slice — every fragment is at most
+ * [sliceBytes] long, and at least `sliceBytes − searchWindowBytes`.
  *
  * **#128 stitching gate — the cut is best-effort, the stitch is the
  * guarantee:** whether a seam gets the pre-roll (+ the text prompt and the
@@ -93,7 +89,15 @@ class FragmentPreparer(
     private val transcoder: AudioTranscoder,
     private val sessionDir: File,
     private val sampleRate: Int = 16_000,
-    private val fragmentBytes: Int = DEFAULT_FRAGMENT_BYTES,
+    /**
+     * #124 (owner decision 2026-11-12): the **slice** — the fixed PCM budget
+     * of one fragment, i.e. its MAXIMUM length. The slice boundary itself is
+     * arbitrary and irrelevant; it only bounds the search window from above.
+     * The old name `fragmentBytes` lied: with `search = max(2 s, S)` and the
+     * "late half" span the real fragment was 1.5–2× the nominal value
+     * (measured: 17.7 s median at a nominal 10 s).
+     */
+    private val sliceBytes: Int = DEFAULT_SLICE_BYTES,
     chunkMaxBytes: Int = WavChunker.MAX_CHUNK_BYTES,
     chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
     /**
@@ -104,15 +108,18 @@ class FragmentPreparer(
      */
     private val wavMode: Boolean = false,
     /**
-     * Forward silence-search window in PCM bytes (#117). Tests inject small
-     * values: 0 reproduces the legacy fixed-offset cuts exactly.
+     * #124: the **search window** — the last N bytes of the slice, the only
+     * region a cut may land in. Cut ∈ `[sliceEnd − searchWindowBytes,
+     * sliceEnd]`, so a fragment spans `[Slice·(1−p), Slice]`. `0` reproduces
+     * the legacy fixed-offset cut at the slice end. The controller derives
+     * the bytes from the search-window percentage; the core stays in bytes.
      */
-    private val searchBytes: Int = DEFAULT_SEARCH_BYTES,
+    private val searchWindowBytes: Int = DEFAULT_SEARCH_WINDOW_BYTES,
     /**
      * Acoustic pre-roll length in PCM bytes (#117 round 2): the tail of the
      * previous fragment re-sent ahead of this one IN THE UPLOAD ONLY (the
      * fragment files stay gapless). Tests inject 0 (off), mirroring
-     * [searchBytes].
+     * [searchWindowBytes].
      */
     private val preRollBytes: Int = DEFAULT_PRE_ROLL_BYTES,
     /**
@@ -153,12 +160,6 @@ class FragmentPreparer(
      * **PROVISIONAL default** — #129 decides.
      */
     private val marginKMs: Int = DEFAULT_MARGIN_K_MS,
-    /**
-     * #126: which part of the forward search window the metric measures —
-     * the LATE half (production default, owner decision) or the full window
-     * (the #129 study arm).
-     */
-    private val searchSpan: SearchSpan = DEFAULT_SEARCH_SPAN,
     /**
      * #128 stitching gate: the minimum silence quality a seam must reach to
      * stay BARE under [SeamPolicy.Q_GATE] — stitch iff `Q < qualityMin`
@@ -201,7 +202,7 @@ class FragmentPreparer(
          * quality the Q-gate compares against [qualityMin] when the NEXT
          * fragment's stitch decision is made (`seamStitchedAt(index + 1)`).
          * `null` when no search span was measured (the stop-tap tail, the
-         * `searchBytes = 0` legacy path, pre-#128 manifests) — the gate
+         * `searchWindowBytes = 0` legacy path, pre-#128 manifests) — the gate
          * treats null as stitch (the conservative direction). Gson omits
          * nulls, so legacy manifests keep parsing unchanged.
          */
@@ -253,6 +254,24 @@ class FragmentPreparer(
             ((index: Int, file: File, preRoll: File?, seamForced: Boolean, stitched: Boolean) -> Unit)? = null
 
     /**
+     * #124: fired once per **searched cut** (on the encoder thread) with
+     * `forced = true` when the search window held no silence candidate. The
+     * stop-tap tail is NOT a cut and never fires this. Feeds the adaptive
+     * search-window percentage (forced-rate rule); the controller records the
+     * counters per provider + format.
+     */
+    var onSeamCut: ((forced: Boolean) -> Unit)? = null
+
+    /**
+     * #124: fired once per committed fragment with the fragment's audio
+     * length and the measured local encode time (both ms). Feeds the
+     * per-format encode rate the slice search prices — OGG costs ~7.9 % of the
+     * audio length, WAV ~0.1 %, and that difference decides how large a slice
+     * a provider can afford.
+     */
+    var onFragmentEncoded: ((audioMs: Long, encodeMs: Long) -> Unit)? = null
+
+    /**
      * Upload chunk cap in PCM bytes (#117): the smaller of the byte limit
      * (25 MB WAV) and the duration limit (300 s = 9.6 MB of 16-kHz mono
      * 16-bit PCM, #120 — the time cap binds and the byte cap can only lower
@@ -282,12 +301,20 @@ class FragmentPreparer(
     companion object {
         /** PCM byte rate: 16 kHz · 16 bit · mono. */
         const val PCM_BYTES_PER_SECOND = 32_000
-        const val FRAGMENT_SECONDS = 21.0
-        const val DEFAULT_FRAGMENT_BYTES = (FRAGMENT_SECONDS * PCM_BYTES_PER_SECOND).toInt()
+        /** Default slice: 21 s — the fragment's MAXIMUM length (#124). */
+        const val DEFAULT_SLICE_SECONDS = 21.0
+        const val DEFAULT_SLICE_BYTES = (DEFAULT_SLICE_SECONDS * PCM_BYTES_PER_SECOND).toInt()
 
-        /** Default forward silence-search window (#117): 2 s. */
-        const val DEFAULT_SEARCH_SECONDS = 2.0
-        val DEFAULT_SEARCH_BYTES = (DEFAULT_SEARCH_SECONDS * 32_000).toInt()
+        /**
+         * #124: the default search window as a fraction of the slice (the
+         * last 30 %). Startup default only — production derives the bytes
+         * from the per-provider percentage the settings resolver returns.
+         */
+        const val DEFAULT_SEARCH_PERCENT = 30.0
+        const val DEFAULT_SEARCH_WINDOW_SECONDS =
+            DEFAULT_SLICE_SECONDS * DEFAULT_SEARCH_PERCENT / 100.0
+        const val DEFAULT_SEARCH_WINDOW_BYTES =
+            (DEFAULT_SEARCH_WINDOW_SECONDS * PCM_BYTES_PER_SECOND).toInt()
 
         /**
          * #126 provisional axis defaults — PLACEHOLDERS until the #129
@@ -297,7 +324,6 @@ class FragmentPreparer(
         const val DEFAULT_AXIS_K = 0.65
         const val DEFAULT_AXIS_C = 100.0
         const val DEFAULT_MARGIN_K_MS = 150
-        val DEFAULT_SEARCH_SPAN = SearchSpan.LATE_HALF
 
         /**
          * #128 provisional stitching-gate threshold — PLACEHOLDER until the
@@ -364,7 +390,7 @@ class FragmentPreparer(
 
     /** PCM offset where the next fragment begins: the last committed end (#117). */
     private fun nextFragmentStart(): Long =
-        entries.lastOrNull()?.end?.takeIf { it > 0 } ?: (nextFragment.toLong() * fragmentBytes)
+        entries.lastOrNull()?.end?.takeIf { it > 0 } ?: (nextFragment.toLong() * sliceBytes)
 
     /** PCM bytes fragment [index] spans, derived from the committed boundaries. */
     private fun fragmentPcmBytes(index: Int): Long {
@@ -421,64 +447,55 @@ class FragmentPreparer(
     }
 
     /**
-     * Encodes every fragment whose cut point is DECIDABLE (#117/#126): a
-     * fragment commits once the FULL search window is available — the
-     * silence-quality metric's M spans the search span, which ends at the
-     * window end, so the decision cannot be made earlier (the #117
-     * early-commit-on-found-silence is gone). The metric then ALWAYS
-     * returns a best-effort cut: the best candidate's margin-clamped area
-     * centroid (silence-aligned), or the quietest span frame when no
-     * candidate exists (forced). With [searchBytes] = 0 this degenerates
-     * to the legacy fixed-offset behavior.
+     * Encodes every fragment whose cut point is DECIDABLE (#124): a fragment
+     * commits once the WHOLE slice is available, because the search window is
+     * the slice's tail and ends at the slice end — the decision cannot be made
+     * earlier than that. The metric then ALWAYS returns a best-effort cut
+     * inside the window: the best candidate's margin-clamped area centroid
+     * (silence-aligned), or the quietest span frame when no candidate exists
+     * (forced). With [searchWindowBytes] = 0 this degenerates to the legacy
+     * hard cut at the slice end.
      */
     fun encodeAvailableFragments() {
         while (true) {
             val start = nextFragmentStart()
-            val nominalEnd = start + fragmentBytes
+            val sliceEnd = start + sliceBytes
             val total = pcm.pcmSize()
-            if (total < nominalEnd) return
-            val searchEnd = nominalEnd + searchBytes.toLong()
-            val windowEnd = minOf(total, searchEnd)
-            if (searchBytes <= 0) {
-                // legacy fixed-offset cuts (#117 tests, searchBytes = 0)
-                encodeFragment(nextFragment, start, nominalEnd, silenceAligned = false)
+            if (total < sliceEnd) return
+            val window = searchWindowBytes.toLong().coerceIn(0L, sliceBytes.toLong())
+            val windowStart = sliceEnd - window
+            if (window <= 0) {
+                // no search window: hard cut at the slice end (legacy path)
+                val forced = true
+                encodeFragment(nextFragment, start, sliceEnd, silenceAligned = false)
                 nextFragment++
+                onSeamCut?.invoke(forced)
                 continue
             }
-            if (windowEnd < searchEnd) {
-                // M spans the search span, which ends at the window end —
-                // wait for the full window rather than deciding on a
-                // partial span
-                return
-            }
-            // #126: measure the search span (late half by default, the
-            // owner decision; the full window is the #129 A/B arm) on the
-            // high-passed copy and cut at the best candidate's
-            // margin-clamped area centroid — best-effort even with no
-            // candidate (the quietest span frame, tagged FORCED).
-            val spanStart = when (searchSpan) {
-                SearchSpan.LATE_HALF -> nominalEnd + searchBytes.toLong() / 2
-                SearchSpan.FULL_WINDOW -> nominalEnd
-            }
+            // #126: measure the search window on the high-passed copy and cut
+            // at the best candidate's margin-clamped area centroid —
+            // best-effort even with no candidate (quietest frame, FORCED).
             val result = SilenceQuality.evaluate(
-                pcm.copyPcmRange(spanStart, searchEnd),
+                pcm.copyPcmRange(windowStart, sliceEnd),
                 sampleRate,
                 axisK,
                 axisC,
                 marginFrames = marginKMs / 10
             )
             if (result == null) {
-                // span below one analysis frame — hard cut at the nominal
-                // boundary (nothing was measured)
-                encodeFragment(nextFragment, start, nominalEnd, silenceAligned = false)
+                // window below one analysis frame — hard cut at the slice end
+                encodeFragment(nextFragment, start, sliceEnd, silenceAligned = false)
+                nextFragment++
+                onSeamCut?.invoke(true)
             } else {
                 encodeFragment(
-                    nextFragment, start, spanStart + result.cutOffset,
+                    nextFragment, start, windowStart + result.cutOffset,
                     silenceAligned = result.candidateFound, metric = result,
-                    metricSpanStart = spanStart
+                    metricSpanStart = windowStart
                 )
+                nextFragment++
+                onSeamCut?.invoke(!result.candidateFound)
             }
-            nextFragment++
         }
     }
 
@@ -646,9 +663,9 @@ class FragmentPreparer(
                 }
                 for (i in 0 until index) {
                     val s = if (i == 0) 0L else boundaries[i - 1].takeIf { it > 0 }
-                        ?: (i.toLong() * fragmentBytes)
+                        ?: (i.toLong() * sliceBytes)
                     val e = boundaries.getOrNull(i)?.takeIf { it > 0 }
-                        ?: (s + fragmentBytes)
+                        ?: (s + sliceBytes)
                     val rebuilt = writeWavFragment(i, pcm.copyPcmRange(s, e))
                     // The rebuild's delete sweep wiped the pre-rolls — they
                     // are re-created for every rebuilt fragment (#117 round 2).
@@ -740,7 +757,7 @@ class FragmentPreparer(
      * NEXT fragment's upload is composed with a pre-roll under the active
      * [SeamPolicy] (`Q < qualityMin` under the production Q-gate). The
      * block is present only when a search span was actually measured (the
-     * stop-tap tail and the `searchBytes = 0` legacy path carry none).
+     * stop-tap tail and the `searchWindowBytes = 0` legacy path carry none).
      */
     private fun logFragment(
         index: Int,
@@ -751,13 +768,15 @@ class FragmentPreparer(
         fragmentStart: Long,
         started: Long
     ) {
+        val encodeMs = System.currentTimeMillis() - started
         val record = linkedMapOf<String, Any?>(
             "fragment" to index,
             "bytes" to bytes,
             "pcmEnd" to end,
-            "encodeMs" to (System.currentTimeMillis() - started),
+            "encodeMs" to encodeMs,
             "mode" to if (fallbackToWav) "wav" else "ogg"
         )
+        onFragmentEncoded?.invoke(bytes.toLong() * 1000L / PCM_BYTES_PER_SECOND, encodeMs)
         if (metric != null) {
             record["M"] = metric.meanLevel
             record["min"] = metric.floorLevel

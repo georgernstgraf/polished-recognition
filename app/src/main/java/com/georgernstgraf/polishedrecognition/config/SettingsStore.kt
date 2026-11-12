@@ -161,13 +161,40 @@ class SettingsStore(
         set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
 
     /**
-     * Manual fragment-size override in seconds (#116 Phase 2). `null` = auto
-     * (the per-provider latency profile decides); a value ≥ 1 fixes the
-     * fragment size and suspends the auto-sizer for every provider.
+     * Manual SLICE override in seconds (#124). `null` = auto (the
+     * per-provider cost model decides); a value ≥ 1 fixes the slice — and
+     * therefore a fragment's MAXIMUM length — for every provider.
+     *
+     * Migration (#124): the old `fragment_seconds_override` was the nominal
+     * boundary of the pre-#124 model, whose real fragment was `2 ×` that
+     * (search = S, late half). It is read once, doubled, and written here so
+     * the measured behaviour does not jump when the model is renamed.
      */
-    var fragmentSecondsOverride: Float?
-        get() = prefs.getString(FRAGMENT_SECONDS_OVERRIDE_KEY, null)?.toFloatOrNull()
-        set(value) = prefs.edit().putString(FRAGMENT_SECONDS_OVERRIDE_KEY, value?.toString()).apply()
+    var sliceSecondsOverride: Float?
+        get() {
+            prefs.getString(SLICE_SECONDS_OVERRIDE_KEY, null)?.toFloatOrNull()?.let { return it }
+            val legacy = prefs.getString(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY, null)
+                ?.toFloatOrNull() ?: return null
+            val migrated = legacy * 2f
+            prefs.edit()
+                .putString(SLICE_SECONDS_OVERRIDE_KEY, migrated.toString())
+                .remove(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY)
+                .apply()
+            return migrated
+        }
+        set(value) = prefs.edit()
+            .putString(SLICE_SECONDS_OVERRIDE_KEY, value?.toString())
+            .remove(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY)
+            .apply()
+
+    /**
+     * Manual search-window percentage override (#124): the last N % of the
+     * slice in which a cut may land. `null` = auto (the adaptive forced-rate
+     * rule decides).
+     */
+    var searchPercentOverride: Float?
+        get() = prefs.getString(SEARCH_PERCENT_OVERRIDE_KEY, null)?.toFloatOrNull()
+        set(value) = prefs.edit().putString(SEARCH_PERCENT_OVERRIDE_KEY, value?.toString()).apply()
 
     /**
      * Learned dictation targets (#100), most-recently-used first. Apps used in
@@ -372,20 +399,71 @@ class SettingsStore(
     }
 
     /**
-     * Records the fragment size (seconds) the auto-sizer APPLIED for a
-     * profile — the anchor of the stepwise adaptation (#116 Phase 2).
+     * #124: records one LOCAL ENCODE cost sample (fragment duration vs
+     * encode time) for a profile. Fed by the preparer's commit hook; the
+     * ratio is what the slice search needs to price OGG correctly.
      */
     @Synchronized
-    fun setSttProfileAppliedSeconds(
+    fun recordEncodeSample(
         baseUrl: String,
         model: String,
         mediaType: String,
-        seconds: Double
+        audioMs: Long,
+        encodeMs: Long
+    ) {
+        if (audioMs <= 0 || encodeMs < 0) return
+        val key = sttProfileKey(baseUrl, model, mediaType)
+        val profiles = readSttProfiles()
+        val existing = profiles[key] ?: SttProviderProfile()
+        profiles[key] = existing.copy(
+            encodeMsTotal = existing.encodeMsTotal + encodeMs,
+            encodeAudioMsTotal = existing.encodeAudioMsTotal + audioMs
+        )
+        writeSttProfiles(profiles)
+    }
+
+    /**
+     * #124: counts one searched cut for a profile — `forced` when the search
+     * window held no silence candidate. Drives the adaptive search-window
+     * percentage.
+     */
+    @Synchronized
+    fun recordSeam(
+        baseUrl: String,
+        model: String,
+        mediaType: String,
+        forced: Boolean
     ) {
         val key = sttProfileKey(baseUrl, model, mediaType)
         val profiles = readSttProfiles()
         val existing = profiles[key] ?: SttProviderProfile()
-        profiles[key] = existing.copy(lastAppliedSeconds = seconds)
+        profiles[key] = existing.copy(
+            seamsTotal = existing.seamsTotal + 1,
+            seamsForced = existing.seamsForced + if (forced) 1 else 0
+        )
+        writeSttProfiles(profiles)
+    }
+
+    /**
+     * #124: persists the search-window percentage the adaptive rule moved to
+     * and RE-ANCHORS the measurement window at the current seam counters
+     * (only seams after the step count towards the next one).
+     */
+    @Synchronized
+    fun setSttProfileSearchPercent(
+        baseUrl: String,
+        model: String,
+        mediaType: String,
+        percent: Double
+    ) {
+        val key = sttProfileKey(baseUrl, model, mediaType)
+        val profiles = readSttProfiles()
+        val existing = profiles[key] ?: SttProviderProfile()
+        profiles[key] = existing.copy(
+            searchPercent = percent,
+            seamsTotalAtStep = existing.seamsTotal,
+            seamsForcedAtStep = existing.seamsForced
+        )
         writeSttProfiles(profiles)
     }
 
@@ -465,7 +543,11 @@ class SettingsStore(
         private const val TARGET_LANGUAGE_KEY = "target_language"
         private const val CUSTOM_LANGUAGES_KEY = "custom_languages"
         private const val WRAP_WIDTH_KEY = "wrap_width"
-        private const val FRAGMENT_SECONDS_OVERRIDE_KEY = "fragment_seconds_override"
+        private const val SLICE_SECONDS_OVERRIDE_KEY = "slice_seconds_override"
+        private const val SEARCH_PERCENT_OVERRIDE_KEY = "search_percent_override"
+
+        /** Pre-#124 key: the nominal fragment size, migrated ×2 into the slice. */
+        private const val LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY = "fragment_seconds_override"
         private const val STT_PROFILES_KEY = "stt_profiles"
         private const val STT_PROFILES_VERSION_KEY = "stt_profiles_version"
 

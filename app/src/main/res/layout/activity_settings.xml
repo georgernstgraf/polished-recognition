@@ -62,146 +62,6 @@
             android:padding="4dp"
             android:layout_marginStart="4dp"
             android:layout_marginBottom="4dp" />
-
-        <EditText
-            android:id="@+id/wrap_width"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/wrap_width"
-            android:inputType="number"
-            android:imeOptions="actionDone"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/wrap_width_hint"
-            android:textSize="12sp"
-            android:textColor="?android:attr/textColorTertiary"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="4dp" />
-
-        <EditText
-            android:id="@+id/fragment_seconds"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/fragment_seconds"
-            android:inputType="number"
-            android:imeOptions="actionDone"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/fragment_seconds_hint"
-            android:textSize="12sp"
-            android:textColor="?android:attr/textColorTertiary"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
-            <Button
-                android:id="@+id/wrap_80"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="80"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
-
-            <Button
-                android:id="@+id/wrap_120"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="120"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
-
-            <Button
-                android:id="@+id/wrap_200"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="200"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
-
-            <Button
-                android:id="@+id/wrap_off"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0 (off)"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/app_wrap_section"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="?android:attr/textColorPrimary"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="4dp" />
-
-        <AutoCompleteTextView
-            android:id="@+id/app_wrap_app"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/app_wrap_pick"
-            android:inputType="none"
-            android:focusable="false"
-            android:cursorVisible="false"
-            android:clickable="true"
-            android:layout_marginBottom="4dp" />
-
-        <EditText
-            android:id="@+id/app_wrap_width"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/wrap_width"
-            android:inputType="number"
-            android:imeOptions="actionDone"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/app_wrap_empty_hint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/app_wrap_empty"
-            android:textSize="12sp"
-            android:textColor="?android:attr/textColorTertiary"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="4dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
-
-            <Button
-                android:id="@+id/app_wrap_forget"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/app_wrap_forget"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/app_wrap_hint"
-            android:textSize="12sp"
-            android:textColor="?android:attr/textColorTertiary"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="12dp" />
-
-        <CheckBox
-            android:id="@+id/compress_audio"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/compress_audio"
             android:layout_marginBottom="8dp" />
 
         <!-- #142: audio-evidence retention — the 0→50-years log slider
@@ -537,6 +397,192 @@
             style="@android:style/Widget.DeviceDefault.Button.Borderless"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="16dp" />
+
+        <!-- Advanced / seldom needed (#124) -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/advanced_section"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
+            android:id="@+id/slice_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/slice_auto"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/slice_seconds"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/slice_seconds"
+            android:inputType="numberDecimal"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/slice_seconds_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
+            android:id="@+id/search_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/search_percent_auto"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/search_percent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/search_percent"
+            android:inputType="number"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/search_percent_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
+            android:id="@+id/compress_audio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/compress_audio"
+            android:layout_marginBottom="8dp" />
+
+
+
+        <EditText
+            android:id="@+id/wrap_width"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/wrap_width"
+            android:inputType="number"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/wrap_width_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/wrap_80"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="80"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+
+            <Button
+                android:id="@+id/wrap_120"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="120"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+
+            <Button
+                android:id="@+id/wrap_200"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="200"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+
+            <Button
+                android:id="@+id/wrap_off"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 (off)"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_wrap_section"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp" />
+
+        <AutoCompleteTextView
+            android:id="@+id/app_wrap_app"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/app_wrap_pick"
+            android:inputType="none"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:clickable="true"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/app_wrap_width"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/wrap_width"
+            android:inputType="number"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/app_wrap_empty_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_wrap_empty"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/app_wrap_forget"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_wrap_forget"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_wrap_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="12dp" />
 
         <!-- Voice Keyboard (IME) Setup -->
         <Button

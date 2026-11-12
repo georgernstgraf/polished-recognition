@@ -501,11 +501,27 @@ class SettingsStoreTest {
     }
 
     @Test
-    fun `stt profile applied seconds round-trips`() {
-        store.setSttProfileAppliedSeconds("https://a/v1/", "m", "audio/ogg", 13.5)
+    fun `encode samples accumulate into a rate (#124)`() {
+        store.recordEncodeSample("https://a/v1/", "m", "audio/ogg", 18_000, 1_300)
+        store.recordEncodeSample("https://a/v1/", "m", "audio/ogg", 18_000, 1_500)
         val fresh = freshStore()
-        assertThat(fresh.sttProfile("https://a/v1/", "m", "audio/ogg")!!.lastAppliedSeconds)
-            .isEqualTo(13.5)
+        val profile = fresh.sttProfile("https://a/v1/", "m", "audio/ogg")!!
+        assertThat(profile.encodeAudioMsTotal).isEqualTo(36_000)
+        assertThat(profile.encodeRate()!!).isWithin(1e-9).of(2_800.0 / 36_000)
+    }
+
+    @Test
+    fun `seam counters accumulate and the percentage step re-anchors (#124)`() {
+        store.recordSeam("https://a/v1/", "m", "audio/ogg", forced = false)
+        store.recordSeam("https://a/v1/", "m", "audio/ogg", forced = true)
+        var profile = store.sttProfile("https://a/v1/", "m", "audio/ogg")!!
+        assertThat(profile.seamsTotal).isEqualTo(2)
+        assertThat(profile.seamsForced).isEqualTo(1)
+        store.setSttProfileSearchPercent("https://a/v1/", "m", "audio/ogg", 35.0)
+        profile = store.sttProfile("https://a/v1/", "m", "audio/ogg")!!
+        assertThat(profile.searchPercent).isEqualTo(35.0)
+        assertThat(profile.seamsTotalAtStep).isEqualTo(2)
+        assertThat(profile.seamsForcedAtStep).isEqualTo(1)
     }
 
     @Test
@@ -537,50 +553,84 @@ class SettingsStoreTest {
     }
 
     @Test
-    fun `fragmentSecondsOverride defaults to null and round-trips`() {
-        assertThat(store.fragmentSecondsOverride).isNull()
-        store.fragmentSecondsOverride = 30f
-        assertThat(store.fragmentSecondsOverride).isEqualTo(30f)
-        store.fragmentSecondsOverride = null
-        assertThat(store.fragmentSecondsOverride).isNull()
+    fun `sliceSecondsOverride defaults to null and round-trips`() {
+        assertThat(store.sliceSecondsOverride).isNull()
+        store.sliceSecondsOverride = 30f
+        assertThat(store.sliceSecondsOverride).isEqualTo(30f)
+        store.sliceSecondsOverride = null
+        assertThat(store.sliceSecondsOverride).isNull()
+    }
+
+    @Test
+    fun `legacy fragment override migrates x2 into the slice (#124)`() {
+        // the pre-#124 model produced fragments of 2 x the nominal size
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+            .edit().putString("fragment_seconds_override", "30").commit()
+        assertThat(store.sliceSecondsOverride).isEqualTo(60f)
+        // one-shot: the legacy key is gone afterwards
+        assertThat(store.sliceSecondsOverride).isEqualTo(60f)
+        assertThat(
+            RuntimeEnvironment.getApplication()
+                .getSharedPreferences("polished_recognition_settings", 0)
+                .getString("fragment_seconds_override", null)
+        ).isNull()
+    }
+
+    @Test
+    fun `searchPercentOverride defaults to null and round-trips`() {
+        assertThat(store.searchPercentOverride).isNull()
+        store.searchPercentOverride = 40f
+        assertThat(store.searchPercentOverride).isEqualTo(40f)
+        store.searchPercentOverride = null
+        assertThat(store.searchPercentOverride).isNull()
     }
 
     /** #116 Phase 2: the sizer resolves override > profile fit > null. */
 
     @Test
     fun `sizer returns the manual override and skips the profile`() {
-        store.fragmentSecondsOverride = 30f
+        store.sliceSecondsOverride = 30f
         repeat(SttLatencyProfile.MIN_SAMPLES + 5) {
             store.recordSttSample("https://a/v1/", "m", "audio/ogg", 21_000, 700)
         }
-        assertThat(SttFragmentSizer(store).fragmentSeconds()).isEqualTo(30.0)
+        assertThat(SttFragmentSizer(store).sliceSeconds()).isEqualTo(30.0)
     }
 
     @Test
     fun `sizer returns null without a provider or a ready profile`() {
-        assertThat(SttFragmentSizer(store).fragmentSeconds()).isNull()
+        assertThat(SttFragmentSizer(store).sliceSeconds()).isNull()
         store.sttProvider = SttProviderConfig(displayName = "A", baseUrl = "https://a/v1/", apiToken = "t", model = "m")
         store.compressAudio = true // key the samples on the OGG media type
         repeat(SttLatencyProfile.MIN_SAMPLES - 1) {
             store.recordSttSample("https://a/v1/", "m", "audio/ogg", 21_000, 700)
         }
-        assertThat(SttFragmentSizer(store).fragmentSeconds()).isNull()
+        assertThat(SttFragmentSizer(store).sliceSeconds()).isNull()
     }
 
     @Test
-    fun `sizer derives from the profile and persists the applied anchor`() {
+    fun `sizer derives the slice from the profile and persists nothing (#124)`() {
         store.sttProvider = SttProviderConfig(displayName = "A", baseUrl = "https://a/v1/", apiToken = "t", model = "m")
         store.compressAudio = true // the sizer keys the profile on the OGG media type
-        // t = 0.06 + 0.02·S → derived (1.0 − 0.09)/0.02 = 45.5 s
+        // t = 0.06 + 0.02·S — a slow provider: the cost model must settle below
+        // the 180-s cap and above the quality floor.
         repeat(SttLatencyProfile.MIN_SAMPLES) { i ->
             val s = 10.0 + i * 3.0
             store.recordSttSample("https://a/v1/", "m", "audio/ogg",
                 (s * 1000).toLong(), ((0.06 + 0.02 * s) * 1000).toLong())
         }
-        assertThat(SttFragmentSizer(store).fragmentSeconds()).isWithin(1e-9).of(45.5)
-        // the applied value was persisted — the next session's stepwise
-        // adaptation is anchored here (±50 %, tested in SttLatencyProfileTest)
-        assertThat(store.sttProfile("https://a/v1/", "m", "audio/ogg")!!.lastAppliedSeconds)
-            .isWithin(1e-9).of(45.5)
+        val first = SttFragmentSizer(store).sliceSeconds()!!
+        assertThat(first >= SttLatencyProfile.MIN_SLICE_SECONDS && first <= SttLatencyProfile.MAX_SLICE_SECONDS)
+            .isTrue()
+        // pure read: resolving twice yields the same value, nothing is anchored
+        assertThat(SttFragmentSizer(store).sliceSeconds()).isEqualTo(first)
+        assertThat(store.sttProfile("https://a/v1/", "m", "audio/ogg")!!.searchPercent).isNull()
+    }
+
+    @Test
+    fun `search window falls back to the bootstrap and honours the override (#124)`() {
+        assertThat(SttFragmentSizer(store).searchPercent()).isNull()
+        store.searchPercentOverride = 45f
+        assertThat(SttFragmentSizer(store).searchPercent()).isEqualTo(45.0)
     }
 }

@@ -178,7 +178,10 @@ class PolishedRecognitionApp : Application() {
     val voiceSessionController by lazy {
         val fragmentSizer = SttFragmentSizer(settingsStore)
         VoiceSessionController(this, transcriptionPipeline, settingsStore, logger = jsonLogger,
-            fragmentSizeProvider = { fragmentSizer.fragmentSeconds() },
+            // #124: the slice + search-window percentage resolved per session
+            // (manual override → auto model → bootstrap defaults).
+            sliceSizeProvider = { fragmentSizer.sliceSeconds() },
+            searchPercentProvider = { fragmentSizer.searchPercent() },
             // #127: audio-evidence retention (Settings toggle; the default
             // comes from BuildConfig.AUDIO_EVIDENCE_DEFAULT — OFF in
             // release, ON in debug).

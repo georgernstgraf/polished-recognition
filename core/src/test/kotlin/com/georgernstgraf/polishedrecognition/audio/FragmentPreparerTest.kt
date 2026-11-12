@@ -47,19 +47,27 @@ class FragmentPreparerTest {
     private val transcoder: AudioTranscoder = mockk(relaxed = true)
     private lateinit var sessionDir: File
 
+    /**
+     * Test adapter for the pre-#124 vocabulary: [fragmentBytes] was the
+     * nominal cut offset and [searchBytes] the forward window measured from
+     * it, cut in the LATE half — i.e. a fragment spanned
+     * `[F + W/2, F + W]`. That is EXACTLY the #124 model with
+     * `slice = F + W` and `searchWindow = W/2`, so every expectation below
+     * keeps its meaning while the production vocabulary is the new one.
+     */
     private fun newPreparer(
         fragmentBytes: Int = 1000,
         chunkMaxSeconds: Double = WavChunker.MAX_CHUNK_SECONDS,
         wavMode: Boolean = false,
-        searchBytes: Int = 0, // legacy fixed-offset cuts unless a test opts in (#117)
+        searchBytes: Int = 0, // legacy hard cut at the slice end unless a test opts in
         preRollBytes: Int = 0 // pre-roll off unless a test opts in (#117 round 2)
     ): FragmentPreparer = FragmentPreparer(
         pcm = pcm,
         transcoder = transcoder,
         sessionDir = sessionDir,
-        fragmentBytes = fragmentBytes,
+        sliceBytes = (fragmentBytes) + (searchBytes),
         wavMode = wavMode,
-        searchBytes = searchBytes,
+        searchWindowBytes = (searchBytes) / 2,
         preRollBytes = preRollBytes,
         chunkMaxSeconds = chunkMaxSeconds
     )
@@ -305,7 +313,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
 
@@ -332,7 +340,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
 
@@ -352,8 +360,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
-        )
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2)
 
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
@@ -367,8 +374,7 @@ class FragmentPreparerTest {
         val p = FakePcm(noisy(1500))
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 64_000
-        )
+            sliceBytes = (1000) + (64_000), wavMode = true, searchWindowBytes = (64_000) / 2)
 
         // nominal boundary reached, but the 2-s search window is not — and
         // no silence has appeared yet: nothing is committed
@@ -386,8 +392,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000
-        )
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2)
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
         val firstRun = fragmentFiles().map { payload(it) }
@@ -395,8 +400,7 @@ class FragmentPreparerTest {
         // process death + restore: fresh preparer over the same dir, more audio
         val reborn = FragmentPreparer(
             pcm = FakePcm(data + noisy(1000, seed = 3)), transcoder = transcoder,
-            sessionDir = sessionDir, fragmentBytes = 1000, wavMode = true, searchBytes = 2000
-        )
+            sessionDir = sessionDir, sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2)
         reborn.prepareTailSync()
 
         val payloads = fragmentFiles().map { payload(it) }
@@ -431,9 +435,8 @@ class FragmentPreparerTest {
         // 320 s of PCM at 32 000 B/s: the 300-s cap (#120) must force a split.
         val preparer = FragmentPreparer(
             pcm = FakePcm(ByteArray(320 * 32_000)), transcoder = transcoder,
-            sessionDir = sessionDir, fragmentBytes = FragmentPreparer.DEFAULT_FRAGMENT_BYTES,
-            wavMode = true, searchBytes = 0
-        )
+            sessionDir = sessionDir, sliceBytes = (FragmentPreparer.DEFAULT_SLICE_BYTES) + (0),
+            wavMode = true, searchWindowBytes = (0) / 2)
         preparer.encodeAvailableFragments()
         preparer.prepareTailSync()
 
@@ -451,7 +454,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2,
             axisK = 0.65, axisC = 100.0, marginKMs = 150,
             chunkMaxSeconds = 0.0625 // cap = 0.0625 s × 32000 B/s = 2000 PCM bytes
         )
@@ -481,7 +484,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 0, preRollBytes = 320
+            sliceBytes = (1000) + (0), wavMode = true, searchWindowBytes = (0) / 2, preRollBytes = 320
         )
 
         preparer.encodeAvailableFragments()
@@ -498,7 +501,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 0, preRollBytes = 1500
+            sliceBytes = (1000) + (0), wavMode = true, searchWindowBytes = (0) / 2, preRollBytes = 1500
         )
 
         preparer.encodeAvailableFragments()
@@ -582,7 +585,7 @@ class FragmentPreparerTest {
         val p = FakePcm(data)
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, searchBytes = 0, preRollBytes = 320
+            sliceBytes = (1000) + (0), searchWindowBytes = (0) / 2, preRollBytes = 320
         )
         // fragment 2's OGG encode dies → whole session rebuilds as WAV
         every { transcoder.transcode(any(), any()) } answers {
@@ -619,7 +622,7 @@ class FragmentPreparerTest {
         val p = FakePcm(noisy(100_000))
         val preparer = FragmentPreparer(
             pcm = p, transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 320_000, wavMode = true
+            sliceBytes = (320_000) + (0), wavMode = true
         )
         preparer.encodeAvailableFragments()
         assertThat(fragmentFiles()).isEmpty()
@@ -639,7 +642,7 @@ class FragmentPreparerTest {
         val data = speechWithZeros(260_000, 48_000 until 64_000, 152_320 until 168_320)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 32_000, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.FORCED_ONLY,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -665,7 +668,7 @@ class FragmentPreparerTest {
         val data = speechWithZeros(260_000, 48_000 until 64_000, 152_320 until 168_320)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 32_000, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.ALL,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -701,7 +704,7 @@ class FragmentPreparerTest {
             nyquist(640, 3000) + nyquist(320, 500) + nyquist(40, 3000)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
 
@@ -721,8 +724,7 @@ class FragmentPreparerTest {
         // commits live and the stop-tap tail takes the whole stream.
         val preparer = FragmentPreparer(
             pcm = FakePcm(loud(400_000)), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 320_000, wavMode = true, searchBytes = 320_000
-        )
+            sliceBytes = (320_000) + (320_000), wavMode = true, searchWindowBytes = (320_000) / 2)
 
         preparer.encodeAvailableFragments()
         assertThat(fragmentFiles()).isEmpty()
@@ -743,7 +745,7 @@ class FragmentPreparerTest {
         val data = nyquist(96_000, 400)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.FORCED_ONLY,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -757,15 +759,16 @@ class FragmentPreparerTest {
 
     @Test
     fun `late-half default ignores an early-half pause - the full-window arm uses it`() {
-        // the pause [32000, 48000) is the EARLY half of fragment 0's window
-        // [32000, 64000); the late half [48000, 64000) is continuous speech
+        // the pause [32000, 48000) sits BEFORE fragment 0's search window
+        // [48000, 64000); the window itself is continuous speech
         val data = speechWithZeros(96_000, 32_000 until 48_000)
 
-        // default (LATE_HALF): no candidate in the measured span → forced
+        // production geometry (window = the last half of the slice): no
+        // candidate in the window → forced
         val lateDir = tmp.newFolder("late")
         val late = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = lateDir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
         late.encodeAvailableFragments()
@@ -773,14 +776,12 @@ class FragmentPreparerTest {
         assertThat(late.committedFragments().map { it.seamForced })
             .containsExactly(false, true).inOrder()
 
-        // FULL_WINDOW (the #129 A/B arm): the early pause IS the measured
-        // span → a 50-frame floor candidate → aligned cut at 40160, inside
-        // the pause
+        // a window covering the slice's second half reaches the early pause
+        // → a 50-frame floor candidate → aligned cut at 40160, inside it
         val fullDir = tmp.newFolder("full")
         val full = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = fullDir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000,
-            searchSpan = SearchSpan.FULL_WINDOW,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000),
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
         full.encodeAvailableFragments()
@@ -798,7 +799,7 @@ class FragmentPreparerTest {
         val data = noisy(1200) + ByteArray(1800)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 2000,
+            sliceBytes = (1000) + (2000), wavMode = true, searchWindowBytes = (2000) / 2,
             seamPolicy = SeamPolicy.Q_GATE,
             axisK = 0.65, axisC = 100.0, marginKMs = 150,
             logger = logger
@@ -863,7 +864,7 @@ class FragmentPreparerTest {
         val gateDir = tmp.newFolder("gate")
         val gate = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = gateDir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.Q_GATE,
             axisK = 0.65, axisC = 100.0, marginKMs = 150,
             logger = logger
@@ -887,7 +888,7 @@ class FragmentPreparerTest {
         val forcedDir = tmp.newFolder("forced-only-arm")
         val forcedOnly = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = forcedDir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.FORCED_ONLY,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -901,7 +902,7 @@ class FragmentPreparerTest {
         // preparer re-derives the SAME stitch decision
         val reborn = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = gateDir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.Q_GATE,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -927,7 +928,7 @@ class FragmentPreparerTest {
             val dir = tmp.newFolder(name)
             val preparer = FragmentPreparer(
                 pcm = FakePcm(data), transcoder = transcoder, sessionDir = dir,
-                fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+                sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
                 seamPolicy = SeamPolicy.Q_GATE, qualityMin = qualityMin,
                 axisK = 0.65, axisC = 100.0, marginKMs = 150,
                 logger = if (log) logger else null
@@ -976,7 +977,7 @@ class FragmentPreparerTest {
         val dir = tmp.newFolder("forced-q")
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = dir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.Q_GATE,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -997,7 +998,7 @@ class FragmentPreparerTest {
         val dir = tmp.newFolder("off-arm")
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = dir,
-            fragmentBytes = 32_000, wavMode = true, searchBytes = 32_000, preRollBytes = 320,
+            sliceBytes = (32_000) + (32_000), wavMode = true, searchWindowBytes = (32_000) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.OFF,
             axisK = 0.65, axisC = 100.0, marginKMs = 150
         )
@@ -1027,7 +1028,7 @@ class FragmentPreparerTest {
         val data = noisy(2000)
         val preparer = FragmentPreparer(
             pcm = FakePcm(data), transcoder = transcoder, sessionDir = sessionDir,
-            fragmentBytes = 1000, wavMode = true, searchBytes = 0, preRollBytes = 320,
+            sliceBytes = (1000) + (0), wavMode = true, searchWindowBytes = (0) / 2, preRollBytes = 320,
             seamPolicy = SeamPolicy.Q_GATE
         )
 

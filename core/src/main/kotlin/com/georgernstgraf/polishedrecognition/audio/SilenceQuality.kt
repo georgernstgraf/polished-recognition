@@ -241,20 +241,3 @@ object SilenceQuality {
         return sorted[index]
     }
 }
-
-/**
- * Which part of the forward search window the #126 metric measures (#129
- * study arm; the owner decision for production is the late half).
- */
-enum class SearchSpan {
-    /**
-     * The LATE half `[nominalEnd + search/2, nominalEnd + search]`
-     * (`[1.5S, 2S]` when `search = S`) — production default. Keeps the cut
-     * away from the nominal boundary (where a word-final fricative coda
-     * lives, the live #126 failure) and matches the #124 fallback range.
-     */
-    LATE_HALF,
-
-    /** The FULL forward window `[nominalEnd, nominalEnd + search]`. */
-    FULL_WINDOW
-}

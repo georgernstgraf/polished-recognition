@@ -54,10 +54,9 @@ private fun usage() {
           run      run the real fragment pipeline over a corpus's WAVs
                    (--corpus NAME [--run-id ID] [--only SUBSTR] [--no-reference]
                     [--stt-url URL] [--stt-token TOK] [--model M]
-                    [--fragment-seconds S] [--search-seconds S] [--pre-roll-seconds S]
+                    [--slice-seconds S] [--search-percent P] [--pre-roll-seconds S]
                     [--prompt-chars N] [--policy qgate|all|forced_only|off]
-                    [--axis-k K] [--axis-c C] [--quality-min Q] [--margin-k-ms K]
-                    [--search-span lateHalf|fullWindow])
+                    [--axis-k K] [--axis-c C] [--quality-min Q] [--margin-k-ms K])
           scan     tabular inspection + Q-scan over session.json bundles
                    (<bundles-dir> | --corpus NAME) [--q-threshold Q] [--detail ID]
           report   provider-performance aggregation over session.json bundles

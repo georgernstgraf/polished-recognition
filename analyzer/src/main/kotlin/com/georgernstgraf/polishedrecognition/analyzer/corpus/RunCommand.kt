@@ -7,7 +7,6 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
 import com.georgernstgraf.polishedrecognition.audio.PcmSource
-import com.georgernstgraf.polishedrecognition.audio.SearchSpan
 import com.georgernstgraf.polishedrecognition.audio.SeamPolicy
 import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.audio.WavPcm
@@ -172,10 +171,11 @@ object RunCommand {
         val axisC: Double,
         val qualityMin: Double,
         val marginKMs: Int,
-        val searchSpan: SearchSpan,
         val policy: SeamPolicy,
-        val fragmentSeconds: Double,
-        val searchSeconds: Double,
+        /** #124: the fragment's MAXIMUM length (the slice). */
+        val sliceSeconds: Double,
+        /** #124: the search window as a percentage of the slice (0 = hard cut). */
+        val searchPercent: Double,
         val preRollSeconds: Double,
         val promptChars: Int
     ) {
@@ -184,15 +184,14 @@ object RunCommand {
             "axisC" to axisC,
             "qualityMin" to qualityMin,
             "marginKMs" to marginKMs,
-            "searchSpan" to if (searchSpan == SearchSpan.LATE_HALF) "lateHalf" else "fullWindow",
             "policy" to when (policy) {
                 SeamPolicy.Q_GATE -> "qgate"
                 SeamPolicy.ALL -> "all"
                 SeamPolicy.FORCED_ONLY -> "forced_only"
                 SeamPolicy.OFF -> "off"
             },
-            "fragmentSeconds" to fragmentSeconds,
-            "searchSeconds" to searchSeconds,
+            "sliceSeconds" to sliceSeconds,
+            "searchPercent" to searchPercent,
             "preRollSeconds" to preRollSeconds,
             "promptChars" to promptChars
         )
@@ -202,19 +201,17 @@ object RunCommand {
         companion object {
             /**
              * The FROZEN production config: the #126/#128 provisional knob
-             * defaults (#129's winners already adopted where decided),
-             * fragment size 21 s (the production default), search 2 s (the
-             * default forward window).
+             * defaults (#129's winners already adopted where decided) plus
+             * the #124 slice model — 21 s slice, 30 % search window.
              */
             fun production(): Knobs = Knobs(
                 axisK = FragmentPreparer.DEFAULT_AXIS_K,
                 axisC = FragmentPreparer.DEFAULT_AXIS_C,
                 qualityMin = FragmentPreparer.DEFAULT_QUALITY_MIN,
                 marginKMs = FragmentPreparer.DEFAULT_MARGIN_K_MS,
-                searchSpan = FragmentPreparer.DEFAULT_SEARCH_SPAN,
                 policy = SeamPolicy.Q_GATE,
-                fragmentSeconds = FragmentPreparer.FRAGMENT_SECONDS,
-                searchSeconds = FragmentPreparer.DEFAULT_SEARCH_SECONDS,
+                sliceSeconds = FragmentPreparer.DEFAULT_SLICE_SECONDS,
+                searchPercent = FragmentPreparer.DEFAULT_SEARCH_PERCENT,
                 preRollSeconds = FragmentPreparer.PRE_ROLL_SECONDS,
                 promptChars = FragmentTranscriber.DEFAULT_PROMPT_MAX_CHARS
             )
@@ -226,11 +223,6 @@ object RunCommand {
                     axisC = args.optDouble("axis-c", base.axisC),
                     qualityMin = args.optDouble("quality-min", base.qualityMin),
                     marginKMs = args.optInt("margin-k-ms", base.marginKMs),
-                    searchSpan = when (args.optOr("search-span", "lateHalf")) {
-                        "lateHalf" -> SearchSpan.LATE_HALF
-                        "fullWindow" -> SearchSpan.FULL_WINDOW
-                        else -> throw IllegalArgumentException("--search-span must be lateHalf|fullWindow")
-                    },
                     policy = when (args.optOr("policy", "qgate")) {
                         "qgate" -> SeamPolicy.Q_GATE
                         "all" -> SeamPolicy.ALL
@@ -238,8 +230,8 @@ object RunCommand {
                         "off" -> SeamPolicy.OFF
                         else -> throw IllegalArgumentException("--policy must be qgate|all|forced_only|off")
                     },
-                    fragmentSeconds = args.optDouble("fragment-seconds", base.fragmentSeconds),
-                    searchSeconds = args.optDouble("search-seconds", base.searchSeconds),
+                    sliceSeconds = args.optDouble("slice-seconds", base.sliceSeconds),
+                    searchPercent = args.optDouble("search-percent", base.searchPercent),
                     preRollSeconds = args.optDouble("pre-roll-seconds", base.preRollSeconds),
                     promptChars = args.optInt("prompt-chars", base.promptChars)
                 )
@@ -313,15 +305,15 @@ object RunCommand {
             transcoder = throwingTranscoder(),
             sessionDir = sessionDir,
             sampleRate = 16_000,
-            fragmentBytes = (knobs.fragmentSeconds * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt(),
+            sliceBytes = (knobs.sliceSeconds * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt(),
             wavMode = true,
-            searchBytes = (knobs.searchSeconds * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt(),
+            searchWindowBytes = (knobs.sliceSeconds * knobs.searchPercent / 100.0 *
+                FragmentPreparer.PCM_BYTES_PER_SECOND).toInt(),
             preRollBytes = (knobs.preRollSeconds * FragmentPreparer.PCM_BYTES_PER_SECOND).toInt(),
             seamPolicy = knobs.policy,
             axisK = knobs.axisK,
             axisC = knobs.axisC,
             marginKMs = knobs.marginKMs,
-            searchSpan = knobs.searchSpan,
             qualityMin = knobs.qualityMin,
             bundle = bundle,
             logger = logger
