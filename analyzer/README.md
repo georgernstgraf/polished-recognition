@@ -187,6 +187,77 @@ listings are `\r`-stripped; every adb call redirects stdin from
 `/dev/null`; the serial is pinned (`-s`, two devices usually attached:
 `f6de166c` = OnePlus 7T, `R7SRB06XF5K` = A03).
 
+### Timing analysis from bundles (the #124 / #116 evidence recipe)
+
+`report` aggregates per-request latency, but the figures that explain the
+USER EXPERIENCE — how long a fragment is, how long the tail is, how much of
+the stop is real waiting — need the per-session timeline. `session.json` has
+everything; this snippet reproduces the #124 measurements (317 clean
+sessions: body 15.7/17.7/19.6 s p10/50/90, tail 3.4/7.9/18.1 s,
+STOP→raw 0.94/1.65/3.13 s, backlog 4.0/10.7/22.0 audio seconds,
+`t = 0.72 s + 2.77 %/s`):
+
+```bash
+python3 - <<'EOF' corpora/<name>/bundles
+import json, glob, statistics as st, sys
+from itertools import combinations
+
+# PITFALL: session.json's endedAt is the SESSION END (after delivery), NOT the
+# stop tap. Without pauses the tap is startedAt + last.endMs; the delta to the
+# tail's sttSentAt is the local encode time, so 0..10 s is the sane band
+# (outside = pause, process restore, clock skew).
+body, tail, stop_raw, backlog, lat = [], [], [], [], []
+for p in sorted(glob.glob(sys.argv[1] + '/*/session.json')):
+    try:
+        d = json.load(open(p))
+    except Exception:
+        continue
+    frs = d.get('fragments') or []
+    if isinstance(frs, dict):
+        frs = [frs[k] for k in sorted(frs, key=int)]
+    frs = [f for f in frs if f.get('startMs') is not None and f.get('endMs') is not None]
+    if not frs or not d.get('startedAt'):
+        continue
+    dur = lambda f: (f['endMs'] - f['startMs']) / 1000.0
+    last = frs[-1]
+    tap = d['startedAt'] + last['endMs']
+    if not last.get('sttSentAt') or not last.get('sttReceivedAt'):
+        continue
+    if not (0 <= (last['sttSentAt'] - tap) / 1000.0 <= 10):
+        continue
+    body += [dur(f) for f in frs[:-1]]
+    tail.append(dur(last))
+    stop_raw.append((last['sttReceivedAt'] - tap) / 1000.0)
+    backlog.append(sum(dur(f) for f in frs
+                       if not f.get('sttReceivedAt') or f['sttReceivedAt'] > tap))
+    for f in frs:
+        if f.get('sttSentAt') and f.get('sttReceivedAt') and dur(f) > 0:
+            lat.append((dur(f), (f['sttReceivedAt'] - f['sttSentAt']) / 1000.0))
+
+def stat(name, v):
+    if not v:
+        return
+    v = sorted(v)
+    q = lambda x: v[min(len(v) - 1, int(x * len(v)))]
+    print(f'{name:42s} n={len(v):4d}  p10={q(.1):6.2f} p50={st.median(v):6.2f} p90={q(.9):6.2f}')
+
+stat('fragment length, body (s)', body)
+stat('fragment length, tail (s)', tail)
+stat('STOP -> raw text (s)', stop_raw)
+stat('backlog at the tap, audio seconds', backlog)
+slopes = [(t2 - t1) / (L2 - L1) for (L1, t1), (L2, t2) in combinations(lat, 2) if abs(L2 - L1) > 1e-9]
+b = st.median(slopes)
+a = st.median([t - b * L for L, t in lat])
+print(f't = {a:.2f} s + {100 * b:.2f} %/s')
+EOF
+```
+
+Split by provider before trusting a cost model: `a` and `b` are per
+provider **and per format** (OGG vs WAV), which is exactly how the app keys
+its profile. The local encode rate is NOT in there — take it from
+`logs/prepare*.json` (`encodeMs` vs `bytes`): OGG ≈ 7.9 % of the audio
+length, WAV ≈ 0.1 %.
+
 ### `reconstruct` — bundles → session WAVs (#149)
 
 ```bash
