@@ -185,6 +185,12 @@ android {
             all {
                 it.jvmArgs("-Xshare:off")
                 it.maxHeapSize = "2048m"
+                // #162: the pixel render smoke test is opt-in — without
+                // -Pcontrast.render=true it is skipped, never failed.
+                it.systemProperty(
+                    "contrast.render",
+                    providers.gradleProperty("contrast.render").getOrElse("false")
+                )
             }
         }
     }

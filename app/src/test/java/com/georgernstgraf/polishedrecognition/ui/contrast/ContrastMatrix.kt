@@ -85,14 +85,23 @@ object ContrastMatrix {
         }
     }
 
-    /** Builds the five screens under [themeRes]. */
-    fun screens(themeRes: Int): List<Screen> = listOf(
-        settings(themeRes),
-        crashDialog(themeRes),
-        settingsHint(themeRes),
-        ime(themeRes),
-        microphonePermission(themeRes),
-    )
+    /**
+     * Builds the five screens under [themeRes]. [names] restricts the build to a subset —
+     * the pixel test (#162) renders only three of them and must not pay for launching the
+     * two it does not measure.
+     */
+    fun screens(themeRes: Int, names: Set<String>? = null): List<Screen> {
+        val builders: List<Pair<String, () -> Screen>> = listOf(
+            SCREEN_SETTINGS to { settings(themeRes) },
+            SCREEN_CRASH to { crashDialog(themeRes) },
+            SCREEN_HINT to { settingsHint(themeRes) },
+            SCREEN_IME to { ime(themeRes) },
+            SCREEN_MIC to { microphonePermission(themeRes) },
+        )
+        return builders
+            .filter { names == null || it.first in names }
+            .map { it.second() }
+    }
 
     private fun settings(themeRes: Int): Screen {
         val activity = launch(SettingsActivity::class.java, themeRes)
