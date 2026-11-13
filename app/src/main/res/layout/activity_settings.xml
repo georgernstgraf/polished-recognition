@@ -62,7 +62,6 @@
             android:padding="4dp"
             android:layout_marginStart="4dp"
             android:layout_marginBottom="4dp" />
-            android:layout_marginBottom="8dp" />
 
         <!-- #142: audio-evidence retention — the 0→50-years log slider
              (0 = "Keine Retention", complete off) -->

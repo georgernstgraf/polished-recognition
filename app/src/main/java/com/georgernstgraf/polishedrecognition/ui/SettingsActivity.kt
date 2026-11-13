@@ -255,13 +255,18 @@ class SettingsActivity : Activity() {
 
     private fun setFieldLocked(field: EditText, locked: Boolean) {
         field.isEnabled = !locked
-        field.setTextColor(themeColor(if (locked) android.R.attr.textColorTertiary else android.R.attr.textColorPrimary))
-    }
-
-    private fun themeColor(attr: Int): Int {
-        val value = android.util.TypedValue()
-        theme.resolveAttribute(attr, value, true)
-        return value.data
+        // #160: never take the theme colour as an Int — an OEM night skin resolves these
+        // attributes to a ColorStateList, whose resource id would be read as ARGB (alpha
+        // 0x01) and made the field invisible.
+        val colors = themeColorStateList(
+            if (locked) android.R.attr.textColorTertiary else android.R.attr.textColorPrimary
+        )
+        // Locked = read-only display of the resolved value. `isEnabled = false` makes the
+        // selector apply its DISABLED entry on top, which stacks a second dimming on the
+        // already-secondary tertiary colour (measured 2.12:1 on the OnePlus in dark mode).
+        // Take the enabled variant so the greyed value stays readable.
+        val state = if (locked) intArrayOf(android.R.attr.state_enabled) else field.drawableState
+        field.setTextColor(colors.getColorForState(state, colors.defaultColor))
     }
 
     private fun formatNumber(value: Float): String =
