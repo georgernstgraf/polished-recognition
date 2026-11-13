@@ -105,6 +105,18 @@ The transcription pipeline resolves the following template variables at runtime.
 - Integration tests: separate `integration/` package, read `.env` for API keys, `assumeTrue` to skip when keys absent
 - Test resources: `src/test/resources/` for audio fixtures, `src/test/resources/robolectric.properties` for SDK config
 
+## Contrast gates (#161–#164)
+
+- **Two halves, two claims — never let one stand in for the other.** The **theme gate** (Robolectric, `ui/contrast/`) asserts that the app's own palette clears WCAG on the real screens; the **pixel gate** (`scripts/contrast-audit.sh`) asserts what the device actually paints, which is the only check that can catch an OEM skin (it resolves no theme attributes at all).
+- **`scripts/contrast-audit.sh [--mode light|dark|both|manual] [--out DIR] [--serial SERIAL]`** (device, USB host): opens Settings, takes `uiautomator dump` + `exec-out screencap -p`, and hands both to `scripts/contrast_audit.py`, which measures every app text node from the **pixels** (WCAG 2.1 relative luminance) and prints a table sorted by ratio; `--json <path>` on the measurer writes the raw rows. Nothing is written into the repository — artifacts land in a temp dir or `--out`.
+- **Thresholds:** 4.5 normal, 3.0 disabled, and 3.0 "large" **only when the bounds AND the measured glyph height are ≥ 18 sp** — nothing in this app qualifies, so the gate runs at 4.5 for every enabled text element. A red row is never "fixed" by lowering a threshold.
+- **Measurement rules:** ink = the luminance **bucket** farthest from the dominant background colour that holds **≥ 0.5 %** of the crop (a single farthest pixel reported a fake 1.14:1 on a rounded button); no ink above the floor ⇒ `ink-below-share` = **not measurable**, never a fabricated 1.00:1. The masked API-key field is structurally unmeasurable.
+- **Exit codes:** 0 = all measured modes pass, 1 = at least one element below its threshold, 2 = environment problem (no device, locked device, missing tooling, a foreign window in front) — 2 is never a pass.
+- **Never fake a mode:** switch light/dark for real (`cmd uimode night yes|no`, or `--mode manual` and switch by hand) and measure again; one mode's numbers never stand for the other. The device must be **unlocked** on the Settings screen.
+- **One screenful per run:** `uiautomator` prunes off-screen `ScrollView` children (≈16 of ~65 Settings nodes) — scroll and re-run when the rows below the fold matter.
+- **The opt-in render test stays opt-in** (`-Pcontrast.render=true`, `RenderSmokeTest`): it costs > 10 s and depends on Robolectric `NATIVE` graphics internals. Promotion into the required suite requires (a) 10 consecutive identical runs on the host, (b) green in CI for two weeks, (c) runtime under 10 s inside the suite. Flake criterion: any non-reproducible verdict reverts it to opt-in.
+- **`ui/contrast/` is a shared test-helper package, not a mirror of a source package** — `Contrast`, `ViewColors`, `ContrastAudit`, `ContrastMatrix`, `ContrastGate`, `AuditFormat` are reused by several test classes (`ThemeContrastAuditTest`, `ThemeContrastAuditNightTest`, `TextPaletteContrastTest`), so it deliberately breaks the "test classes mirror source directory structure" rule above. Add a new shared helper there instead of duplicating it.
+
 ## GitHub CLI
 - **Always use `gh issue view <N> --json ...`** (never plain `gh issue view`) — the plain form fails with a GraphQL `Projects (classic) is being deprecated` error on this repo (since 2026-09-01).
 
