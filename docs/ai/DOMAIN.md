@@ -1,3 +1,13 @@
+---
+type: Domain Notes
+title: Domain Knowledge
+description: Business rules and canonical vocabulary not obvious from code.
+tags: [knowledge, domain]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Domain Knowledge
 
 Business rules and domain relationships not obvious from code.

@@ -1,3 +1,12 @@
+---
+type: Handoff
+title: Handoff
+description: Open tasks for the next agent session.
+tags: [knowledge, handoff]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Hand Off
 
 **2026-11-12 — #129 `replay` SHIPPED: the gate measurably HELPS, and the provider is deterministic.** New analyzer command `replay` (bundle mode) re-sends **exactly** what the device uploaded — `uploads/<uploadFile>`, the recorded prompt, the recorded model/endpoint, through the REAL `SttRequestRunner` — and diffs against `sttRaw`; `--ab` adds the stitching A/B in three arms (composed / bare / bare+prompt), `--only-stitched` for the corpus-wide run. The bare arm is **derived** (uploads/ holds only what the server saw, so a stitched seam has no bare sibling): decode → drop `preRollMs` → hold the boundary span → re-encode in the same container (OGG via ffmpeg libopus 24 kbps = the app's bitrate; Android MediaCodec unavailable on the JVM). **Noise floor: 41/41 fragments replayed twice were identical to each other AND to the recorded text** — whisper.kik is deterministic, so every A/B difference is attributable. **Corpus-wide A/B (21 stitched seams, `results/ab-corpus-wide`): 6 of 11 KIK seams produce different text, 0 of them worse** — 2 substantive (`20261031-1121-180fbdb5` s2 Q 9.48: the bare arm DROPS the first word "Normalerweise"; `20261102-0757-84d7244a` s2 Q 6.05: "DAI Transcribe" garbles to "eAltranscribe"), 4 formatting-only (capitalization/punctuation). **The arms separate the ingredients**: `bare+prompt` restores the punctuation/capitalization but NOT the dropped word and NOT the garbled name — the **acoustic pre-roll carries content recovery, the text prompt mostly normalizes formatting**. 10 of the 21 flagged seams are unmetered here (9 GROQ sessions = HTTP 401, this host has no GROQ token; their recorded model is stale anyway). Finding contract: a bundle keeps the model name it was sent with, so 3 sessions recorded `large-v3` (now rejected by whisper.kik with 400) need `--model whisper-large-v3`. **CORRECTION of my earlier report:** the "sickest artifact" (`20261102-1300-4459448f` seam 3, Q 0.06, empty 6.3-s transcript) is **not** a transient STT failure and **not** damage — replay reproduces the empty text deterministically in ALL FOUR arms, and the reference pass agrees: that tail is 6.3 s of loud but speech-free audio (RMS ≈ 4500, no words). Empty audio → empty text is correct; the real wart is that the app commits and uploads a speech-free tail fragment at all (candidate follow-up, not #129).

@@ -1,3 +1,13 @@
+---
+type: Decisions
+title: Decisions
+description: Active architectural and technical decisions still in force.
+tags: [knowledge, decisions]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Decisions
 
 Architectural and technical decisions made in this project.

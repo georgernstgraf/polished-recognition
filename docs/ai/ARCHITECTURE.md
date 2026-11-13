@@ -1,3 +1,13 @@
+---
+type: Architecture
+title: Architecture
+description: Living structural map of the app — modules, surfaces, and data flows.
+tags: [knowledge, architecture]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Architecture
 
 Living structural map of the system as of 2026-10-15 (#147: the `harness` build type REMOVED — app sources, CI workflow, cleanup symmetry, `tools/seam-study` tooling; research runs go through `:analyzer`; #133 auto-switch-back-after-send + #134 different-field fresh-start shipped; **#136: capture PCM spools to disk — session RAM is O(1)**; #128 Q-gated stitching — `SeamPolicy.Q_GATE` is the production default: pre-roll + prompt + echo trim iff a seam's silence quality `Q < qualityMin`; ALL/FORCED_ONLY/OFF are frozen study arms (selectable per `:analyzer run`); the #126 silence-quality metric + `prepare.json` contract block underneath).

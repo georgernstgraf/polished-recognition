@@ -1,3 +1,12 @@
+---
+type: State
+title: Project State
+description: Current project status and pointers to the open threads.
+tags: [knowledge, state]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Project State
 
 Current status as of 2026-11-12: **#124 shipped on `main` (`68aaa04`) — the fragment geometry is now "slice + search window %", the auto-sizer is a pure cost-model search against a fixed 2.0-s budget (stepwise removed), the Settings gained an "Advanced / seldom needed" section with auto checkboxes showing the resolved value in grey, and the IME stage line reports the transcribed fragment's audio length instead of the backlog. 550 tests green, `assembleRelease` green, pre-push green. NO version bump yet (owner decision — rides the next release). Open: on-device check + the #129 baseline re-run under the new default.** Last release: **v1.5.1 (10501) RELEASED (#151).** Earlier: #154/#155 (`dfdc37d` + `c925c4d`) — LLM toggle + X-as-keyboard-switch; #149 `reconstruct` open for the first pulled opo bundle proof; #148 CLOSED; #147 CLOSED (retention 6 MONTHS on the opo). #129's real qualityMin still owner-gated.

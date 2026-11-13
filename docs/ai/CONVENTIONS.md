@@ -1,3 +1,13 @@
+---
+type: Conventions
+title: Conventions
+description: Coding patterns, naming rules, and file-layout rules for this project.
+tags: [knowledge, conventions]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Conventions
 
 Coding patterns, naming rules, and style agreements for this project.

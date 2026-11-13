@@ -1,3 +1,13 @@
+---
+type: Pitfalls
+title: Pitfalls
+description: Hard-won knowledge about what does not work and non-obvious constraints.
+tags: [knowledge, pitfalls]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # Pitfalls
 
 Things that do not work, subtle bugs, and non-obvious constraints.

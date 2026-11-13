@@ -1,3 +1,12 @@
+---
+type: History Archive
+title: History
+description: Append-only archive of superseded decisions and pruned entries.
+tags: [knowledge, history, audit]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+status: stable
+---
+
 # History
 
 Chronological archive of superseded decisions and pruned entries.

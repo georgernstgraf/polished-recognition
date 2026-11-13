@@ -164,7 +164,8 @@ WAV), plain XML settings UI on `Theme.DeviceDefault.DayNight`. Min SDK 30.
 No DI framework, no Room, no Compose — deliberately small and fast.
 
 Technical details (architecture, decisions, conventions, pitfalls) are
-maintained in [`docs/ai/`](docs/ai/) — start with `HANDOFF.md`.
+maintained in [`docs/ai/`](docs/ai/) — start with [`index.md`](docs/ai/index.md),
+then `HANDOFF.md`.
 
 ## License
 
