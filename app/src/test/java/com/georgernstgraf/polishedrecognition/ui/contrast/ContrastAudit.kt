@@ -1,17 +1,17 @@
 package com.georgernstgraf.polishedrecognition.ui.contrast
 
-import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 
 /**
  * #161: walks a laid-out view tree and measures the WCAG contrast of every painted text.
  *
- * REPORT MODE: this file measures and formats, it never asserts. The measured table is
- * the input for the next wave (#162 pixels, #163 colour pairs).
+ * This file measures and formats, it never asserts — the gate lives in [ContrastGate], so
+ * the app-theme runs can be enforced while the OEM runs stay report-only.
  */
 object ContrastAudit {
 
@@ -21,6 +21,7 @@ object ContrastAudit {
         val mode: String,
         val theme: String,
         val viewId: String,
+        val viewClass: String,
         val text: String,
         val fg: Int,
         val bg: Int,
@@ -29,18 +30,23 @@ object ContrastAudit {
         val kind: String,
         val disabled: Boolean,
         /**
-         * The host could not measure this row: in night mode Robolectric resolves a Material
-         * button's background to opaque white (its 9-patch/tint chain has no colour of its
-         * own, and no `backgroundTintList` is exposed), so white text lands on white. The
-         * device paints `?android:attr/colorButtonNormal` there instead. Reported, never
-         * asserted, never counted as a violation.
+         * The host could not resolve this row's background: Robolectric substitutes opaque
+         * white for the theme reference inside the platform `Button` fill (ripple → inset →
+         * gradient), while the device paints `?android:attr/colorButtonNormal`. The ratio is
+         * reported for triage but is fiction, so it never counts as a violation.
+         *
+         * Only `android.widget.Button` may be UNMEASURED — every other view with an
+         * unresolved background is a failure (see [Violation.KIND_UNRESOLVED_BACKGROUND]).
          */
-        val suspect: Boolean = false,
+        val unmeasured: Boolean = false,
     ) {
         val passes: Boolean get() = ratio >= threshold
+
+        /** Reported, never gated — the number cannot be trusted. */
+        val gated: Boolean get() = !unmeasured
     }
 
-    /** A row below its threshold. */
+    /** A row below its threshold, or a row whose background the host could not resolve. */
     data class Violation(
         val screen: String,
         val mode: String,
@@ -52,7 +58,16 @@ object ContrastAudit {
         val ratio: Double,
         val threshold: Double,
         val kind: String,
-    )
+    ) {
+        companion object {
+            /**
+             * The background could not be resolved from the view's drawables on a view that
+             * is NOT a platform `Button`. Unlike the button fill this is not a known host
+             * artefact, so it fails the gate regardless of the computed ratio.
+             */
+            const val KIND_UNRESOLVED_BACKGROUND = "unresolved-bg"
+        }
+    }
 
     /**
      * [textViews] counts the text views that were actually measured (rows), i.e. the proof
@@ -96,6 +111,12 @@ object ContrastAudit {
             val disabled = !view.isEnabled
             val threshold = Contrast.thresholdFor(large, disabled)
             val id = viewIdName(view)
+            val viewClass = view.javaClass.name
+            // The one host artefact this audit excuses: the platform Button fill, whose theme
+            // reference Robolectric cannot evaluate. Anywhere else an unresolved background
+            // is a real defect and fails the gate (see `violations` below).
+            val unresolved = ViewColors.isUnresolvableButtonFill(view)
+            val unmeasured = unresolved && view is Button
 
             for (candidate in candidates) {
                 // The colour a user sees: the resolved colour, faded by the container chain.
@@ -111,18 +132,24 @@ object ContrastAudit {
                     mode = mode,
                     theme = theme,
                     viewId = id,
+                    viewClass = viewClass,
                     text = snippet(shown),
                     fg = candidate.color,
                     bg = background,
                     ratio = Contrast.contrastRatio(visibleFg, background),
                     threshold = threshold,
-                    kind = candidate.kind,
+                    kind = if (unresolved && !unmeasured) Violation.KIND_UNRESOLVED_BACKGROUND
+                    else candidate.kind,
                     disabled = disabled,
-                    suspect = isSuspect(view, background),
+                    unmeasured = unmeasured,
                 )
             }
         }
-        val violations = rows.filter { !it.passes && !it.suspect }.map {
+        // Two ways to violate: a measured row below its threshold, and an unresolved
+        // background on anything that is not a platform Button (ratio-independent).
+        val violations = rows.filter {
+            it.kind == Violation.KIND_UNRESOLVED_BACKGROUND || (!it.passes && it.gated)
+        }.map {
             Violation(
                 screen = it.screen,
                 mode = it.mode,
@@ -167,7 +194,7 @@ object ContrastAudit {
                 String.format(java.util.Locale.ROOT, "%.2f", it.ratio),
                 String.format(java.util.Locale.ROOT, "%.1f", it.threshold),
                 when {
-                    it.suspect -> "SUSPECT"
+                    it.unmeasured -> "UNMEASURED"
                     it.passes -> "PASS"
                     else -> "FAIL"
                 },
@@ -178,15 +205,16 @@ object ContrastAudit {
             (body.map { it[column] } + header[column]).maxOf { it.length }
         }
         val out = StringBuilder()
-        out.appendLine("# WCAG contrast audit — report mode (#161)")
+        out.appendLine("# WCAG contrast audit — enforced gate (#161)")
         out.appendLine("# ratio = composited foreground vs. composited background, WCAG 2.1")
         out.appendLine("# threshold = 3.0 for large/disabled text, else 4.5")
-        out.appendLine("# rows: ${rows.size}, failing: ${rows.count { !it.passes && !it.suspect }}," +
-            " suspect: ${rows.count { it.suspect }}")
-        out.appendLine("# SUSPECT = not measurable on the host: in night mode Robolectric resolves a")
-        out.appendLine("#   Material button background to opaque white (no colour of its own, no")
-        out.appendLine("#   backgroundTintList), so white text lands on white. The device paints")
-        out.appendLine("#   ?android:attr/colorButtonNormal there - see the panel-background legend.")
+        out.appendLine("# rows: ${rows.size}, failing: ${rows.count { !it.passes && it.gated }}," +
+            " unmeasured: ${rows.count { it.unmeasured }}")
+        out.appendLine("# UNMEASURED = the host could not resolve the background: Robolectric")
+        out.appendLine("#   substitutes opaque white for the theme reference inside the platform")
+        out.appendLine("#   Button fill (ripple -> inset -> gradient), while the device paints")
+        out.appendLine("#   ?android:attr/colorButtonNormal. Only android.widget.Button may be")
+        out.appendLine("#   UNMEASURED; covered by the pixel test #162.")
         out.appendLine()
         out.appendLine(formatLine(header, widths))
         out.appendLine(formatLine(widths.map { "-".repeat(it) }, widths))
@@ -195,7 +223,7 @@ object ContrastAudit {
         out.appendLine()
         out.appendLine("## Per-screen counts")
         val screenHeader =
-            listOf("screen", "mode", "theme", "textviews", "failing", "suspect", "worst", "note")
+            listOf("screen", "mode", "theme", "textviews", "failing", "unmeasured", "worst", "note")
         val screenBody = results.map {
             listOf(
                 screenOf(it),
@@ -203,8 +231,8 @@ object ContrastAudit {
                 themeOf(it),
                 it.textViews.toString(),
                 it.violations.size.toString(),
-                it.rows.count { row -> row.suspect }.toString(),
-                it.rows.filter { row -> !row.suspect }.minOfOrNull { row -> row.ratio }
+                it.rows.count { row -> row.unmeasured }.toString(),
+                it.rows.filter { row -> row.gated }.minOfOrNull { row -> row.ratio }
                     ?.let { r -> String.format(java.util.Locale.ROOT, "%.2f", r) } ?: "-",
                 it.note.orEmpty(),
             )
@@ -220,6 +248,19 @@ object ContrastAudit {
             out.appendLine()
             out.appendLine("## Panel backgrounds")
             notes.forEach { out.appendLine("  $it") }
+        }
+
+        // The UNMEASURED rows grouped by widget class — the audit excuses exactly one class,
+        // so this section is also the proof that the excusing rule held.
+        val unmeasured = rows.filter { it.unmeasured }
+        if (unmeasured.isNotEmpty()) {
+            out.appendLine()
+            out.appendLine("## Unmeasured rows (host limitation, covered by the pixel test #162)")
+            unmeasured.groupBy { it.viewClass }.toSortedMap().forEach { (viewClass, group) ->
+                val themes = group.groupingBy { it.theme }.eachCount()
+                    .entries.joinToString(", ") { "${it.key}=${it.value}" }
+                out.appendLine("  $viewClass  rows=${group.size}  ($themes)")
+            }
         }
         return out.toString()
     }
@@ -251,16 +292,6 @@ object ContrastAudit {
 
     private fun isBold(tv: TextView): Boolean =
         tv.typeface?.isBold == true || tv.paint.isFakeBoldText
-
-    /**
-     * A row the host cannot measure: in night mode NO real surface is pure white, so an
-     * opaque white background is Robolectric's stand-in for the Material button fill.
-     */
-    private fun isSuspect(view: View, background: Int): Boolean {
-        val night = (view.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
-        return night && background == Color.WHITE
-    }
 
     private fun withAlpha(argb: Int, alpha: Int): Int =
         (argb and 0x00FFFFFF) or (alpha shl 24)

@@ -82,6 +82,23 @@ object ViewColors {
         else Contrast.compositeOver(accumulated, fallback)
     }
 
+    /**
+     * True when the view's OWN background is the platform button fill — a [RippleDrawable]
+     * whose content layer is a themed gradient. Robolectric cannot evaluate the theme
+     * reference inside that gradient and resolves it to opaque white, while the device paints
+     * `?android:attr/colorButtonNormal`. The fill therefore exposes no usable colour on this
+     * host; the pixel test #162 covers what the device really draws.
+     *
+     * Deliberately keyed on the view's own drawable chain, not on the composited background:
+     * a dialog panel is legitimately white, and its text views carry no fill of their own.
+     */
+    fun isUnresolvableButtonFill(view: View): Boolean {
+        if (view.background !is RippleDrawable) return false
+        val resolved = drawableColor(view.background, view.drawableState) ?: return false
+        // A fill that resolved to the theme's own button colour IS a real measurement.
+        return resolved == Color.WHITE && themeButtonNormalColor(view.context) != Color.WHITE
+    }
+
     /** Product of [View.getAlpha] up the parent chain — a faded container fades its text. */
     fun effectiveAlpha(view: View): Float {
         var alpha = 1f

@@ -1,6 +1,5 @@
 package com.georgernstgraf.polishedrecognition.ui.contrast
 
-import android.graphics.Color
 import java.util.Locale
 import kotlin.math.pow
 
@@ -9,14 +8,18 @@ import kotlin.math.pow
  *
  * Deliberately free of any test-framework type: the same helpers are reused by the
  * pixel test (#162) and the colour-pair test (#163), so nothing here may assert.
+ *
+ * Also free of `android.graphics.Color`: the unit-test stub answers every static call
+ * with 0 unless Robolectric is loaded, so the arithmetic is written as plain bit
+ * operations and stays genuinely pure JVM ([ContrastTest] runs without a runner).
  */
 object Contrast {
 
     /** WCAG 2.1 relative luminance of an sRGB colour. Alpha is IGNORED (composite first). */
     fun relativeLuminance(argb: Int): Double {
-        val r = linearize(Color.red(argb) / 255.0)
-        val g = linearize(Color.green(argb) / 255.0)
-        val b = linearize(Color.blue(argb) / 255.0)
+        val r = linearize(red(argb) / 255.0)
+        val g = linearize(green(argb) / 255.0)
+        val b = linearize(blue(argb) / 255.0)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
 
@@ -37,14 +40,14 @@ object Contrast {
      * actually seen. `compositeOver(opaque, anything)` is [over].
      */
     fun compositeOver(over: Int, under: Int): Int {
-        val aOver = Color.alpha(over) / 255.0
-        val aUnder = Color.alpha(under) / 255.0
+        val aOver = alpha(over) / 255.0
+        val aUnder = alpha(under) / 255.0
         val outAlpha = aOver + aUnder * (1.0 - aOver)
-        if (outAlpha <= 0.0) return Color.TRANSPARENT
-        val r = blend(Color.red(over), Color.red(under), aOver, aUnder, outAlpha)
-        val g = blend(Color.green(over), Color.green(under), aOver, aUnder, outAlpha)
-        val b = blend(Color.blue(over), Color.blue(under), aOver, aUnder, outAlpha)
-        return Color.argb(
+        if (outAlpha <= 0.0) return TRANSPARENT
+        val r = blend(red(over), red(under), aOver, aUnder, outAlpha)
+        val g = blend(green(over), green(under), aOver, aUnder, outAlpha)
+        val b = blend(blue(over), blue(under), aOver, aUnder, outAlpha)
+        return argb(
             (outAlpha * 255.0).toInt().coerceIn(0, 255),
             r, g, b
         )
@@ -71,6 +74,22 @@ object Contrast {
     /** Minimum ratio: 3.0 for large text and for disabled controls, else 4.5. */
     fun thresholdFor(large: Boolean, disabled: Boolean): Double =
         if (large || disabled) 3.0 else 4.5
+
+    // The four `android.graphics.Color` accessors, reimplemented as bit operations so
+    // this file needs no Android runtime (see the class comment).
+
+    fun alpha(argb: Int): Int = (argb ushr 24) and 0xFF
+
+    fun red(argb: Int): Int = (argb shr 16) and 0xFF
+
+    fun green(argb: Int): Int = (argb shr 8) and 0xFF
+
+    fun blue(argb: Int): Int = argb and 0xFF
+
+    fun argb(a: Int, r: Int, g: Int, b: Int): Int =
+        ((a and 0xFF) shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
+
+    const val TRANSPARENT = 0
 
     private const val LARGE_SP = 18f
     private const val LARGE_BOLD_SP = 14f

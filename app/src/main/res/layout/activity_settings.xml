@@ -615,7 +615,7 @@
                 android:text="@string/about_help"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                android:textColor="?android:attr/colorAccent"
+                android:textColor="?android:attr/textColorPrimary"
                 android:background="@drawable/help_chip"
                 android:paddingStart="14dp"
                 android:paddingEnd="14dp"

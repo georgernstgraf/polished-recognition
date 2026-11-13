@@ -5,4 +5,13 @@
     <color name="recording_divider">#4D000000</color>
     <color name="recording_pill_bg">#33000000</color>
     <color name="recording_icon_tint">#000000</color>
+
+    <!-- #161: theme text palette (light). Ratios against the app background #F0F0F3:
+         primary 14.3:1, secondary 7.8:1, tertiary 5.05:1, disabled 3.47:1.
+         The *_enabled colours are wired into the @color/text_* selectors, never used
+         directly — a bare @color name in values/ would collide with res/color/. -->
+    <color name="text_primary_enabled">#212121</color>
+    <color name="text_secondary_enabled">#4A4A4A</color>
+    <color name="text_tertiary_enabled">#666666</color>
+    <color name="text_disabled">#808080</color>
 </resources>

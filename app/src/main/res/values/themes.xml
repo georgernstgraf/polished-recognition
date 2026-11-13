@@ -3,6 +3,12 @@
     <style name="Theme.PolishedRecognition.Plain" parent="@android:style/Theme.DeviceDefault.DayNight">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
+        <!-- #161: the text palette is ours, not the OEM skin's. The platform defaults
+             measured 4.00:1 (textColorSecondary) and 1.88:1 (disabled text) on the app
+             background; these selectors carry the measured palette from colors.xml. -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorTertiary">@color/text_tertiary</item>
     </style>
 
     <style name="Theme.PolishedRecognition.Plain.Transparent" parent="Theme.PolishedRecognition.Plain">

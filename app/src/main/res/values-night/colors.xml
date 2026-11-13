@@ -5,4 +5,11 @@
     <color name="recording_divider">#4DFFFFFF</color>
     <color name="recording_pill_bg">#33FFFFFF</color>
     <color name="recording_icon_tint">#FFFFFF</color>
+
+    <!-- #161: theme text palette (night). Ratios against the app background #191C1E:
+         primary 17.1:1, secondary 9.4:1, tertiary 6.5:1, disabled 5.0:1. -->
+    <color name="text_primary_enabled">#FFFFFF</color>
+    <color name="text_secondary_enabled">#C0C0C0</color>
+    <color name="text_tertiary_enabled">#A0A0A0</color>
+    <color name="text_disabled">#8A8A8A</color>
 </resources>
