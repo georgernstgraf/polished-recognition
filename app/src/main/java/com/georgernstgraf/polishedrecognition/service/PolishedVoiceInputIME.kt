@@ -13,6 +13,7 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
@@ -31,6 +32,8 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.LanguageOptions
@@ -48,6 +51,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     private lateinit var settings: SettingsStore
 
     private var rootView: View? = null
+    private var lastInsets: ImeWindowInsets.Paddings? = null
     private var rowTop: View? = null
     private var rowButtons: View? = null
     private var sendButton: ImageButton? = null
@@ -121,6 +125,7 @@ class PolishedVoiceInputIME : InputMethodService() {
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
         rootView = view.findViewById(R.id.ime_root)
+        applyImeWindowInsets(rootView!!)
         rowTop = view.findViewById(R.id.ime_row_top)
         rowButtons = view.findViewById(R.id.ime_row_buttons)
         sendButton = view.findViewById(R.id.ime_send_button)
@@ -246,6 +251,35 @@ class PolishedVoiceInputIME : InputMethodService() {
         setupLanguageSpinner()
         applyUiState()
         return view
+    }
+
+    /**
+     * #157: from Android 15 (API 35) the IME window is laid out edge-to-edge,
+     * so the bottom control row would be drawn underneath the navigation bar;
+     * up to API 34 the platform inset the content itself. The paddings are
+     * rebuilt from the XML base value on every dispatch — appending to the
+     * current padding would grow the view with each inset event.
+     */
+    private fun applyImeWindowInsets(root: View) {
+        val base = ImeWindowInsets.baseOf(root)
+        lastInsets = null
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val target = ImeWindowInsets.apply(view, base, insets)
+            if (target != lastInsets) {
+                lastInsets = target
+                val bars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+                val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+                ImeLifecycleTrace.log(
+                    this, "insets",
+                    "sdk=${Build.VERSION.SDK_INT} nav=${bars.left}/${bars.right}/${bars.bottom}" +
+                        " cutout=${cutout.left}/${cutout.right}/${cutout.bottom}" +
+                        " base=${base.left}/${base.right}/${base.bottom}" +
+                        " applied=${target.left}/${target.right}/${target.bottom}"
+                )
+            }
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
