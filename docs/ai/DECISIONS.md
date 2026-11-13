@@ -13,7 +13,17 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-13: #157 — the IME pads itself away from the navigation bar, unconditionally
+
+- **The problem only exists from API 35, and it is a platform change, not an app setting.** Same build, same 3-button navigation, two AVDs: API 31 keeps the IME content above the nav bar (the platform applies the inset to the IME window's content), API 35 lays the IME window out edge-to-edge (`[0,2058][1080,2400]` against a nav bar at `[0,2274][1080,2400]`). So the "targetSdk 36 ⇒ edge-to-edge" explanation in the report was right about the trigger and wrong about the mechanism (it is not the Activity enforcement; the IME window itself stopped insetting its content).
+- **No SDK gate.** The alternative — `if (SDK_INT >= 35)` — would encode a guess. Measured instead: on API 31 the root view never receives an inset dispatch (the platform consumes it at the decor; the trace line never appears), so the same listener is inert there. A gate would only protect against double padding that provably does not happen, and would hide the mechanism from the next reader. If a future OEM reports the opposite (31 with a dispatch), the trace line will show it immediately.
+- **Padding is recomputed from the XML base, never appended.** Insets are dispatched repeatedly (show, rebind after rotation, split-screen); appending to `root.paddingBottom` grows the keyboard on every event. The listener therefore carries the base paddings captured at inflation.
+- **`max`, not sum, per side.** In landscape the 3-button navigation bar sits inside the cutout region; summing both would over-pad the bottom row sideways.
+- **The insets stay unconsumed** (the listener returns them): the IME window itself is still placed by the platform from them.
+
 ## 2026-11-12: #124 — the geometry is "slice + search window %", and the stage line tells the truth
+
+
 
 - **Trigger (measured, 380 retained sessions / 787 real requests from the daily driver):** the shipped rule `search = max(2 s, S)` with the cut in the window's LATE half produced fragments of **1.5–2 × the nominal size** — body median 17.7 s at the nominal 10-s floor, max 37 s. Three consequences: (a) the Settings value lied about the fragment length; (b) the auto-sizer's fit treated `S` as the real duration → systematic ~1.75× undershoot → permanently clamped at the 10-s floor; (c) 61 % of dictations never committed a live fragment (the first window closes at 2S = 20 s).
 - **The new geometry (owner decision):** a **slice** is a fragment's MAXIMUM length and its boundary is arbitrary; the **search window** is the last `p` % of the slice and the only region a cut may land in. So `cut ∈ [sliceEnd − window, sliceEnd]` and `fragment ∈ [Slice·(1−p), Slice]`. `SearchSpan` (LATE_HALF / FULL_WINDOW) is **deleted** — the percentage replaces it. **Equivalence proof for migration:** the old production behaviour (S = 10, search = S, late half) IS slice 20 s with p = 25 %, so the rename changes numbers, not behaviour. The Settings migration doubles the legacy `fragment_seconds_override` for the same reason.
