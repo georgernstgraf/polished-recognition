@@ -171,6 +171,15 @@ android {
         buildConfig = true
     }
 
+    // #163: lint runs in CI from now on. The tree was never linted before, so it
+    // carries a backlog (2 errors, 88 warnings) that is captured ONCE in
+    // `lint-baseline.xml` — from then on only NEW findings fail the build.
+    // TextContrast is an ERROR in `lint.xml` and is never baselined: contrast
+    // regressions must break the build, not join the backlog.
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
+
     testOptions {
         execution = "HOST"
         unitTests {

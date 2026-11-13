@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== pre-push: running all tests ==="
-./gradlew test
+echo "=== pre-push: running all tests and lint ==="
+./gradlew test lintDebug
