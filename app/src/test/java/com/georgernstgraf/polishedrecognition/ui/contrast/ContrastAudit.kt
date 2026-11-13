@@ -1,6 +1,5 @@
 package com.georgernstgraf.polishedrecognition.ui.contrast
 
-import android.content.res.Resources
 import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
@@ -107,10 +106,10 @@ object ContrastAudit {
             val viewAlpha = ViewColors.effectiveAlpha(view)
             val scaledDensity = view.resources.displayMetrics.density *
                 view.resources.configuration.fontScale
-            val large = Contrast.isLargeText(view.textSize, isBold(view), scaledDensity)
+            val large = Contrast.isLargeText(view.textSize, AuditFormat.isBold(view), scaledDensity)
             val disabled = !view.isEnabled
             val threshold = Contrast.thresholdFor(large, disabled)
-            val id = viewIdName(view)
+            val id = AuditFormat.viewIdName(view)
             val viewClass = view.javaClass.name
             // The one host artefact this audit excuses: the platform Button fill, whose theme
             // reference Robolectric cannot evaluate. Anywhere else an unresolved background
@@ -133,7 +132,7 @@ object ContrastAudit {
                     theme = theme,
                     viewId = id,
                     viewClass = viewClass,
-                    text = snippet(shown),
+                    text = AuditFormat.snippet(shown),
                     fg = candidate.color,
                     bg = background,
                     ratio = Contrast.contrastRatio(visibleFg, background),
@@ -191,8 +190,8 @@ object ContrastAudit {
                 it.text,
                 Contrast.hex(it.fg),
                 Contrast.hex(it.bg),
-                String.format(java.util.Locale.ROOT, "%.2f", it.ratio),
-                String.format(java.util.Locale.ROOT, "%.1f", it.threshold),
+                Contrast.formatRatio(it.ratio),
+                Contrast.formatThreshold(it.threshold),
                 when {
                     it.unmeasured -> "UNMEASURED"
                     it.passes -> "PASS"
@@ -201,7 +200,7 @@ object ContrastAudit {
             )
         }
         val widths = header.indices.map { column ->
-            // The text column is the only unbounded one; snippet() already caps it.
+            // The text column is the only unbounded one; AuditFormat.snippet() already caps it.
             (body.map { it[column] } + header[column]).maxOf { it.length }
         }
         val out = StringBuilder()
@@ -233,7 +232,7 @@ object ContrastAudit {
                 it.violations.size.toString(),
                 it.rows.count { row -> row.unmeasured }.toString(),
                 it.rows.filter { row -> row.gated }.minOfOrNull { row -> row.ratio }
-                    ?.let { r -> String.format(java.util.Locale.ROOT, "%.2f", r) } ?: "-",
+                    ?.let { r -> Contrast.formatRatio(r) } ?: "-",
                 it.note.orEmpty(),
             )
         }
@@ -290,25 +289,6 @@ object ContrastAudit {
         return true
     }
 
-    private fun isBold(tv: TextView): Boolean =
-        tv.typeface?.isBold == true || tv.paint.isFakeBoldText
-
     private fun withAlpha(argb: Int, alpha: Int): Int =
         (argb and 0x00FFFFFF) or (alpha shl 24)
-
-    private fun snippet(text: String): String {
-        val flat = text.replace('\n', ' ').replace('\r', ' ').trim()
-        return if (flat.length <= MAX_SNIPPET) flat else flat.take(MAX_SNIPPET - 2) + ".."
-    }
-
-    private fun viewIdName(view: View): String {
-        if (view.id == View.NO_ID) return view.javaClass.simpleName
-        return try {
-            view.resources.getResourceEntryName(view.id)
-        } catch (_: Resources.NotFoundException) {
-            view.javaClass.simpleName
-        }
-    }
-
-    private const val MAX_SNIPPET = 30
 }

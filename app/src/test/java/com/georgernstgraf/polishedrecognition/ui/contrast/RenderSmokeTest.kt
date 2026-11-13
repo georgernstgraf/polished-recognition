@@ -296,13 +296,13 @@ class RenderSmokeTest {
             val shown = view.text?.toString().orEmpty()
             if (shown.isEmpty()) return@walk
 
-            val id = viewIdName(view)
+            val id = AuditFormat.viewIdName(view)
             val threshold = thresholdFor(view)
             val box = "($x,$y)-(${x + view.width},${y + view.height})"
 
             if (view.width <= 0 || view.height <= 0) {
                 samples += Sample(
-                    screen, mode, id, snippet(shown), box, 0, 1.0, threshold,
+                    screen, mode, id, AuditFormat.snippet(shown), box, 0, 1.0, threshold,
                     measured = false,
                     problem = "zero-size ${view.width}x${view.height}px",
                 )
@@ -315,7 +315,7 @@ class RenderSmokeTest {
             val bottom = minOf(y + view.height, bitmap.height)
             if (right <= left || bottom <= top) {
                 samples += Sample(
-                    screen, mode, id, snippet(shown), box, 0, 1.0, threshold,
+                    screen, mode, id, AuditFormat.snippet(shown), box, 0, 1.0, threshold,
                     measured = false, problem = null,
                 )
                 return@walk
@@ -326,7 +326,7 @@ class RenderSmokeTest {
                 screen = screen,
                 mode = mode,
                 viewId = id,
-                text = snippet(shown),
+                text = AuditFormat.snippet(shown),
                 box = box,
                 clusters = pixels.clusters,
                 maxRatio = pixels.maxRatio,
@@ -476,25 +476,10 @@ class RenderSmokeTest {
     private fun thresholdFor(view: TextView): Double {
         val scaledDensity = view.resources.displayMetrics.density *
             view.resources.configuration.fontScale
-        val bold = view.typeface?.isBold == true || view.paint.isFakeBoldText
         return Contrast.thresholdFor(
-            Contrast.isLargeText(view.textSize, bold, scaledDensity),
+            Contrast.isLargeText(view.textSize, AuditFormat.isBold(view), scaledDensity),
             !view.isEnabled,
         )
-    }
-
-    private fun viewIdName(view: View): String {
-        if (view.id == View.NO_ID) return view.javaClass.simpleName
-        return try {
-            view.resources.getResourceEntryName(view.id)
-        } catch (_: Resources.NotFoundException) {
-            view.javaClass.simpleName
-        }
-    }
-
-    private fun snippet(text: String): String {
-        val flat = text.replace('\n', ' ').replace('\r', ' ').trim()
-        return if (flat.length <= MAX_SNIPPET) flat else flat.take(MAX_SNIPPET - 2) + ".."
     }
 
     /**
@@ -535,8 +520,6 @@ class RenderSmokeTest {
         /** 32 luminance buckets; a cluster must hold at least 1/1000 of the box. */
         const val CLUSTER_BUCKETS = 32
         const val CLUSTER_SHARE_DIVISOR = 1000
-
-        const val MAX_SNIPPET = 30
 
         /**
          * The three screens this issue names. SettingsHintActivity (a second dialog) and

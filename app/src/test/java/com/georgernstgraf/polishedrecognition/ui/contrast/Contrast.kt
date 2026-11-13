@@ -61,6 +61,15 @@ object Contrast {
     fun hex(argb: Int): String = String.format(Locale.ROOT, "#%08X", argb)
 
     /**
+     * `5.05` — always a dot. `"%.2f".format(x)` uses the DEFAULT locale, so on a German host
+     * the same ratio prints as `5,05` and every report diff breaks.
+     */
+    fun formatRatio(value: Double): String = String.format(Locale.ROOT, "%.2f", value)
+
+    /** `4.5` — the threshold, one decimal, same locale rule as [formatRatio]. */
+    fun formatThreshold(value: Double): String = String.format(Locale.ROOT, "%.1f", value)
+
+    /**
      * WCAG "large text": >= 18sp, or >= 14sp AND bold. [textSizePx] is divided by
      * [scaledDensity] to get sp; the epsilon absorbs float round-trips (18sp at
      * density 2.75 is not exactly 18.0f).

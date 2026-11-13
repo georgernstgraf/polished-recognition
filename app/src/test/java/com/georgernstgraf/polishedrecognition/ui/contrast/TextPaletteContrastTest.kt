@@ -61,7 +61,7 @@ class TextPaletteContrastTest {
             val colour = colour(context, entry.name)
             val ratio = Contrast.contrastRatio(colour, background)
             val message = "${entry.name} ${Contrast.hex(colour)} on " +
-                "${Contrast.hex(background)} = ${"%.2f".format(ratio)}:1"
+                "${Contrast.hex(background)} = ${Contrast.formatRatio(ratio)}:1"
             assertWithMessage("$message — below the ${entry.threshold}:1 floor")
                 .that(ratio).isAtLeast(entry.threshold)
             assertWithMessage("$message — deviates from the owner's measured palette")

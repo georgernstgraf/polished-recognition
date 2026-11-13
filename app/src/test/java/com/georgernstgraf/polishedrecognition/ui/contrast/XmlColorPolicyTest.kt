@@ -208,7 +208,7 @@ class XmlColorPolicyTest {
         val ratio = Contrast.contrastRatio(text, painted)
         val message = "recording_text_primary ${Contrast.hex(text)} on " +
             "recording_overlay ${Contrast.hex(overlay)} composited over " +
-            "the window ${Contrast.hex(window)} = ${"%.2f".format(ratio)}:1"
+            "the window ${Contrast.hex(window)} = ${Contrast.formatRatio(ratio)}:1"
 
         assertWithMessage("$message — below the 4.5:1 WCAG floor for normal text")
             .that(ratio).isAtLeast(4.5)

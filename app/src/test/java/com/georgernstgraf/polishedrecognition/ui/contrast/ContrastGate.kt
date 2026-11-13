@@ -27,11 +27,22 @@ object ContrastGate {
         }
     }
 
-    /** No text may be effectively invisible (#160) — the one gate the OEM runs keep. */
+    /**
+     * No text may be effectively invisible (#160) — the one gate the OEM runs keep.
+     *
+     * The message carries the whole row, not just the failing alpha: #160 was a resource id
+     * read as ARGB, so the foreground hex (whose alpha byte is the resource id's high byte),
+     * the background it was painted on and the resulting ratio are what make the failure
+     * diagnosable from the log alone.
+     */
     fun assertNoInvisibleText(results: List<ContrastAudit.AuditResult>) {
         results.flatMap { it.rows }.forEach { row ->
             assertWithMessage(
-                "${row.screen} [${row.mode}/${row.theme}] ${row.viewId} fg=${Contrast.hex(row.fg)}"
+                "${row.screen} [${row.mode}/${row.theme}] ${row.viewId} '${row.text}' " +
+                    "fg=${Contrast.hex(row.fg)} bg=${Contrast.hex(row.bg)} " +
+                    "ratio=${Contrast.formatRatio(row.ratio)} " +
+                    "< ${Contrast.formatThreshold(row.threshold)} " +
+                    "(alpha=${Contrast.alpha(row.fg)} of 255)"
             ).that(Contrast.alpha(row.fg)).isGreaterThan(0x20)
         }
     }
@@ -82,8 +93,8 @@ object ContrastGate {
     fun format(violations: List<ContrastAudit.Violation>): String =
         violations.sortedBy { it.ratio }.joinToString("\n") {
             "  ${it.screen} [${it.mode}/${it.theme}] ${it.viewId} '${it.textSnippet}' " +
-                "fg=${it.fgHex} bg=${it.bgHex} ratio=${"%.2f".format(it.ratio)} " +
-                "< ${"%.1f".format(it.threshold)} (${it.kind})"
+                "fg=${it.fgHex} bg=${it.bgHex} ratio=${Contrast.formatRatio(it.ratio)} " +
+                "< ${Contrast.formatThreshold(it.threshold)} (${it.kind})"
         }
 
     /** The lines the audit tests print — shared so the two reports stay identical. */
@@ -101,7 +112,8 @@ object ContrastGate {
                 println(
                     "contrast FAIL ${row.mode}/${row.theme} ${row.screen} ${row.viewId} " +
                         "'${row.text}' fg=${Contrast.hex(row.fg)} bg=${Contrast.hex(row.bg)} " +
-                        "ratio=%.2f < %.1f".format(row.ratio, row.threshold)
+                        "ratio=${Contrast.formatRatio(row.ratio)} " +
+                        "< ${Contrast.formatThreshold(row.threshold)}"
                 )
             }
     }
