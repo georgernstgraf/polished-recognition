@@ -2,7 +2,9 @@ package com.georgernstgraf.polishedrecognition.config
 
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -55,6 +57,14 @@ class SettingsStore(
 
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /**
+     * #101: API tokens — EXCLUDED from OS backup both ways (see
+     * `res/xml/backup_rules.xml` + `res/xml/data_extraction_rules.xml`). A
+     * separate file, not a separate key: backup exclusion works per FILE.
+     */
+    private val secretsPrefs =
+        context.getSharedPreferences(SECRETS_PREFS_NAME, Context.MODE_PRIVATE)
     private val knownAppsPrefs =
         context.getSharedPreferences(KNOWN_APPS_PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -76,13 +86,31 @@ class SettingsStore(
     @Volatile
     private var mruOrder: List<String> = emptyList()
 
+    /**
+     * #101: the provider configs keep EVERYTHING in the backed-up settings
+     * file (endpoint, model, display name — so a device change still restores
+     * a usable setup) except the **API token**, which lives in the separate
+     * [SECRETS_PREFS_NAME] file. Both backup mechanisms exclude that file
+     * (`res/xml/backup_rules.xml` for API ≤ 30,
+     * `res/xml/data_extraction_rules.xml` for API 31+), so a token never
+     * leaves the device via Google Auto Backup or device-to-device transfer.
+     *
+     * A pre-#101 install still carries the token INSIDE the settings JSON —
+     * reading it migrates the token into the secret file and rewrites the
+     * backed-up JSON without it ([readProvider]).
+     *
+     * The split happens on the JSON tree, never via `data class copy()`: a
+     * legacy JSON without an `id` member deserializes to a null `id` field
+     * (Gson bypasses the Kotlin default), and `copy()` would throw on the
+     * non-null parameter check.
+     */
     var sttProvider: SttProviderConfig?
-        get() = getJson(STT_PROVIDER_KEY, SttProviderConfig::class.java)
-        set(value) = setJson(STT_PROVIDER_KEY, value)
+        get() = readProvider(STT_PROVIDER_KEY, STT_TOKEN_KEY, SttProviderConfig::class.java)
+        set(value) = writeProvider(STT_PROVIDER_KEY, STT_TOKEN_KEY, value)
 
     var llmProvider: LlmProviderConfig?
-        get() = getJson(LLM_PROVIDER_KEY, LlmProviderConfig::class.java)
-        set(value) = setJson(LLM_PROVIDER_KEY, value)
+        get() = readProvider(LLM_PROVIDER_KEY, LLM_TOKEN_KEY, LlmProviderConfig::class.java)
+        set(value) = writeProvider(LLM_PROVIDER_KEY, LLM_TOKEN_KEY, value)
 
     var rawMode: Boolean
         get() = prefs.getBoolean(RAW_MODE_KEY, false)
@@ -354,8 +382,8 @@ class SettingsStore(
         val legacyModels: List<String> =
             gson.fromJson(prefs.getString(legacyKey, null), object : TypeToken<List<String>>() {}.type)
         val baseUrl = when (mapKey) {
-            STT_MODEL_LISTS_KEY -> getJson(STT_PROVIDER_KEY, SttProviderConfig::class.java)?.baseUrl
-            else -> getJson(LLM_PROVIDER_KEY, LlmProviderConfig::class.java)?.baseUrl
+            STT_MODEL_LISTS_KEY -> sttProvider?.baseUrl
+            else -> llmProvider?.baseUrl
         }
         val cache = readModelCache(mapKey)
         if (baseUrl != null && legacyModels.isNotEmpty()) {
@@ -512,9 +540,66 @@ class SettingsStore(
         }
     }
 
+    /**
+     * #101: reads a provider config whose stored JSON carries no token. The
+     * token comes from the backup-excluded file; a pre-#101 JSON that still
+     * embeds one is migrated on the spot and the stored copy is scrubbed, so
+     * no token ever survives in a file the OS backs up.
+     */
+    private fun <T> readProvider(key: String, secretKey: String, clazz: Class<T>): T? {
+        val raw = prefs.getString(key, null) ?: return null
+        val obj = JsonParser().parse(raw).asJsonObject
+        val legacyToken = obj.get("apiToken")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+        val storedToken = secretsPrefs.getString(secretKey, null)
+        if (legacyToken.isNotEmpty()) {
+            if (storedToken == null) storeToken(secretKey, legacyToken)
+            val scrubbed = JsonParser().parse(raw).asJsonObject
+            scrubbed.addProperty("apiToken", "")
+            prefs.edit { putString(key, gson.toJson(scrubbed)) }
+        }
+        obj.addProperty("apiToken", storedToken ?: legacyToken)
+        return gson.fromJson(obj, clazz)
+    }
+
+    /**
+     * #101: writes a provider config with the token split out — the settings
+     * file keeps the restorable half, the secret file the credential. An
+     * empty token removes the secret instead of storing a blank one.
+     */
+    private fun <T> writeProvider(key: String, secretKey: String, value: T?) {
+        if (value == null) {
+            prefs.edit { remove(key) }
+            storeToken(secretKey, "")
+            return
+        }
+        val obj = gson.toJsonTree(value).asJsonObject
+        val token = obj.get("apiToken")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+        obj.addProperty("apiToken", "")
+        prefs.edit { putString(key, gson.toJson(obj)) }
+        storeToken(secretKey, token)
+    }
+
+    /** Writes (or removes, when blank) a token in the backup-excluded file. */
+    private fun storeToken(secretKey: String, token: String) {
+        secretsPrefs.edit {
+            if (token.isEmpty()) remove(secretKey) else putString(secretKey, token)
+        }
+    }
+
     companion object {
         private const val TAG = "SettingsStore"
         private const val PREFS_NAME = "polished_recognition_settings"
+
+        /**
+         * #101: the backup-excluded file holding the API tokens. **The value is
+         * load-bearing outside this class** — the two backup rule files in
+         * `res/xml/` exclude `<name>.xml` by exactly this name, and
+         * `BackupRulesTest` pins the three of them together.
+         */
+        const val SECRETS_PREFS_NAME = "polished_recognition_secrets"
+
+        private const val STT_TOKEN_KEY = "stt_token"
+        private const val LLM_TOKEN_KEY = "llm_token"
 
         /** The #142 legacy-toggle migration target: ON → 30 days. */
         const val THIRTY_DAYS_SECONDS = 30L * 24 * 60 * 60

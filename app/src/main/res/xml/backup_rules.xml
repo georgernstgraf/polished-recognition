@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  #101 — API tokens stay on the device.
+
+  Applies to Android 11 (API 30) only; from API 31 the platform uses
+  data_extraction_rules.xml instead. Both files exclude the SAME preferences
+  file, and `BackupRulesTest` fails if the three (rules, rules, the
+  SettingsStore.SECRETS_PREFS_NAME constant) ever drift apart.
+
+  Everything else — providers, endpoints, models, prompts, language, learned
+  apps — stays in the OS backup, so a device change still restores a usable
+  configuration; only the credentials have to be re-entered.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
+</full-backup-content>

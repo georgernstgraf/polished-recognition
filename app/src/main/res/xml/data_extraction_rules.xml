@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  #101 — API tokens stay on the device.
+
+  Android 12 (API 31) and newer: cloud backup AND device-to-device transfer
+  both skip the secrets preferences file, so a token is neither uploaded to
+  the user's Google account nor copied onto a new phone during setup. The
+  rest of the configuration is unaffected (see backup_rules.xml for API 30).
+
+  `BackupRulesTest` pins this file, backup_rules.xml and
+  SettingsStore.SECRETS_PREFS_NAME together.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
+    </device-transfer>
+</data-extraction-rules>
