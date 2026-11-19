@@ -9,6 +9,7 @@ import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
+import com.georgernstgraf.polishedrecognition.ui.WorkbenchActivity
 import org.robolectric.Robolectric
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.shadows.ShadowAlertDialog
@@ -33,6 +34,7 @@ object ContrastMatrix {
     const val THEME_OEM = "oem"
 
     const val SCREEN_SETTINGS = "SettingsActivity"
+    const val SCREEN_WORKBENCH = "WorkbenchActivity"
     const val SCREEN_CRASH = "CrashDialogActivity"
     const val SCREEN_HINT = "SettingsHintActivity"
     const val SCREEN_IME = "ImeVoiceInput"
@@ -93,6 +95,7 @@ object ContrastMatrix {
     fun screens(themeRes: Int, names: Set<String>? = null): List<Screen> {
         val builders: List<Pair<String, () -> Screen>> = listOf(
             SCREEN_SETTINGS to { settings(themeRes) },
+            SCREEN_WORKBENCH to { workbench(themeRes) },
             SCREEN_CRASH to { crashDialog(themeRes) },
             SCREEN_HINT to { settingsHint(themeRes) },
             SCREEN_IME to { ime(themeRes) },
@@ -106,6 +109,12 @@ object ContrastMatrix {
     private fun settings(themeRes: Int): Screen {
         val activity = launch(SettingsActivity::class.java, themeRes)
         return Screen(SCREEN_SETTINGS, activity.findViewById(android.R.id.content))
+    }
+
+    /** #169: the launcher screen — Raw/Polished fields, copy buttons, the LLM row. */
+    private fun workbench(themeRes: Int): Screen {
+        val activity = launch(WorkbenchActivity::class.java, themeRes)
+        return Screen(SCREEN_WORKBENCH, activity.findViewById(android.R.id.content))
     }
 
     /** The crash text lives in the AlertDialog's window, not in the activity's content view. */

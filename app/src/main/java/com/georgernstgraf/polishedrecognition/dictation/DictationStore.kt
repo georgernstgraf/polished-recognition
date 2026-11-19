@@ -55,7 +55,11 @@ class DictationStore(
      */
     @Synchronized
     fun append(raw: String): Dictation {
-        val createdAt = now()
+        // Strictly increasing timestamps: two dictations created in the same
+        // millisecond must still have a stable FIFO order (the file id is
+        // random), so the newest is always `max(now, newest + 1)`.
+        val newest = loadAll().maxOfOrNull { it.createdAtMs } ?: 0L
+        val createdAt = maxOf(now(), newest + 1)
         val dictation = Dictation(
             id = newId(Date(createdAt)),
             raw = raw,

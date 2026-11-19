@@ -120,4 +120,22 @@
     <!-- #113 salvage: cancel destroyed a session with finished transcripts -->
     <string name="cancelled_dictation_clip">Cancelled dictation</string>
     <string name="cancelled_dictation_saved">Dictation discarded — transcript (%d chars) copied to clipboard</string>
+
+    <!-- #169/#170/#171: Workbench (epic #166) — the app's own editor window -->
+    <string name="workbench_title">Workbench</string>
+    <string name="workbench_raw">Raw</string>
+    <string name="workbench_polished">Polished</string>
+    <string name="workbench_copy">Copy</string>
+    <string name="workbench_copy_raw_desc">Copy the raw text to the clipboard</string>
+    <string name="workbench_copy_polished_desc">Copy the polished text to the clipboard</string>
+    <string name="workbench_settings">Settings</string>
+    <string name="workbench_older">Older dictation</string>
+    <string name="workbench_newer">Newer dictation</string>
+    <string name="workbench_empty">Dictate into the field — the first transcript starts a new dictation</string>
+    <string name="workbench_auto_llm">Auto LLM</string>
+    <string name="workbench_repolish">Re-polish</string>
+    <string name="workbench_language">Target language</string>
+    <string name="workbench_polishing">Polishing…</string>
+    <string name="workbench_polish_failed">Polish failed</string>
+    <string name="workbench_delivered">Copied to clipboard</string>
 </resources>

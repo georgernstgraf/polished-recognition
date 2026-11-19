@@ -62,8 +62,18 @@ class DictationStoreTest {
     }
 
     @Test
-    fun `a temp file never survives a successful write`() {
-        store().append("text")
+    fun `dictations created in the same millisecond keep their append order`() {
+        val store = store()
+        store.append("first")
+        store.append("second")
+        store.append("third")
+
+        assertThat(store.loadAll().map { it.raw })
+            .containsExactly("first", "second", "third").inOrder()
+    }
+
+    @Test
+    fun `a temp file never survives a successful write`() {        store().append("text")
 
         assertThat(dir().listFiles()!!.filter { it.name.endsWith(".tmp") }).isEmpty()
     }

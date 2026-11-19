@@ -26,14 +26,20 @@
         android:theme="@style/Theme.PolishedRecognition.Plain">
 
         <activity
-            android:name=".ui.SettingsActivity"
+            android:name=".ui.WorkbenchActivity"
             android:exported="true"
-            android:theme="@style/Theme.PolishedRecognition.Plain">
+            android:theme="@style/Theme.PolishedRecognition.Plain"
+            android:windowSoftInputMode="adjustNothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.PolishedRecognition.Plain" />
 
         <activity
             android:name=".ui.HelpActivity"
