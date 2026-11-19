@@ -138,4 +138,7 @@
     <string name="workbench_polishing">Polishing…</string>
     <string name="workbench_polish_failed">Polish failed</string>
     <string name="workbench_delivered">Copied to clipboard</string>
+    <string name="workbench_fifo_size">Keep last N dictations</string>
+    <string name="workbench_fifo_size_hint">How many Workbench dictations are kept (1–10). Older ones are deleted.</string>
+    <string name="workbench_fifo_size_error">Enter a number between 1 and 10</string>
 </resources>

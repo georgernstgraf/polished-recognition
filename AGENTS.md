@@ -19,8 +19,8 @@ An Android `RecognitionService` that captures voice input from any keyboard micr
 - **Language:** Kotlin
 - **Networking:** Retrofit + OkHttp (multipart WAV upload for STT, JSON for LLM)
 - **Audio:** AudioRecord (PCM 16kHz mono → WAV in-memory)
-- **Storage:** SharedPreferences (provider config, prompts)
-- **UI:** AppCompat + Material (XML-based SettingsActivity)
+- **Storage:** SharedPreferences (provider config, prompts, learned apps) + one JSON file per Workbench dictation under `filesDir/dictations/` (backup-excluded, #167)
+- **UI:** platform Views only — **no AppCompat, no Material** (since #61; plain `android.app.Activity`, `Theme.DeviceDefault.DayNight`); screens: `WorkbenchActivity` (launcher), `SettingsActivity`, the IME layout
 - **Build:** Gradle (Kotlin DSL), Java 21 target (build with JDK 21)
 - **Min SDK:** 30 (Android 11), Target SDK: 36
 - **No Hilt, no Room, no WorkManager, no Compose** (deliberate — small, fast, no DI framework conflicts with RecognitionService)

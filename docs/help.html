@@ -215,6 +215,7 @@
 <nav class="toc">
     <a href="#what">What it is</a>
     <a href="#quickstart">Quick start</a>
+    <a href="#workbench">The Workbench</a>
     <a href="#keyboard">The keyboard</a>
     <a href="#dictating">Dictating</a>
     <a href="#language">Language &amp; prompts</a>
@@ -236,11 +237,24 @@
     <h2>Quick start</h2>
     <ol>
         <li><strong>Install</strong> from <a href="https://f-droid.org/packages/com.georgernstgraf.polishedrecognition">F-Droid</a> (recommended) or the <a href="https://play.google.com/store/apps/details?id=com.georgernstgraf.polishedrecognition">Play Store</a> (closed testing).</li>
-        <li><strong>Configure a provider</strong> in the app's Settings: pick an STT provider (e.g. Groq), paste your API token, tap <em>Validate &amp; Fetch Models</em>, and choose a Whisper model. An LLM provider is optional.</li>
+        <li><strong>Configure a provider</strong>: open the app and tap <em>Settings</em> (top right of the Workbench), pick an STT provider (e.g. Groq), paste your API token, tap <em>Validate &amp; Fetch Models</em>, and choose a Whisper model. An LLM provider is optional.</li>
         <li><strong>Enable the keyboard</strong>: <em>Settings → System → Languages &amp; input → On-screen keyboard</em> → turn on <em>Polished Recognition</em>.</li>
         <li><strong>Use it</strong>: in any text field, switch to the Polished keyboard — recording starts instantly. Speak, then tap <strong>Send</strong>.</li>
     </ol>
     <p class="hint">Full step-by-step setup, including the device-specific paths and the system voice-input option, is in the <a href="https://github.com/georgernstgraf/polished-recognition/blob/main/INSTALLATION.md">Installation Guide</a>.</p>
+</section>
+
+<section id="workbench">
+    <h2>The Workbench</h2>
+    <p>The app's own window — it is what the app icon opens. It is a place where a dictation lands, can be redacted, and then leaves in one gesture: no long-press, no select-all, no switching apps.</p>
+    <ul>
+        <li><strong>Dictate</strong> into <strong>Raw</strong> exactly as in any other app: the keyboard opens with the window, speak, tap <strong>Send</strong>. Each dictation becomes its own entry; use <strong>◀</strong> / <strong>▶</strong> to walk through the last few (default 3, configurable in Settings → Advanced).</li>
+        <li><strong>Redact</strong>: both fields are editable, and dictating with the cursor in <strong>Polished</strong> edits the polished text.</li>
+        <li><strong>Deliver</strong>: sending, leaving a <em>changed</em> field, or tapping <strong>Copy</strong> puts the text on the clipboard — ready to paste anywhere. On Android 13+ the copy is marked sensitive, so it does not land in the clipboard history.</li>
+        <li><strong>Auto LLM</strong> polishes every new dictation; switching it on polishes the current one immediately. <strong>Re-polish</strong> runs one more pass with a target language you pick for that dictation only.</li>
+        <li>A raw edit discards the polished text — deliberately, so nothing is polished silently.</li>
+    </ul>
+    <p class="hint">Dictations stay on your device only: they survive a restart but are excluded from cloud backup and device transfer. Settings is reachable from the top-right of the window (and from the keyboard's gear).</p>
 </section>
 
 <section id="keyboard">

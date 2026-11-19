@@ -36,6 +36,7 @@ import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
 import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
+import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
@@ -79,6 +80,8 @@ class SettingsActivity : Activity() {
     private val sliceSecondsField: EditText by lazy { findViewById(R.id.slice_seconds) }
     private val searchAutoCheckbox: CheckBox by lazy { findViewById(R.id.search_auto) }
     private val searchPercentField: EditText by lazy { findViewById(R.id.search_percent) }
+    /** #172: Workbench FIFO depth (epic #166 D2). */
+    private val workbenchFifoSizeField: EditText by lazy { findViewById(R.id.workbench_fifo_size) }
     private val appWrapDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.app_wrap_app) }
     private val appWrapWidthField: EditText by lazy { findViewById(R.id.app_wrap_width) }
     private val appWrapForgetButton: Button by lazy { findViewById(R.id.app_wrap_forget) }
@@ -195,6 +198,15 @@ class SettingsActivity : Activity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 searchPercentField.error = null
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        // #172: clear the red error as soon as the user corrects the value.
+        workbenchFifoSizeField.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                workbenchFifoSizeField.error = null
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -415,6 +427,8 @@ class SettingsActivity : Activity() {
         })
         switchBackAfterSendCheckbox.isChecked = settings.switchBackAfterSend
         wrapWidthField.setText(settings.wrapWidth.toString())
+        // #172: Workbench FIFO depth (epic #166 D2)
+        workbenchFifoSizeField.setText(settings.workbenchFifoSize.toString())
         loadFragmentGeometry()
         loadAppWrapSection()
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
@@ -1152,6 +1166,19 @@ class SettingsActivity : Activity() {
         } else {
             settings.searchPercentOverride = null
         }
+        // #172 (epic #166 D2): the Workbench FIFO depth. Persist, then prune
+        // at once — a shrunk cap must not leave orphan dictation files.
+        val fifoText = workbenchFifoSizeField.text.toString().trim()
+        val fifoSize = fifoText.toIntOrNull()
+        if (fifoSize == null ||
+            fifoSize < DictationStore.MIN_FIFO_SIZE ||
+            fifoSize > DictationStore.MAX_FIFO_SIZE
+        ) {
+            workbenchFifoSizeField.error = getString(R.string.workbench_fifo_size_error)
+            return saveAborted("workbench-fifo-size")
+        }
+        settings.workbenchFifoSize = fifoSize
+        DictationStore(this, fifoSize = { settings.workbenchFifoSize }).pruneToSize()
         settings.saveKnownAppWidths(appWrapWidths.toMap())
         val tl = targetLanguageDropdown.text.toString()
         val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl

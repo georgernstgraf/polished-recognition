@@ -458,6 +458,25 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="8dp" />
 
+        <!-- #172: Workbench FIFO depth (epic #166 D2) -->
+        <EditText
+            android:id="@+id/workbench_fifo_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/workbench_fifo_size"
+            android:imeOptions="actionDone"
+            android:inputType="number"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="4dp"
+            android:text="@string/workbench_fifo_size_hint"
+            android:textColor="?android:attr/textColorTertiary"
+            android:textSize="12sp" />
+
         <CheckBox
             android:id="@+id/compress_audio"
             android:layout_width="match_parent"

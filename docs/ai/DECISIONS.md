@@ -13,6 +13,20 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-19: Epic #166 — the Workbench, and what the grilling settled (#167–#172)
+
+The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
+(the spec). This entry records the implementation-shaping consequences.
+
+- **The FIFO is a directory, not a preference.** One JSON file per dictation under `filesDir/dictations/`, temp file + rename (#167). SharedPreferences rewrites the whole file on every `apply()` and would lose exactly the edits the persistence exists for; the directory is excluded from cloud backup and device transfer in ALL three rule containers, pinned by `BackupRulesTest` exactly like #101 does for the secrets file.
+- **A dictation is created by a transcript, and the target is decided when the recording STARTS.** The IME inserts into the focused field (D10), so after the insertion a user edit and a keyboard insertion are indistinguishable. `WorkbenchActivity` therefore snapshots the target on `StateChanged(RECORDING)`: Polished focused ⇒ edit the polished text; a manually changed Raw field ⇒ continue that edit; otherwise ⇒ a new FIFO entry (D4). Opening the screen never creates or evicts anything.
+- **LLM is forced off inside our own app, session-scoped, never persisted.** `LlmTargetPolicy` + `TranscriptionPipeline.forceRawMode` set by the controller for exactly one run (#168). The bar toggle shows the still-global state but renders disabled — "off" would be a lie. The global `raw_mode` is never written by the rule.
+- **The Workbench is the only polish site.** The pipeline's `polish(raw, language)` is the manual re-polish (same prompts/provider as the pipeline); Auto LLM polishes each new dictation on arrival and, on OFF→ON, the current one immediately. A raw edit discards the polished slot with no confirmation and no silent re-polish (#171).
+- **Delivery is unconditional and sensitive.** Send ⇒ transcript, changed field on focus loss ⇒ its text, copy button ⇒ the visible field; unchanged field left ⇒ nothing. `ClipboardDelivery` sets `EXTRA_IS_SENSITIVE` on API 33+ — an automatic delivery is not the deliberate IME-salvage copy (#170, #138's asymmetry is intended).
+- **The Workbench is the launcher entry; Settings becomes an unexported screen** reached from the Workbench and the IME gear (#169). Exactly one MAIN/LAUNCHER activity, pinned by `LauncherEntryTest`.
+- **The screen owns its insets** (`WorkbenchInsets`: bars + cutout + IME, max per side, rebuilt from the XML base) — the first activity that does, because targetSdk 36 lays it out edge-to-edge.
+- **Documents amended, not silently overridden:** CONVENTIONS' "the UI never shows raw" is explicitly amended (Raw/Polished are now field labels), DOMAIN's statelessness is scoped to the service (the app is stateful by design), and AGENTS.md's AppCompat/Material claim is corrected (false since #61).
+
 ## 2026-11-19: #165 — the auto-start waits for the first IME frame, and a blocked mic aborts the take
 
 - **The window gate is the first DRAW, not a platform callback.** AOSP API 36 `InputMethodService.showWindow()` calls `onWindowShown()` *before* `mWindow.show()` (lines 3196 vs 3201), and `isInputViewShown()` is `mDecorViewVisible`, set earlier still in `prepareWindow()` (3297). Both would have started the microphone FGS inside the exact gap that costs the while-in-use grant. So `AutoStartTiming` + a `ViewTreeObserver.OnDrawListener` on `ime_root` own the decision, and only a real frame releases a parked auto-start. This is the platform contract, not a ROM quirk: the emulator reproduced the reporter's `New WIU:DENIED` byte for byte.

@@ -6,6 +6,7 @@ import android.widget.EditText
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -154,6 +155,35 @@ class SettingsActivityTest {
             checkbox(R.id.search_auto).isChecked = false
             textField(R.id.search_percent).setText("90")
         }
+    }
+
+    @Test
+    fun invalidWorkbenchFifoSize_abortsNamingTheCheck() {
+        assertAborted("workbench-fifo-size", SEED, R.id.workbench_fifo_size) {
+            fillValidProviders()
+            textField(R.id.workbench_fifo_size).setText("0")
+        }
+    }
+
+    /** #172: the FIFO depth defaults to 3 and a shrunk cap prunes on save. */
+    @Test
+    fun workbenchFifoSize_defaultsToThree_andShrinkingPrunesTheStore() {
+        val context = RuntimeEnvironment.getApplication()
+        File(context.filesDir, DictationStore.DIR_NAME).deleteRecursively()
+        val seeded = DictationStore(context, fifoSize = { 10 })
+        repeat(4) { seeded.append("d-$it") }
+
+        val activity = launch()
+        assertThat(activity.textField(R.id.workbench_fifo_size).text.toString()).isEqualTo("3")
+
+        activity.textField(R.id.workbench_fifo_size).setText("2")
+        activity.fillValidProviders()
+        activity.tapSave()
+
+        assertThat(activity.isFinishing).isTrue()
+        assertThat(store.workbenchFifoSize).isEqualTo(2)
+        assertThat(DictationStore(context).loadAll()).hasSize(2)
+        File(context.filesDir, DictationStore.DIR_NAME).deleteRecursively()
     }
 
     @Test
