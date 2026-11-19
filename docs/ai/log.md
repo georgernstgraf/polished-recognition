@@ -1,6 +1,12 @@
 # Persistence Log
 
 ## 2026-11-19
+* **Update**: [STATE.md](STATE.md) — status line + a `#174/#175 — the keyboard handover` section: Send inserts and nothing else (no switch, no hide, `PostSendSwitchPolicy` deleted), `switchBackAfterSend` removed end to end, the `open`/`internal` test seam, the settled Workbench/IME boundary, the #116 option-C confirmation, and the flake note.
+* **Update**: [HANDOFF.md](HANDOFF.md) — new top entry for #174 (`b0ab577`) + #175 (`20f7141`) with the contract table and the owner spot check (think + OPO).
+* **Update**: [DECISIONS.md](DECISIONS.md) — two entries: #174 (Send behaves like a normal keyboard, why the policy object died instead of inverting, hiding is the platform's contract, the testability seam) and #175 (the exit decides the keyboard, no prefs migration, the #166 boundary clarified, #116 option C confirmed).
+* **Update**: [PITFALLS.md](PITFALLS.md) — the "single insertion site" entry now names `handleCompletedSuccess`/`insertResultText`; the `requestHideSelf` entry drops the "correct in the post-send path" clause; the #138 teardown entry marks the switch as removed in #174 while keeping the consume-once guard for rotation/process death/a later X.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — the `PostSendSwitchPolicy` row removed, the `SwitchTargetPolicy` row notes the post-send path no longer uses it.
+* **Update (not knowledge)**: `README.md` + `docs/help.html` — the user-facing contract (Send keeps the keyboard; the gear exception; the Workbench dictation route via the keyboard's mic).
 * **Update**: [STATE.md](STATE.md) — status line for 2026-11-19 (#165 fixed on `main` `4955ccc`, 422 `:app` tests green, no version bump) plus a `#165 — auto-start recorded silence on a cold start` section: the emulator repro (denial lines, the `show_ime_with_hard_keyboard` precondition, the auxiliary-IME flow), the fix layering, the after-trace, the tests, and what stays unverified (S24, Android 12/13).
 * **Update**: [HANDOFF.md](HANDOFF.md) — new top entry (2026-11-19) for the shipped fix and three open tasks (19: reporter confirmation blocks the close; 20: optional `PolishedRecognitionService` guard reuse; plus the existing owner items renumbered around them).
 * **Update**: [PITFALLS.md](PITFALLS.md) — one entry: "input view started" is not "window visible" — the mic FGS loses its while-in-use type when started before the first draw (AOSP line numbers for `onWindowShown`/`isInputViewShown`, the `AutoStartTiming` gate, `MicAccessPolicy`, and the emulator recipe).
