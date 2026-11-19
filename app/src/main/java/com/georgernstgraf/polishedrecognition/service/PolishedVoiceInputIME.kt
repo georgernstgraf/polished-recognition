@@ -47,7 +47,12 @@ import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
 
-class PolishedVoiceInputIME : InputMethodService() {
+/**
+ * Open for the Robolectric tests: they subclass the service to record what it
+ * does to the keyboard and the editor (#174 `ImeCompletedHandoverTest`).
+ * Android itself instantiates the concrete class from the manifest.
+ */
+open class PolishedVoiceInputIME : InputMethodService() {
 
     private lateinit var controller: VoiceSessionController
     private lateinit var settings: SettingsStore
@@ -719,28 +724,7 @@ class PolishedVoiceInputIME : InputMethodService() {
                 val result = event.result
                 val text = result.getOrNull()
                 if (text != null) {
-                    logInsertion(text, event)
-                    commitWithSpacing(text)
-                    // Re-learn on successful insertion (#100): the session already
-                    // recorded the target at start (#102 amendment); this captures
-                    // the actual insertion target and is absorbed by the throttle.
-                    currentCallerPackage()?.let { settings.recordKnownApp(it) }
-                    // #133: with the setting on (default), hand the field back to
-                    // the user's typing keyboard instead of letting the voice
-                    // keyboard re-open on the next focus. No target (Polished is
-                    // the only enabled keyboard) = silent hide. The recording is
-                    // already stopped here and the controller delivers Completed
-                    // before IDLE, so the switch only ever fires on a finished,
-                    // successfully inserted session.
-                    val target = currentDefaultImeId()?.let { resolveKeyKeyboardTarget(it) }
-                    val decision = PostSendSwitchPolicy.decide(
-                        autoSwitch = settings.switchBackAfterSend,
-                        target = target
-                    )
-                    if (decision == PostSendSwitchPolicy.Decision.SWITCH && target != null) {
-                        switchInputMethod(target)
-                    }
-                    requestHideSelf(0)
+                    handleCompletedSuccess(text, event)
                 } else {
                     Toast.makeText(
                         this,
@@ -752,6 +736,38 @@ class PolishedVoiceInputIME : InputMethodService() {
             }
         }
     }
+
+    /**
+     * #174: a successful send inserts the text and does **nothing else**. The
+     * voice keyboard stays visible and stays the default IME — exactly like a
+     * typing keyboard, which holds its place until the user dismisses it with
+     * the platform gesture (navigation-bar down arrow / Back). The old #133
+     * handover (`switchInputMethod` + `requestHideSelf`) is gone: leaving the
+     * voice keyboard is the X's job (#155, contract in #175).
+     *
+     * The controller has already stopped the recording when this runs and
+     * emits `Completed` before `IDLE`, so this only ever fires on a finished,
+     * successfully inserted session.
+     */
+    internal fun handleCompletedSuccess(
+        text: String,
+        event: VoiceSessionController.Event.Completed
+    ) {
+        logInsertion(text, event)
+        insertResultText(text)
+        // Re-learn on successful insertion (#100): the session already
+        // recorded the target at start (#102 amendment); this captures
+        // the actual insertion target and is absorbed by the throttle.
+        currentCallerPackage()?.let { settings.recordKnownApp(it) }
+    }
+
+    /**
+     * The single insertion point of a finished dictation (#116 option C: one
+     * commit of the finished — already polished — text, never an incremental
+     * one). Overridable so the #174 regression test can assert the insertion
+     * without an `InputConnection`.
+     */
+    internal open fun insertResultText(text: String) = commitWithSpacing(text)
 
     /**
      * Deletes the last word before the cursor from the editor (#90):

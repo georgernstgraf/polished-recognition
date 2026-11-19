@@ -13,6 +13,46 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-19: #174 — Send behaves like a normal keyboard: the voice keyboard stays, nothing switches, nothing hides
+
+Owner report: "eine normale Tastatur wird ausgeblendet, wenn ich im
+Navigationsmenü die Pfeiltaste nach unten drücke … unsere Tastatur sollte
+genauso arbeiten." **This entry supersedes #133's automatic post-send switch
+and the `requestHideSelf(0)` that closed that path.**
+
+- **What happens on a successful send:** the finished (already polished, #116
+  option C) text is committed ONCE via `insertResultText` → `commitWithSpacing`,
+  the app-usage learning runs, and that is all. No `switchInputMethod`, no
+  `requestHideSelf(0)`, no policy object.
+- **Why the policy is gone rather than inverted:** the old
+  `PostSendSwitchPolicy.decide(autoSwitch, target)` existed only to choose
+  between SWITCH and HIDE_ONLY. With both arms removed there is no decision
+  left; a policy object that always returns the same answer is noise.
+- **Hiding is the platform's contract.** The navigation-bar down arrow / Back
+  dismisses the input view; because the *default* IME was never touched, the
+  next focus opens Polished again. That is exactly the typing-keyboard
+  behaviour the owner asked for, and it makes the "always Polished next after
+  Send" rule (#175) true by construction. Only `switchInputMethod` changes the
+  default IME; `requestHideSelf` never did (PITFALLS, #155).
+- **Leaving the voice keyboard is the X's job** (#155, contract in #175):
+  pause a running take, resolve the last-used typing keyboard, switch. The
+  gear keeps its documented switch (DECISIONS 2026-09-07 #72): Settings'
+  EditTexts cannot be filled by a voice IME, and an automatic return is
+  impossible with public APIs.
+- **Testability change:** the class is `open` and the success path is
+  `internal fun handleCompletedSuccess(text, event)` with the single insertion
+  point factored out as `internal open fun insertResultText(text)`.
+  `ImeCompletedHandoverTest` (Robolectric) subclasses the service, records
+  `switchInputMethod`/`requestHideSelf`/`insertResultText`, and pins: one
+  insert, zero switches, zero hides — for the live and the redelivered
+  (`pendingResult`) path alike. The seam exists for the recording subclass
+  only; there is no production caller besides `onEvent`.
+- **Unchanged on purpose:** the failure path (toast + PAUSED parking, the
+  keyboard stays), rotation/`onFinishInputView` pause, the `onDestroy` state
+  matrix, and #138's consume-once guard — that guard protects every *other*
+  teardown (rotation, process death, a later X), not just the removed switch.
+- **NO version bump (owner policy).**
+
 ## 2026-11-19: #173 — the Workbench entry model: compose slot, page-decided target, MRU ring
 
 Owner report after the first real run on the OnePlus plus the grilling of
