@@ -22,7 +22,15 @@ data class Dictation(
     val id: String,
     val raw: String,
     val polished: String? = null,
-    val createdAtMs: Long = System.currentTimeMillis()
+    val createdAtMs: Long = System.currentTimeMillis(),
+    /**
+     * #173: the last real content change (Raw or Polished) — the MRU key the
+     * FIFO sorts and evicts by. Browsing never bumps it.
+     *
+     * Files written before #173 carry no such field; Gson leaves the property
+     * at `0`, and [DictationStore] falls back to [createdAtMs] when reading.
+     */
+    val updatedAtMs: Long = createdAtMs
 )
 
 /** Local-time-prefixed, path-safe dictation id (#167, mirrors `newSessionId`). */

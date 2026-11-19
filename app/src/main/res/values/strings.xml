@@ -131,7 +131,10 @@
     <string name="workbench_settings">Settings</string>
     <string name="workbench_older">Older dictation</string>
     <string name="workbench_newer">Newer dictation</string>
-    <string name="workbench_empty">Dictate into the field — the first transcript starts a new dictation</string>
+    <string name="workbench_empty">Nothing stored yet — dictate into the field and the first transcript becomes a new dictation</string>
+    <string name="workbench_new">＋ New</string>
+    <string name="workbench_raw_toggle_desc">Show or hide the Raw text</string>
+    <string name="workbench_polished_toggle_desc">Show or hide the Polished text</string>
     <string name="workbench_auto_llm">Auto LLM</string>
     <string name="workbench_repolish">Re-polish</string>
     <string name="workbench_language">Target language</string>
@@ -139,6 +142,6 @@
     <string name="workbench_polish_failed">Polish failed</string>
     <string name="workbench_delivered">Copied to clipboard</string>
     <string name="workbench_fifo_size">Keep last N dictations</string>
-    <string name="workbench_fifo_size_hint">How many Workbench dictations are kept (1–10). Older ones are deleted.</string>
+    <string name="workbench_fifo_size_hint">How many Workbench dictations are kept (1–10). The least recently edited one is deleted first.</string>
     <string name="workbench_fifo_size_error">Enter a number between 1 and 10</string>
 </resources>

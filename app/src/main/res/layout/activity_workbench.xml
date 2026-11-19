@@ -3,6 +3,12 @@
   #169 (epic #166): the Workbench — the app's own editor window.
   Platform views only (the app is Material- and AppCompat-free since #61),
   theme attributes only for colours (XmlColorPolicyTest rule 1/2).
+
+  #173: the header carries a centred ＋ New (title left, Settings right), the
+  fields are content-sized (wrap_content + minLines, no inner scrollbar — only
+  this ScrollView scrolls), and each label row is a summary-style accordion
+  (chevron + label + copy button, plus a one-line ellipsised preview while
+  collapsed).
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/workbench_root"
@@ -32,10 +38,21 @@
                 android:textStyle="bold" />
 
             <Button
-                android:id="@+id/workbench_settings"
+                android:id="@+id/workbench_new"
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="@string/workbench_new"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/workbench_settings"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
                 android:text="@string/workbench_settings"
                 android:textColor="?android:attr/textColorSecondary" />
         </LinearLayout>
@@ -82,12 +99,26 @@
             android:textColor="?android:attr/textColorTertiary"
             android:textSize="12sp" />
 
+        <!-- Raw: summary row (chevron · label · copy) + collapsed preview. -->
         <LinearLayout
+            android:id="@+id/workbench_raw_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:contentDescription="@string/workbench_raw_toggle_desc"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/workbench_raw_chevron"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="no"
+                android:paddingEnd="6dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp" />
 
             <TextView
                 android:layout_width="0dp"
@@ -108,22 +139,46 @@
                 android:textColor="?android:attr/textColorSecondary" />
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/workbench_raw_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <EditText
             android:id="@+id/workbench_raw"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="wrap_content"
             android:gravity="top|start"
             android:hint="@string/workbench_raw"
             android:inputType="textMultiLine|textCapSentences"
-            android:padding="8dp"
-            android:scrollbars="vertical" />
+            android:minLines="2"
+            android:padding="8dp" />
 
+        <!-- Polished: the same accordion shape. -->
         <LinearLayout
+            android:id="@+id/workbench_polished_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:contentDescription="@string/workbench_polished_toggle_desc"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/workbench_polished_chevron"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="no"
+                android:paddingEnd="6dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp" />
 
             <TextView
                 android:layout_width="0dp"
@@ -144,15 +199,25 @@
                 android:textColor="?android:attr/textColorSecondary" />
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/workbench_polished_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <EditText
             android:id="@+id/workbench_polished"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="wrap_content"
             android:gravity="top|start"
             android:hint="@string/workbench_polished"
             android:inputType="textMultiLine|textCapSentences"
-            android:padding="8dp"
-            android:scrollbars="vertical" />
+            android:minLines="2"
+            android:padding="8dp" />
 
         <CheckBox
             android:id="@+id/workbench_auto_llm"

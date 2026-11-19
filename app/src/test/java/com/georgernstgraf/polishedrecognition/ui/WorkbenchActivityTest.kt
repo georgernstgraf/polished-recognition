@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -17,7 +18,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.io.File
 
-/** #169 (epic #166 D5/D6/D15): the screen, the FIFO navigation and entry creation. */
+/**
+ * #169 (epic #166 D5/D6/D15) and #173: the screen, the compose slot, the MRU
+ * ring and entry creation.
+ */
 @RunWith(RobolectricTestRunner::class)
 class WorkbenchActivityTest {
 
@@ -41,46 +45,57 @@ class WorkbenchActivityTest {
 
     private fun idle() = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
+    private fun WorkbenchActivity.raw() = findViewById<EditText>(R.id.workbench_raw)
+    private fun WorkbenchActivity.polished() = findViewById<EditText>(R.id.workbench_polished)
+    private fun WorkbenchActivity.position() =
+        findViewById<TextView>(R.id.workbench_position).text.toString()
+
+    /** From the entry page both arrows enter the ring at the newest dictation. */
+    private fun WorkbenchActivity.showNewest() {
+        findViewById<Button>(R.id.workbench_next).performClick()
+    }
+
     private fun clipboardText(): String =
         context.getSystemService(android.content.ClipboardManager::class.java)
             .primaryClip?.getItemAt(0)?.text.toString()
 
     @Test
-    fun `an empty workbench shows no navigation and no dictation`() {
+    fun `an empty workbench opens on the compose slot`() {
         val activity = launch()
 
-        assertThat(activity.findViewById<TextView>(R.id.workbench_position).text.toString())
-            .isEqualTo("0 / 0")
+        assertThat(activity.position()).isEqualTo("new")
         assertThat(activity.findViewById<Button>(R.id.workbench_prev).isEnabled).isFalse()
         assertThat(activity.findViewById<Button>(R.id.workbench_next).isEnabled).isFalse()
         assertThat(activity.findViewById<TextView>(R.id.workbench_empty_hint).visibility)
-            .isEqualTo(android.view.View.VISIBLE)
-        assertThat(activity.findViewById<EditText>(R.id.workbench_raw).text()).isEmpty()
-        assertThat(activity.findViewById<EditText>(R.id.workbench_polished).text()).isEmpty()
+            .isEqualTo(View.VISIBLE)
+        assertThat(activity.raw().text()).isEmpty()
+        assertThat(activity.polished().text()).isEmpty()
     }
 
     @Test
-    fun `the newest dictation is shown and the arrows follow the fifo`() {
+    fun `the entry page is the compose slot and the ring wraps around`() {
         seed("oldest", "middle", "newest")
         val activity = launch()
 
-        assertThat(activity.findViewById<TextView>(R.id.workbench_position).text.toString())
-            .isEqualTo("3 / 3")
-        assertThat(activity.findViewById<EditText>(R.id.workbench_raw).text()).isEqualTo("newest")
-        assertThat(activity.findViewById<Button>(R.id.workbench_next).isEnabled).isFalse()
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.raw().text()).isEmpty()
         assertThat(activity.findViewById<Button>(R.id.workbench_prev).isEnabled).isTrue()
+        assertThat(activity.findViewById<Button>(R.id.workbench_next).isEnabled).isTrue()
 
-        activity.findViewById<Button>(R.id.workbench_prev).performClick()
-        assertThat(activity.findViewById<TextView>(R.id.workbench_position).text.toString())
-            .isEqualTo("2 / 3")
-        assertThat(activity.findViewById<EditText>(R.id.workbench_raw).text()).isEqualTo("middle")
+        // ▶ enters the ring at the newest dictation
+        activity.showNewest()
+        assertThat(activity.position()).isEqualTo("3 / 3")
+        assertThat(activity.raw().text()).isEqualTo("newest")
 
-        activity.findViewById<Button>(R.id.workbench_prev).performClick()
-        assertThat(activity.findViewById<Button>(R.id.workbench_prev).isEnabled).isFalse()
-        assertThat(activity.findViewById<EditText>(R.id.workbench_raw).text()).isEqualTo("oldest")
-
+        // ▶ again wraps to the oldest
         activity.findViewById<Button>(R.id.workbench_next).performClick()
-        assertThat(activity.findViewById<EditText>(R.id.workbench_raw).text()).isEqualTo("middle")
+        assertThat(activity.position()).isEqualTo("1 / 3")
+        assertThat(activity.raw().text()).isEqualTo("oldest")
+
+        // ◀ wraps back to the newest
+        activity.findViewById<Button>(R.id.workbench_prev).performClick()
+        assertThat(activity.position()).isEqualTo("3 / 3")
+        assertThat(activity.raw().text()).isEqualTo("newest")
     }
 
     @Test
@@ -90,35 +105,37 @@ class WorkbenchActivityTest {
         assertThat(store.loadAll()).isEmpty()
 
         activity.onRecordingStarted()
-        activity.findViewById<EditText>(R.id.workbench_raw).setText("dictated text")
+        activity.raw().setText("dictated text")
         activity.onTranscriptArrived("dictated text")
 
         assertThat(store.loadAll().map { it.raw }).containsExactly("dictated text")
-        assertThat(activity.findViewById<TextView>(R.id.workbench_position).text.toString())
-            .isEqualTo("1 / 1")
+        assertThat(activity.position()).isEqualTo("1 / 1")
     }
 
     @Test
-    fun `each new dictation adds an entry instead of overwriting the shown one`() {
+    fun `dictating into a stored dictation edits it instead of adding an entry`() {
         seed("first")
         val activity = launch()
+        activity.showNewest()
+        activity.raw().setText("first")
 
         activity.onRecordingStarted()
-        activity.findViewById<EditText>(R.id.workbench_raw).setText("first second")
+        activity.raw().setText("first second")
         activity.onTranscriptArrived("second")
 
-        assertThat(DictationStore(context).loadAll().map { it.raw })
-            .containsExactly("first", "second").inOrder()
-        assertThat(activity.findViewById<EditText>(R.id.workbench_raw).text()).isEqualTo("second")
+        assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("first second")
+        assertThat(activity.position()).isEqualTo("1 / 1")
     }
 
     @Test
-    fun `a transcript after a manual raw edit continues that edit`() {
+    fun `a stored page targets raw even when the user typed first`() {
         val store = seed("first")
         val activity = launch()
-        val raw = activity.findViewById<EditText>(R.id.workbench_raw)
+        activity.showNewest()
+        val raw = activity.raw()
         raw.setText("first, edited")
 
+        // no waiting for a change comparison — the visible page decides
         activity.onRecordingStarted()
         raw.setText("first, edited and dictated")
         activity.onTranscriptArrived("and dictated")
@@ -132,7 +149,8 @@ class WorkbenchActivityTest {
         val store = seed("raw text")
         val id = store.loadAll().single().id
         val activity = launch()
-        val polished = activity.findViewById<EditText>(R.id.workbench_polished)
+        activity.showNewest()
+        val polished = activity.polished()
         polished.requestFocus()
 
         activity.onRecordingStarted()
@@ -143,6 +161,24 @@ class WorkbenchActivityTest {
         assertThat(saved.id).isEqualTo(id)
         assertThat(saved.raw).isEqualTo("raw text")
         assertThat(saved.polished).isEqualTo("polished by dictation")
+    }
+
+    @Test
+    fun `dictating into an old raw edits it and bumps it to the top`() {
+        val store = seed("a", "b", "c")
+        val activity = launch()
+        // ◀ from the compose slot lands on the newest, then walks down to "a"
+        repeat(3) { activity.findViewById<Button>(R.id.workbench_prev).performClick() }
+        assertThat(activity.raw().text()).isEqualTo("a")
+
+        activity.onRecordingStarted()
+        activity.raw().setText("a extended")
+        activity.onTranscriptArrived(" extended")
+
+        assertThat(store.loadAll().map { it.raw })
+            .containsExactly("b", "c", "a extended").inOrder()
+        assertThat(activity.position()).isEqualTo("3 / 3")
+        assertThat(activity.raw().text()).isEqualTo("a extended")
     }
 
     @Test
@@ -158,14 +194,90 @@ class WorkbenchActivityTest {
     }
 
     @Test
+    fun `a compose slot with content is materialised on pause`() {
+        val controller = Robolectric.buildActivity(WorkbenchActivity::class.java).setup()
+        controller.get().raw().setText("typed draft")
+
+        controller.pause()
+
+        assertThat(DictationStore(context).loadAll().map { it.raw })
+            .containsExactly("typed draft")
+    }
+
+    @Test
+    fun `plus on a pristine slot creates nothing and only focuses raw`() {
+        val activity = launch()
+
+        activity.findViewById<Button>(R.id.workbench_new).performClick()
+
+        assertThat(DictationStore(context).loadAll()).isEmpty()
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.raw().hasFocus()).isTrue()
+    }
+
+    @Test
+    fun `plus on a touched slot materialises it and opens a fresh one`() {
+        val activity = launch()
+        activity.raw().setText("draft")
+
+        activity.findViewById<Button>(R.id.workbench_new).performClick()
+
+        assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("draft")
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.raw().text()).isEmpty()
+        assertThat(activity.polished().text()).isEmpty()
+    }
+
+    @Test
+    fun `the accordion collapses to a one-line preview and expands again`() {
+        seed("shown text")
+        val activity = launch()
+        activity.showNewest()
+        val raw = activity.raw()
+        val preview = activity.findViewById<TextView>(R.id.workbench_raw_preview)
+        val toggle = activity.findViewById<View>(R.id.workbench_raw_toggle)
+
+        assertThat(raw.visibility).isEqualTo(View.VISIBLE)
+        assertThat(preview.visibility).isEqualTo(View.GONE)
+
+        toggle.performClick()
+
+        assertThat(raw.visibility).isEqualTo(View.GONE)
+        assertThat(preview.visibility).isEqualTo(View.VISIBLE)
+        assertThat(preview.text.toString()).isEqualTo("shown text")
+
+        toggle.performClick()
+
+        assertThat(raw.visibility).isEqualTo(View.VISIBLE)
+        assertThat(preview.visibility).isEqualTo(View.GONE)
+    }
+
+    @Test
+    fun `focus expands a collapsed section`() {
+        seed("shown text")
+        val activity = launch()
+        activity.showNewest()
+        activity.findViewById<View>(R.id.workbench_polished_toggle).performClick()
+        val polished = activity.polished()
+        assertThat(polished.visibility).isEqualTo(View.GONE)
+
+        // A hidden field cannot take a tap, but focus can still arrive (window
+        // focus restore, IME) — and focus always expands (decision 8).
+        polished.onFocusChangeListener.onFocusChange(polished, true)
+
+        assertThat(polished.visibility).isEqualTo(View.VISIBLE)
+    }
+
+    @Test
     fun `a raw edit discards the polished text and persists on leaving`() {
         val store = seed("raw text")
         val id = store.loadAll().single().id
         store.updatePolished(id, "polished text")
         val controller = Robolectric.buildActivity(WorkbenchActivity::class.java).setup()
         val activity = controller.get()
+        activity.showNewest()
 
-        activity.findViewById<EditText>(R.id.workbench_raw).setText("raw edited")
+        activity.raw().setText("raw edited")
         controller.pause()
 
         val saved = DictationStore(context).loadAll().single()
@@ -190,6 +302,7 @@ class WorkbenchActivityTest {
     fun `switching auto-llm on polishes the current dictation and delivers it`() {
         val store = seed("raw text")
         val activity = launch()
+        activity.showNewest()
         activity.polishRunner = { _, _ -> Result.success("polished text") }
 
         activity.findViewById<CheckBox>(R.id.workbench_auto_llm).performClick()
@@ -213,10 +326,44 @@ class WorkbenchActivityTest {
     }
 
     @Test
+    fun `auto-llm polishes a typed raw edit when the field is left`() {
+        SettingsStore(context).workbenchAutoLlm = true
+        val store = seed("raw text")
+        val activity = launch()
+        activity.showNewest()
+        activity.polishRunner = { text, _ -> Result.success("P:$text") }
+        val raw = activity.raw()
+        assertThat(store.loadAll().single().polished).isNull()
+
+        raw.setText("raw text, typed")
+        raw.onFocusChangeListener.onFocusChange(raw, false)
+        idle()
+
+        assertThat(store.loadAll().single().polished).isEqualTo("P:raw text, typed")
+    }
+
+    @Test
+    fun `with auto-llm off a raw edit leaves the polished slot empty`() {
+        val store = seed("raw text")
+        store.updatePolished(store.loadAll().single().id, "old polish")
+        val activity = launch()
+        activity.showNewest()
+        activity.polishRunner = { _, _ -> Result.success("must not run") }
+        val raw = activity.raw()
+
+        raw.setText("raw text, typed")
+        raw.onFocusChangeListener.onFocusChange(raw, false)
+        idle()
+
+        assertThat(store.loadAll().single().polished).isNull()
+    }
+
+    @Test
     fun `re-polish sends the raw text with the per-dictation language and stores the result`() {
         val store = seed("raw text")
         SettingsStore(context).targetLanguage = null
         val activity = launch()
+        activity.showNewest()
         var seenText: String? = null
         var seenLanguage: String? = "unset"
         activity.polishRunner = { text, language ->
@@ -254,6 +401,7 @@ class WorkbenchActivityTest {
         val store = seed("raw text")
         store.updatePolished(store.loadAll().single().id, "old polish")
         val activity = launch()
+        activity.showNewest()
         activity.polishRunner = { _, _ -> Result.failure(java.io.IOException("offline")) }
 
         activity.findViewById<Button>(R.id.workbench_repolish).performClick()
@@ -267,6 +415,7 @@ class WorkbenchActivityTest {
     fun `the copy button delivers the visible field`() {
         seed("copy me")
         val activity = launch()
+        activity.showNewest()
 
         activity.findViewById<Button>(R.id.workbench_copy_raw).performClick()
 
@@ -278,7 +427,8 @@ class WorkbenchActivityTest {
     fun `a changed field losing focus delivers itself, an unchanged one does not`() {
         seed("original")
         val activity = launch()
-        val raw = activity.findViewById<EditText>(R.id.workbench_raw)
+        activity.showNewest()
+        val raw = activity.raw()
         val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
 
         // unchanged → nothing delivered
@@ -309,5 +459,19 @@ class WorkbenchActivityTest {
         repeat(3) { store.append("d-$it") }
 
         assertThat(store.loadAll().map { it.raw }).containsExactly("d-1", "d-2")
+    }
+
+    @Test
+    fun `a rotated screen starts on a fresh compose slot and keeps the typed entry`() {
+        val controller = Robolectric.buildActivity(WorkbenchActivity::class.java).setup()
+        controller.get().raw().setText("typed before rotation")
+
+        controller.pause().stop().destroy()
+        val recreated = Robolectric.buildActivity(WorkbenchActivity::class.java).setup().get()
+
+        assertThat(DictationStore(context).loadAll().map { it.raw })
+            .containsExactly("typed before rotation")
+        assertThat(recreated.position()).isEqualTo("new")
+        assertThat(recreated.raw().text()).isEmpty()
     }
 }

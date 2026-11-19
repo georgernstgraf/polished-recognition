@@ -167,6 +167,83 @@ class DictationStoreTest {
     }
 
     @Test
+    fun `a real edit moves the dictation to the end of the mru order`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        clock += 1_000
+        store.append("c")
+        val a = store.loadAll().first { it.raw == "a" }
+
+        store.updateRaw(a.id, "a edited")
+
+        assertThat(store.loadAll().map { it.raw })
+            .containsExactly("b", "c", "a edited").inOrder()
+    }
+
+    @Test
+    fun `a changed polished text also bumps the mru position`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        val a = store.loadAll().first { it.raw == "a" }
+
+        store.updatePolished(a.id, "polished a")
+
+        assertThat(store.loadAll().map { it.raw }).containsExactly("b", "a").inOrder()
+    }
+
+    @Test
+    fun `an unchanged write neither bumps the stamp nor the order`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        val a = store.loadAll().first { it.raw == "a" }
+        val before = store.loadAll()
+
+        store.updateRaw(a.id, "a")
+        store.updatePolished(a.id, null)
+
+        assertThat(store.loadAll()).isEqualTo(before)
+    }
+
+    @Test
+    fun `pruning evicts the least recently edited dictation`() {
+        val store = store(cap = 2)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        clock += 1_000
+        store.append("c") // evicts a
+        val b = store.loadAll().first { it.raw == "b" }
+
+        store.updateRaw(b.id, "b edited") // c is now the least recently edited
+        store.append("d")
+
+        assertThat(store.loadAll().map { it.raw })
+            .containsExactly("b edited", "d").inOrder()
+    }
+
+    @Test
+    fun `a legacy file without a touch stamp falls back to its creation time`() {
+        val id = "20261119-1200-legacy01"
+        dir().mkdirs()
+        File(dir(), "$id.json").writeText(
+            """{"id":"$id","raw":"legacy","createdAtMs":4242}""",
+            Charsets.UTF_8
+        )
+
+        val loaded = store().loadAll().single()
+
+        assertThat(loaded.raw).isEqualTo("legacy")
+        assertThat(loaded.createdAtMs).isEqualTo(4242L)
+        assertThat(loaded.updatedAtMs).isEqualTo(4242L)
+    }
+
+    @Test
     fun `a dictation id is local-time prefixed and path safe`() {
         val id = newDictationId(Date(1_700_000_000_000L), Random(7))
 

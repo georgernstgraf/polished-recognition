@@ -13,13 +13,31 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-19: #173 — the Workbench entry model: compose slot, page-decided target, MRU ring
+
+Owner report after the first real run on the OnePlus plus the grilling of
+2026-11-19. **This entry replaces D4's target rule ("a manually changed Raw
+field ⇒ continue that edit") and D4's entry picture ("opening the screen shows
+the newest dictation and never creates")** — the page model below is binding.
+
+- **The visible page decides the target, never a text comparison.** Compose slot ⇒ NEW · stored dictation + focus in Raw ⇒ RAW_EDIT (at the caret, whether or not the user typed first) · focus in Polished ⇒ POLISHED_EDIT. The old rule compared the field text with the text shown at render time, so a caret move alone meant "new" and dictating into an old Raw silently created another entry. Consequence: on a stored page a dictation never creates an entry; the compose slot and ＋ are the only creators.
+- **The compose slot is transient.** It exists in memory only, is the page on entry, is never persisted while empty, never counts against the cap and is not part of the ring. Navigating away from a pristine slot discards it; any content materialises it first (`DictationStore.append`), also when ＋ is pressed. A dictation without raw text is rejected by `read()`, so polished-only slot content becomes the raw text when materialised.
+- **A fresh slot on every `onCreate`** — cold start, rotation, dark-mode change, process-death restore alike. No `savedInstanceState` plumbing: `onPause` materialises a typed-into slot, so nothing is lost; the user returns to a fresh entry page.
+- **Ordering is last-touched (MRU).** `Dictation.updatedAtMs` is the sort and eviction key (legacy files fall back to `createdAtMs`); `append` sets both stamps, `updateRaw`/`updatePolished` bump only on a real change. Display order and eviction order are the same list, so they cannot disagree. Mere browsing never bumps.
+- **The ring wraps; the compose slot is outside it.** ◀/▶ cycle the stored dictations in both directions; both arrows leaving the compose slot land on the newest. The label is `n / m` in the ring and "new" on the compose slot. ＋ New sits centred in the header and is always enabled; on an already-pristine slot it only focuses Raw.
+- **The fields are content-sized.** `wrap_content` + `minLines=2`, no inner scrollbar, no cap — only the outer ScrollView scrolls. Each label row is a `<summary>`-style accordion (chevron + label + copy button) with a one-line ellipsised preview while collapsed; both sections start open, are expanded by focus, and the state is not persisted. `WorkbenchLayoutPolicyTest` pins the geometry statically.
+- **Auto LLM additionally polishes on Raw field-leave** (typed edits included), once per field-leave and only while the Polished slot is empty. With Auto LLM off the old rule stands: a raw edit discards the polished text.
+- **The IME auto-start stays** (decision 4 of the grilling): entering the Workbench starts the recording and shows the soft keyboard. `showSoftInput` from `onResume` was measurably ignored on the OPO (`mShowRequested=false`), so `revealSoftKeyboard()` retries from `onWindowFocusChanged` and also asks the compat insets controller. Verified on the device (`mInputShown=true`, keyboard above the insets-padded content).
+- **Swipe navigation is out of scope** (owner, parked 2026-11-19) — it needs its own issue and a decision between ViewPager2, a fling interceptor and chrome-only swipe.
+- **NO version bump (owner policy).**
+
 ## 2026-11-19: Epic #166 — the Workbench, and what the grilling settled (#167–#172)
 
 The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 (the spec). This entry records the implementation-shaping consequences.
 
 - **The FIFO is a directory, not a preference.** One JSON file per dictation under `filesDir/dictations/`, temp file + rename (#167). SharedPreferences rewrites the whole file on every `apply()` and would lose exactly the edits the persistence exists for; the directory is excluded from cloud backup and device transfer in ALL three rule containers, pinned by `BackupRulesTest` exactly like #101 does for the secrets file.
-- **A dictation is created by a transcript, and the target is decided when the recording STARTS.** The IME inserts into the focused field (D10), so after the insertion a user edit and a keyboard insertion are indistinguishable. `WorkbenchActivity` therefore snapshots the target on `StateChanged(RECORDING)`: Polished focused ⇒ edit the polished text; a manually changed Raw field ⇒ continue that edit; otherwise ⇒ a new FIFO entry (D4). Opening the screen never creates or evicts anything.
+- **A dictation is created by a transcript, and the target is decided when the recording STARTS.** The IME inserts into the focused field (D10), so after the insertion a user edit and a keyboard insertion are indistinguishable. `WorkbenchActivity` therefore snapshots the target on `StateChanged(RECORDING)`: Polished focused ⇒ edit the polished text; a manually changed Raw field ⇒ continue that edit; otherwise ⇒ a new FIFO entry (D4). Opening the screen never creates or evicts anything. (**SUPERSEDED by #173** — the target rule is now page-decided, the entry page is the transient compose slot; see the top entry.)
 - **LLM is forced off inside our own app, session-scoped, never persisted.** `LlmTargetPolicy` + `TranscriptionPipeline.forceRawMode` set by the controller for exactly one run (#168). The bar toggle shows the still-global state but renders disabled — "off" would be a lie. The global `raw_mode` is never written by the rule.
 - **The Workbench is the only polish site.** The pipeline's `polish(raw, language)` is the manual re-polish (same prompts/provider as the pipeline); Auto LLM polishes each new dictation on arrival and, on OFF→ON, the current one immediately. A raw edit discards the polished slot with no confirmation and no silent re-polish (#171).
 - **Delivery is unconditional and sensitive.** Send ⇒ transcript, changed field on focus loss ⇒ its text, copy button ⇒ the visible field; unchanged field left ⇒ nothing. `ClipboardDelivery` sets `EXTRA_IS_SENSITIVE` on API 33+ — an automatic delivery is not the deliberate IME-salvage copy (#170, #138's asymmetry is intended).
