@@ -2,6 +2,7 @@ package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
 import android.animation.ValueAnimator
+import android.app.AppOpsManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -14,6 +15,7 @@ import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.Build
+import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
@@ -99,6 +101,38 @@ class PolishedVoiceInputIME : InputMethodService() {
      */
     private var startGen = 0
     private var pendingProvisional: Runnable? = null
+    /**
+     * #165: true once the input view has actually been DRAWN (the window is
+     * on screen), false after [onWindowHidden]. The auto-start waits for this
+     * — see [AutoStartTiming].
+     */
+    private var windowDrawn = false
+    /** #165: the auto-start parked until [windowDrawn] (or the timeout). */
+    private var pendingAutoStart: AutoStartPolicy.EntryAction? = null
+    /** #165: a mic verification is already scheduled for this take. */
+    private var micGuardPending = false
+    private val windowDrawTimeout = Runnable {
+        val pending = pendingAutoStart ?: return@Runnable
+        when (AutoStartTiming.onTimeout(windowDrawn, isInputViewShown())) {
+            AutoStartTiming.Step.RUN -> {
+                pendingAutoStart = null
+                ImeLifecycleTrace.log(this, "autostart", "run=$pending after-timeout")
+                runAutoStart(pending)
+            }
+            AutoStartTiming.Step.WAIT -> ImeLifecycleTrace.log(
+                this, "autostart",
+                "still-waiting action=$pending window-shown state=${controller.state}"
+            )
+            AutoStartTiming.Step.DROP -> {
+                pendingAutoStart = null
+                ImeLifecycleTrace.log(
+                    this, "autostart",
+                    "dropped action=$pending reason=window-not-drawn state=${controller.state}"
+                )
+            }
+        }
+    }
+    private val micGuard = Runnable { checkMicAccess() }
     private val recTickHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val recTick = object : Runnable {
         override fun run() {
@@ -126,6 +160,14 @@ class PolishedVoiceInputIME : InputMethodService() {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
         rootView = view.findViewById(R.id.ime_root)
         applyImeWindowInsets(rootView!!)
+        // #165: the first DRAW of the input view is the only reliable "window
+        // is on screen" signal — onWindowShown runs before mWindow.show() and
+        // isInputViewShown() is mDecorViewVisible, set even earlier. The
+        // auto-start waits for this flag; the listener is cheap (one boolean)
+        // and posts, so it never mutates the hierarchy during a draw pass.
+        rootView!!.viewTreeObserver.addOnDrawListener {
+            if (!windowDrawn) recTickHandler.post { onInputViewDrawn() }
+        }
         rowTop = view.findViewById(R.id.ime_row_top)
         rowButtons = view.findViewById(R.id.ime_row_buttons)
         sendButton = view.findViewById(R.id.ime_send_button)
@@ -282,6 +324,41 @@ class PolishedVoiceInputIME : InputMethodService() {
         ViewCompat.requestApplyInsets(root)
     }
 
+    /**
+     * #165: fires *before* the window is actually shown (AOSP calls it ahead
+     * of `mWindow.show()`), so it only records the attempt — the first draw
+     * of the input view releases the deferred auto-start.
+     */
+    override fun onWindowShown() {
+        super.onWindowShown()
+        windowDrawn = false
+        ImeLifecycleTrace.log(
+            this, "onWindowShown",
+            "state=${controller.state} pending=${pendingAutoStart != null}"
+        )
+    }
+
+    /**
+     * #165: without a visible window no capture may start — the microphone
+     * foreground service would be denied its while-in-use type. A pending
+     * auto-start is dropped (and logged) instead of firing into the void.
+     */
+    override fun onWindowHidden() {
+        super.onWindowHidden()
+        windowDrawn = false
+        val pending = pendingAutoStart
+        if (pending != null) {
+            pendingAutoStart = null
+            recTickHandler.removeCallbacks(windowDrawTimeout)
+            ImeLifecycleTrace.log(
+                this, "onWindowHidden",
+                "state=${controller.state} dropped=$pending"
+            )
+        } else {
+            ImeLifecycleTrace.log(this, "onWindowHidden", "state=${controller.state}")
+        }
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         configChangeInProgress = true
@@ -346,10 +423,67 @@ class PolishedVoiceInputIME : InputMethodService() {
             ImeStartDecision.Outcome.CANCEL,
             ImeStartDecision.Outcome.PROCEED -> Unit
         }
-        when (AutoStartPolicy.entryAction(controller.state, sameField, hasMicPermission())) {
+        val action = AutoStartPolicy.entryAction(controller.state, sameField, hasMicPermission())
+        if (action != AutoStartPolicy.EntryAction.NONE) requestAutoStart(action)
+    }
+
+    /**
+     * #165: routes an automatic start through the window-draw gate. A window
+     * that is already on screen (field-to-field switches, a warm return)
+     * starts immediately as before; a cold start parks the action until the
+     * input view has been drawn, because the microphone foreground service
+     * would otherwise be denied its while-in-use type and record silence.
+     */
+    private fun requestAutoStart(action: AutoStartPolicy.EntryAction) {
+        if (AutoStartTiming.step(windowDrawn, timedOut = false) == AutoStartTiming.Step.RUN) {
+            runAutoStart(action)
+            return
+        }
+        pendingAutoStart = action
+        recTickHandler.removeCallbacks(windowDrawTimeout)
+        recTickHandler.postDelayed(windowDrawTimeout, AutoStartTiming.WINDOW_DRAW_TIMEOUT_MS)
+        ImeLifecycleTrace.log(
+            this, "autostart",
+            "deferred action=$action state=${controller.state} drawn=$windowDrawn"
+        )
+    }
+
+    /**
+     * #165: the input view drew its first frame — the window is on screen, so
+     * a parked auto-start may run now (posted from the draw callback, never
+     * inside it).
+     */
+    internal fun onInputViewDrawn() {
+        if (windowDrawn) return
+        windowDrawn = true
+        val pending = pendingAutoStart
+        if (pending == null) {
+            ImeLifecycleTrace.log(this, "firstDraw", "state=${controller.state}")
+            return
+        }
+        pendingAutoStart = null
+        recTickHandler.removeCallbacks(windowDrawTimeout)
+        ImeLifecycleTrace.log(
+            this, "firstDraw",
+            "run=$pending state=${controller.state} timedOut=false"
+        )
+        runAutoStart(pending)
+    }
+
+    /** #165: a user action supersedes a parked auto-start. */
+    private fun cancelPendingAutoStart() {
+        if (pendingAutoStart == null) return
+        pendingAutoStart = null
+        recTickHandler.removeCallbacks(windowDrawTimeout)
+        ImeLifecycleTrace.log(this, "autostart", "cancelled")
+    }
+
+    private fun runAutoStart(action: AutoStartPolicy.EntryAction) {
+        when (action) {
             AutoStartPolicy.EntryAction.RESUME -> {
                 startMicForeground()
                 controller.resume()
+                scheduleMicGuard()
             }
             AutoStartPolicy.EntryAction.FRESH_START -> {
                 // #134: a PAUSED leftover entered on a DIFFERENT field is not
@@ -465,6 +599,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     }
 
     private fun startIfPermitted() {
+        // #165: an explicit start supersedes a parked auto-start.
+        cancelPendingAutoStart()
         if (hasMicPermission()) {
             // Learn the dictation target when the dictation starts, not only on
             // insertion (#102 amendment): the currently active app must be the
@@ -473,12 +609,49 @@ class PolishedVoiceInputIME : InputMethodService() {
             currentCallerPackage()?.let { settings.recordKnownApp(it) }
             startMicForeground()
             controller.start { handleEvent(it) }
+            scheduleMicGuard()
         } else {
             startActivity(
                 Intent(this, MicrophonePermissionActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
+    }
+
+    /**
+     * #165 layer 2: verify shortly after a capture began that the platform is
+     * really delivering audio (see [MicAccessPolicy]). A blocked microphone —
+     * a denied while-in-use grant on a ROM with different timing, the privacy
+     * toggle, a revoked app-op — aborts the take instead of uploading a
+     * noise-only session that transcribes to "".
+     */
+    private fun scheduleMicGuard() {
+        if (micGuardPending) return
+        micGuardPending = true
+        recTickHandler.removeCallbacks(micGuard)
+        recTickHandler.postDelayed(micGuard, MicAccessPolicy.CHECK_DELAY_MS)
+    }
+
+    private fun checkMicAccess() {
+        micGuardPending = false
+        if (controller.state != VoiceSessionController.State.RECORDING) return
+        val mode = runCatching {
+            getSystemService(AppOpsManager::class.java)
+                .unsafeCheckOpNoThrow(
+                    AppOpsManager.OPSTR_RECORD_AUDIO, Process.myUid(), packageName
+                )
+        }.getOrNull() ?: return
+        val silenced = runCatching { controller.isCaptureSilenced() }.getOrDefault(false)
+        val capturing = runCatching { controller.isCaptureRunning() }.getOrDefault(true)
+        val blocked = MicAccessPolicy.isBlocked(mode, silenced, capturing)
+        ImeLifecycleTrace.log(
+            this, "micGuard",
+            "mode=$mode silenced=$silenced capturing=$capturing blocked=$blocked " +
+                "drawn=$windowDrawn"
+        )
+        if (!blocked) return
+        controller.cancel()
+        Toast.makeText(this, getString(R.string.ime_mic_blocked), Toast.LENGTH_LONG).show()
     }
 
     private fun handleEvent(event: VoiceSessionController.Event) {
@@ -962,9 +1135,14 @@ class PolishedVoiceInputIME : InputMethodService() {
         hintToast?.cancel()
         hintToast = null
         recTickHandler.removeCallbacks(recTick)
+        recTickHandler.removeCallbacks(micGuard)
+        micGuardPending = false
         pendingProvisional?.let { recTickHandler.removeCallbacks(it) }
         pendingProvisional = null
         startGen++
+        // #165: a parked auto-start dies with the instance.
+        pendingAutoStart = null
+        recTickHandler.removeCallbacks(windowDrawTimeout)
         ImeLifecycleTrace.log(this, "onDestroy", "state=${controller.state}")
         // Rotation-safe teardown (#83, hardened after the Oplus process-death
         // finding): a live session is never cancelled here — RECORDING is

@@ -686,6 +686,16 @@ class VoiceSessionController(
         emit(Event.StateChanged(state))
     }
 
+    /**
+     * #165: true when the live capture is silenced by the platform (denied
+     * mic app-op, privacy toggle) — the IME aborts such a take instead of
+     * uploading noise. Meaningless unless [State.RECORDING].
+     */
+    fun isCaptureSilenced(): Boolean = recorder.isClientSilenced()
+
+    /** #165: true while the live capture is actually running (see [AudioRecorder.isCapturing]). */
+    fun isCaptureRunning(): Boolean = recorder.isCapturing()
+
     fun recordedDurationMs(): Long {
         val live = if (state == State.RECORDING) System.currentTimeMillis() - segStartMs else 0L
         return accumulatedMs + live

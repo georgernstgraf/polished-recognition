@@ -93,6 +93,23 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
         start(resetBuffer = false)
     }
 
+    /**
+     * #165: true when the platform is silencing this capture (mic app-op
+     * denied, privacy toggle, a foreground-service type without while-in-use
+     * access). The recording configuration exists only once the framework has
+     * registered the record, so callers must allow a moment after [start] —
+     * and must treat `null` as "not known yet", never as "denied".
+     */
+    fun isClientSilenced(): Boolean =
+        audioRecord?.activeRecordingConfiguration?.isClientSilenced == true
+
+    /**
+     * #165: true while a capture is actually running — false when the platform
+     * refused to initialize the `AudioRecord` (denied app-op, mic owned by
+     * another app). Such a take would upload nothing but silence.
+     */
+    fun isCapturing(): Boolean = isRecording && audioRecord != null
+
     fun stop(): File = stopSessionWavFile().also { flushBuffer() }
 
     /**
