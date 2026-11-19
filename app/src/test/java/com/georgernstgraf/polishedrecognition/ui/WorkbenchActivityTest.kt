@@ -39,6 +39,12 @@ class WorkbenchActivityTest {
 
     private fun EditText.text() = text.toString()
 
+    private fun idle() = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+    private fun clipboardText(): String =
+        context.getSystemService(android.content.ClipboardManager::class.java)
+            .primaryClip?.getItemAt(0)?.text.toString()
+
     @Test
     fun `an empty workbench shows no navigation and no dictation`() {
         val activity = launch()
@@ -168,11 +174,93 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `the auto-llm and re-polish controls are visible but inert until wired`() {
+    fun `the auto-llm checkbox reflects and persists the setting`() {
+        val activity = launch()
+        val box = activity.findViewById<CheckBox>(R.id.workbench_auto_llm)
+        activity.polishRunner = { _, _ -> Result.success("polished") }
+
+        assertThat(box.isChecked).isFalse()
+        box.performClick()
+
+        assertThat(box.isChecked).isTrue()
+        assertThat(SettingsStore(context).workbenchAutoLlm).isTrue()
+    }
+
+    @Test
+    fun `switching auto-llm on polishes the current dictation and delivers it`() {
+        val store = seed("raw text")
+        val activity = launch()
+        activity.polishRunner = { _, _ -> Result.success("polished text") }
+
+        activity.findViewById<CheckBox>(R.id.workbench_auto_llm).performClick()
+        idle()
+
+        assertThat(store.loadAll().single().polished).isEqualTo("polished text")
+        assertThat(clipboardText()).isEqualTo("polished text")
+    }
+
+    @Test
+    fun `auto-llm polishes a new dictation when it is on`() {
+        SettingsStore(context).workbenchAutoLlm = true
+        val activity = launch()
+        activity.polishRunner = { text, _ -> Result.success("P:$text") }
+
+        activity.onRecordingStarted()
+        activity.onTranscriptArrived("hello")
+        idle()
+
+        assertThat(DictationStore(context).loadAll().single().polished).isEqualTo("P:hello")
+    }
+
+    @Test
+    fun `re-polish sends the raw text with the per-dictation language and stores the result`() {
+        val store = seed("raw text")
+        SettingsStore(context).targetLanguage = null
+        val activity = launch()
+        var seenText: String? = null
+        var seenLanguage: String? = "unset"
+        activity.polishRunner = { text, language ->
+            seenText = text
+            seenLanguage = language
+            Result.success("polished text")
+        }
+        // index 1 is "English" in LanguageOptions.buildLanguageList
+        activity.onLanguageSelected(1)
+
+        activity.findViewById<Button>(R.id.workbench_repolish).performClick()
+        idle()
+
+        assertThat(seenText).isEqualTo("raw text")
+        assertThat(seenLanguage).isEqualTo("English")
+        // the choice is per dictation and never written back
+        assertThat(SettingsStore(context).targetLanguage).isNull()
+        val saved = store.loadAll().single()
+        assertThat(saved.raw).isEqualTo("raw text")
+        assertThat(saved.polished).isEqualTo("polished text")
+        assertThat(clipboardText()).isEqualTo("polished text")
+    }
+
+    @Test
+    fun `the language spinner is seeded from the global setting`() {
+        SettingsStore(context).targetLanguage = "English"
         val activity = launch()
 
-        assertThat(activity.findViewById<CheckBox>(R.id.workbench_auto_llm).isEnabled).isFalse()
-        assertThat(activity.findViewById<Button>(R.id.workbench_repolish).isEnabled).isFalse()
+        val dropdown = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.workbench_language)
+        assertThat(dropdown.text.toString()).isEqualTo("English")
+    }
+
+    @Test
+    fun `a failed re-polish keeps the previous polished text`() {
+        val store = seed("raw text")
+        store.updatePolished(store.loadAll().single().id, "old polish")
+        val activity = launch()
+        activity.polishRunner = { _, _ -> Result.failure(java.io.IOException("offline")) }
+
+        activity.findViewById<Button>(R.id.workbench_repolish).performClick()
+        idle()
+
+        assertThat(store.loadAll().single().polished).isEqualTo("old polish")
+        assertThat(activity.findViewById<Button>(R.id.workbench_repolish).isEnabled).isTrue()
     }
 
     @Test

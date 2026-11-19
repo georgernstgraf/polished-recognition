@@ -132,11 +132,7 @@ class TranscriptionPipeline(
             )
         )
 
-        val targetLanguageClause = if (targetLanguage != null) {
-            promptStore.targetLanguageClauseTemplate.replace("{{target_language}}", targetLanguage)
-        } else {
-            ""
-        }
+        val targetLanguageClause = targetLanguageClause(targetLanguage)
 
         val sourceLanguageClause = if (isLanguageUnknown(whisper.language)) {
             ""
@@ -210,6 +206,60 @@ class TranscriptionPipeline(
         )
         Result.success(LineWrapPolicy.wrap(polished, wrapWidth))
     }
+
+    /**
+     * #171 (epic #166 D9): the Workbench's manual **re-polish** — one explicit
+     * raw text through the SAME prompt assembly and chat call as
+     * [finishTranscription], with a per-dictation target language.
+     *
+     * Deliberately independent of `raw_mode` (the Workbench asks for a polish
+     * explicitly) and it never writes `targetLanguage` or any preference: the
+     * spinner's choice lives for this dictation only. Returns the trimmed
+     * model answer; the caller owns the polished slot and the clipboard.
+     */
+    suspend fun polish(rawText: String, targetLanguage: String?): Result<String> =
+        withContext(Dispatchers.IO) {
+            val text = rawText.trim()
+            if (text.isEmpty()) return@withContext Result.failure(
+                Exception("nothing to polish")
+            )
+            val llmConfig = settingsStore.llmProvider ?: return@withContext Result.failure(
+                Exception("LLM provider not configured")
+            )
+            // No STT result exists for a re-polish, so the source-language
+            // clause is dropped (the prompt template treats "" as "omit").
+            val systemPrompt = promptStore.systemPrompt
+                .replace("{{source_language_clause}}", "")
+                .replace("{{target_language_clause}}", targetLanguageClause(targetLanguage))
+                .replace(Regex("\n{3,}"), "\n\n")
+                .trim()
+            val userPrompt = promptStore.userPromptTemplate.replace("{{text}}", text)
+            val request = ChatRequest(
+                model = llmConfig.model,
+                messages = listOf(
+                    ChatMessage(role = "system", content = systemPrompt),
+                    ChatMessage(role = "user", content = userPrompt)
+                )
+            )
+            logger?.log("llm-prompt", GsonBuilder().setPrettyPrinting().create().toJson(request))
+            val response = getChatApi(llmConfig.baseUrl).chatSync(
+                authorization = "Bearer ${llmConfig.apiToken}",
+                request = request
+            ).execute()
+            if (!response.isSuccessful || response.body() == null) {
+                return@withContext Result.failure(
+                    Exception("LLM post-processing failed: HTTP ${response.code()}")
+                )
+            }
+            Result.success(response.body()!!.getContent().trim())
+        }
+
+    private fun targetLanguageClause(targetLanguage: String?): String =
+        if (targetLanguage != null) {
+            promptStore.targetLanguageClauseTemplate.replace("{{target_language}}", targetLanguage)
+        } else {
+            ""
+        }
 
     /**
      * Transcribes one or more chunk files. Chunks (see `WavChunker`, #115)

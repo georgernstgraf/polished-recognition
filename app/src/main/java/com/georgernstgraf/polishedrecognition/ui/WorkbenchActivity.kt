@@ -16,11 +16,18 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.config.LanguageOptions
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.delivery.ClipboardDelivery
 import com.georgernstgraf.polishedrecognition.dictation.Dictation
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * #169 (epic #166): the Workbench — the app's own window. A FIFO of
@@ -68,6 +75,25 @@ class WorkbenchActivity : Activity() {
 
     /** The Workbench is the visible surface, so a transcript belongs to it (D3). */
     private var visible = false
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /**
+     * #171: the polish call, injectable so the screen's state machine is
+     * testable without a network. Production uses the shared pipeline (same
+     * prompts, same provider).
+     */
+    internal var polishRunner: suspend (String, String?) -> Result<String> = { text, language ->
+        app.transcriptionPipeline.polish(text, language)
+    }
+
+    /** The per-dictation target language: seeded from settings, never written back. */
+    private var polishLanguage: String? = null
+    private var polishing = false
+    private var polishJob: Job? = null
+
+    /** Guards the Auto-LLM checkbox against its own programmatic state writes. */
+    private var silenceAutoLlm = false
 
     /**
      * The field text as it was when the dictation was shown, for the
@@ -117,6 +143,9 @@ class WorkbenchActivity : Activity() {
         super.onResume()
         visible = true
         controller.addSecondaryListener(sessionListener)
+        // D9: the spinner is seeded from the global settings at display time;
+        // the choice lives for this visit only and is never written back.
+        seedLanguageSpinner()
         reload()
         // D15: entering the Workbench starts the IME immediately. The IME's
         // own auto-start path does the rest — a foreign keyboard simply opens.
@@ -132,6 +161,12 @@ class WorkbenchActivity : Activity() {
         commitEdits()
         controller.removeSecondaryListener(sessionListener)
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        polishJob?.cancel()
+        scope.cancel()
+        super.onDestroy()
     }
 
     /** #169: targetSdk 36 lays the window out edge-to-edge; we own the insets. */
@@ -175,11 +210,13 @@ class WorkbenchActivity : Activity() {
         polishedField.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) onFieldLeft(isRaw = false)
         }
-        // #171 wires Auto LLM and re-polish; the controls stay disabled until
-        // that behaviour exists, never silently inert.
-        autoLlmCheckbox.isEnabled = false
-        repolishButton.isEnabled = false
-        languageDropdown.isEnabled = false
+        // #171 (D8): the checkbox is both a state and an action — switching it
+        // ON immediately polishes the current dictation and delivers the result.
+        autoLlmCheckbox.setOnCheckedChangeListener { _, checked ->
+            if (silenceAutoLlm) return@setOnCheckedChangeListener
+            onAutoLlmChanged(checked)
+        }
+        repolishButton.setOnClickListener { rePolish(notify = true) }
     }
 
     private fun deliver(text: String, notify: Boolean) {
@@ -224,6 +261,93 @@ class WorkbenchActivity : Activity() {
         nextButton.isEnabled = FifoNavigation.canGoNewer(index, dictations.size)
         copyRawButton.isEnabled = shownRaw.isNotEmpty()
         copyPolishedButton.isEnabled = shownPolished.isNotEmpty()
+        silenceAutoLlm = true
+        autoLlmCheckbox.isChecked = settings.workbenchAutoLlm
+        silenceAutoLlm = false
+        updatePolishControls()
+    }
+
+    private fun updatePolishControls() {
+        val hasRaw = dictations.getOrNull(index)?.raw?.isNotBlank() == true
+        repolishButton.isEnabled = hasRaw && !polishing
+        languageDropdown.isEnabled = hasRaw && !polishing
+        repolishButton.text = getString(
+            if (polishing) R.string.workbench_polishing else R.string.workbench_repolish
+        )
+    }
+
+    // -------------------------------------------------------------------- LLM
+
+    /** D9: seed from the global setting; the selection is per-visit only. */
+    private fun seedLanguageSpinner() {
+        val languages = LanguageOptions.buildLanguageList(settings.customLanguages)
+        val current = settings.targetLanguage ?: LanguageOptions.NONE_TARGET_LANGUAGE
+        polishLanguage = if (current == LanguageOptions.NONE_TARGET_LANGUAGE) null else current
+        languageDropdown.setAdapter(
+            android.widget.ArrayAdapter(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                languages
+            )
+        )
+        languageDropdown.setText(current, false)
+        languageDropdown.threshold = Int.MAX_VALUE
+        languageDropdown.setOnClickListener { languageDropdown.showDropDown() }
+        languageDropdown.setOnItemClickListener { _, _, position, _ ->
+            onLanguageSelected(position)
+        }
+    }
+
+    /** D9: the per-dictation language, never written back to the settings. */
+    internal fun onLanguageSelected(position: Int) {
+        val selected = LanguageOptions
+            .buildLanguageList(settings.customLanguages)
+            .getOrNull(position) ?: return
+        polishLanguage =
+            if (selected == LanguageOptions.NONE_TARGET_LANGUAGE) null else selected
+    }
+
+    /** D8: persist the choice; switching ON polishes the current dictation now. */
+    private fun onAutoLlmChanged(checked: Boolean) {
+        settings.workbenchAutoLlm = checked
+        if (checked) rePolish(notify = false)
+    }
+
+    /** D9: the visible raw text through the LLM with the chosen language. */
+    private fun rePolish(notify: Boolean) {
+        if (polishing) return
+        val id = currentId ?: return
+        val raw = rawField.text.toString().ifBlank {
+            dictations.firstOrNull { it.id == id }?.raw.orEmpty()
+        }
+        if (raw.isBlank()) return
+        polish(id, raw, notify)
+    }
+
+    private fun polish(id: String, raw: String, notify: Boolean) {
+        polishing = true
+        updatePolishControls()
+        polishJob = scope.launch {
+            val result = runCatching { polishRunner(raw, polishLanguage) }
+                .getOrElse { Result.failure(it) }
+            polishing = false
+            result.onSuccess { polished ->
+                // D9: the result overwrites the single polished slot and is
+                // delivered to the clipboard; Raw is untouched.
+                store.updatePolished(id, polished)
+                reload(id)
+                deliver(polished, notify = notify)
+            }.onFailure {
+                // Keep the previous polished text — a failed call never
+                // destroys the dictation.
+                Toast.makeText(
+                    this@WorkbenchActivity,
+                    getString(R.string.workbench_polish_failed),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            updatePolishControls()
+        }
     }
 
     /**
@@ -308,5 +432,10 @@ class WorkbenchActivity : Activity() {
             DictationTarget.NEW -> reload(store.append(text).id)
         }
         deliver(text, notify = false)
+        // D8: Auto LLM polishes each NEW/edited dictation — never the polished
+        // field itself (that is the user's own edit, D10).
+        if (settings.workbenchAutoLlm && target != DictationTarget.POLISHED_EDIT && !polishing) {
+            currentId?.let { id -> polish(id, rawField.text.toString(), notify = false) }
+        }
     }
 }

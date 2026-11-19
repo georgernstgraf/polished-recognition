@@ -171,8 +171,7 @@ class TranscriptionPipelineTest {
      * the LLM is never called.
      */
     @Test
-    fun `forced raw mode returns the transcript and never calls the LLM (#168)`() = runBlocking {
-        settingsStore.rawMode = false
+    fun `forced raw mode returns the transcript and never calls the LLM (#168)`() = runBlocking {        settingsStore.rawMode = false
         mockSttSuccess()
         val outcomes = mutableListOf<PipelineOutcome>()
         pipeline.onOutcome = { outcomes += it }
@@ -189,6 +188,57 @@ class TranscriptionPipelineTest {
         verify(exactly = 0) { chatApi.chatSync(any(), any()) }
         assertThat(outcomes.single().rawMode).isTrue()
         assertThat(settingsStore.rawMode).isFalse()
+    }
+
+    /**
+     * #171 (epic #166 D9): the Workbench's re-polish reuses the pipeline's
+     * prompt assembly and chat call with an explicit text + language.
+     */
+    @Test
+    fun `manual polish sends the raw text with the chosen language (#171)`() = runBlocking {
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        val result = pipeline.polish("Hallo Welt", "English")
+
+        assertThat(result.getOrNull()).isEqualTo("ok")
+        val request = requestSlot.captured
+        assertThat(request.messages.last().content).contains("Hallo Welt")
+        assertThat(request.messages.first().content).contains("English")
+        // per-dictation only: the global setting is untouched
+        assertThat(settingsStore.targetLanguage).isNull()
+    }
+
+    @Test
+    fun `manual polish drops the source-language clause and keeps a null target open (#171)`() = runBlocking {
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        pipeline.polish("Hallo Welt", null)
+
+        val system = requestSlot.captured.messages.first().content
+        assertThat(system).doesNotContain("detected the recognized language")
+        assertThat(system).doesNotContain("{{target_language_clause}}")
+        assertThat(system).doesNotContain("{{source_language_clause}}")
+    }
+
+    @Test
+    fun `manual polish fails loudly on an http error (#171)`() = runBlocking {
+        every { chatApi.chatSync(any(), any()) } returns
+            mockCall(Response.error(500, ResponseBody.create(null, "Server Error")))
+
+        val result = pipeline.polish("Hallo Welt", null)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()?.message).contains("HTTP 500")
+    }
+
+    @Test
+    fun `manual polish refuses an empty text (#171)`() = runBlocking {
+        val result = pipeline.polish("   ", null)
+
+        assertThat(result.isFailure).isTrue()
+        verify(exactly = 0) { chatApi.chatSync(any(), any()) }
     }
 
     @Test
