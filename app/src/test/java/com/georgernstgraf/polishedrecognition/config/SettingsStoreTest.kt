@@ -633,4 +633,18 @@ class SettingsStoreTest {
         store.searchPercentOverride = 45f
         assertThat(SttFragmentSizer(store).searchPercent()).isEqualTo(45.0)
     }
+
+    @Test
+    fun `workbench fifo size defaults to three and clamps to the documented range (#167)`() {
+        clearPrefs()
+        val s = freshStore()
+
+        assertThat(s.workbenchFifoSize).isEqualTo(3)
+        s.workbenchFifoSize = 0
+        assertThat(s.workbenchFifoSize).isEqualTo(1)
+        s.workbenchFifoSize = 99
+        assertThat(s.workbenchFifoSize).isEqualTo(10)
+        s.workbenchFifoSize = 5
+        assertThat(s.workbenchFifoSize).isEqualTo(5)
+    }
 }

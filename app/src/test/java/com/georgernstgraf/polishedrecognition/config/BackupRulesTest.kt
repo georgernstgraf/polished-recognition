@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.config
 
 import com.google.common.truth.Truth.assertThat
+import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import org.junit.Test
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
@@ -36,23 +37,32 @@ class BackupRulesTest {
     }
 
     @Test
-    fun `the api-30 rule file excludes exactly the secrets file`() {
+    fun `the api-30 rule file excludes exactly the secrets file and the dictations`() {
         val excludes = excludesOf("src/main/res/xml/backup_rules.xml", "exclude")
 
         assertThat(excludes).containsExactly(
-            Exclude("sharedpref", "${SettingsStore.SECRETS_PREFS_NAME}.xml")
+            Exclude("sharedpref", "${SettingsStore.SECRETS_PREFS_NAME}.xml"),
+            Exclude("file", "${DictationStore.DIR_NAME}/")
         )
     }
 
     @Test
-    fun `api-31 rules exclude the secrets file from cloud backup and device transfer`() {
+    fun `api-31 rules exclude the secrets file and dictations from both containers`() {
         val excludes = excludesOf("src/main/res/xml/data_extraction_rules.xml", "exclude")
 
-        // one entry per container: cloud-backup + device-transfer
-        assertThat(excludes).hasSize(2)
+        // one entry per container × path: cloud-backup + device-transfer
+        assertThat(excludes).hasSize(4)
         assertThat(excludes.toSet()).containsExactly(
-            Exclude("sharedpref", "${SettingsStore.SECRETS_PREFS_NAME}.xml")
+            Exclude("sharedpref", "${SettingsStore.SECRETS_PREFS_NAME}.xml"),
+            Exclude("file", "${DictationStore.DIR_NAME}/")
         )
+    }
+
+    @Test
+    fun `the dictation directory is a distinct path from the other stores`() {
+        assertThat(DictationStore.DIR_NAME).isEqualTo("dictations")
+        assertThat(DictationStore.DIR_NAME).isNotEqualTo("audio")
+        assertThat(DictationStore.DIR_NAME).isNotEqualTo("known_apps")
     }
 
     @Test

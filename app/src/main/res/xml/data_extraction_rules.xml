@@ -9,12 +9,18 @@
 
   `BackupRulesTest` pins this file, backup_rules.xml and
   SettingsStore.SECRETS_PREFS_NAME together.
+
+  #167 — the Workbench dictations stay on the device too (epic #166 D14):
+  they survive process death but neither cloud backup nor device-to-device
+  transfer carries them.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
+        <exclude domain="file" path="dictations/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
+        <exclude domain="file" path="dictations/" />
     </device-transfer>
 </data-extraction-rules>

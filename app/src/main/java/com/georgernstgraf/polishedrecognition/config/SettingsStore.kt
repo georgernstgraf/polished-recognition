@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
+import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
@@ -119,6 +120,22 @@ class SettingsStore(
     var compressAudio: Boolean
         get() = prefs.getBoolean(COMPRESS_AUDIO_KEY, false)
         set(value) = prefs.edit().putBoolean(COMPRESS_AUDIO_KEY, value).apply()
+
+    /**
+     * #166 D2: how many Workbench dictations the FIFO keeps (1..10, default 3).
+     * Settable in the Advanced settings section (#172); read by
+     * [com.georgernstgraf.polishedrecognition.dictation.DictationStore] on
+     * every append and prune, so a change applies immediately.
+     */
+    var workbenchFifoSize: Int
+        get() = prefs.getInt(WORKBENCH_FIFO_SIZE_KEY, DictationStore.DEFAULT_FIFO_SIZE)
+            .coerceIn(DictationStore.MIN_FIFO_SIZE, DictationStore.MAX_FIFO_SIZE)
+        set(value) = prefs.edit()
+            .putInt(
+                WORKBENCH_FIFO_SIZE_KEY,
+                value.coerceIn(DictationStore.MIN_FIFO_SIZE, DictationStore.MAX_FIFO_SIZE)
+            )
+            .apply()
 
     /**
      * After a successful send (#133), switch back to the user's typing
@@ -622,6 +639,7 @@ class SettingsStore(
         private const val LLM_MODEL_LISTS_KEY = "llm_model_lists"
         private const val RAW_MODE_KEY = "raw_mode"
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
+        private const val WORKBENCH_FIFO_SIZE_KEY = "workbench_fifo_size"
         private const val SWITCH_BACK_AFTER_SEND_KEY = "switch_back_after_send"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"
         private const val EVIDENCE_RETENTION_KEY = "evidence_retention_seconds"
