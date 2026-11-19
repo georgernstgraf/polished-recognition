@@ -165,6 +165,32 @@ class TranscriptionPipelineTest {
         assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
     }
 
+    /**
+     * #168 (epic #166 D7): a session-scoped force overrides the global
+     * setting for that run only — the transcript is returned unpolished and
+     * the LLM is never called.
+     */
+    @Test
+    fun `forced raw mode returns the transcript and never calls the LLM (#168)`() = runBlocking {
+        settingsStore.rawMode = false
+        mockSttSuccess()
+        val outcomes = mutableListOf<PipelineOutcome>()
+        pipeline.onOutcome = { outcomes += it }
+        pipeline.forceRawMode = true
+        try {
+            val result = pipeline.transcribe(listOf(lincolnFile))
+
+            assertThat(result.isSuccess).isTrue()
+            assertThat(result.getOrNull()).isEqualTo(lincolnGermanText)
+        } finally {
+            pipeline.forceRawMode = false
+        }
+
+        verify(exactly = 0) { chatApi.chatSync(any(), any()) }
+        assertThat(outcomes.single().rawMode).isTrue()
+        assertThat(settingsStore.rawMode).isFalse()
+    }
+
     @Test
     fun `raw mode writes stt-text log but no llm-prompt log`() = runBlocking {
         settingsStore.rawMode = true

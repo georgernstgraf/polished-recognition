@@ -79,6 +79,15 @@ class TranscriptionPipeline(
     var onOutcome: ((PipelineOutcome) -> Unit)? = null
 
     /**
+     * #168 (epic #166 D7): a **session-scoped** raw override the controller
+     * sets for the duration of one run — the IME forces raw while dictating
+     * into the app's own Workbench. Never persisted, never written to
+     * `SettingsStore.rawMode`; the controller resets it when the run ends.
+     */
+    @Volatile
+    var forceRawMode: Boolean = false
+
+    /**
      * The post-STT half of [transcribe], exposed for the live fragment
      * worker path (#116): the worker has already transcribed the committed
      * fragments DURING dictation and the controller hands in the ordered
@@ -97,7 +106,7 @@ class TranscriptionPipeline(
         )
 
         val raw = sttResult.getOrThrow()
-        val rawMode = settingsStore.rawMode
+        val rawMode = settingsStore.rawMode || forceRawMode
         val targetLanguage = settingsStore.targetLanguage
         val wrapWidth = settingsStore.wrapWidthFor(callerPackage)
         val whisper = raw.copy(text = raw.text.trim())

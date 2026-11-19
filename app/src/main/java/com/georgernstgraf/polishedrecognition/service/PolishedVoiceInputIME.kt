@@ -94,6 +94,12 @@ class PolishedVoiceInputIME : InputMethodService() {
      */
     private var editorPackage: String? = null
     /**
+     * #168 (epic #166 D7): the caller is our own app, so the LLM is forced off
+     * for the whole binding and the bar toggle renders disabled. Recomputed on
+     * every [refreshQuickSettings] (each bind), never persisted.
+     */
+    private var llmForcedOff = false
+    /**
      * Guards the delayed resume check posted by a [ImeStartDecision.Outcome]
      * provisional freeze: each bind bumps [startGen], so a superseded
      * runnable (rapid rebinds, teardown) no-ops instead of resuming against
@@ -287,6 +293,9 @@ class PolishedVoiceInputIME : InputMethodService() {
         // is needed.
         llmCheckbox?.setOnCheckedChangeListener { _, isChecked ->
             if (silenceLangListener) return@setOnCheckedChangeListener
+            // #168: inside our own app the toggle is rendered disabled; a
+            // stale callback must never write the global setting.
+            if (llmForcedOff) return@setOnCheckedChangeListener
             settings.rawMode = !isChecked
             updateLanguageEnabled()
         }
@@ -403,7 +412,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         if (outcome == ImeStartDecision.Outcome.CANCEL) {
             controller.cancel()
         }
-        refreshQuickSettings()
+        refreshQuickSettings(info.packageName)
         applyUiState()
         when (outcome) {
             ImeStartDecision.Outcome.FREEZE -> {
@@ -569,7 +578,7 @@ class PolishedVoiceInputIME : InputMethodService() {
         }
     }
 
-    private fun refreshQuickSettings() {
+    private fun refreshQuickSettings(callerPackage: String? = currentCallerPackage()) {
         val langs = buildLanguageList()
         languageSpinner?.let { sp ->
             silenceLangListener = true
@@ -581,8 +590,14 @@ class PolishedVoiceInputIME : InputMethodService() {
             sp.setSelection(idx)
             silenceLangListener = false
         }
+        // #168 (epic #166 D7): dictating into our own Workbench always runs
+        // raw. The toggle keeps showing the GLOBAL state but is disabled — an
+        // unchecked-but-enabled box would claim a setting that is still on.
+        llmForcedOff = LlmTargetPolicy.forcesRaw(callerPackage, packageName)
         silenceLangListener = true
         llmCheckbox?.isChecked = !settings.rawMode
+        llmCheckbox?.isEnabled = !llmForcedOff
+        llmCheckbox?.alpha = if (llmForcedOff) 0.4f else 1.0f
         silenceLangListener = false
         updateLanguageEnabled()
     }
@@ -593,7 +608,8 @@ class PolishedVoiceInputIME : InputMethodService() {
     private fun updateLanguageEnabled() {
         // #154: the spinner is only usable when the LLM runs — without it there
         // is no translation/polish step the language could target.
-        val disabled = llmCheckbox?.isChecked != true
+        // #168: forced raw inside our own app disables it too.
+        val disabled = llmForcedOff || llmCheckbox?.isChecked != true
         languageSpinner?.isEnabled = !disabled
         languageSpinner?.alpha = if (disabled) 0.4f else 1.0f
     }
@@ -1028,10 +1044,13 @@ class PolishedVoiceInputIME : InputMethodService() {
         val sp = languageSpinner ?: return
         val llm = llmCheckbox ?: return
         silenceLangListener = true
-        sp.isEnabled = enabled
-        sp.alpha = if (enabled) 1.0f else 0.4f
-        llm.isEnabled = enabled
-        llm.alpha = if (enabled) 1.0f else 0.4f
+        // #168: inside our own app the LLM is forced off, so neither the
+        // toggle nor its target-language spinner may be re-enabled here.
+        val llmEnabled = enabled && !llmForcedOff
+        sp.isEnabled = llmEnabled
+        sp.alpha = if (llmEnabled) 1.0f else 0.4f
+        llm.isEnabled = llmEnabled
+        llm.alpha = if (llmEnabled) 1.0f else 0.4f
         silenceLangListener = false
     }
 

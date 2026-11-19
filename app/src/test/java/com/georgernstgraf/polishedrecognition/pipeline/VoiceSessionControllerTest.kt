@@ -225,6 +225,46 @@ class VoiceSessionControllerTest {
     }
 
     /**
+     * #168 (epic #166 D7): a dictation into our own Workbench runs with the
+     * pipeline forced to raw, and the flag is cleared again afterwards.
+     */
+    @Test
+    fun `dictating into our own app forces raw mode for the run only (#168)`() {
+        val own = RuntimeEnvironment.getApplication().packageName
+        val modes = mutableListOf<Boolean>()
+        // Relaxed mocks do not store property values, so the session override
+        // is observed at the setter: true for the run, false in the cleanup.
+        every { pipeline.forceRawMode = any() } answers { modes += arg<Boolean>(0) }
+        val controller = newController()
+        try {
+            controller.start {}
+        } catch (_: Throwable) {
+        }
+
+        controller.stopAndTranscribe(own)
+        controller.awaitIdle()
+
+        assertThat(modes).containsExactly(true, false).inOrder()
+    }
+
+    /** A foreign app leaves the global behaviour alone (#168). */
+    @Test
+    fun `dictating into a foreign app does not force raw mode (#168)`() {
+        val modes = mutableListOf<Boolean>()
+        every { pipeline.forceRawMode = any() } answers { modes += arg<Boolean>(0) }
+        val controller = newController()
+        try {
+            controller.start {}
+        } catch (_: Throwable) {
+        }
+
+        controller.stopAndTranscribe("com.example.chat")
+        controller.awaitIdle()
+
+        assertThat(modes).containsExactly(false, false).inOrder()
+    }
+
+    /**
      * #116: the live fragment path runs regardless of `compress_audio` —
      * with compression OFF the fragments are plain WAV (no transcoder), each
      * one uploaded directly. Driven via a restored snapshot (the Robolectric

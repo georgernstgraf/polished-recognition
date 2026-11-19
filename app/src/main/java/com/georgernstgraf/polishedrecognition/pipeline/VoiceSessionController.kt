@@ -13,6 +13,7 @@ import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
+import com.georgernstgraf.polishedrecognition.service.LlmTargetPolicy
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -249,6 +250,17 @@ class VoiceSessionController(
      * later session.
      */
     private var rescuePartial: Event.PartialInfo? = null
+
+    /**
+     * #168 (epic #166 D7): this session is dictated into the app's own
+     * Workbench, so the LLM is forced off for the whole run. Evaluated once at
+     * [stopAndTranscribe] from the caller package; never persisted. Reset when
+     * the next session begins so it can never leak into a foreign app.
+     */
+    private var sessionForcedRaw = false
+
+    /** The raw decision this session actually runs with (#168). */
+    private val effectiveRawMode: Boolean get() = settings.rawMode || sessionForcedRaw
     /**
      * Secondary observers (#82). The primary [callback] slot belongs to the
      * IME forever; a RecognitionService session observes the shared
@@ -292,6 +304,10 @@ class VoiceSessionController(
     private fun beginRecording() {
         accumulatedMs = 0L
         segStartMs = System.currentTimeMillis()
+        // #168: a new session starts with the global rule; the target package
+        // is resolved at stop time, when the field the user dictated into is
+        // known for certain.
+        sessionForcedRaw = false
         state = State.RECORDING
         // Fragment preparation starts BEFORE the capture so a recorder
         // failure can never leave the session without its preparer (#115).
@@ -544,6 +560,8 @@ class VoiceSessionController(
      */
     fun stopAndTranscribe(callerPackage: String? = null) {
         if (state != State.RECORDING && state != State.PAUSED) return
+        // #168 (epic #166 D7): dictating into our own Workbench is always raw.
+        sessionForcedRaw = LlmTargetPolicy.forcesRaw(callerPackage, appContext.packageName)
         if (state == State.RECORDING) {
             accumulatedMs += System.currentTimeMillis() - segStartMs
         }
@@ -561,7 +579,14 @@ class VoiceSessionController(
 
         transcribeJob = scope.launch {
             val result = try {
-                runTranscription(sessionWav, callerPackage)
+                // #168: the pipeline reads its own settings; the session
+                // override is scoped to this run and cleared in the finally.
+                pipeline.forceRawMode = sessionForcedRaw
+                try {
+                    runTranscription(sessionWav, callerPackage)
+                } finally {
+                    pipeline.forceRawMode = false
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -849,12 +874,12 @@ class VoiceSessionController(
                 drained.failure?.let { failure ->
                     val failedIndex = drained.failedIndex!! + 1
                     val where = "fragment $failedIndex/${drained.chunkCount}"
-                    if (!settings.rawMode) {
+                    if (!effectiveRawMode) {
                         // #142: the session failed at STT — record the partial
                         // join as the raw text (the LLM pass never ran)
                         sessionBundle?.recordOutcome(
                             // #146: PipelineOutcome is a top-level class in :core now.
-                            PipelineOutcome(rawText = drained.text, rawMode = settings.rawMode)
+                            PipelineOutcome(rawText = drained.text, rawMode = effectiveRawMode)
                         )
                         return Result.failure(Exception("$where: ${failure.message}"))
                     }
@@ -1107,7 +1132,7 @@ class VoiceSessionController(
             sttModel = settings.sttProvider?.model,
             llmBaseUrl = settings.llmProvider?.baseUrl,
             llmModel = settings.llmProvider?.model,
-            rawMode = settings.rawMode,
+            rawMode = effectiveRawMode,
             compressAudio = settings.compressAudio
         )
     }
