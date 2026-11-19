@@ -3,7 +3,7 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-19T07:02:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-19T07:10:00Z }
 status: stable
 ---
 
@@ -95,7 +95,7 @@ status: stable
 17. [ ] **#154/#155 on-device spot check (owner)**: in the bar, `LLM` checked = polished text, unchecked = plain transcription (state survives a restart); the language spinner shows **"LLM, keep language"** and is greyed out while LLM is off; Settings no longer shows a raw-mode checkbox; the **X** hands the field back to the typing keyboard (next field tap opens it) while the paused dictation resumes on return to the same field, a different app salvages it (#134) and starts fresh; the X is disabled during PROCESSING; the spinner text is not truncated on a narrow screen (fallback: short form "LLM" in the bar, long form in the dropdown).
 18. [ ] **#156 screenshot refresh after #154/#155 (owner, USB host)**: `docs/img/ime-recording.png` (still shows `Raw` and the removed top-row button) and `docs/img/settings.png` (still shows the removed checkbox) — re-capture from a build carrying both issues; optionally delete the now-unreferenced `res/drawable/ic_keyboard.xml`.
 19. [x] **#165 CLOSED 2026-11-19 (Owner-Entscheid: autonom schließen)** — Fix auf `main` (`4955ccc`), noch nicht in einem Release. Wiedergänger-Fall: Reporter-Bestätigung auf dem S24 Ultra steht aus; bei erneutem Report Issue wieder öffnen und `files/logs/ime-lifecycle.log` anfordern (`autostart`/`firstDraw`/`micGuard` nennen die Stufe). Android 12/13 war nie betroffen, die A03 ist kein sinnvoller Check.
-20. [ ] **#165 optional follow-up**: `PolishedRecognitionService` (the bound `RecognitionService`) starts its FGS in `onStartListening` and was NOT touched by #165; if a caller ever reports the same silence there, `MicAccessPolicy` is the reusable guard (it would need the recognizer's error mapping instead of a Toast).
+20. [ ] **#165 optional follow-up**: `PolishedRecognitionService` (the bound `RecognitionService`) starts its FGS in `onStartListening` and was NOT touched by #165; if a caller ever reports the same silence there, `MicAccessPolicy` is the reusable guard (it would need the recognizer's error mapping instead of a Toast). **Moot if epic #166 (editor mode) retires the bound service** — that question ("do we want to be a speech target for foreign apps at all?") belongs in the #166 grilling; a "one surface only" answer would retire this service together with the already-deferred `RECOGNIZE_SPEECH` activity route (#110).
 
 ## Known on-device gotchas
 
