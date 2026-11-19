@@ -3,8 +3,8 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-19T06:56:26Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-19T06:56:26Z }
 status: stable
 ---
 
@@ -12,6 +12,14 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-19: #165 — the auto-start waits for the first IME frame, and a blocked mic aborts the take
+
+- **The window gate is the first DRAW, not a platform callback.** AOSP API 36 `InputMethodService.showWindow()` calls `onWindowShown()` *before* `mWindow.show()` (lines 3196 vs 3201), and `isInputViewShown()` is `mDecorViewVisible`, set earlier still in `prepareWindow()` (3297). Both would have started the microphone FGS inside the exact gap that costs the while-in-use grant. So `AutoStartTiming` + a `ViewTreeObserver.OnDrawListener` on `ime_root` own the decision, and only a real frame releases a parked auto-start. This is the platform contract, not a ROM quirk: the emulator reproduced the reporter's `New WIU:DENIED` byte for byte.
+- **Warm windows keep the old behaviour.** Field-to-field switches and returns happen with the window still drawn (`windowDrawn` stays true between shows), so they start immediately; only a cold bind can defer. The rotation FREEZE path (#83/#157) is untouched — its `startMicForeground()` re-assert belongs to a session that already holds the grant.
+- **The 1500 ms timeout drops only a window that is not coming up (owner decision: 1500 ms).** Measured while proving the fix: the first frame arrived **1.1 s** after the bind on a loaded AVD, uncomfortably close to the limit. So on timeout the decision is `AutoStartTiming.onTimeout(windowDrawn, isInputViewShown())`: still showing → keep waiting, not even showing → drop (the client-hides-the-keyboard-on-IME-change case). A slow cold start therefore never loses the dictation, and a hidden keyboard never records.
+- **Layer 2 aborts, it never retries (owner decision).** `MicAccessPolicy` checks 400 ms after a start for an app-op `MODE_IGNORED`/`MODE_ERRORED`, `AudioRecordingConfiguration.isClientSilenced()`, or an `AudioRecord` that never initialized; any of them cancels the session and toasts ("Microphone unavailable — tap the mic to start again") instead of uploading noise. Deliberately one-shot: a retry needs its own state machine and can loop, while the manual tap lands in a now-visible window anyway.
+- **NO version bump (owner policy).** The fix rides the next release; the reporter confirms on the S24 Ultra before the issue closes.
 
 ## 2026-11-13/14: #161–#164 — the app owns its text palette, and only our own palette is gated
 
