@@ -3,8 +3,8 @@ type: Architecture
 title: Architecture
 description: Living structural map of the app — modules, surfaces, and data flows.
 tags: [knowledge, architecture]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
 status: stable
 ---
 
@@ -15,7 +15,7 @@ Overwritten when structural changes occur during a session.
 
 ## Overview
 
-Polished Recognition is an Android **voice IME** (`InputMethodService`) that captures audio via `AudioRecord`, transcribes it via any OpenAI-compatible `/v1/audio/transcriptions` endpoint, optionally post-processces it via any `/v1/chat/completions` endpoint, and `commitText`s the result into the focused field through the standard `InputConnection`. The bound `PolishedRecognitionService` was removed in #43 and the `VoiceRecognitionActivity` overlay in #61 — **the IME is the sole surface**.
+Polished Recognition is an Android **voice IME** (`InputMethodService`) that captures audio via `AudioRecord`, transcribes it via any OpenAI-compatible `/v1/audio/transcriptions` endpoint, optionally post-processces it via any `/v1/chat/completions` endpoint, and `commitText`s the result into the focused field through the standard `InputConnection`. The bound `PolishedRecognitionService` was removed in #43 and the `VoiceRecognitionActivity` overlay in #61. **The IME is the dictation surface**; since epic #166 (`a2117e1`) the app additionally has its own **Workbench** window (launcher entry) with a dictation FIFO, so "sole surface" applies to voice input, not to editing.
 
 ## Module layout (since #146)
 
@@ -70,14 +70,15 @@ Three Gradle modules; **zero drift** — `:analyzer` compiles the REAL productio
 | `SettingsStore` | config | SharedPreferences: provider configs, raw mode, target language, cached model lists. Also owns the **learned dictation targets** (#100) in the separate `known_apps` prefs file (`KnownApp(label, lastSeenMs, wrapWidth: Int?)`) with an in-memory cache, `wrapWidthFor(packageName)` (per-app override else global), and the injectable single-thread `learnerExecutor` (writes only when the app is new or `lastSeen > 24 h`, errors only `Log.w`). `knownAppsByRecency()` returns the in-memory most-recently-used order (`mruOrder`, #102) first, then the remaining apps by stored `lastSeenMs` descending. Booleans include `compressAudio`, `audioEvidence` (injectable build-type default) and `switchBackAfterSend` (#133, default ON). |
 | `ProviderPresetLoader` | config | Loads and queries `assets/provider_presets.json` |
 | `LanguageMapper` | config | Maps a Whisper `language` field to a display name (complete 100-entry Whisper `LANGUAGES` table: ISO codes like `de` and full names like `German`, case-insensitive, capitalized-words fallback) — providers disagree on the format (#105) |
-| `SettingsActivity` | ui | XML-based, **plain `Activity` on `Theme.DeviceDefault.DayNight`** (since #45, theme-free): provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults, About section. Errors via `EditText.setError()`; token reveal via eye `ImageButton`; provider/target dropdowns use `setOnClickListener{showDropDown()}` |
+| `SettingsActivity` | ui | XML-based, **plain `Activity` on `Theme.DeviceDefault.DayNight`** (since #45, theme-free): provider dropdowns, token fields, validate buttons, raw/translate toggles, prompt editors, restore defaults, About section. Errors via `EditText.setError()`; token reveal via eye `ImageButton`; provider/target dropdowns use `setOnClickListener{showDropDown()}`. **Unexported since #169** — reached from the Workbench and the IME gear |
+| `WorkbenchActivity` | ui | Epic #166: the launcher entry. Raw/Polished `EditText`s (both editable), ◀/▶ FIFO navigation, per-field copy buttons, Auto LLM checkbox, per-dictation language spinner + re-polish. Observes the controller through `addSecondaryListener` only; owns its edge-to-edge insets (`WorkbenchInsets`); delivers via `delivery/ClipboardDelivery` (sensitive on API 33+). Store: `dictation/DictationStore` (`filesDir/dictations/`, backup-excluded) |
 | `CrashDialogActivity` | ui | Transparent dialog `Activity` (plain, `Theme.DeviceDefault.DayNight` variant since #45) in separate `:crash` process — shows `android.app.AlertDialog` with exception details from the global crash handler + a Copy-to-Clipboard button |
 
 ## IME Registration
 
 `AndroidManifest.xml` declares `PolishedVoiceInputIME` as a service with `BIND_INPUT_METHOD` permission, an `android.view.InputMethod` intent-filter, `foregroundServiceType="microphone"`, and `meta-data` pointing to `res/xml/voice_method.xml`. It also declares `PolishedRecognitionService` (#82) with `android.permission.BIND_RECOGNITION_SERVICE`, an `android.speech.RecognitionService` intent-filter, and `foregroundServiceType="microphone"` (own notification channel/id, no shared state with the IME notification). The latter defines two subtypes on one IME (since #46): a **non-auxiliary keyboard subtype** (makes Polished selectable as primary keyboard and the switcher render) and the original **auxiliary voice subtype** (integration for keyboards with dedicated voice-typing selectors). A `<queries>` block for `android.view.InputMethod` grants package visibility for other IME packages (needed by `switchInputMethod` on API 30+, #65).
 
-**Entry points (do not drift):** the app registers exactly two services — `PolishedVoiceInputIME` (`android.view.InputMethod`) and `PolishedRecognitionService` (`android.speech.RecognitionService`) — plus `SettingsActivity` (`MAIN`/`LAUNCHER`). It does **not** register the standalone `android.speech.action.RECOGNIZE_SPEECH` **activity** intent: its handler `VoiceRecognitionActivity` was removed in #61. Callers of that Activity-for-result route are therefore not served (re-adding it is deferred in #110). Keyboard "voice typing" works via the **auxiliary voice IME subtype**, and keyboard-less `SpeechRecognizer` callers via the bound service (#82) — not via a `RECOGNIZE_SPEECH` Activity. The `<application>` carries `android:networkSecurityConfig="@xml/network_security_config"` (cleartext permitted app-wide for self-hosted LAN endpoints, #114).
+**Entry points (do not drift):** the app registers exactly two services — `PolishedVoiceInputIME` (`android.view.InputMethod`) and `PolishedRecognitionService` (`android.speech.RecognitionService`) — plus **exactly one `MAIN`/`LAUNCHER` activity: `WorkbenchActivity`** (since #169; `SettingsActivity` is unexported and pinned by `LauncherEntryTest`). It does **not** register the standalone `android.speech.action.RECOGNIZE_SPEECH` **activity** intent: its handler `VoiceRecognitionActivity` was removed in #61. Callers of that Activity-for-result route are therefore not served (re-adding it is deferred in #110). Keyboard "voice typing" works via the **auxiliary voice IME subtype**, and keyboard-less `SpeechRecognizer` callers via the bound service (#82) — not via a `RECOGNIZE_SPEECH` Activity. The `<application>` carries `android:networkSecurityConfig="@xml/network_security_config"` (cleartext permitted app-wide for self-hosted LAN endpoints, #114).
 
 ## Data Flows
 

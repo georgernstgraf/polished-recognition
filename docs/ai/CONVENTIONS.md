@@ -3,8 +3,8 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
 status: stable
 ---
 
@@ -77,6 +77,16 @@ Follow these without question. Do not deviate unless explicitly told.
 - **IME bottom-row icons (since #95):** keep all five at the same intrinsic size (**24dp**) and the same stroke width (**1.6**) so they render equal at the row's `scaleX/Y=1.5`. The backspace inner cross is **two line strokes** (never a stroked closed polygon — that renders hollow/outlined) and the trash lid is a **single** stroke line (a 2-unit band's lower edge merges with the can top and reads too thick). `ic_close`/`ic_pause`/`ic_resume`/`ic_send`/`ic_backspace` are IME-only and safe to resize; `ic_delete_outline` is shared with the Settings language rows. **The bottom row stays at five icons** — since #155 the leftmost one is the keyboard switch (the X, `ime_switch_button`, icon `ic_close`); the top row has **no** keyboard-switch button any more (its old `ime_switch_keyboard_button`/`ic_keyboard` slot was removed and the freed 36 dp + 8 dp go to the language spinner), so do not reintroduce one there.
 - For custom filtering on `AutoCompleteTextView`, use `BaseAdapter` + `Filterable` with a directly owned `displayItems` list. Never extend `ArrayAdapter` with a custom `Filter` that calls `clear()`/`addAll()` — these modify the internal `mOriginalValues` (not `mObjects`), corrupting state and causing crashes on text input.
 - **Notification small icons (since #109):** are rendered by Android as a **monochrome (alpha) silhouette** — the drawable's colour is irrelevant (the system tints it), so supply a white-on-transparent glyph at 24dp with ~2dp padding. Use a project vector, not a platform bitmap (platform drawables like `android.R.drawable.ic_btn_speak_now` are bitmaps and read too narrow). `VectorDrawable` has **no `<ellipse>`/`<rect>`** — draw ellipses as `<path>` arcs. The ongoing voice-input notification uses `ic_notification_mic.xml` (variant B); bolder alternatives B/C/D live in `docs/design/notification-icon/`.
+
+## Workbench (epic #166, #167–#172)
+
+- **The Workbench is the only launcher entry.** `WorkbenchActivity` carries `MAIN`/`LAUNCHER`; `SettingsActivity` is `exported="false"` and reached from the Workbench header and the IME gear. `LauncherEntryTest` fails on a second `MAIN` or a missing one — never add a launcher filter anywhere else.
+- **Dictations are files, not preferences.** `dictation/DictationStore` writes one `<id>.json` under `filesDir/dictations/` with temp file + rename and a strictly increasing `createdAtMs` (two dictations in one millisecond must not sort by their random id). `dictations/` is excluded from cloud backup AND device transfer in all three containers; `BackupRulesTest` pins `DictationStore.DIR_NAME` to both rule files exactly like #101 does for the secrets file. Never move this state into SharedPreferences.
+- **The dictation target is decided when the recording STARTS.** After the IME inserted the transcript, "the user edited this field" and "the IME typed into it" are indistinguishable. `WorkbenchActivity.onRecordingStarted()` snapshots: Polished focused ⇒ edit the polished text (D10), a manually changed Raw field ⇒ continue that edit, otherwise ⇒ a new FIFO entry (D4). Opening the screen creates and evicts nothing.
+- **Clipboard writes go through `delivery/ClipboardDelivery`,** never a raw `setPrimaryClip`: it marks the clip `EXTRA_IS_SENSITIVE` on API 33+ and treats empty text as a no-op. Automatic delivery is not the deliberate IME-salvage copy (#138's asymmetry is intended).
+- **LLM is forced off inside our own app** (`service/LlmTargetPolicy` + the controller's session-scoped `pipeline.forceRawMode`). Never implement the rule by writing `raw_mode`; the preference is global and would leak into foreign apps. The bar toggle shows the global state but is rendered disabled.
+- **The Workbench is the only polish site.** Re-polish uses `TranscriptionPipeline.polish(raw, language)`; the spinner's language is per-dictation, never written to `settings.targetLanguage`. A raw edit discards the polished slot with no confirmation and no silent re-polish.
+- **The screen owns its insets** (`ui/WorkbenchInsets`: bars + cutout + IME, max per side, rebuilt from the XML base) and must stay in `ui/contrast/ContrastMatrix`; the layout is platform-only with `?android:attr/…` colours.
 
 ## Prompt Variables
 The transcription pipeline resolves the following template variables at runtime. The **system** prompt is the single editable instruction surface; the **user** message is an automatic, non-editable carrier containing only `{{text}}`.

@@ -3,8 +3,8 @@ type: Domain Notes
 title: Domain Knowledge
 description: Business rules and canonical vocabulary not obvious from code.
 tags: [knowledge, domain]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
 status: stable
 ---
 

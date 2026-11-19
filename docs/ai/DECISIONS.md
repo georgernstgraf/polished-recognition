@@ -3,8 +3,8 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-19T06:56:26Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-19T06:56:26Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
 status: stable
 ---
 
