@@ -148,17 +148,6 @@ class SettingsStore(
         set(value) = prefs.edit().putBoolean(WORKBENCH_AUTO_LLM_KEY, value).apply()
 
     /**
-     * After a successful send (#133), switch back to the user's typing
-     * keyboard (the target the keyboard-switch button resolves) instead of
-     * only hiding the voice keyboard — so the next focus opens the typing
-     * keyboard, not a fresh dictation. Default ON; the IME silently hides
-     * when no other keyboard is available.
-     */
-    var switchBackAfterSend: Boolean
-        get() = prefs.getBoolean(SWITCH_BACK_AFTER_SEND_KEY, true)
-        set(value) = prefs.edit().putBoolean(SWITCH_BACK_AFTER_SEND_KEY, value).apply()
-
-    /**
      * #142: audio-evidence RETENTION HORIZON in seconds — how long a finished
      * dictation's forensic bundle (`files/audio/<sessionId>/` = `uploads/` +
      * `session.json`) stays on the device before the age-based eviction
@@ -651,7 +640,6 @@ class SettingsStore(
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val WORKBENCH_FIFO_SIZE_KEY = "workbench_fifo_size"
         private const val WORKBENCH_AUTO_LLM_KEY = "workbench_auto_llm"
-        private const val SWITCH_BACK_AFTER_SEND_KEY = "switch_back_after_send"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"
         private const val EVIDENCE_RETENTION_KEY = "evidence_retention_seconds"
         private const val TARGET_LANGUAGE_KEY = "target_language"

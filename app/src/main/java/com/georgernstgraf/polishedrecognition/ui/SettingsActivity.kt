@@ -72,7 +72,6 @@ class SettingsActivity : Activity() {
     /** #142: the 0→50-years log slider (0 = no retention, complete off). */
     private val evidenceRetentionSlider: SeekBar by lazy { findViewById(R.id.evidence_retention_slider) }
     private val evidenceRetentionLabel: TextView by lazy { findViewById(R.id.evidence_retention_label) }
-    private val switchBackAfterSendCheckbox: CheckBox by lazy { findViewById(R.id.switch_back_after_send) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
     private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
@@ -425,7 +424,6 @@ class SettingsActivity : Activity() {
 
             override fun onStopTrackingTouch(bar: SeekBar?) = Unit
         })
-        switchBackAfterSendCheckbox.isChecked = settings.switchBackAfterSend
         wrapWidthField.setText(settings.wrapWidth.toString())
         // #172: Workbench FIFO depth (epic #166 D2)
         workbenchFifoSizeField.setText(settings.workbenchFifoSize.toString())
@@ -1130,7 +1128,6 @@ class SettingsActivity : Activity() {
         settings.compressAudio = compressAudioCheckbox.isChecked
         // #142: the retention horizon (0 = no retention)
         settings.evidenceRetentionSeconds = EvidenceRetention.secondsFor(evidenceRetentionSlider.progress)
-        settings.switchBackAfterSend = switchBackAfterSendCheckbox.isChecked
         val wrapWidth = parseWrapWidth()
         if (wrapWidth == null) {
             wrapWidthField.error = getString(R.string.wrap_width_error)

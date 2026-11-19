@@ -255,6 +255,7 @@
         <li>A raw edit discards the polished text — deliberately, so nothing is polished silently.</li>
     </ul>
     <p class="hint">Dictations stay on your device only: they survive a restart but are excluded from cloud backup and device transfer. Settings is reachable from the top-right of the window (and from the keyboard's gear).</p>
+    <p class="hint">The Workbench is a text manager, not a keyboard: it opens the field and gets out of the way. Dictating therefore needs a keyboard that can reach Polished — either the Polished keyboard itself (made your input method once), or any typing keyboard with a microphone key: that key invokes Polished's voice input service and drops the text into the focused field. The Workbench never changes your keyboard.</p>
 </section>
 
 <section id="keyboard">
@@ -327,7 +328,10 @@
 <section id="dictating">
     <h2>Dictating</h2>
     <h3>Pause &amp; resume</h3>
-    <p>Need a moment to think, or an interruption? Tap <strong>Pause</strong>. Everything you have recorded so far is kept; tap again to resume and keep going. You can even switch to your normal typing keyboard and back — tap the <strong>X</strong> in the bottom row and the field returns to the keyboard you came from, with the dictation paused; it continues when you come back. The X always switches, whatever the <em>switch back after send</em> setting says.</p>
+    <p>Need a moment to think, or an interruption? Tap <strong>Pause</strong>. Everything you have recorded so far is kept; tap again to resume and keep going. You can even switch to your normal typing keyboard and back — tap the <strong>X</strong> in the bottom row and the field returns to the keyboard you came from, with the dictation paused; it continues when you come back. The X is the only control that changes your keyboard.</p>
+
+    <h3>Send and the keyboard</h3>
+    <p><strong>Send</strong> inserts the finished text and leaves the voice keyboard where it is — exactly like a typing keyboard, which stays on screen until you dismiss it with the navigation bar's keyboard button or Back. Because nothing was switched, the next field you tap opens the voice keyboard again. The one deliberate exception is the <strong>gear</strong>: it opens Settings on your typing keyboard, because Settings' text fields cannot be filled by a voice keyboard, and no app can switch itself back afterwards.</p>
 
     <h3>Discarding a take</h3>
     <p>The <strong>Discard</strong> (trash) button throws the recorded audio and timer away and keeps you in the keyboard, ready for a fresh take. The X never discards — it only hands the field back to your typing keyboard.</p>

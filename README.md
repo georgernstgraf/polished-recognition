@@ -112,7 +112,8 @@ fallback to free-text entry for providers that don't support it).
 
 - **Instant recording** — switching to the keyboard starts the mic right away
 - **Two-line control surface** — settings gear, target language, LLM toggle on top; keyboard switch (the X), delete-word, discard, pause and send below
-- **One-tap keyboard switch** — the X in the bottom row pauses the dictation and hands the field straight back to the keyboard you came from; if no typing keyboard is available it opens the keyboard settings so you can enable one. It always switches — the "switch back after send" setting only controls the automatic switch after a successful send
+- **One-tap keyboard switch** — the X in the bottom row pauses the dictation and hands the field straight back to the keyboard you came from; if no typing keyboard is available it opens the keyboard settings so you can enable one. It is the *only* thing that changes your keyboard: after a successful send the voice keyboard simply stays on screen, like a typing keyboard, until you dismiss it with the navigation bar or Back
+- **Send never migrates your keyboard** — the text goes in, the bar stays, the mic is ready again, and the next field you tap opens the voice keyboard again (unless you left with the X)
 - **Discard is its own button** — the trash icon clears the audio and timer without leaving the keyboard, so throwing a take away never costs you the way back
 - **Dictation survives keyboard switches** — while you type on the other keyboard the recording is preserved (paused); switching back auto-resumes and appends to the same audio
 - **Live stage display** — shows exactly what's happening: *Recording*, *Transcribing (STT)*, *Polishing (LLM)*

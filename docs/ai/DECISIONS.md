@@ -13,6 +13,45 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-19: #175 — the exit decides the keyboard; `switchBackAfterSend` is gone; the Workbench/IME boundary clarified
+
+- **The contract (owner decision):** **Send** ⇒ Polished stays the default IME
+  (#174 delivers the mechanism). **X** ⇒ the previous typing keyboard comes
+  back, exactly as before (#155): pause a running take, resolve the last-used
+  keyboard with `SwitchTargetPolicy`, `switchInputMethod`; no target or an
+  ineffective switch ⇒ `openKeyboardSettings()`. **Gear** ⇒ typing keyboard +
+  Settings, unchanged and deliberate (2026-09-07 #72): Settings' EditTexts
+  cannot be filled by a voice IME, and no app can switch itself back
+  afterwards with public APIs.
+- **Why the setting died instead of being kept as an override:** with Send
+  never switching, `switchBackAfterSend` had exactly one remaining effect —
+  resurrecting the behaviour #174 removes. A preference that can only undo a
+  decided contract is a trap for the next reader.
+- **No prefs migration.** The key simply stops being read; a stale
+  `switch_back_after_send` boolean in SharedPreferences is inert. (Removing it
+  would need a write on every startup for a value nothing consumes.)
+- **Removed:** `SettingsStore.switchBackAfterSend` + its key, the Settings
+  checkbox and its hint (`activity_settings.xml`), both strings, the load/save
+  pair in `SettingsActivity`, and the two `SettingsStoreTest` cases.
+  `README.md` and `docs/help.html` now state the contract; the help gains a
+  "Send and the keyboard" section and names the gear exception explicitly.
+- **#166 boundary clarified on the owner's wording** — "die Workbench ist
+  einfach ein Textmanager, die IME bleibt eine Tastatureingabe, und die
+  scheinbare Verletzung ist keine": nothing forces the IME into the
+  Workbench. Entering the Workbench while another keyboard is active starts
+  no dictation — by design. The user dictates with that keyboard's mic key,
+  which calls our delegated `RecognitionService` (enabled from API 31,
+  `values-v31/bools.xml`) into the focused field; `callerPackage` still forces
+  raw inside our own app (#168) and Auto LLM polishes afterwards (#171). No
+  `privateImeOptions` protocol, no Activity-hosted recording bar — both were
+  evaluated and rejected as unnecessary machinery.
+- **Also confirmed (no code change):** the IME inserts exactly ONCE, with the
+  finished (already polished) text — #116 option C, recorded 2026-10-07. There
+  is no fragment-by-fragment insertion into the field and therefore no
+  "replace the raw text with the polished text" step to build; the fragment
+  progress is visible only in the stage line.
+- **NO version bump (owner policy).**
+
 ## 2026-11-19: #174 — Send behaves like a normal keyboard: the voice keyboard stays, nothing switches, nothing hides
 
 Owner report: "eine normale Tastatur wird ausgeblendet, wenn ich im
