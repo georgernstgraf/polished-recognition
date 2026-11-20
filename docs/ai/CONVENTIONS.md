@@ -3,7 +3,7 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
@@ -133,6 +133,23 @@ The transcription pipeline resolves the following template variables at runtime.
 - **One screenful per run:** `uiautomator` prunes off-screen `ScrollView` children (≈16 of ~65 Settings nodes) — scroll and re-run when the rows below the fold matter.
 - **The opt-in render test stays opt-in** (`-Pcontrast.render=true`, `RenderSmokeTest`): it costs > 10 s and depends on Robolectric `NATIVE` graphics internals. Promotion into the required suite requires (a) 10 consecutive identical runs on the host, (b) green in CI for two weeks, (c) runtime under 10 s inside the suite. Flake criterion: any non-reproducible verdict reverts it to opt-in.
 - **`ui/contrast/` is a shared test-helper package, not a mirror of a source package** — `Contrast`, `ViewColors`, `ContrastAudit`, `ContrastMatrix`, `ContrastGate`, `AuditFormat` are reused by several test classes (`ThemeContrastAuditTest`, `ThemeContrastAuditNightTest`, `TextPaletteContrastTest`), so it deliberately breaks the "test classes mirror source directory structure" rule above. Add a new shared helper there instead of duplicating it.
+
+## Compiler warnings (#187)
+
+- **The release compile stays warning-free.** The acceptance is the absence of
+  `w:` lines from `:core:compileKotlin` + `:app:compileReleaseKotlin`, not
+  `BUILD SUCCESSFUL` — a new warning is a finding, not noise. Two
+  `Unchecked cast` warnings remain in `VoiceSessionControllerTest` (Gson-map
+  assertions over `session.json`); they never show up in the release compile.
+- **No `@DelicateCoroutinesApi` surface.** `Channel.isClosedForSend` /
+  `isClosedForReceive` are off-limits; when the class itself closes the
+  channel, own a `@Volatile` flag (`FragmentTranscriber.closed`).
+- **JSON the app reads back is parsed through a typed DTO with NULLABLE
+  fields** and validated all-or-nothing — a `data class` with non-null
+  `String`/`Long` fields is a lie once Gson writes into it (see PITFALLS).
+  `prepared/<hash>/manifest.json` is the reference implementation.
+- **App-op queries use `AppOpsManager.checkOpNoThrow`** (public since API 29,
+  `minSdk` 30); `unsafeCheckOpNoThrow` is deprecated — no `@Suppress`.
 
 ## GitHub CLI
 - **Always use `gh issue view <N> --json ...`** (never plain `gh issue view`) — the plain form fails with a GraphQL `Projects (classic) is being deprecated` error on this repo (since 2026-09-01).

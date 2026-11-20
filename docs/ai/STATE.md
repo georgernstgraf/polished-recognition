@@ -3,13 +3,23 @@ type: State
 title: Project State
 description: Current project status and pointers to the open threads.
 tags: [knowledge, state]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
 status: stable
 ---
 
 # Project State
 
-Current status as of 2026-11-20: **#182 (durable fragment journal) and #184 (idempotent fragment uploads) are shipped — 2 of the 5 #152 children.** Every fragment's composed upload plus a PENDING record lands in `filesDir/journal/<sessionId>/` BEFORE its first STT attempt and is flipped to DONE with the transcript once stored, so a kill, reboot or failed upload leaves the session recoverable — independent of the #127/#142 retention slider and outside `cacheDir`, which the OS may clear. Every fragment request now also carries `session_id`, `fragment_index` and `attempt` as ordinary multipart fields (empty map = the exact pre-#184 wire format), so a retry is distinguishable from a new fragment. The same release carries #177 (the IME parks after a send), #178 (the Workbench redesign) and #123 (the loop guard in `:core`). **806 tests green** (`:app` 544, `:core` 207, `:analyzer` 55), `lintDebug` 0 errors, `assembleRelease` and pre-push green, **NO version bump** — the app stays **1.5.1 / 10501**. Last release: v1.5.1 (#151). Open: the rest of the #152 program (#183 next), #156 (stale screenshots), owner device checks (see HANDOFF.md).
+Current status as of 2026-11-20: **#182 (durable fragment journal) and #184 (idempotent fragment uploads) are shipped — 2 of the 5 #152 children; #187 cleared the last four compiler warnings of the release build.** Every fragment's composed upload plus a PENDING record lands in `filesDir/journal/<sessionId>/` BEFORE its first STT attempt and is flipped to DONE with the transcript once stored, so a kill, reboot or failed upload leaves the session recoverable — independent of the #127/#142 retention slider and outside `cacheDir`, which the OS may clear. Every fragment request now also carries `session_id`, `fragment_index` and `attempt` as ordinary multipart fields (empty map = the exact pre-#184 wire format), so a retry is distinguishable from a new fragment. The same release carries #177 (the IME parks after a send), #178 (the Workbench redesign) and #123 (the loop guard in `:core`). **807 tests green** (`:app` 545, `:core` 207, `:analyzer` 55), `lintDebug` 0 errors, `assembleRelease` and pre-push green, **NO version bump** — the app stays **1.5.1 / 10501**. Last release: v1.5.1 (#151). Open: the rest of the #152 program (#183 next), #156 (stale screenshots), owner device checks (see HANDOFF.md).
+
+## #187 — the four compiler warnings are gone (2026-11-20, shipped)
+
+- **Was:** a plain `installRelease` printed four `w:` lines — `isClosedForSend` ("delicate API", `:core`), a `String?`-to-`String` Java-interop mismatch on `File(dir, sessionId)` and an `Unchecked cast` in `readManifest` (`:app`), plus the deprecated `unsafeCheckOpNoThrow`.
+- **`FragmentTranscriber`:** an own `@Volatile closed` set in `cancel()` (the only `channel.close()` site) replaces the delicate query; `drain()` checks it instead. Semantics unchanged — the existing `drain after cancel returns an empty snapshot` test is the cover (a regression HANGS it, so the test now says so).
+- **`VoiceSessionController`:** `buildPreparer(sid: String)` + a small `ensureSessionId()` put the "preparer dir = journal key = bundle id" invariant into the type instead of leaving a `String?` to Java interop.
+- **`prepared/<hash>/manifest.json`:** parsed through `ManifestJson` (all fields nullable, `bytes` as `Long?`) and validated all-or-nothing; `writeManifest` writes through the same DTO, so the file stays byte-identical (`{"files":[{"name":…,"bytes":…}]}`). New test: a manifest with ONE nameless entry invalidates the list and rebuilds — the fixture's `stale.wav` would have been handed to the pipeline by a partial trust, so the test distinguishes the two behaviours.
+- **`checkOpNoThrow`** in the mic guard (the replacement has been public since API 29; `minSdk` is 30), KDoc in `MicAccessPolicy` updated.
+- **Left alone deliberately:** the two `Unchecked cast` warnings in `VoiceSessionControllerTest` (Gson-map assertions over `session.json`) — test-only, absent from the release compile.
+- **Tests:** 806 → **807** (one new controller test; the transcriber test only gained the #187 comment). No version bump.
 
 ## #184 — idempotent fragment uploads (2026-11-20, shipped)
 

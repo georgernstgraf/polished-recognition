@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
@@ -12,6 +12,37 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-20: #187 — Compiler-Warnungen als Gate, nicht als Rauschen; Manifest all-or-nothing
+
+Vier Warnungen eines normalen Release-Builds waren billig zu beheben, zwei davon
+markierten aber echte Schwachstellen. Die Entscheidungen dahinter:
+
+- **Eigenes `closed`-Flag statt `Channel.isClosedForSend`:** Die Abfrage ist
+  `@DelicateCoroutinesApi` (per Vertrag rennanfällig, bekannter
+  Migrationskandidat). Der Channel wird in `FragmentTranscriber` **nur** von
+  `cancel()` geschlossen, also ist ein `@Volatile closed` die ehrlichere und
+  zukunftssichere Form — gleiche Semantik, kein Delicate-Surface.
+- **Die Session-Id wird Parameter, nicht Feld:** `buildPreparer(sid: String)`
+  plus `ensureSessionId()`. Vorher ging `sessionId: String?` als
+  Java-Interop-Warnung in `File(dir, …)` durch — eine latente NPE, die nur
+  deshalb nie auftrat, weil beide Aufrufer die Id vorher setzten. Die Invariante
+  („Preparer-Verzeichnis = Journal-Key = Bundle-Id") steht jetzt im Typ.
+- **`prepared/<hash>/manifest.json` wird typisiert und GANZ ODER GAR NICHT
+  gelesen:** ein `ManifestJson`-DTO mit ausschließlich **nullbaren** Feldern,
+  `bytes` als `Long?`; ein einziger unvollständiger Eintrag macht die ganze
+  Liste unbrauchbar (`null` → Verzeichnis wird neu gebaut). Vorher entschied ein
+  `Map<String, Any>`-Cast plus `bytes as Double` über Gültigkeit — inklusive
+  stiller Abhängigkeit von Gsons Map-Zahltyp. Ein teilweise vertrauenswürdiges
+  Manifest wäre der schlechtere Kompromiss: es würde eine fremde Datei
+  weiterreichen.
+- **`checkOpNoThrow` statt `unsafeCheckOpNoThrow`:** der Ersatz ist seit API 29
+  öffentlich, `minSdk` ist 30 — keine Versionsweiche, kein `@Suppress`.
+- **Testquellen bleiben außen vor:** die zwei verbleibenden `Unchecked cast`-
+  Warnungen in `VoiceSessionControllerTest` (Gson-Map-Assertions auf
+  `session.json`) erscheinen im Release-Compile nicht und wurden nicht
+  angefasst — sie zu „fixen" hieße, Assertions über ein Forensik-Format
+  umzuschreiben, ohne dass eine Warnung im Produktions-Build verschwindet.
 
 ## 2026-11-20: #184 — Identität als EIN `@PartMap`, leerer Map = unverändertes Wire-Format
 

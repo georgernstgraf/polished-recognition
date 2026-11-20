@@ -3,7 +3,7 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
@@ -12,6 +12,9 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **Gson schreibt `null` in ein NICHT-nullbares Kotlin-Feld — die NPE kommt später, außerhalb des `try` (2026-11-20, #187).** Gson alloziert per `Unsafe` und umgeht Konstruktoren; ein `data class Entry(val name: String, val bytes: Long)` hat zur Laufzeit trotzdem `name == null`, wenn der Schlüssel im JSON fehlt (`Long` ist primitiv und wird 0). Der Getter prüft nichts, also fliegt die NPE erst dort, wo jemand den Wert benutzt: im `readManifest`-Fall in `preparedDirFor`s Größenvergleich **nach** dem `catch` — aus „Manifest unbrauchbar, neu bauen" wird ein Absturz. Regel: was die App selbst wieder einliest (Manifeste, Snapshots, Journal-Records), wird über ein DTO mit **nullbaren** Feldern gelesen und **ganz oder gar nicht** validiert (`checkNotNull` im `try`). „Ein Feld ist ja da" ist keine Validierung.
+- **`Channel.isClosedForSend`/`isClosedForReceive` sind `@DelicateCoroutinesApi` (2026-11-20, #187).** Die Abfrage ist per Vertrag rennanfällig und wird von kotlinx.coroutines ausdrücklich als Migrationsrisiko markiert; ein `@OptIn` kaschiert das nur. Wenn die Klasse den Kanal selbst schließt (`FragmentTranscriber.cancel()`), gehört der Zustand in ein eigenes `@Volatile`-Flag: gleiche Semantik, keine delicate API. Wasserprobe: ein `drain()` nach `cancel()` muss sofort zurückkehren — schlägt das fehl, hängt der Test, er scheitert nicht (`FragmentTranscriberTest` deckt genau das).
 
 - **Retrofit rejects a Kotlin `Map` parameter, and only at the FIRST REAL CALL (2026-11-20, #184).** Kotlin declares `Map<K, out V>`, so `@PartMap fields: Map<String, RequestBody>` compiles into a signature with `Map<String, ? extends RequestBody>` and Retrofit throws `IllegalArgumentException: Parameter type must not include a type variable or wildcard (parameter #N)` when it builds the service method — i.e. on the first production call, not at compile time and not in any test that mocks the API interface. Two lessons: annotate `@PartMap x: Map<String, @JvmSuppressWildcards RequestBody>`, and remember that a mocked Retrofit interface proves nothing about the wire — the `:analyzer` `ReplayCommandTest` (a real Retrofit client) is what caught this.
 - **A `@Part` with a Kotlin default value is NOT `any()` in MockK (2026-11-20, #184).** `every { api.call(any(), any(), any(), any(), any()) }` on a method whose last two params default to null records the invocation as `…, null, null` — a production call that actually passes values then matches nothing and fails with "no answer found". When a mocked signature grows defaulted params, update every stubbing site to the full arity (`any()` for each), not just the failing test.
