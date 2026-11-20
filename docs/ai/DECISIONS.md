@@ -13,6 +13,32 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-20: #123 — Loop-Guard läuft NUR hinter einem erzwungenen Bruch, kollabiert statt zu kürzen
+
+Die Seam-Study (#122) nennt Whisper-Repetition-Loops als dominante Fehlerquelle
+— das gilt für den **Study-Korpus** (Musik, bandbegrenztes Telefon), nicht für
+den Alltag: eine Seam unterschreitet `qualityMin` in ~6 % der Fälle, zwei in
+Serie ~0,4 %, drei ~0,02 %. Der Guard wird deshalb nicht als Policy-Maschine
+gebaut.
+
+- **Gate:** `fragment.seamForced` — unter dem Produktionsdefault
+  `FORCED_ONLY` bekommt der Decoder Pre-roll + Prompt genau dort, also ist der
+  harte Schnitt die einzige Stelle, an der ein Loop entsteht UND über den
+  Prompt ins nächste Fragment wandert. Stille-aligned Cuts laden bare und
+  erreichen den Guard nie.
+- **Aktion:** `LoopGuard.collapse()` (auf `LoopMask.loopSpans`, Defaults 4× /
+  ≤8 Tokens) ersetzt jeden Loop-Span durch seine **erste Periode** —
+  Groß-/Kleinschreibung und Satzzeichen dieser Periode bleiben. Kollaps statt
+  Truncation: ein Tail-Loop hinterlässt genau eine Wiederholung und nichts
+  Halluziniertes dahinter, ein Loop mitten im Text behält den echten Text
+  danach. Eine Untergrenze für „legitime Wiederholung" ist nicht nötig — der
+  gefährliche Normalfall ist per Gate ausgeschlossen.
+- **Ort:** vor dem Store in `FragmentTranscriber` (`transcripts[index] = …`),
+  damit `promptTail()` und `snapshot()` den gekürzten Text sehen.
+- **Kein** Setting, **kein** eigener Evidenz-Stream: `session.json` stellt
+  `sttRaw` (Serverantwort) gegen `sttTrimmed` (gespeichert), daneben steht
+  `seamForced`.
+
 ## 2026-11-20: #174/#177 — Post-Send ist ein UI-Parkzustand, kein Controller-State
 
 Nach dem erfolgreichen Senden bleibt die Tastatur stehen (#174) — aber der
