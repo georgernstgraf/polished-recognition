@@ -79,7 +79,6 @@ class WorkbenchActivity : Activity() {
     private lateinit var polishedChevron: TextView
     private lateinit var rawPreview: TextView
     private lateinit var polishedPreview: TextView
-    private lateinit var autoLlmCheckbox: CheckBox
     private lateinit var languageDropdown: AutoCompleteTextView
     private lateinit var repolishButton: Button
 
@@ -118,9 +117,6 @@ class WorkbenchActivity : Activity() {
     private var polishLanguage: String? = null
     private var polishing = false
     private var polishJob: Job? = null
-
-    /** Guards the Auto-LLM checkbox against its own programmatic state writes. */
-    private var silenceAutoLlm = false
 
     /**
      * The field text as it was when the dictation was shown, for the
@@ -165,7 +161,6 @@ class WorkbenchActivity : Activity() {
         polishedChevron = findViewById(R.id.workbench_polished_chevron)
         rawPreview = findViewById(R.id.workbench_raw_preview)
         polishedPreview = findViewById(R.id.workbench_polished_preview)
-        autoLlmCheckbox = findViewById(R.id.workbench_auto_llm)
         languageDropdown = findViewById(R.id.workbench_language)
         repolishButton = findViewById(R.id.workbench_repolish)
 
@@ -263,12 +258,6 @@ class WorkbenchActivity : Activity() {
         polishedField.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) setSectionExpanded(isRaw = false, expanded = true) else onFieldLeft(isRaw = false)
         }
-        // #171 (D8): the checkbox is both a state and an action — switching it
-        // ON immediately polishes the current dictation and delivers the result.
-        autoLlmCheckbox.setOnCheckedChangeListener { _, checked ->
-            if (silenceAutoLlm) return@setOnCheckedChangeListener
-            onAutoLlmChanged(checked)
-        }
         repolishButton.setOnClickListener { rePolish(notify = true) }
         setSectionExpanded(isRaw = true, expanded = true)
         setSectionExpanded(isRaw = false, expanded = true)
@@ -288,22 +277,9 @@ class WorkbenchActivity : Activity() {
         val shown = if (isRaw) shownRaw else shownPolished
         val text = field.text.toString()
         val changed = text != shown
-        val idBefore = currentId
         commitEdits()
         if (changed && text.isNotEmpty()) deliver(text, notify = false)
         syncPositions()
-        // #173 decision 9: with Auto LLM on, a changed Raw field is polished
-        // once per field-leave — typed edits included — as long as the
-        // polished slot is still empty.
-        val id = currentId
-        if (isRaw && changed && id != null && id == idBefore &&
-            settings.workbenchAutoLlm && !polishing
-        ) {
-            val current = dictations.firstOrNull { it.id == id }
-            if (current != null && current.raw.isNotBlank() && current.polished.isNullOrBlank()) {
-                polish(id, current.raw, notify = false)
-            }
-        }
     }
 
     // ------------------------------------------------------------- accordion
@@ -392,9 +368,6 @@ class WorkbenchActivity : Activity() {
         // field content, without ever changing the open/closed state.
         setSectionExpanded(isRaw = true, expanded = rawField.visibility == View.VISIBLE)
         setSectionExpanded(isRaw = false, expanded = polishedField.visibility == View.VISIBLE)
-        silenceAutoLlm = true
-        autoLlmCheckbox.isChecked = settings.workbenchAutoLlm
-        silenceAutoLlm = false
         updatePolishControls()
     }
 
@@ -500,12 +473,6 @@ class WorkbenchActivity : Activity() {
             .getOrNull(position) ?: return
         polishLanguage =
             if (selected == LanguageOptions.NONE_TARGET_LANGUAGE) null else selected
-    }
-
-    /** D8: persist the choice; switching ON polishes the current dictation now. */
-    private fun onAutoLlmChanged(checked: Boolean) {
-        settings.workbenchAutoLlm = checked
-        if (checked) rePolish(notify = false)
     }
 
     /** D9: the visible raw text through the LLM with the chosen language. */
@@ -647,11 +614,6 @@ class WorkbenchActivity : Activity() {
             }
         }
         deliver(text, notify = false)
-        // D8: Auto LLM polishes each NEW/edited dictation — never the polished
-        // field itself (that is the user's own edit, D10).
-        if (settings.workbenchAutoLlm && target != DictationTarget.POLISHED_EDIT && !polishing) {
-            currentId?.let { id -> polish(id, rawField.text.toString(), notify = false) }
-        }
     }
 
     private companion object {

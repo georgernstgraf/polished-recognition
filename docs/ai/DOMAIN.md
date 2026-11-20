@@ -58,7 +58,7 @@ model on both platforms.
 | **Raw / Polished** | The two stacked, editable fields of one dictation, each a collapsible accordion with a copy button (#173). | "tabs" (there is no tab strip) |
 | **Delivery** | Putting the text on screen onto the clipboard — on send, when a **changed** field loses focus, or via the copy button. | "copy" (that is only the button path) |
 | **Re-polish** | One LLM pass over the visible Raw text with a per-dictation target language; overwrites the polished slot. | "polish again", "retry" |
-| **Auto LLM** | The persisted Workbench setting: every new dictation is polished on arrival, a changed Raw field is polished once when it loses focus (#173), and switching it on polishes the current one immediately. | "auto-polish" |
+| **Re-polish** | The single, explicit polish action of the Workbench (#176): the visible Raw text through the LLM with the per-dictation target language. Nothing polishes automatically — no setting, no field-leave trigger. | "manual polish" |
 | **MRU (last touched)** | The FIFO's only order since #173: a real Raw/Polished change moves a dictation to the top, browsing does not, and eviction deletes the least recently edited first. | "newest" (creation time no longer orders the FIFO) |
 
 ### Time and cost

@@ -133,7 +133,6 @@
     <string name="workbench_new">＋ New</string>
     <string name="workbench_raw_toggle_desc">Show or hide the Raw text</string>
     <string name="workbench_polished_toggle_desc">Show or hide the Polished text</string>
-    <string name="workbench_auto_llm">Auto LLM</string>
     <string name="workbench_repolish">Re-polish</string>
     <string name="workbench_language">Target language</string>
     <string name="workbench_polishing">Polishing…</string>

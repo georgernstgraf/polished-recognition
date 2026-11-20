@@ -219,14 +219,6 @@
             android:minLines="2"
             android:padding="8dp" />
 
-        <CheckBox
-            android:id="@+id/workbench_auto_llm"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/workbench_auto_llm"
-            android:textColor="?android:attr/textColorPrimary" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

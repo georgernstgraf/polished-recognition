@@ -138,16 +138,6 @@ class SettingsStore(
             .apply()
 
     /**
-     * #171 (epic #166 D8): the Workbench remembers whether it should polish each
-     * new dictation. Global and persisted (the setting outlives the process),
-     * but settable **only** in the Workbench — it is a Workbench concept, not an
-     * IME one (the IME is forced raw inside our own app, #168). Default OFF.
-     */
-    var workbenchAutoLlm: Boolean
-        get() = prefs.getBoolean(WORKBENCH_AUTO_LLM_KEY, false)
-        set(value) = prefs.edit().putBoolean(WORKBENCH_AUTO_LLM_KEY, value).apply()
-
-    /**
      * #142: audio-evidence RETENTION HORIZON in seconds — how long a finished
      * dictation's forensic bundle (`files/audio/<sessionId>/` = `uploads/` +
      * `session.json`) stays on the device before the age-based eviction
@@ -639,7 +629,6 @@ class SettingsStore(
         private const val RAW_MODE_KEY = "raw_mode"
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val WORKBENCH_FIFO_SIZE_KEY = "workbench_fifo_size"
-        private const val WORKBENCH_AUTO_LLM_KEY = "workbench_auto_llm"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"
         private const val EVIDENCE_RETENTION_KEY = "evidence_retention_seconds"
         private const val TARGET_LANGUAGE_KEY = "target_language"

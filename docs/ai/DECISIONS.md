@@ -13,6 +13,39 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-20: #176 — the Workbench polishes only when asked: Auto LLM removed
+
+Owner decision after the keyboard handover landed: *"ich habe das so diktiert
+und dann war ich eigentlich fertig … ich muss den Tastatur-Wegblenden-Knopf
+einfach verwenden."* That settled the send/dismiss flow (#174/#175); the next
+question was the Workbench's button clutter and whether Auto LLM earns its
+place. **It does not.**
+
+- **Why it goes:** the Workbench is a text manager — dictate, redact, deliver.
+  Auto LLM rewrote the Raw text on field-leave, i.e. exactly the text being
+  redacted, and it was a second trigger for the same action as **Re-polish**
+  (the rule "polish once on field-leave while the Polished slot is empty" is a
+  state machine nobody re-derives later). A polish is now a deliberate click.
+- **What stays untouched and matters:** Workbench dictations are still raw —
+  #168 forces raw inside our own app and the IME bar is disabled there, so the
+  "polish happened in the IME" and "polish happened in the Workbench" paths can
+  never both fire. The single polish site is `TranscriptionPipeline.polish`,
+  driven by Re-polish with the per-dictation language (never written back to
+  `settings.targetLanguage`). A raw edit still discards the polished slot, no
+  confirmation, no re-polish.
+- **Removed:** the checkbox (`activity_workbench.xml`), `workbench_auto_llm`
+  string, `SettingsStore.workbenchAutoLlm` + its key, the checkbox wiring and
+  `silenceAutoLlm` guard, `onAutoLlmChanged`, the `onFieldLeft` auto-polish
+  block (#173 decision 9) and the auto-polish after a delivered dictation
+  (#171). No migration — the stale key is never read.
+- **Tests:** four Auto-LLM tests removed; the former "with auto-llm off …" test
+  survives renamed as *"a delivery never polishes on its own — a raw edit
+  empties the polished slot"*, because that is now the invariant for every
+  delivery, not a branch.
+- **Supersedes** the Auto-LLM clauses of #171 (D8) and #173 (decision 9); the
+  ACCORDION/page/MRU model of #173 is unaffected.
+- **NO version bump (owner policy).**
+
 ## 2026-11-19: #175 — the exit decides the keyboard; `switchBackAfterSend` is gone; the Workbench/IME boundary clarified
 
 - **The contract (owner decision):** **Send** ⇒ Polished stays the default IME

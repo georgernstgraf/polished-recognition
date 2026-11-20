@@ -2,7 +2,6 @@ package com.georgernstgraf.polishedrecognition.ui
 
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.R
@@ -286,64 +285,7 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `the auto-llm checkbox reflects and persists the setting`() {
-        val activity = launch()
-        val box = activity.findViewById<CheckBox>(R.id.workbench_auto_llm)
-        activity.polishRunner = { _, _ -> Result.success("polished") }
-
-        assertThat(box.isChecked).isFalse()
-        box.performClick()
-
-        assertThat(box.isChecked).isTrue()
-        assertThat(SettingsStore(context).workbenchAutoLlm).isTrue()
-    }
-
-    @Test
-    fun `switching auto-llm on polishes the current dictation and delivers it`() {
-        val store = seed("raw text")
-        val activity = launch()
-        activity.showNewest()
-        activity.polishRunner = { _, _ -> Result.success("polished text") }
-
-        activity.findViewById<CheckBox>(R.id.workbench_auto_llm).performClick()
-        idle()
-
-        assertThat(store.loadAll().single().polished).isEqualTo("polished text")
-        assertThat(clipboardText()).isEqualTo("polished text")
-    }
-
-    @Test
-    fun `auto-llm polishes a new dictation when it is on`() {
-        SettingsStore(context).workbenchAutoLlm = true
-        val activity = launch()
-        activity.polishRunner = { text, _ -> Result.success("P:$text") }
-
-        activity.onRecordingStarted()
-        activity.onTranscriptArrived("hello")
-        idle()
-
-        assertThat(DictationStore(context).loadAll().single().polished).isEqualTo("P:hello")
-    }
-
-    @Test
-    fun `auto-llm polishes a typed raw edit when the field is left`() {
-        SettingsStore(context).workbenchAutoLlm = true
-        val store = seed("raw text")
-        val activity = launch()
-        activity.showNewest()
-        activity.polishRunner = { text, _ -> Result.success("P:$text") }
-        val raw = activity.raw()
-        assertThat(store.loadAll().single().polished).isNull()
-
-        raw.setText("raw text, typed")
-        raw.onFocusChangeListener.onFocusChange(raw, false)
-        idle()
-
-        assertThat(store.loadAll().single().polished).isEqualTo("P:raw text, typed")
-    }
-
-    @Test
-    fun `with auto-llm off a raw edit leaves the polished slot empty`() {
+    fun `a delivery never polishes on its own - a raw edit empties the polished slot`() {
         val store = seed("raw text")
         store.updatePolished(store.loadAll().single().id, "old polish")
         val activity = launch()
