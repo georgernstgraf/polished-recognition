@@ -108,6 +108,9 @@
     <string name="ime_delete_word_desc">Delete last word</string>
     <string name="ime_processing">\u2026</string>
     <string name="ime_error">Transcription failed</string>
+    <!-- #183: STT failure classes that need a user action, shown before the technical detail. -->
+    <string name="ime_stt_token_rejected">STT token rejected — update it in Settings, then send again</string>
+    <string name="ime_stt_unusable_response">The STT server answered unusably — the audio is kept, send again to retry</string>
     <string name="ime_mic_blocked">Microphone unavailable — tap the mic to start again</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>

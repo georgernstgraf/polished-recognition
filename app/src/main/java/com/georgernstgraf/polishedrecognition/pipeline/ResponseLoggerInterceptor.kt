@@ -11,6 +11,9 @@ import okhttp3.Response
  * all fields preserved) to rotating logs via [RotatingJsonLogger]. Routes by URL path;
  * other endpoints (e.g. /models) are ignored. All logging failures are swallowed so
  * they can never break a transcription.
+ *
+ * #183: the body passes through [LogRedaction] first — a provider error page may
+ * echo the `Authorization` header back, and a log must never hold the token.
  */
 class ResponseLoggerInterceptor(
     private val logger: RotatingJsonLogger
@@ -22,7 +25,7 @@ class ResponseLoggerInterceptor(
             val baseName = routeForLog(chain.request().url.encodedPath)
             if (baseName != null) {
                 val raw = response.peekBody(BYTE_CAP).string()
-                logger.log(baseName, prettyOrRaw(raw))
+                logger.log(baseName, prettyOrRaw(LogRedaction.redact(raw)))
             }
         } catch (_: Exception) {
             // never break transcription for logging failures

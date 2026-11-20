@@ -97,7 +97,15 @@ class FragmentJournal(
         var sttRaw: String? = null,
         /** The stored, echo-trimmed transcript — the durable text. */
         var sttTrimmed: String? = null,
-        var sttError: String? = null
+        var sttError: String? = null,
+        /**
+         * #183: the failure class of the last attempt (`TRANSIENT`, `AUTH`,
+         * `PROTOCOL`, `TERMINAL`), so the recovery UI (#185) can explain WHY
+         * a fragment is pending instead of showing a bare HTTP code.
+         */
+        var failureClass: String? = null,
+        /** #183: the HTTP status of that attempt, when there was one. */
+        var failureHttpCode: Int? = null
     )
 
     /** The session-level marker (`session.json`). */
@@ -182,23 +190,31 @@ class FragmentJournal(
             record.sttRaw = sttRaw
             record.sttTrimmed = sttTrimmed
             record.sttError = null
+            // #183: a success clears the failure evidence of an earlier attempt.
+            record.failureClass = null
+            record.failureHttpCode = null
         }
 
     /**
      * Records a final failure (the runner's retries are exhausted) and KEEPS
      * the fragment: the state stays [State.PENDING] so a later retry picks it
      * up, unless [needsManual] marks it for the manual path (#183 protocol
-     * failures).
+     * failures). [failureClass]/[httpCode] travel into the record so #185 can
+     * say what went wrong without re-running the request.
      */
     @Synchronized
     fun markFailed(
         sessionId: String,
         index: Int,
         error: String?,
-        needsManual: Boolean = false
+        needsManual: Boolean = false,
+        failureClass: String? = null,
+        httpCode: Int? = null
     ): Boolean = update(sessionId, index) { record ->
         record.state = if (needsManual) State.NEEDS_MANUAL.name else State.PENDING.name
         record.sttError = error
+        record.failureClass = failureClass
+        record.failureHttpCode = httpCode
     }
 
     /**

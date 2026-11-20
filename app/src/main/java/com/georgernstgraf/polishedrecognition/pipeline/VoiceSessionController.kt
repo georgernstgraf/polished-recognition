@@ -906,7 +906,16 @@ class VoiceSessionController(
                             // #146: PipelineOutcome is a top-level class in :core now.
                             PipelineOutcome(rawText = drained.text, rawMode = effectiveRawMode)
                         )
-                        return Result.failure(Exception("$where: ${failure.message}"))
+                        // #183: the failure CLASS rides along — the IME turns
+                        // AUTH into "token rejected, fix it in Settings" instead
+                        // of showing a bare "HTTP 401".
+                        return Result.failure(
+                            SttRequestRunner.SttRequestException(
+                                "$where: ${failure.message}",
+                                httpCode = failure.httpCode,
+                                failure = failure.failure
+                            )
+                        )
                     }
                     rescuePartial = Event.PartialInfo(failedIndex, drained.chunkCount)
                     logger?.log(

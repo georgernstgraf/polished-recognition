@@ -104,6 +104,36 @@ class FragmentJournalTest {
     }
 
     @Test
+    fun `the failure class and http code reach the record`() {
+        val j = journal()
+        j.writePending(session, record(5), audio("d.wav"))
+
+        j.markFailed(session, 5, "HTTP 401", failureClass = "AUTH", httpCode = 401)
+
+        val r = j.readRecord(session, 5)!!
+        assertThat(r.failureClass).isEqualTo("AUTH")
+        assertThat(r.failureHttpCode).isEqualTo(401)
+        // still retryable: AUTH keeps the audio for the next run with a new token
+        assertThat(r.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(File(j.sessionDir(session), r.uploadFile!!).isFile).isTrue()
+    }
+
+    @Test
+    fun `a later success clears the recorded failure`() {
+        val j = journal()
+        j.writePending(session, record(6), audio("e.wav"))
+        j.markFailed(session, 6, "HTTP 503", failureClass = "TRANSIENT", httpCode = 503)
+
+        j.markDone(session, 6, "hallo", "hallo")
+
+        val r = j.readRecord(session, 6)!!
+        assertThat(r.state).isEqualTo(FragmentJournal.State.DONE.name)
+        assertThat(r.failureClass).isNull()
+        assertThat(r.failureHttpCode).isNull()
+        assertThat(r.sttError).isNull()
+    }
+
+    @Test
     fun `the transcript is written even when the pending record was lost`() {
         val j = journal()
         // a lost journal write must never cost the text — the text is the

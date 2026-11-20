@@ -47,6 +47,13 @@ import java.util.concurrent.atomic.AtomicLong
  * the user's rescue path. Transcripts stay cached in memory, so a retry
  * after a parked failure re-drains instantly without re-transcribing.
  *
+ * **#183 — the AUTH latch:** a fragment that fails with
+ * [SttFailure.AUTH] (401/403) sets [authBlocked]; every later fragment of
+ * the session is recorded as failed WITHOUT a request, and its composed
+ * upload still reaches the journal, so nothing is lost and the provider is
+ * not hammered. [resetFailures] clears the latch, because a new run may carry
+ * the token the user just fixed.
+ *
  * **Acoustic pre-roll (#117 round 2):** each fragment's UPLOAD is composed
  * as `preRoll + fragment` byte-concatenation (OGG chaining makes that a
  * valid stream — the fragment FILES stay gapless for chunk assembly). The
@@ -186,6 +193,13 @@ class FragmentTranscriber(
         /** Echo-trim match window (#117 round 2): at most 8 tokens of head. */
         const val MAX_ECHO_TOKENS = 8
 
+        /**
+         * #183: the failure text a fragment carries when its session's token
+         * was already rejected — it never reached the network, so there is no
+         * HTTP code to report. The class (`AUTH`) is what the UI acts on.
+         */
+        const val AUTH_BLOCKED_MESSAGE = "STT token rejected — no further attempts in this session"
+
         /** Word-ish token pattern for the echo match (#117 round 2). */
         private val TOKEN_REGEX = Regex("[\\p{L}\\p{N}]+")
 
@@ -216,6 +230,15 @@ class FragmentTranscriber(
     @Volatile private var worker: Job? = null
 
     @Volatile private var pendingDrain: CompletableDeferred<Unit>? = null
+
+    /**
+     * #183: set once a fragment fails with [SttFailure.AUTH]. Every LATER
+     * fragment of this session is recorded as failed WITHOUT a request — the
+     * "stop hammering" half of the 401 storm a mis-migrated endpoint produced
+     * (five 401s in one session). Cleared by [resetFailures] (a new Send
+     * re-reads the token from Settings) and by [cancel].
+     */
+    @Volatile private var authBlocked = false
 
     /**
      * Set by [cancel] — the ONE place the channel is closed. [drain] must not
@@ -305,6 +328,9 @@ class FragmentTranscriber(
     fun resetFailures() {
         val failed = failures.keys.toList()
         failures.clear()
+        // #183: a new run may carry a NEW token (Settings was open in
+        // between), so the AUTH latch must not survive a Send tap.
+        authBlocked = false
         failed.forEach { index -> offered[index]?.let { offer(it) } }
     }
 
@@ -331,6 +357,7 @@ class FragmentTranscriber(
         seamEvidenceRecords.clear()
         pendingAudioMs.set(0)
         promptDisabled = false
+        authBlocked = false
         pendingDrain?.cancel()
         pendingDrain = null
         return drained
@@ -376,41 +403,55 @@ class FragmentTranscriber(
         var sttSentAt: Long? = null
         var sttReceivedAt: Long? = null
         val result = try {
-            withContext(Dispatchers.IO) {
-                sttSentAt = System.currentTimeMillis()
-                sttRunner.run(
-                    audioFile = upload,
-                    config = config,
-                    chunk = fragment.index + 1,
-                    prompt = prompt,
-                    // #184: the fragment's durable identity on the wire — the
-                    // same pair a retry repeats, so a server can dedupe on
-                    // session_id:fragment_index.
-                    sessionId = sessionId,
-                    fragmentIndex = fragment.index
+            if (authBlocked) {
+                // #183: the token was already rejected in this session — no
+                // request. The fragment still runs the normal failure fold
+                // (journal + bundle + failure list), so its audio and the
+                // reason survive exactly like a request that failed.
+                Result.failure(
+                    SttRequestRunner.SttRequestException(
+                        AUTH_BLOCKED_MESSAGE,
+                        httpCode = null,
+                        failure = SttFailure.AUTH
+                    )
                 )
-            }.also { sttReceivedAt = System.currentTimeMillis() }.let { first ->
-                // A provider without prompt support rejects the field with 400:
-                // retry THIS fragment without it and skip prompts for the rest
-                // of the session (#117 graceful fallback).
-                if (first.isFailure && prompt != null &&
-                    (first.exceptionOrNull() as? SttRequestRunner.SttRequestException)?.httpCode == 400
-                ) {
-                    promptDisabled = true
-                    withContext(Dispatchers.IO) {
-                        sttSentAt = System.currentTimeMillis()
-                        sttRunner.run(
-                            audioFile = upload,
-                            config = config,
-                            chunk = fragment.index + 1,
-                            // #184: the prompt-rejection retry is the SAME
-                            // fragment — same identity, or a server would see
-                            // two fragments.
-                            sessionId = sessionId,
-                            fragmentIndex = fragment.index
-                        )
-                    }.also { sttReceivedAt = System.currentTimeMillis() }
-                } else first
+            } else {
+                withContext(Dispatchers.IO) {
+                    sttSentAt = System.currentTimeMillis()
+                    sttRunner.run(
+                        audioFile = upload,
+                        config = config,
+                        chunk = fragment.index + 1,
+                        prompt = prompt,
+                        // #184: the fragment's durable identity on the wire — the
+                        // same pair a retry repeats, so a server can dedupe on
+                        // session_id:fragment_index.
+                        sessionId = sessionId,
+                        fragmentIndex = fragment.index
+                    )
+                }.also { sttReceivedAt = System.currentTimeMillis() }.let { first ->
+                    // A provider without prompt support rejects the field with 400:
+                    // retry THIS fragment without it and skip prompts for the rest
+                    // of the session (#117 graceful fallback).
+                    if (first.isFailure && prompt != null &&
+                        (first.exceptionOrNull() as? SttRequestRunner.SttRequestException)?.httpCode == 400
+                    ) {
+                        promptDisabled = true
+                        withContext(Dispatchers.IO) {
+                            sttSentAt = System.currentTimeMillis()
+                            sttRunner.run(
+                                audioFile = upload,
+                                config = config,
+                                chunk = fragment.index + 1,
+                                // #184: the prompt-rejection retry is the SAME
+                                // fragment — same identity, or a server would see
+                                // two fragments.
+                                sessionId = sessionId,
+                                fragmentIndex = fragment.index
+                            )
+                        }.also { sttReceivedAt = System.currentTimeMillis() }
+                    } else first
+                }
             }
         } finally {
             // the composed upload is single-use (the bare fragment file is
@@ -481,9 +522,23 @@ class FragmentTranscriber(
                 val ex = e as? SttRequestRunner.SttRequestException
                     ?: SttRequestRunner.SttRequestException(e.message ?: e.javaClass.simpleName)
                 failures[fragment.index] = ex
+                // #183: a rejected token stops THIS session's requests — the
+                // remaining fragments are recorded without one (see process).
+                if (ex.failure == SttFailure.AUTH) {
+                    if (!authBlocked) CoreLog.w(TAG, "auth rejected (HTTP ${ex.httpCode}) — pausing STT for this session")
+                    authBlocked = true
+                }
                 // #182: KEEP the fragment — the journal stays PENDING so a
-                // later retry (or #185's re-run) can pick it up.
-                journalOutcome(fragment.index, sttRaw = null, sttTrimmed = null, error = ex.message)
+                // later retry (or #185's re-run) can pick it up; #183 records
+                // WHY it failed and which failures go to the manual path.
+                journalOutcome(
+                    fragment.index,
+                    sttRaw = null,
+                    sttTrimmed = null,
+                    error = ex.message,
+                    failure = ex.failure,
+                    httpCode = ex.httpCode
+                )
                 bundle?.let { b ->
                     val f = b.fragment(fragment.index)
                     f.uploadFile = upload.name
@@ -557,14 +612,30 @@ class FragmentTranscriber(
     /**
      * #182 outcome: flips the fragment's record — DONE with its transcript on
      * success, still PENDING (with the error) on failure. Same best-effort
-     * rule as [journalPending].
+     * rule as [journalPending]. #183 adds the failure class: an AUTH/TRANSIENT
+     * failure stays PENDING (the audio is retryable), a PROTOCOL failure is
+     * marked NEEDS_MANUAL (a plain retry would break the same way).
      */
-    private suspend fun journalOutcome(index: Int, sttRaw: String?, sttTrimmed: String?, error: String?) {
+    private suspend fun journalOutcome(
+        index: Int,
+        sttRaw: String?,
+        sttTrimmed: String?,
+        error: String?,
+        failure: SttFailure? = null,
+        httpCode: Int? = null
+    ) {
         val journal = journal ?: return
         val sessionId = sessionId ?: return
         val written = withContext(Dispatchers.IO) {
             if (error == null) journal.markDone(sessionId, index, sttRaw, sttTrimmed)
-            else journal.markFailed(sessionId, index, error)
+            else journal.markFailed(
+                sessionId = sessionId,
+                index = index,
+                error = error,
+                needsManual = failure == SttFailure.PROTOCOL,
+                failureClass = failure?.name,
+                httpCode = httpCode
+            )
         }
         if (!written) CoreLog.w(TAG, "journal: outcome write failed (index=$index)")
     }

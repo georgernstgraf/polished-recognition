@@ -40,6 +40,7 @@ import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.LanguageOptions
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.HelpActivity
@@ -792,15 +793,23 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 if (text != null) {
                     handleCompletedSuccess(text, event)
                 } else {
-                    Toast.makeText(
-                        this,
-                        result.exceptionOrNull()?.message ?: getString(R.string.ime_error),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(this, failureText(result.exceptionOrNull()), Toast.LENGTH_LONG).show()
                 }
                 applyUiState()
             }
         }
+    }
+
+    /**
+     * #183: the failure Toast text. The technical detail stays visible (the
+     * user must see WHAT broke — CONVENTIONS), prefixed with the actionable
+     * hint for the classes that have one (a dead token, an unusable response).
+     */
+    internal fun failureText(error: Throwable?): String {
+        val detail = error?.message ?: getString(R.string.ime_error)
+        val failure = (error as? SttRequestRunner.SttRequestException)?.failure
+        val hint = SttFailureText.resFor(failure) ?: return detail
+        return getString(hint) + "\n" + detail
     }
 
     /**

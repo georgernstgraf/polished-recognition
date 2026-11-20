@@ -6,6 +6,7 @@ import com.georgernstgraf.polishedrecognition.audio.WavWriter
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -171,6 +172,87 @@ class FragmentTranscriberTest {
         val drained = transcriber.drain()
         assertThat(drained.chunkCount).isEqualTo(0)
         assertThat(drained.text).isEmpty()
+    }
+
+    // ---- #183: failure classes ---------------------------------------------
+
+    private fun authFailure() = SttRequestRunner.SttRequestException(
+        "HTTP 401",
+        httpCode = 401,
+        failure = SttFailure.AUTH
+    )
+
+    @Test
+    fun `an auth failure stops the session's remaining fragments without requests`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(authFailure())
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.offer(fragment(2))
+        val drained = transcriber.drain()
+
+        // exactly ONE request: the latch turns the rest into immediate
+        // failures instead of three more 401s against the provider
+        coVerify(exactly = 1) { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) }
+        assertThat(drained.failedIndex).isEqualTo(0)
+        assertThat(drained.chunkCount).isEqualTo(3)
+        assertThat(drained.failure!!.failure).isEqualTo(SttFailure.AUTH)
+        assertThat(transcriber.pendingAudioSeconds()).isEqualTo(0)
+    }
+
+    @Test
+    fun `resetting failures clears the auth latch so a fixed token can retry`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(authFailure())
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.drain()
+        coVerify(exactly = 1) { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) }
+
+        // the user replaced the token and tapped Send again: resetFailures is
+        // the moment the latch MUST be gone, or the retry would stay silent
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("zwei")
+        transcriber.resetFailures()
+        val drained = transcriber.drain()
+
+        coVerify(exactly = 3) { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) }
+        assertThat(drained.failure).isNull()
+        assertThat(drained.chunkCount).isEqualTo(2)
+        assertThat(drained.text).isNotEmpty()
+    }
+
+    @Test
+    fun `a protocol failure is journaled as needs manual`() = runBlocking<Unit> {
+        val journal = FragmentJournal(File(tmp.root, "journal"))
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(
+                SttRequestRunner.SttRequestException(
+                    "HTTP 200 (unusable response body)",
+                    httpCode = 200,
+                    failure = SttFailure.PROTOCOL
+                )
+            )
+        val j = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            journal = journal,
+            sessionId = "s183"
+        )
+        j.start()
+        j.offer(fragment(0))
+        j.drain()
+
+        val record = journal.readRecord("s183", 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.NEEDS_MANUAL.name)
+        assertThat(record.failureClass).isEqualTo(SttFailure.PROTOCOL.name)
+        assertThat(record.failureHttpCode).isEqualTo(200)
+        // the audio is kept — a manual pass (#185) needs something to re-run
+        assertThat(File(journal.sessionDir("s183"), record.uploadFile!!).isFile).isTrue()
+        j.cancel()
     }
 
     @Test

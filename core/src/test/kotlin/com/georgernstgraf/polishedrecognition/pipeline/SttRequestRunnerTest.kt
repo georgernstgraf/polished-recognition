@@ -8,6 +8,7 @@ import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import okhttp3.ResponseBody
 import org.junit.Before
 import org.junit.Rule
@@ -185,8 +186,7 @@ class SttRequestRunnerTest {
         assertThat(completion["error"]).isEqualTo("IOException")
     }
 
-    /** Minimal structurally valid Ogg page (see AudioDurationTest). */
-    private fun singlePageOgg(granulePosition: Long): ByteArray {
+    /** Minimal structurally valid Ogg page (see AudioDurationTest). */    private fun singlePageOgg(granulePosition: Long): ByteArray {
         val page = ByteArray(28)
         page[0] = 'O'.code.toByte()
         page[1] = 'g'.code.toByte()
@@ -306,5 +306,158 @@ class SttRequestRunnerTest {
         assertThat(fields.single()).isEmpty()
         // the pre-send record stays byte-shape-identical (Gson omits nulls)
         assertThat(readLog("stt-upload").containsKey("sessionId")).isFalse()
+    }
+
+    // ---- #183: failure classification -------------------------------------
+
+    /** An HTTP failure WITH headers, so `Retry-After` can be exercised. */
+    private fun httpError(code: Int, retryAfter: String? = null): Response<SttResponse> {
+        @Suppress("DEPRECATION")
+        val body = ResponseBody.create(null, "error")
+        val raw = okhttp3.Response.Builder()
+            .request(okhttp3.Request.Builder().url("http://localhost/v1/audio/transcriptions").build())
+            .protocol(okhttp3.Protocol.HTTP_1_1)
+            .code(code)
+            .message("error")
+            .apply { if (retryAfter != null) header("Retry-After", retryAfter) }
+            .body(body)
+            .build()
+        @Suppress("DEPRECATION")
+        return Response.error(body, raw)
+    }
+
+    private fun runnerWithCaps(
+        totalWaitMs: Long,
+        retryWaitMs: Long = 10_000L,
+        backoff: List<Long> = listOf(1L, 2L)
+    ): SttRequestRunner =
+        SttRequestRunner(
+            getSttApi = { sttApi },
+            logger = RotatingJsonLogger(logDir),
+            backoffMs = backoff,
+            sleep = { delays.add(it) },
+            maxRetryWaitMs = retryWaitMs,
+            maxTotalWaitMs = totalWaitMs
+        )
+
+    private fun failureOf(result: Result<SttResponse>): SttRequestRunner.SttRequestException =
+        result.exceptionOrNull() as SttRequestRunner.SttRequestException
+
+    /** A 2xx body as a real server sends it: the transcript key is absent. */
+    private fun envelopeWithoutText(): SttResponse =
+        com.google.gson.Gson().fromJson("""{"error":"bad gateway"}""", SttResponse::class.java)
+
+    @Test
+    fun `401 fails immediately with the auth class`() = kotlinx.coroutines.runBlocking {
+        mockStt(httpError(401))
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(failureOf(result).httpCode).isEqualTo(401)
+        assertThat(failureOf(result).failure).isEqualTo(SttFailure.AUTH)
+        assertThat(delays).isEmpty()
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `403 is auth too`() = kotlinx.coroutines.runBlocking {
+        mockStt(httpError(403))
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(failureOf(result).failure).isEqualTo(SttFailure.AUTH)
+        assertThat(delays).isEmpty()
+    }
+
+    @Test
+    fun `retry-after is honoured over the configured backoff`() = kotlinx.coroutines.runBlocking {
+        mockSttMany(httpError(429, retryAfter = "3"), success())
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(delays).containsExactly(3_000L).inOrder()
+        assertThat((readLog("stt-latency_1")["retryAfterMs"] as Double).toLong()).isEqualTo(3_000L)
+    }
+
+    @Test
+    fun `a retry-after above the per-wait cap stops instead of waiting less`() =
+        kotlinx.coroutines.runBlocking {
+            mockSttMany(httpError(429, retryAfter = "60"), success())
+
+            // cap 2 s: the server asks for 60 s. Retrying after 2 s would be a
+            // violation of the very advice we asked for, so the request fails.
+            val result = runnerWithCaps(totalWaitMs = 20_000L, retryWaitMs = 2_000L)
+                .run(wavFile(), config)
+
+            assertThat(result.isFailure).isTrue()
+            assertThat(failureOf(result).message).contains("Retry-After 60s")
+            assertThat(delays).isEmpty()
+            verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `a wait that exceeds the total budget stops instead of stalling`() =
+        kotlinx.coroutines.runBlocking {
+            mockSttMany(httpError(500), success())
+
+            // the production 1 s backoff no longer fits the request's budget
+            val result = runnerWithCaps(totalWaitMs = 500L, backoff = listOf(1_000L, 2_000L))
+                .run(wavFile(), config)
+
+            assertThat(result.isFailure).isTrue()
+            assertThat(delays).isEmpty()
+            verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `a 2xx without a transcript is a protocol failure retried exactly once`() =
+        kotlinx.coroutines.runBlocking {
+            mockSttMany(Response.success(envelopeWithoutText()), success("after the retry"))
+
+            val result = runner().run(wavFile(), config)
+
+            assertThat(result.isSuccess).isTrue()
+            assertThat(result.getOrThrow().text).isEqualTo("after the retry")
+            assertThat(delays).containsExactly(1L).inOrder()
+            assertThat((readLog("stt-latency_1")["error"] as String)).isEqualTo("unusableEnvelope")
+        }
+
+    @Test
+    fun `a persistent protocol failure gives up after one retry`() = kotlinx.coroutines.runBlocking {
+        mockSttMany(Response.success(envelopeWithoutText()), Response.success(envelopeWithoutText()))
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(failureOf(result).failure).isEqualTo(SttFailure.PROTOCOL)
+        // exactly ONE repeat — a third attempt would just break the same way
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `an empty transcript is a legitimate silent fragment, not a protocol failure`() =
+        kotlinx.coroutines.runBlocking {
+            mockStt(success(""))
+
+            val result = runner().run(wavFile(), config)
+
+            assertThat(result.isSuccess).isTrue()
+            assertThat(result.getOrThrow().text).isEmpty()
+            verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `an undecodable body is protocol and gets its one retry`() = kotlinx.coroutines.runBlocking {
+        val call = mockk<Call<SttResponse>>()
+        every { call.execute() } throws com.google.gson.JsonSyntaxException("Expected BEGIN_OBJECT")
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(failureOf(result).failure).isEqualTo(SttFailure.PROTOCOL)
+        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
     }
 }

@@ -382,6 +382,11 @@ class VoiceSessionControllerTest {
         val record = journal.readRecord(sid, 0)!!
         assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
         assertThat(File(journal.sessionDir(sid), record.uploadFile!!).length()).isGreaterThan(0L)
+        // #183: the record says WHY — an AUTH failure stays PENDING (retryable
+        // with a new token), never NEEDS_MANUAL, and #185 can render the class.
+        assertThat(record.failureClass).isEqualTo(SttFailure.AUTH.name)
+        assertThat(record.failureHttpCode).isEqualTo(401)
+        assertThat(record.sttError).contains("HTTP 401")
         journal.sessionDir(sid).deleteRecursively()
         clearSessionFiles()
     }
@@ -1381,16 +1386,17 @@ class VoiceSessionControllerTest {
         File(cacheDir, "session.pcm").writeBytes(pcm)
         File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
 
-        // fragment 1 (0-based) fails permanently (HTTP 401 = non-transient;
-        // 401 also keeps the #117 prompt-rejection fallback out of the way,
-        // which only keys on 400)
-        val http401 =
+        // fragment 1 (0-based) fails permanently. 410 = TERMINAL (#183): a
+        // plain non-retryable failure that is NEITHER the prompt fallback
+        // (400) NOR the auth latch (401/403, which stops the session's
+        // remaining fragments and would change what this test measures).
+        val http410 =
             @Suppress("DEPRECATION")
-            Response.error<SttResponse>(401, ResponseBody.create(null, "unauthorized"))
+            Response.error<SttResponse>(410, ResponseBody.create(null, "gone"))
         every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(http401),
+                mockSttCall(http410),
                 mockSttCall(Response.success(SttResponse(text = "three", language = null))),
                 mockSttCall(Response.success(SttResponse(text = "four", language = null)))
             )
@@ -1411,7 +1417,11 @@ class VoiceSessionControllerTest {
         assertThat(controller.lastSnapshotError).isNull()
         val failed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last().result
         assertThat(failed.exceptionOrNull()!!.message).contains("fragment 2/4")
-        assertThat(failed.exceptionOrNull()!!.message).contains("HTTP 401")
+        assertThat(failed.exceptionOrNull()!!.message).contains("HTTP 410")
+        // #183: the CLASS survives the controller, so the IME can act on it
+        val failure = failed.exceptionOrNull() as SttRequestRunner.SttRequestException
+        assertThat(failure.failure).isEqualTo(SttFailure.TERMINAL)
+        assertThat(failure.httpCode).isEqualTo(410)
         coVerify(exactly = 0) { pipeline.finishTranscription(any(), any(), any()) }
 
         // raw mode retry: the failed fragment is RE-ATTEMPTED (fresh attempt
@@ -1452,14 +1462,15 @@ class VoiceSessionControllerTest {
         File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000) { i -> (i % 97).toByte() })
         File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
 
-        // fragment 1 (0-based) fails permanently (HTTP 401 = non-transient)
-        val http401 =
+        // fragment 1 (0-based) fails permanently: 410 = TERMINAL (#183), no
+        // auth latch and no prompt fallback (see the polish/raw test above)
+        val http410 =
             @Suppress("DEPRECATION")
-            Response.error<SttResponse>(401, ResponseBody.create(null, "unauthorized"))
+            Response.error<SttResponse>(410, ResponseBody.create(null, "gone"))
         every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 mockSttCall(Response.success(SttResponse(text = "one", language = null))),
-                mockSttCall(http401),
+                mockSttCall(http410),
                 mockSttCall(Response.success(SttResponse(text = "three", language = null))),
                 mockSttCall(Response.success(SttResponse(text = "four", language = null)))
             )
