@@ -39,20 +39,38 @@ object WorkbenchActions {
      * @param hasPolished the page's single polished slot is filled
      * @param polishing a polish request is in flight
      * @param ringSize number of stored dictations in the FIFO
+     * @param onCompose the shown page is the compose slot
+     *   ([com.georgernstgraf.polishedrecognition.ui.FifoNavigation.COMPOSE_INDEX]),
+     *   not a stored card
+     *
+     * **The arrows are asymmetric on purpose** (#173 decision 7, #178): the
+     * compose slot sits *outside* the ring, so leaving it is a real move — one
+     * stored card is a destination ([FifoNavigation.older]/[FifoNavigation.newer]
+     * both land on index 0). On a stored card the ring is the destination, and
+     * with a single entry ◀ and ▶ would only swap the card for itself, so they
+     * stay disabled until a second one exists. Requiring two entries everywhere
+     * would make a store holding exactly one dictation unreachable from the
+     * entry page — the regression this parameter fixes.
      */
     fun enabled(
         hasRaw: Boolean,
         hasPolished: Boolean,
         polishing: Boolean,
-        ringSize: Int
-    ): Actions = Actions(
-        polish = hasRaw && !polishing,
-        promote = hasPolished,
-        clearPolished = hasPolished,
-        copyRaw = hasRaw,
-        copyPolished = hasPolished,
-        prev = ringSize >= 2,
-        next = ringSize >= 2,
-        new = true
-    )
+        ringSize: Int,
+        onCompose: Boolean
+    ): Actions {
+        // From the compose slot one stored card is reachable; inside the ring
+        // one card is only a self-loop.
+        val canNavigate = if (onCompose) ringSize >= 1 else ringSize >= 2
+        return Actions(
+            polish = hasRaw && !polishing,
+            promote = hasPolished,
+            clearPolished = hasPolished,
+            copyRaw = hasRaw,
+            copyPolished = hasPolished,
+            prev = canNavigate,
+            next = canNavigate,
+            new = true
+        )
+    }
 }

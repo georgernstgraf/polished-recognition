@@ -368,7 +368,8 @@ class WorkbenchActivity : Activity() {
             hasRaw = rawField.text.toString().isNotBlank(),
             hasPolished = polishedField.text.toString().isNotBlank(),
             polishing = polishing,
-            ringSize = dictations.size
+            ringSize = dictations.size,
+            onCompose = index == FifoNavigation.COMPOSE_INDEX
         )
         emptyHint.visibility =
             if (index == FifoNavigation.COMPOSE_INDEX && dictations.isEmpty()) View.VISIBLE

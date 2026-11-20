@@ -55,9 +55,10 @@ class WorkbenchActivityTest {
     private fun WorkbenchActivity.enabled(id: Int) = findViewById<View>(id).isEnabled
 
     /**
-     * #178/#179: ◀ and ▶ need a ring of **at least two** entries, so a test that
-     * wants a stored page has to seed a filler entry next to it. On the entry
-     * page the arrows start at the newest dictation.
+     * ◀ and ▶ enter the ring at the newest dictation. On the compose slot one
+     * stored entry is enough, inside the ring two are needed (#173/#178). Tests
+     * that want a stored page seed a filler entry next to it, which also keeps
+     * the wrapping and the "2 / 2" labels under test.
      */
     private fun WorkbenchActivity.showNewest() {
         click(R.id.workbench_next)
@@ -112,6 +113,27 @@ class WorkbenchActivityTest {
         activity.click(R.id.workbench_prev)
         assertThat(activity.position()).isEqualTo("3 / 3")
         assertThat(activity.raw().text()).isEqualTo("newest")
+    }
+
+    @Test
+    fun `a single stored dictation is reachable from the compose slot`() {
+        seed("only one")
+        val activity = launch()
+
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.enabled(R.id.workbench_prev)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_next)).isTrue()
+
+        activity.showNewest()
+
+        // #173 decision 7 / #178: leaving the compose slot is a real move, so
+        // one stored card is a destination.
+        assertThat(activity.position()).isEqualTo("1 / 1")
+        assertThat(activity.raw().text()).isEqualTo("only one")
+
+        // Inside the ring a lone card is a self-loop: both arrows stay dead.
+        assertThat(activity.enabled(R.id.workbench_prev)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_next)).isFalse()
     }
 
     @Test
