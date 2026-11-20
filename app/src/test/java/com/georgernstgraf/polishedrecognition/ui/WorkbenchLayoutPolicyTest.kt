@@ -17,6 +17,11 @@ import javax.xml.parsers.SAXParserFactory
  * ships. A field with a fixed `dp` height or an inner `scrollbars` recreates
  * the very defect this decision removed (a long transcript scrolling inside a
  * 140-dp box instead of scrolling the screen).
+ *
+ * #178 replaces the accordion rule: the actions live in **three zones** (A
+ * above Raw, B below Raw, C below Polished), Polished is a **read-only
+ * TextView**, and every icon button carries a content description and no
+ * own background.
  */
 class WorkbenchLayoutPolicyTest {
 
@@ -71,6 +76,16 @@ class WorkbenchLayoutPolicyTest {
             ?: throw AssertionError("activity_workbench.xml declares no element with id $id")
     }
 
+    /** Document order of the declared ids, so "above/below the field" is checkable. */
+    private fun orderOf(vararg ids: String): Map<String, Int> {
+        val declared = parse(layout).mapNotNull { it.attributes["android:id"] }
+        return ids.associateWith { id ->
+            declared.indexOf("@+id/$id").also {
+                if (it < 0) throw AssertionError("activity_workbench.xml declares no id $id")
+            }
+        }
+    }
+
     @Test
     fun `the two workbench fields are wrap_content without an inner scrollbar`() {
         val fields = listOf("workbench_raw", "workbench_polished")
@@ -117,18 +132,119 @@ class WorkbenchLayoutPolicyTest {
         ).that(offenders).isEmpty()
     }
 
+    /**
+     * #178: the three action zones. Zone A sits above Raw, zone B between Raw
+     * and Polished, zone C below Polished — the order in the file is the order
+     * on the screen, so it is the assertion.
+     */
     @Test
-    fun `each label row is an accordion with a chevron and a preview line`() {
-        listOf("raw", "polished").forEach { which ->
-            assertWithMessage("$which toggle row is missing")
-                .that(parse(layout).any { it.attributes["android:id"] == "@+id/workbench_${which}_toggle" })
-                .isTrue()
-            assertWithMessage("$which chevron is missing")
-                .that(parse(layout).any { it.attributes["android:id"] == "@+id/workbench_${which}_chevron" })
-                .isTrue()
-            assertWithMessage("$which collapsed preview is missing")
-                .that(parse(layout).any { it.attributes["android:id"] == "@+id/workbench_${which}_preview" })
-                .isTrue()
+    fun `the three action zones exist above, below and beneath the polished field`() {
+        val order = orderOf(
+            "workbench_language_a",
+            "workbench_polish_a",
+            "workbench_raw",
+            "workbench_language_b",
+            "workbench_polish_b",
+            "workbench_promote_b",
+            "workbench_clear_polished",
+            "workbench_polished",
+            "workbench_promote_c",
+        )
+        fun at(id: String) = order.getValue(id)
+
+        val violations = mutableListOf<String>()
+        // Zone A — above Raw.
+        for (id in listOf("workbench_language_a", "workbench_polish_a")) {
+            if (at(id) > at("workbench_raw")) {
+                violations += "$id must precede workbench_raw (zone A)"
+            }
         }
+        // Zone B — below Raw, above Polished.
+        for (id in listOf(
+            "workbench_language_b",
+            "workbench_polish_b",
+            "workbench_promote_b",
+            "workbench_clear_polished",
+        )) {
+            if (at(id) < at("workbench_raw")) {
+                violations += "$id must follow workbench_raw (zone B)"
+            }
+            if (at(id) > at("workbench_polished")) {
+                violations += "$id must precede workbench_polished (zone B)"
+            }
+        }
+        // Zone C — below Polished.
+        if (at("workbench_promote_c") < at("workbench_polished")) {
+            violations += "workbench_promote_c must follow workbench_polished (zone C)"
+        }
+
+        assertWithMessage("the #178 action zones are out of order:\n" + violations.joinToString("\n"))
+            .that(violations).isEmpty()
+    }
+
+    /** #178: Polished is produced by the pipeline, never typed into. */
+    @Test
+    fun `polished is a read-only text view while raw stays editable`() {
+        val polished = elementById("workbench_polished")
+        assertWithMessage("line ${polished.line}: Polished must be a TextView, not an EditText")
+            .that(polished.name).isEqualTo("TextView")
+        assertWithMessage("line ${polished.line}: Polished must not declare an inputType")
+            .that(polished.attributes).doesNotContainKey("android:inputType")
+        assertWithMessage("line ${polished.line}: Polished must not be focusable")
+            .that(polished.attributes["android:focusable"]).isEqualTo("false")
+
+        val raw = elementById("workbench_raw")
+        assertWithMessage("line ${raw.line}: Raw must stay an EditText")
+            .that(raw.name).isEqualTo("EditText")
+    }
+
+    /** #178: the #173 accordion and the single spinner/repolish row are gone. */
+    @Test
+    fun `the accordion views and the old polish row are gone`() {
+        val declared = parse(layout).mapNotNull { it.attributes["android:id"] }.toSet()
+        val removed = listOf(
+            "workbench_raw_toggle",
+            "workbench_raw_chevron",
+            "workbench_raw_preview",
+            "workbench_polished_toggle",
+            "workbench_polished_chevron",
+            "workbench_polished_preview",
+            "workbench_repolish",
+            "workbench_language",
+        )
+
+        val stillThere = removed.filter { "@+id/$it" in declared }
+        assertWithMessage("#173 units that #178 replaced are still declared:\n" +
+            stillThere.joinToString("\n")).that(stillThere).isEmpty()
+
+        assertWithMessage("the Workbench title must not be a header text any more (#178)")
+            .that(layout.readText().contains("@string/workbench_title")).isFalse()
+    }
+
+    /**
+     * #178: every icon button is tappable without a visible label, so it needs
+     * a content description; and no icon button carries a background — the
+     * night-mode `?android:attr/selectableItemBackground` sheet is the #173
+     * contrast defect.
+     */
+    @Test
+    fun `every icon button has a content description and no background`() {
+        val iconButtons = parse(layout).filter { it.name == "ImageButton" }
+        assertWithMessage("the layout declares no ImageButton at all — the scan is vacuous")
+            .that(iconButtons).isNotEmpty()
+
+        val violations = mutableListOf<String>()
+        for (button in iconButtons) {
+            if (button.attributes["android:contentDescription"].isNullOrBlank()) {
+                violations += "line ${button.line} <ImageButton>: no contentDescription"
+            }
+            if (button.attributes.containsKey("android:background")) {
+                violations += "line ${button.line} <ImageButton>: declares android:background"
+            }
+        }
+        assertWithMessage(
+            "icon buttons need a label for TalkBack and no background (#173/#178):\n" +
+                violations.joinToString("\n")
+        ).that(violations).isEmpty()
     }
 }

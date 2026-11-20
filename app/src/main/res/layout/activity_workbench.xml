@@ -4,11 +4,18 @@
   Platform views only (the app is Material- and AppCompat-free since #61),
   theme attributes only for colours (XmlColorPolicyTest rule 1/2).
 
-  #173: the header carries a centred ＋ New (title left, Settings right), the
-  fields are content-sized (wrap_content + minLines, no inner scrollbar — only
-  this ScrollView scrolls), and each label row is a summary-style accordion
-  (chevron + label + copy button, plus a one-line ellipsised preview while
-  collapsed).
+  #178: the header carries icons only (◀ position ⚙ ＋ ▶), the fields are
+  content-sized (wrap_content + minLines, no inner scrollbar — only this
+  ScrollView scrolls), and the actions sit in three zones:
+
+    A — above Raw:        target language + Polish
+    B — below Raw:        target language + Polish, promote + empty Polished
+    C — below Polished:   promote
+
+  Polished is a READ-ONLY TextView: it is produced by the pipeline and can only
+  be promoted or emptied, never edited. No row and no icon button carries an
+  `android:background` (#173: `?android:attr/selectableItemBackground` paints an
+  opaque sheet in night mode); icons are tinted with theme attributes only.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/workbench_root"
@@ -22,211 +29,78 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Header: icons only, the position label in the middle. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
+            android:gravity="center"
             android:orientation="horizontal">
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/workbench_title"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/workbench_new"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/workbench_new"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/workbench_settings"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end"
-                android:text="@string/workbench_settings"
-                android:textColor="?android:attr/textColorSecondary" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <Button
+            <ImageButton
                 android:id="@+id/workbench_prev"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="@string/workbench_older"
-                android:text="◀"
-                android:textSize="18sp" />
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_arrow_left"
+                android:tint="?android:attr/textColorSecondary" />
 
             <TextView
                 android:id="@+id/workbench_position"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:textColor="?android:attr/textColorSecondary" />
-
-            <Button
-                android:id="@+id/workbench_next"
-                style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minWidth="64dp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="16sp" />
+
+            <ImageButton
+                android:id="@+id/workbench_settings"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workbench_settings"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_settings"
+                android:tint="?android:attr/textColorSecondary" />
+
+            <ImageButton
+                android:id="@+id/workbench_new"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workbench_new"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_add"
+                android:tint="?android:attr/textColorPrimary" />
+
+            <ImageButton
+                android:id="@+id/workbench_next"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="@string/workbench_newer"
-                android:text="▶"
-                android:textSize="18sp" />
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_arrow_right"
+                android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/workbench_empty_hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
             android:text="@string/workbench_empty"
             android:textColor="?android:attr/textColorTertiary"
             android:textSize="12sp" />
 
-        <!-- Raw: summary row (chevron · label · copy) + collapsed preview. -->
+        <!-- Zone A: target language + Polish, above Raw. -->
         <LinearLayout
-            android:id="@+id/workbench_raw_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:clickable="true"
-            android:contentDescription="@string/workbench_raw_toggle_desc"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/workbench_raw_chevron"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:importantForAccessibility="no"
-                android:paddingEnd="6dp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/workbench_raw"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/workbench_copy_raw"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@string/workbench_copy_raw_desc"
-                android:text="@string/workbench_copy"
-                android:textColor="?android:attr/textColorSecondary" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/workbench_raw_preview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="14sp"
-            android:visibility="gone" />
-
-        <EditText
-            android:id="@+id/workbench_raw"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="top|start"
-            android:hint="@string/workbench_raw"
-            android:inputType="textMultiLine|textCapSentences"
-            android:minLines="2"
-            android:padding="8dp" />
-
-        <!-- Polished: the same accordion shape. -->
-        <LinearLayout
-            android:id="@+id/workbench_polished_toggle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:clickable="true"
-            android:contentDescription="@string/workbench_polished_toggle_desc"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/workbench_polished_chevron"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:importantForAccessibility="no"
-                android:paddingEnd="6dp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/workbench_polished"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/workbench_copy_polished"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@string/workbench_copy_polished_desc"
-                android:text="@string/workbench_copy"
-                android:textColor="?android:attr/textColorSecondary" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/workbench_polished_preview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="14sp"
-            android:visibility="gone" />
-
-        <EditText
-            android:id="@+id/workbench_polished"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="top|start"
-            android:hint="@string/workbench_polished"
-            android:inputType="textMultiLine|textCapSentences"
-            android:minLines="2"
-            android:padding="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <AutoCompleteTextView
-                android:id="@+id/workbench_language"
+                android:id="@+id/workbench_language_a"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -238,11 +112,167 @@
                 android:inputType="text" />
 
             <Button
-                android:id="@+id/workbench_repolish"
+                android:id="@+id/workbench_polish_a"
+                style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="@string/workbench_repolish" />
+                android:drawableStart="@drawable/ic_polish"
+                android:drawablePadding="4dp"
+                android:drawableTint="?android:attr/textColorPrimary"
+                android:text="@string/workbench_polish"
+                android:textColor="?android:attr/textColorPrimary" />
+        </LinearLayout>
+
+        <!-- Raw: label row (label + copy) then the editable field. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/workbench_raw"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/workbench_copy_raw"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/workbench_copy_raw_desc"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_copy"
+                android:tint="?android:attr/textColorSecondary" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/workbench_raw"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top|start"
+            android:hint="@string/workbench_raw"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="2"
+            android:padding="8dp" />
+
+        <!-- Zone B: the same Polish site below Raw, plus promote and empty. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <AutoCompleteTextView
+                android:id="@+id/workbench_language_b"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:clickable="true"
+                android:completionThreshold="1"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:hint="@string/workbench_language"
+                android:inputType="text" />
+
+            <Button
+                android:id="@+id/workbench_polish_b"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:drawableStart="@drawable/ic_polish"
+                android:drawablePadding="4dp"
+                android:drawableTint="?android:attr/textColorPrimary"
+                android:text="@string/workbench_polish"
+                android:textColor="?android:attr/textColorPrimary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical|end"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/workbench_promote_b"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workbench_promote"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_promote"
+                android:tint="?android:attr/textColorSecondary" />
+
+            <ImageButton
+                android:id="@+id/workbench_clear_polished"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workbench_clear_polished"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_delete_outline"
+                android:tint="?android:attr/textColorSecondary" />
+        </LinearLayout>
+
+        <!-- Polished: label row (label + copy) then the READ-ONLY text. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/workbench_polished"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/workbench_copy_polished"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/workbench_copy_polished_desc"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_copy"
+                android:tint="?android:attr/textColorSecondary" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/workbench_polished"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:focusable="false"
+            android:longClickable="false"
+            android:minLines="2"
+            android:padding="8dp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="16sp" />
+
+        <!-- Zone C: promote, below Polished. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical|end"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/workbench_promote_c"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workbench_promote"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_promote"
+                android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

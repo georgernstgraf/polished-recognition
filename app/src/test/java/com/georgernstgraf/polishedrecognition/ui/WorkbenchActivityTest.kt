@@ -1,14 +1,15 @@
 package com.georgernstgraf.polishedrecognition.ui
 
 import android.view.View
+import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
-import com.georgernstgraf.polishedrecognition.dictation.Dictation
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,8 +19,8 @@ import org.robolectric.RuntimeEnvironment
 import java.io.File
 
 /**
- * #169 (epic #166 D5/D6/D15) and #173: the screen, the compose slot, the MRU
- * ring and entry creation.
+ * #169 (epic #166 D5/D6/D15), #173 and #178: the screen, the compose slot, the
+ * MRU ring and the icon header with its three action zones.
  */
 @RunWith(RobolectricTestRunner::class)
 class WorkbenchActivityTest {
@@ -45,13 +46,21 @@ class WorkbenchActivityTest {
     private fun idle() = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
     private fun WorkbenchActivity.raw() = findViewById<EditText>(R.id.workbench_raw)
-    private fun WorkbenchActivity.polished() = findViewById<EditText>(R.id.workbench_polished)
+    private fun WorkbenchActivity.polished() = findViewById<TextView>(R.id.workbench_polished)
     private fun WorkbenchActivity.position() =
         findViewById<TextView>(R.id.workbench_position).text.toString()
 
-    /** From the entry page both arrows enter the ring at the newest dictation. */
+    private fun WorkbenchActivity.click(id: Int) = findViewById<View>(id).performClick()
+
+    private fun WorkbenchActivity.enabled(id: Int) = findViewById<View>(id).isEnabled
+
+    /**
+     * #178/#179: ◀ and ▶ need a ring of **at least two** entries, so a test that
+     * wants a stored page has to seed a filler entry next to it. On the entry
+     * page the arrows start at the newest dictation.
+     */
     private fun WorkbenchActivity.showNewest() {
-        findViewById<Button>(R.id.workbench_next).performClick()
+        click(R.id.workbench_next)
     }
 
     private fun clipboardText(): String =
@@ -63,12 +72,20 @@ class WorkbenchActivityTest {
         val activity = launch()
 
         assertThat(activity.position()).isEqualTo("new")
-        assertThat(activity.findViewById<Button>(R.id.workbench_prev).isEnabled).isFalse()
-        assertThat(activity.findViewById<Button>(R.id.workbench_next).isEnabled).isFalse()
+        assertThat(activity.enabled(R.id.workbench_prev)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_next)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_new)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_polish_a)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_polish_b)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_copy_raw)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_copy_polished)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_clear_polished)).isFalse()
         assertThat(activity.findViewById<TextView>(R.id.workbench_empty_hint).visibility)
             .isEqualTo(View.VISIBLE)
         assertThat(activity.raw().text()).isEmpty()
-        assertThat(activity.polished().text()).isEmpty()
+        assertThat(activity.polished().text.toString()).isEmpty()
     }
 
     @Test
@@ -78,8 +95,8 @@ class WorkbenchActivityTest {
 
         assertThat(activity.position()).isEqualTo("new")
         assertThat(activity.raw().text()).isEmpty()
-        assertThat(activity.findViewById<Button>(R.id.workbench_prev).isEnabled).isTrue()
-        assertThat(activity.findViewById<Button>(R.id.workbench_next).isEnabled).isTrue()
+        assertThat(activity.enabled(R.id.workbench_prev)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_next)).isTrue()
 
         // ▶ enters the ring at the newest dictation
         activity.showNewest()
@@ -87,12 +104,12 @@ class WorkbenchActivityTest {
         assertThat(activity.raw().text()).isEqualTo("newest")
 
         // ▶ again wraps to the oldest
-        activity.findViewById<Button>(R.id.workbench_next).performClick()
+        activity.click(R.id.workbench_next)
         assertThat(activity.position()).isEqualTo("1 / 3")
         assertThat(activity.raw().text()).isEqualTo("oldest")
 
         // ◀ wraps back to the newest
-        activity.findViewById<Button>(R.id.workbench_prev).performClick()
+        activity.click(R.id.workbench_prev)
         assertThat(activity.position()).isEqualTo("3 / 3")
         assertThat(activity.raw().text()).isEqualTo("newest")
     }
@@ -113,7 +130,7 @@ class WorkbenchActivityTest {
 
     @Test
     fun `dictating into a stored dictation edits it instead of adding an entry`() {
-        seed("first")
+        seed("filler", "first")
         val activity = launch()
         activity.showNewest()
         activity.raw().setText("first")
@@ -122,13 +139,14 @@ class WorkbenchActivityTest {
         activity.raw().setText("first second")
         activity.onTranscriptArrived("second")
 
-        assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("first second")
-        assertThat(activity.position()).isEqualTo("1 / 1")
+        assertThat(DictationStore(context).loadAll().map { it.raw })
+            .containsExactly("filler", "first second")
+        assertThat(activity.position()).isEqualTo("2 / 2")
     }
 
     @Test
     fun `a stored page targets raw even when the user typed first`() {
-        val store = seed("first")
+        val store = seed("filler", "first")
         val activity = launch()
         activity.showNewest()
         val raw = activity.raw()
@@ -139,27 +157,30 @@ class WorkbenchActivityTest {
         raw.setText("first, edited and dictated")
         activity.onTranscriptArrived("and dictated")
 
-        assertThat(store.loadAll().map { it.raw }).containsExactly("first, edited and dictated")
-        assertThat(store.loadAll().size).isEqualTo(1)
+        assertThat(store.loadAll().map { it.raw })
+            .containsExactly("filler", "first, edited and dictated")
+        assertThat(store.loadAll().size).isEqualTo(2)
     }
 
     @Test
-    fun `a transcript with focus in polished edits the polished text (D10)`() {
-        val store = seed("raw text")
-        val id = store.loadAll().single().id
+    fun `polished is read-only and can never take the dictation target (D10)`() {
+        val store = seed("filler", "raw text")
+        store.updatePolished(store.loadAll().last().id, "polished text")
         val activity = launch()
         activity.showNewest()
+
         val polished = activity.polished()
-        polished.requestFocus()
+        assertThat(polished.text.toString()).isEqualTo("polished text")
+        assertThat(polished.isFocusable).isFalse()
+        assertThat(polished.requestFocus()).isFalse()
 
+        // With Polished out of reach the only target left on a stored page is RAW.
         activity.onRecordingStarted()
-        polished.setText("polished by dictation")
-        activity.onTranscriptArrived("polished by dictation")
+        activity.raw().setText("raw text, dictated")
+        activity.onTranscriptArrived("dictated")
 
-        val saved = DictationStore(context).loadAll().single()
-        assertThat(saved.id).isEqualTo(id)
-        assertThat(saved.raw).isEqualTo("raw text")
-        assertThat(saved.polished).isEqualTo("polished by dictation")
+        val saved = DictationStore(context).loadAll().first { it.raw == "raw text, dictated" }
+        assertThat(saved.polished).isNull()
     }
 
     @Test
@@ -167,7 +188,7 @@ class WorkbenchActivityTest {
         val store = seed("a", "b", "c")
         val activity = launch()
         // ◀ from the compose slot lands on the newest, then walks down to "a"
-        repeat(3) { activity.findViewById<Button>(R.id.workbench_prev).performClick() }
+        repeat(3) { activity.click(R.id.workbench_prev) }
         assertThat(activity.raw().text()).isEqualTo("a")
 
         activity.onRecordingStarted()
@@ -207,7 +228,7 @@ class WorkbenchActivityTest {
     fun `plus on a pristine slot creates nothing and only focuses raw`() {
         val activity = launch()
 
-        activity.findViewById<Button>(R.id.workbench_new).performClick()
+        activity.click(R.id.workbench_new)
 
         assertThat(DictationStore(context).loadAll()).isEmpty()
         assertThat(activity.position()).isEqualTo("new")
@@ -219,58 +240,106 @@ class WorkbenchActivityTest {
         val activity = launch()
         activity.raw().setText("draft")
 
-        activity.findViewById<Button>(R.id.workbench_new).performClick()
+        activity.click(R.id.workbench_new)
 
         assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("draft")
         assertThat(activity.position()).isEqualTo("new")
         assertThat(activity.raw().text()).isEmpty()
-        assertThat(activity.polished().text()).isEmpty()
+        assertThat(activity.polished().text.toString()).isEmpty()
     }
 
     @Test
-    fun `the accordion collapses to a one-line preview and expands again`() {
-        seed("shown text")
+    fun `promote in zone B makes polished the new raw and keeps the polished text`() {
+        val store = seed("filler", "raw text")
+        val id = store.loadAll().last().id
+        store.updatePolished(id, "polished text")
         val activity = launch()
         activity.showNewest()
-        val raw = activity.raw()
-        val preview = activity.findViewById<TextView>(R.id.workbench_raw_preview)
-        val toggle = activity.findViewById<View>(R.id.workbench_raw_toggle)
 
-        assertThat(raw.visibility).isEqualTo(View.VISIBLE)
-        assertThat(preview.visibility).isEqualTo(View.GONE)
+        activity.click(R.id.workbench_promote_b)
 
-        toggle.performClick()
-
-        assertThat(raw.visibility).isEqualTo(View.GONE)
-        assertThat(preview.visibility).isEqualTo(View.VISIBLE)
-        assertThat(preview.text.toString()).isEqualTo("shown text")
-
-        toggle.performClick()
-
-        assertThat(raw.visibility).isEqualTo(View.VISIBLE)
-        assertThat(preview.visibility).isEqualTo(View.GONE)
+        val saved = DictationStore(context).loadAll().last()
+        assertThat(saved.id).isEqualTo(id)
+        assertThat(saved.raw).isEqualTo("polished text")
+        assertThat(saved.polished).isEqualTo("polished text")
+        assertThat(activity.raw().text()).isEqualTo("polished text")
+        assertThat(activity.polished().text.toString()).isEqualTo("polished text")
+        assertThat(activity.position()).isEqualTo("2 / 2")
     }
 
     @Test
-    fun `focus expands a collapsed section`() {
-        seed("shown text")
+    fun `promote in zone C does the same from below the polished field`() {
+        val store = seed("filler", "raw text")
+        val id = store.loadAll().last().id
+        store.updatePolished(id, "promoted")
         val activity = launch()
         activity.showNewest()
-        activity.findViewById<View>(R.id.workbench_polished_toggle).performClick()
-        val polished = activity.polished()
-        assertThat(polished.visibility).isEqualTo(View.GONE)
 
-        // A hidden field cannot take a tap, but focus can still arrive (window
-        // focus restore, IME) — and focus always expands (decision 8).
-        polished.onFocusChangeListener.onFocusChange(polished, true)
+        activity.click(R.id.workbench_promote_c)
 
-        assertThat(polished.visibility).isEqualTo(View.VISIBLE)
+        assertThat(DictationStore(context).loadAll().last().raw).isEqualTo("promoted")
+        assertThat(activity.raw().text()).isEqualTo("promoted")
+    }
+
+    @Test
+    fun `promote is disabled without polished text`() {
+        seed("filler", "raw only")
+        val activity = launch()
+        activity.showNewest()
+
+        assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
+        // Nothing to promote: the store has no polished slot to move.
+        activity.click(R.id.workbench_promote_b)
+
+        assertThat(DictationStore(context).loadAll().last().raw).isEqualTo("raw only")
+    }
+
+    @Test
+    fun `empty polished clears the slot and disables every polished action`() {
+        val store = seed("filler", "raw text")
+        val id = store.loadAll().last().id
+        store.updatePolished(id, "polished text")
+        val activity = launch()
+        activity.showNewest()
+        assertThat(activity.enabled(R.id.workbench_clear_polished)).isTrue()
+
+        activity.click(R.id.workbench_clear_polished)
+
+        assertThat(DictationStore(context).loadAll().last().polished).isNull()
+        assertThat(activity.polished().text.toString()).isEmpty()
+        assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_copy_polished)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_clear_polished)).isFalse()
+        // Raw and its actions are untouched by emptying Polished.
+        assertThat(activity.raw().text()).isEqualTo("raw text")
+        assertThat(activity.enabled(R.id.workbench_copy_raw)).isTrue()
+    }
+
+    @Test
+    fun `the enable policy follows WorkbenchActions while raw is typed`() {
+        val activity = launch()
+        assertThat(activity.enabled(R.id.workbench_polish_a)).isFalse()
+
+        // The empty slot has nothing to send — the disabled button is a no-op.
+        activity.click(R.id.workbench_polish_a)
+        assertThat(DictationStore(context).loadAll()).isEmpty()
+
+        activity.raw().setText("typing")
+
+        assertThat(activity.enabled(R.id.workbench_polish_a)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_polish_b)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_copy_raw)).isTrue()
+        // Typed but not stored yet: nothing to promote or navigate.
+        assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_prev)).isFalse()
     }
 
     @Test
     fun `a raw edit discards the polished text and persists on leaving`() {
-        val store = seed("raw text")
-        val id = store.loadAll().single().id
+        val store = seed("filler", "raw text")
+        val id = store.loadAll().last().id
         store.updatePolished(id, "polished text")
         val controller = Robolectric.buildActivity(WorkbenchActivity::class.java).setup()
         val activity = controller.get()
@@ -279,15 +348,16 @@ class WorkbenchActivityTest {
         activity.raw().setText("raw edited")
         controller.pause()
 
-        val saved = DictationStore(context).loadAll().single()
+        val saved = DictationStore(context).loadAll().first { it.id == id }
         assertThat(saved.raw).isEqualTo("raw edited")
         assertThat(saved.polished).isNull()
+        assertThat(activity.polished().text.toString()).isEmpty()
     }
 
     @Test
     fun `a delivery never polishes on its own - a raw edit empties the polished slot`() {
-        val store = seed("raw text")
-        store.updatePolished(store.loadAll().single().id, "old polish")
+        val store = seed("filler", "raw text")
+        store.updatePolished(store.loadAll().last().id, "old polish")
         val activity = launch()
         activity.showNewest()
         activity.polishRunner = { _, _ -> Result.success("must not run") }
@@ -297,12 +367,12 @@ class WorkbenchActivityTest {
         raw.onFocusChangeListener.onFocusChange(raw, false)
         idle()
 
-        assertThat(store.loadAll().single().polished).isNull()
+        assertThat(store.loadAll().last().polished).isNull()
     }
 
     @Test
-    fun `re-polish sends the raw text with the per-dictation language and stores the result`() {
-        val store = seed("raw text")
+    fun `polish sends the raw text with the per-dictation language and stores the result`() {
+        val store = seed("filler", "raw text")
         SettingsStore(context).targetLanguage = null
         val activity = launch()
         activity.showNewest()
@@ -316,50 +386,105 @@ class WorkbenchActivityTest {
         // index 1 is "English" in LanguageOptions.buildLanguageList
         activity.onLanguageSelected(1)
 
-        activity.findViewById<Button>(R.id.workbench_repolish).performClick()
+        activity.click(R.id.workbench_polish_a)
         idle()
 
         assertThat(seenText).isEqualTo("raw text")
         assertThat(seenLanguage).isEqualTo("English")
         // the choice is per dictation and never written back
         assertThat(SettingsStore(context).targetLanguage).isNull()
-        val saved = store.loadAll().single()
+        val saved = store.loadAll().last()
         assertThat(saved.raw).isEqualTo("raw text")
         assertThat(saved.polished).isEqualTo("polished text")
         assertThat(clipboardText()).isEqualTo("polished text")
+        assertThat(activity.enabled(R.id.workbench_promote_b)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_copy_polished)).isTrue()
     }
 
     @Test
-    fun `the language spinner is seeded from the global setting`() {
+    fun `the language spinner is seeded from the global setting on both sites`() {
         SettingsStore(context).targetLanguage = "English"
         val activity = launch()
 
-        val dropdown = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.workbench_language)
-        assertThat(dropdown.text.toString()).isEqualTo("English")
+        for (id in listOf(R.id.workbench_language_a, R.id.workbench_language_b)) {
+            val dropdown = activity.findViewById<AutoCompleteTextView>(id)
+            assertThat(dropdown.text.toString()).isEqualTo("English")
+        }
     }
 
     @Test
-    fun `a failed re-polish keeps the previous polished text`() {
-        val store = seed("raw text")
-        store.updatePolished(store.loadAll().single().id, "old polish")
+    fun `both polish sites share one language choice`() {
+        seed("filler", "raw text")
+        val activity = launch()
+        activity.showNewest()
+        var seenLanguage: String? = "unset"
+        activity.polishRunner = { _, language ->
+            seenLanguage = language
+            Result.success("polished")
+        }
+        val siteA = activity.findViewById<AutoCompleteTextView>(R.id.workbench_language_a)
+        val siteB = activity.findViewById<AutoCompleteTextView>(R.id.workbench_language_b)
+
+        // The item listener both sites share is the picker; a pick in site B
+        // must land in site A as well (and vice versa). Any AdapterView stands
+        // in for the dropdown's list — the listener only reads its position.
+        siteB.onItemClickListener!!.onItemClick(android.widget.ListView(activity), null, 1, 1L)
+
+        assertThat(siteA.text.toString()).isEqualTo("English")
+        assertThat(siteB.text.toString()).isEqualTo("English")
+
+        activity.click(R.id.workbench_polish_b)
+        idle()
+
+        assertThat(seenLanguage).isEqualTo("English")
+    }
+
+    @Test
+    fun `a failed polish keeps the previous polished text`() {
+        val store = seed("filler", "raw text")
+        store.updatePolished(store.loadAll().last().id, "old polish")
         val activity = launch()
         activity.showNewest()
         activity.polishRunner = { _, _ -> Result.failure(java.io.IOException("offline")) }
 
-        activity.findViewById<Button>(R.id.workbench_repolish).performClick()
+        activity.click(R.id.workbench_polish_a)
         idle()
 
-        assertThat(store.loadAll().single().polished).isEqualTo("old polish")
-        assertThat(activity.findViewById<Button>(R.id.workbench_repolish).isEnabled).isTrue()
+        assertThat(store.loadAll().last().polished).isEqualTo("old polish")
+        assertThat(activity.enabled(R.id.workbench_polish_a)).isTrue()
+    }
+
+    @Test
+    fun `the second polish site cannot start a second polish in flight`() {
+        seed("filler", "raw text")
+        val activity = launch()
+        activity.showNewest()
+        val gate = CompletableDeferred<Result<String>>()
+        activity.polishRunner = { _, _ -> gate.await() }
+
+        activity.click(R.id.workbench_polish_a)
+        idle()
+
+        assertThat(activity.enabled(R.id.workbench_polish_a)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_polish_b)).isFalse()
+        assertThat(activity.findViewById<Button>(R.id.workbench_polish_b).text.toString())
+            .isEqualTo("Polishing…")
+
+        gate.complete(Result.success("done"))
+        idle()
+
+        assertThat(activity.enabled(R.id.workbench_polish_a)).isTrue()
+        assertThat(activity.findViewById<Button>(R.id.workbench_polish_a).text.toString())
+            .isEqualTo("Polish")
     }
 
     @Test
     fun `the copy button delivers the visible field`() {
-        seed("copy me")
+        seed("filler", "copy me")
         val activity = launch()
         activity.showNewest()
 
-        activity.findViewById<Button>(R.id.workbench_copy_raw).performClick()
+        activity.click(R.id.workbench_copy_raw)
 
         val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
         assertThat(clipboard.primaryClip?.getItemAt(0)?.text.toString()).isEqualTo("copy me")
@@ -367,7 +492,7 @@ class WorkbenchActivityTest {
 
     @Test
     fun `a changed field losing focus delivers itself, an unchanged one does not`() {
-        seed("original")
+        seed("filler", "original")
         val activity = launch()
         activity.showNewest()
         val raw = activity.raw()
@@ -388,7 +513,7 @@ class WorkbenchActivityTest {
     fun `the settings button opens the existing settings screen`() {
         val activity = launch()
 
-        activity.findViewById<Button>(R.id.workbench_settings).performClick()
+        activity.click(R.id.workbench_settings)
 
         val next = org.robolectric.Shadows.shadowOf(activity).nextStartedActivity
         assertThat(next.component?.className).isEqualTo(SettingsActivity::class.java.name)

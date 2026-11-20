@@ -119,21 +119,25 @@
     <string name="cancelled_dictation_clip">Cancelled dictation</string>
     <string name="cancelled_dictation_saved">Dictation discarded — transcript (%d chars) copied to clipboard</string>
 
-    <!-- #169/#170/#171: Workbench (epic #166) — the app's own editor window -->
+    <!--
+      #169/#170/#171: Workbench (epic #166) — the app's own editor window.
+      #178: icon-only header, two Polish sites, promote/empty actions; every icon
+      button carries its own contentDescription, the action labels are the
+      contentDescriptions here (the visible buttons carry `workbench_polish`).
+    -->
     <string name="workbench_title">Workbench</string>
     <string name="workbench_raw">Raw</string>
     <string name="workbench_polished">Polished</string>
-    <string name="workbench_copy">Copy</string>
     <string name="workbench_copy_raw_desc">Copy the raw text to the clipboard</string>
     <string name="workbench_copy_polished_desc">Copy the polished text to the clipboard</string>
     <string name="workbench_settings">Settings</string>
     <string name="workbench_older">Older dictation</string>
     <string name="workbench_newer">Newer dictation</string>
     <string name="workbench_empty">Nothing stored yet — dictate into the field and the first transcript becomes a new dictation</string>
-    <string name="workbench_new">＋ New</string>
-    <string name="workbench_raw_toggle_desc">Show or hide the Raw text</string>
-    <string name="workbench_polished_toggle_desc">Show or hide the Polished text</string>
-    <string name="workbench_repolish">Re-polish</string>
+    <string name="workbench_new">New dictation</string>
+    <string name="workbench_polish">Polish</string>
+    <string name="workbench_promote">Make Polished the new RAW</string>
+    <string name="workbench_clear_polished">Empty the Polished field</string>
     <string name="workbench_language">Target language</string>
     <string name="workbench_polishing">Polishing…</string>
     <string name="workbench_polish_failed">Polish failed</string>
