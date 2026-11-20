@@ -355,7 +355,7 @@ class VoiceSessionController(
             root.mkdirs()
             root.listFiles()?.forEach { if (it.name != sessionId) it.deleteRecursively() }
         }
-        val p = buildPreparer()
+        val p = buildPreparer(ensureSessionId())
         preparer = p
         attachTranscriber(p)
         p.startWorker()
@@ -423,16 +423,24 @@ class VoiceSessionController(
             } else null
         }
         File(appContext.cacheDir, FRAGMENTS_DIR).mkdirs()
-        val p = buildPreparer()
+        val p = buildPreparer(ensureSessionId())
         preparer = p
         attachTranscriber(p)
     }
 
-    private fun buildPreparer(): FragmentPreparer {
+    /**
+     * The session id, created on first use. It names the fragment dir, the
+     * #182 journal session and the #142 bundle, so every consumer must see
+     * the SAME value — which is why the preparer takes it as a parameter
+     * instead of reading the nullable field.
+     */
+    private fun ensureSessionId(): String = sessionId ?: newSessionId().also { sessionId = it }
+
+    private fun buildPreparer(sid: String): FragmentPreparer {
         val preparer = FragmentPreparer(
             pcm = recorder,
             transcoder = transcoder,
-            sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sessionId),
+            sessionDir = File(File(appContext.cacheDir, FRAGMENTS_DIR).apply { mkdirs() }, sid),
             sliceBytes = resolvedSliceBytes(),
             wavMode = !settings.compressAudio,
             chunkMaxBytes = chunkMaxBytes,
@@ -1060,6 +1068,20 @@ class VoiceSessionController(
     /** Upload manifest entry: file name + size, validated against disk on reuse. */
     private data class ManifestEntry(val name: String, val bytes: Long)
 
+    /**
+     * Gson shape of `prepared/<hash>/manifest.json` —
+     * `{"files":[{"name":…,"bytes":…}]}`. Both fields are nullable ON PURPOSE:
+     * a truncated or foreign manifest must make the whole entry list unusable
+     * (the caller rebuilds the dir), never produce a half-valid entry whose
+     * missing size a later length comparison would silently trust.
+     *
+     * Typed instead of `Map<String, Any>` so nothing has to be cast — the old
+     * `bytes as Double` also pinned the JSON number to Gson's Map decoding.
+     */
+    private class ManifestJson(val files: List<Entry>? = null) {
+        class Entry(val name: String? = null, val bytes: Long? = null)
+    }
+
     /** A committed preparation: its directory, the upload manifest, and whether it was reused. */
     private class Prepared(
         val dir: File,
@@ -1067,11 +1089,9 @@ class VoiceSessionController(
         val reused: Boolean
     ) {
         fun writeManifest(files: List<File>) {
-            val entries = files.map { ManifestEntry(it.name, it.length()) }
             try {
-                File(dir, MANIFEST).writeText(
-                    com.google.gson.Gson().toJson(mapOf("files" to entries.map { mapOf("name" to it.name, "bytes" to it.bytes) }))
-                )
+                val json = ManifestJson(files.map { ManifestJson.Entry(it.name, it.length()) })
+                File(dir, MANIFEST).writeText(com.google.gson.Gson().toJson(json))
             } catch (_: Throwable) {
             }
         }
@@ -1109,12 +1129,16 @@ class VoiceSessionController(
         return Prepared(dir, emptyList(), reused = false)
     }
 
+    /**
+     * Reads a prepared-upload manifest; `null` when it is missing, unreadable
+     * or not trustworthy (the caller then rebuilds the dir). A single
+     * incomplete entry invalidates the whole list — a manifest is our own
+     * file, so a missing field means it was truncated.
+     */
     private fun readManifest(dir: File): List<ManifestEntry>? = try {
         val raw = File(dir, Prepared.MANIFEST).readText()
-        @Suppress("UNCHECKED_CAST")
-        val parsed = com.google.gson.Gson().fromJson(raw, Map::class.java) as Map<String, Any>
-        (parsed["files"] as List<Map<String, Any>>).map { entry ->
-            ManifestEntry(entry["name"] as String, (entry["bytes"] as Double).toLong())
+        com.google.gson.Gson().fromJson(raw, ManifestJson::class.java)?.files?.map { entry ->
+            ManifestEntry(checkNotNull(entry.name), checkNotNull(entry.bytes))
         }
     } catch (_: Throwable) {
         null

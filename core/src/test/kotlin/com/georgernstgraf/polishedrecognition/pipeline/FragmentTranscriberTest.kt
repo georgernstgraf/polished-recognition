@@ -164,6 +164,10 @@ class FragmentTranscriberTest {
         transcriber.drain()
         transcriber.cancel()
 
+        // #187: this is the ONLY cover for the transcriber's own `closed` flag
+        // (it replaced the delicate `Channel.isClosedForSend`). Were the flag
+        // not set, `drain()` would park forever on a drain signal no worker
+        // can complete — so a regression here hangs instead of failing.
         val drained = transcriber.drain()
         assertThat(drained.chunkCount).isEqualTo(0)
         assertThat(drained.text).isEmpty()

@@ -19,7 +19,7 @@ object MicAccessPolicy {
 
     /**
      * @param appOpMode the RECORD_AUDIO app-op mode for this uid
-     *   ([AppOpsManager.unsafeCheckOpNoThrow])
+     *   ([AppOpsManager.checkOpNoThrow])
      * @param clientSilenced the platform's own silencing flag for the live
      *   `AudioRecord` (`AudioRecordingConfiguration.isClientSilenced`)
      * @param capturing whether the `AudioRecord` is actually running — an

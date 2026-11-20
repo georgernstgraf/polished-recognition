@@ -1224,6 +1224,51 @@ class VoiceSessionControllerTest {
     // identically and the scenario cannot arise.
 
     /**
+     * #187: the prepared-upload manifest is read through a typed shape now.
+     * ONE incomplete entry invalidates the WHOLE list, so a corrupt manifest
+     * can never be partially trusted. The fixture makes the two behaviours
+     * distinguishable: `stale.wav` alone would validate on disk (a reuse
+     * would hand it to the pipeline), while the nameless entry forces the
+     * rebuild that produces `recording.wav`.
+     */
+    @Test
+    fun `incomplete prepared manifest is rebuilt instead of partially trusted`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(0)) // empty recording → legacy path
+        File(cacheDir, "session.meta").writeText("1250")
+
+        val controller = newController()
+        controller.restore()
+
+        coEvery { pipeline.transcribe(any(), any(), any()) } returns Result.failure(IOException("offline"))
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        val preparedDir = File(cacheDir, "prepared").listFiles().orEmpty().single()
+        assertThat(File(preparedDir, "recording.wav").isFile).isTrue()
+        // a manifest that WOULD validate if the nameless entry were skipped
+        File(preparedDir, "stale.wav").writeBytes(ByteArray(8))
+        File(preparedDir, "manifest.json").writeText(
+            """{"files":[{"name":"stale.wav","bytes":8},{"bytes":8}]}"""
+        )
+
+        val uploadPaths = mutableListOf<String>()
+        coEvery { pipeline.transcribe(any(), any(), any()) } answers {
+            uploadPaths.add(firstArg<List<File>>().single().absolutePath)
+            Result.success("hi")
+        }
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        // rebuilt from the recording — the stale entry was NOT trusted
+        assertThat(uploadPaths.single()).isEqualTo(File(preparedDir, "recording.wav").absolutePath)
+        assertThat(File(preparedDir, "stale.wav").exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
      * Fragment retry (#116): a failed compress-on session parks PAUSED; the
      * retry re-drains the CACHED transcripts — the transcoder must NOT run
      * again (all encoding happened once, before the first attempt) and no

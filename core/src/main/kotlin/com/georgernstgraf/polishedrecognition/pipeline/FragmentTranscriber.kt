@@ -218,6 +218,15 @@ class FragmentTranscriber(
     @Volatile private var pendingDrain: CompletableDeferred<Unit>? = null
 
     /**
+     * Set by [cancel] — the ONE place the channel is closed. [drain] must not
+     * wait for a pending-drain signal that no worker will ever complete.
+     * Owned here instead of asking `channel.isClosedForSend`: that query is
+     * `@DelicateCoroutinesApi` (racy by contract, and a known migration
+     * hazard), while a closed channel only ever comes from [cancel].
+     */
+    @Volatile private var closed = false
+
+    /**
      * Enqueues a committed fragment. Idempotent per index (a re-committed
      * fragment after a WAV-fallback rebuild is ignored when its transcript
      * or failure already exists). Adds the fragment's audio duration to the
@@ -273,7 +282,7 @@ class FragmentTranscriber(
      */
     suspend fun drain(): Drained {
         start()
-        if (channel.isClosedForSend) return snapshot()
+        if (closed) return snapshot()
         val signal = CompletableDeferred<Unit>()
         pendingDrain = signal
         channel.trySend(WorkerItem.CheckIdle)
@@ -310,6 +319,7 @@ class FragmentTranscriber(
      * WITHOUT the drain wait — in-flight fragments are simply not counted.
      */
     fun cancel(): Drained? {
+        closed = true
         channel.close()
         worker?.cancel()
         worker = null

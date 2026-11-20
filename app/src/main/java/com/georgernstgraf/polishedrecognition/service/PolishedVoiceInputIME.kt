@@ -720,9 +720,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
     private fun checkMicAccess() {
         micGuardPending = false
         if (controller.state != VoiceSessionController.State.RECORDING) return
+        // minSdk 30: `checkOpNoThrow` is the public replacement for the
+        // deprecated `unsafeCheckOpNoThrow` (deprecated in API 29).
         val mode = runCatching {
             getSystemService(AppOpsManager::class.java)
-                .unsafeCheckOpNoThrow(
+                .checkOpNoThrow(
                     AppOpsManager.OPSTR_RECORD_AUDIO, Process.myUid(), packageName
                 )
         }.getOrNull() ?: return
