@@ -3,8 +3,8 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
 
@@ -133,6 +133,32 @@ The transcription pipeline resolves the following template variables at runtime.
 - **One screenful per run:** `uiautomator` prunes off-screen `ScrollView` children (≈16 of ~65 Settings nodes) — scroll and re-run when the rows below the fold matter.
 - **The opt-in render test stays opt-in** (`-Pcontrast.render=true`, `RenderSmokeTest`): it costs > 10 s and depends on Robolectric `NATIVE` graphics internals. Promotion into the required suite requires (a) 10 consecutive identical runs on the host, (b) green in CI for two weeks, (c) runtime under 10 s inside the suite. Flake criterion: any non-reproducible verdict reverts it to opt-in.
 - **`ui/contrast/` is a shared test-helper package, not a mirror of a source package** — `Contrast`, `ViewColors`, `ContrastAudit`, `ContrastMatrix`, `ContrastGate`, `AuditFormat` are reused by several test classes (`ThemeContrastAuditTest`, `ThemeContrastAuditNightTest`, `TextPaletteContrastTest`), so it deliberately breaks the "test classes mirror source directory structure" rule above. Add a new shared helper there instead of duplicating it.
+
+## STT failure classes (#183)
+
+- **Every STT failure is classified BEFORE anything acts on it**
+  (`pipeline/SttFailureClassifier`, pure): TRANSIENT (IOException/timeouts,
+  408, 429, 5xx), AUTH (401/403), PROTOCOL (2xx without a transcript,
+  undecodable body), TERMINAL (other 4xx, unexpected exceptions). The runner
+  derives its attempts from the class, the journal stores it, the UI acts on it.
+- **TRANSIENT retries, AUTH and TERMINAL never do, PROTOCOL exactly once** (with
+  the identical request — a broken envelope is not a request-shape problem).
+  `Retry-After` (seconds or HTTP date, `RetryAfter`) is honoured up to
+  `MAX_RETRY_WAIT_MS` per wait and `MAX_TOTAL_WAIT_MS` per request; a longer
+  advice fails the request instead of retrying early.
+- **An AUTH failure latches the SESSION** (`FragmentTranscriber.authBlocked`):
+  later fragments are recorded as failed without a request, their composed
+  upload still reaches the journal. `resetFailures()` clears the latch — the
+  only place that may, because it marks the moment a new token may exist.
+- **A failure carries its class end to end:** `SttRequestException.failure`
+  (default TERMINAL), journal `failureClass`/`failureHttpCode`, and the IME's
+  `SttFailureText` hint (AUTH, PROTOCOL) in FRONT of the technical detail —
+  never instead of it.
+- **Raw provider bodies reach a log only through `LogRedaction`** (Bearer plus
+  `sk-`/`gsk_`-style keys). Keep the token charset free of `"`/`'`, or the
+  redaction eats the JSON string's closing quote.
+- **Tests:** use **410 Gone** for "a plain permanent failure" (401 is the auth
+  latch, 400 the prompt fallback — see PITFALLS).
 
 ## Compiler warnings (#187)
 

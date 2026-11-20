@@ -3,35 +3,37 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
 
 # Hand Off
 
-Only open tasks. **#182 (durable journal) and #184 (idempotent uploads) shipped
-and closed on 2026-11-20**; #123/#177/#178 are closed too. What remains are
-owner checks on the device, the rest of the #152 program, and #156.
+Only open tasks. **#182 (durable journal), #184 (idempotent uploads) and #183
+(STT failure classification) shipped and closed on 2026-11-20**; #123/#177/#178
+and #187 (compiler warnings) are closed too. What remains are owner checks on
+the device, #185 → #186 from the #152 program, and #156.
 
-## #152 — five sub-issues, dependency order (2/5 done)
+## #152 — five sub-issues, dependency order (3/5 done)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
-**#182 and #184 are done.** Next: **#183** (STT failure classification), then
-#185 → #186.
+**#182, #183 and #184 are done.** Next: **#185** (recovery UI), then #186.
 
 1. [x] **#182 — durable fragment journal** (closed 2026-11-20):
    `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap.
 2. [x] **#184 — idempotent uploads** (closed 2026-11-20): `session_id` +
    `fragment_index` + `attempt` via one `@PartMap`; empty map = pre-#184 wire.
-3. [ ] **#183 — STT failure classification** (transient / auth / protocol,
-   `Retry-After`, 401 resume). Writes `NEEDS_MANUAL` into the #182 journal
-   state that already exists, and should extend the #184 `@PartMap` with its
-   class if the wire ever needs it. `SttRequestRunner.isTransientHttp` is the
-   place to replace with a pure `SttFailureClassifier`.
+3. [x] **#183 — STT failure classification** (closed 2026-11-20):
+   `SttFailureClassifier` (TRANSIENT/AUTH/PROTOCOL/TERMINAL), `Retry-After`
+   with a 10 s/20 s budget, the per-session AUTH latch, `NEEDS_MANUAL` in the
+   journal. Deliberate deviation: the PROTOCOL retry is byte-identical, no
+   wire field (see DECISIONS). **No cross-process resume**: the journal keeps
+   the fragments, but nothing re-runs them after a kill until #185.
 4. [ ] **#185 — recovery UI** ("pending transcriptions", platform Views).
    **Owning the unfinished-session scanner, which #182 deliberately did NOT
    build** (`FragmentJournal` has no `unfinishedSessions()`; the journal root
-   + `readRecord(sessionId, index)` are there to build it on).
+   + `readRecord(sessionId, index)` are there to build it on). It can now read
+   the reason from each record: `failureClass` + `failureHttpCode` (#183).
 5. [ ] **#186 — offline sessions** (record now, transcribe on reconnect).
 
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the

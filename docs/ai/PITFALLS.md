@@ -3,8 +3,8 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
 
@@ -13,6 +13,8 @@ status: stable
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
 
+- **Ein `2xx` ist kein Erfolg: `SttResponse.text` ist zur Laufzeit `null`, obwohl Kotlin `String` sagt (2026-11-20, #183).** Gson füllt fehlende Referenzfelder nicht — `{"error":"bad gateway"}` mit Status 200 ergibt ein `SttResponse` mit `text == null`; Retrofit validiert nichts. Wer `.text` ungeprüft benutzt (etwa in `trimEcho`), bekommt eine NPE, die im `catch (Throwable)` des Workers als generischer Fehler landet — also unklassifiziert und ohne Journal-Grund. Regel: 2xx nur als Erfolg werten, wenn `text != null` (`hasTranscript`; die SENSELESS_COMPARISON-Warnung ist hier korrekt unterdrückt). **Leer ist NICHT fehlend:** `text == ""` ist die legitime Antwort auf ein stilles Fragment — `isBlank()` als Fehlerkriterium würde echte Diktate brechen.
+- **`401`/`403` sind seit #183 kein neutraler „permanenter Fehler" mehr — Tests brauchen 410 (2026-11-20).** AUTH setzt das Session-Latch im `FragmentTranscriber`: alle späteren Fragmente werden ohne Request als Fehler verbucht. Ein Test, der „ein Fragment scheitert, die anderen laufen weiter" prüfen will, bekommt mit 401 plötzlich „alle nach dem ersten fehlen". 400 ist ebenfalls untauglich (Prompt-Fallback, #117) — **410 Gone** ist die neutrale TERMINAL-Antwort für solche Tests.
 - **Gson schreibt `null` in ein NICHT-nullbares Kotlin-Feld — die NPE kommt später, außerhalb des `try` (2026-11-20, #187).** Gson alloziert per `Unsafe` und umgeht Konstruktoren; ein `data class Entry(val name: String, val bytes: Long)` hat zur Laufzeit trotzdem `name == null`, wenn der Schlüssel im JSON fehlt (`Long` ist primitiv und wird 0). Der Getter prüft nichts, also fliegt die NPE erst dort, wo jemand den Wert benutzt: im `readManifest`-Fall in `preparedDirFor`s Größenvergleich **nach** dem `catch` — aus „Manifest unbrauchbar, neu bauen" wird ein Absturz. Regel: was die App selbst wieder einliest (Manifeste, Snapshots, Journal-Records), wird über ein DTO mit **nullbaren** Feldern gelesen und **ganz oder gar nicht** validiert (`checkNotNull` im `try`). „Ein Feld ist ja da" ist keine Validierung.
 - **`Channel.isClosedForSend`/`isClosedForReceive` sind `@DelicateCoroutinesApi` (2026-11-20, #187).** Die Abfrage ist per Vertrag rennanfällig und wird von kotlinx.coroutines ausdrücklich als Migrationsrisiko markiert; ein `@OptIn` kaschiert das nur. Wenn die Klasse den Kanal selbst schließt (`FragmentTranscriber.cancel()`), gehört der Zustand in ein eigenes `@Volatile`-Flag: gleiche Semantik, keine delicate API. Wasserprobe: ein `drain()` nach `cancel()` muss sofort zurückkehren — schlägt das fehl, hängt der Test, er scheitert nicht (`FragmentTranscriberTest` deckt genau das).
 

@@ -3,8 +3,8 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T15:59:45Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
 
@@ -12,6 +12,50 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-20: #183 — Fehlerklasse vor Aktion; der PROTOCOL-Retry wiederholt BYTE-IDENTISCH
+
+Die #116-Retry-Politik kannte nur „transient" und „alles andere" — damit waren
+ein toter Token und eine kaputte 2xx-Antwort dieselbe Kategorie. Die Klasse wird
+jetzt VOR jeder Aktion bestimmt (`SttFailureClassifier`, pure) und von drei
+Stellen benutzt: Runner (Versuche), Journal (Grund), UI (Aktion).
+
+- **AUTH hält die SESSION an, nicht nur das Fragment:** 401/403 setzen im
+  `FragmentTranscriber` ein Latch; jedes spätere Fragment wird ohne Request als
+  Fehler verbucht. Der School-Gateway-Vorfall (fünf 401er in einer Session) ist
+  der Beleg: weiterzuhämmern kostet nur Provider-Quota und Zeit. Das Latch wird
+  von `resetFailures()` gelöscht — genau der Moment, in dem der Nutzer den Token
+  geändert und erneut gesendet hat (der Token wird pro Fragment ohnehin live aus
+  `SettingsStore` gelesen, also braucht „resume after a token change" KEINEN
+  neuen Mechanismus, nur das Latch).
+- **PROTOCOL wiederholt byte-identisch, ohne Formänderung:** Der einzige
+  optionale Request-Teil ist der Whisper-Prompt, und ein Prompt-Problem antwortet
+  mit 4xx, nicht mit einem kaputten 2xx. Ein Envelope-Fehler kommt von
+  Truncation oder einem Proxy — der Retry ist die Wiederholung, nicht eine
+  andere Form. Das hält `Result<SttResponse>` unverändert (kein neues
+  `promptDropped`-Signal in den Transcriber) und ist durch #184 idempotent.
+  Abweichung vom Issue-Text („conservative request shape") bewusst und hier
+  festgehalten.
+- **`Retry-After` wird respektiert, indem man AUFGIBT statt früher zu wiederholen:**
+  Wer 60 s verlangt und nach 2 s erneut anklopft, verletzt genau die Empfehlung,
+  die er befolgen will. Deshalb: 10 s pro Wartezeit, 20 s pro Request — darüber
+  hinaus scheitert der Request (TRANSIENT, wiederholbar beim nächsten Send),
+  statt den Worker zu blockieren. `Retry-After` kann Sekunden ODER ein
+  HTTP-Datum sein (`RetryAfter`, mit injizierbarer Uhr getestet).
+- **Die Klasse reist mit:** `SttRequestException.failure` (Default `TERMINAL` —
+  ein unklassifizierter Fehler ist nicht wiederholungswürdig), im Journal als
+  `failureClass` + `failureHttpCode`, und durch den Controller bis in die IME,
+  die AUTH/PROTOCOL in einen Hinweis übersetzt (`SttFailureText`) und den
+  technischen Detailtext ANHÄNGT statt ihn zu ersetzen (CONVENTIONS: der Nutzer
+  muss sehen, was kaputt ist).
+- **Kein Wire-Feld für die Klasse:** #184s `@PartMap` bleibt unverändert. Ein
+  Server, der eine Fehlerklasse vom Client braucht, existiert nicht; das Journal
+  ist der Ort, an dem die Klasse gebraucht wird (#185).
+- **Redaction statt Verzicht auf den Body:** `LogRedaction` (Bearer, `sk-`/`gsk_`
+  artige Keys) läuft im `ResponseLoggerInterceptor` VOR dem Log. Der Body bleibt
+  forensisch (10-MB-Cap unverändert), nur Credentials werden ersetzt — die
+  Token-Zeichenklasse schließt `"`/`'` aus, sonst frisst sie das schließende
+  Quote und macht das JSON ungültig.
 
 ## 2026-11-20: #187 — Compiler-Warnungen als Gate, nicht als Rauschen; Manifest all-or-nothing
 
