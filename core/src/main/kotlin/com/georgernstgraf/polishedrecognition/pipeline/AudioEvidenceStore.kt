@@ -23,8 +23,8 @@ import java.io.FileOutputStream
  * with the valve as the last-resort guard the user never sees.
  *
  * Session age comes from the dir name (#132: `yyyyMMdd-HHmm-<8hex>` LOCAL
- * time) when parseable, from the dir mtime otherwise — legacy bare-UUID
- * dirs (pre-#132) are dated by their last-modified stamp.
+ * time) when parseable, from the dir mtime otherwise (shared with the #182
+ * journal via [SessionDirTime]).
  *
  * Pure JVM with an injectable dir + clock (mirrors [RotatingJsonLogger]) so
  * the eviction semantics are fully unit-testable. Best-effort by design:
@@ -99,7 +99,7 @@ class AudioEvidenceStore(
         }
         if (sessions.isEmpty()) return
         val nowMs = now()
-        val newest = sessions.maxByOrNull { sessionTime(it) ?: 0L }
+        val newest = sessions.maxByOrNull { SessionDirTime.of(it) ?: 0L }
         if (retention <= 0L) {
             // 0 = off: nothing is supposed to exist — clear ALL stragglers
             // (e.g. the horizon was just slid to 0; no "newest" exception —
@@ -108,7 +108,7 @@ class AudioEvidenceStore(
             return
         }
         for (dir in sessions) {
-            val at = sessionTime(dir) ?: continue // no parseable age → space valve only
+            val at = SessionDirTime.of(dir) ?: continue // no parseable age → space valve only
             if (nowMs - at > retention * 1000L) deleteQuietly(dir)
         }
         // Safety valve: oldest-first until the floor is restored — the newest
@@ -119,7 +119,7 @@ class AudioEvidenceStore(
         while (freeSpace() < minFreeBytes && guard++ < 10_000) {
             val oldest = sessions
                 .filter { it !== newest && it.isDirectory }
-                .minByOrNull { sessionTime(it) ?: Long.MAX_VALUE }
+                .minByOrNull { SessionDirTime.of(it) ?: Long.MAX_VALUE }
                 ?: break
             deleteQuietly(oldest)
         }
@@ -137,37 +137,6 @@ class AudioEvidenceStore(
         rootDir.usableSpace
     } catch (_: Throwable) {
         Long.MAX_VALUE // unknown free space → the valve never fires
-    }
-
-    /**
-     * The session's epoch time: from the #132 name prefix
-     * (`yyyyMMdd-HHmm-<8hex>`, LOCAL time) when parseable, else the dir
-     * mtime. `null` for unparseable dirs (bare UUIDs) — those can only be
-     * removed by the space valve.
-     */
-    private fun sessionTime(dir: File): Long? {
-        val name = dir.name
-        val m = Regex("^(\\d{8})-(\\d{4})-").find(name) ?: return try {
-            dir.lastModified().takeIf { it > 0L }
-        } catch (_: Throwable) {
-            null
-        }
-        val (date, time) = m.destructured
-        return try {
-            val cal = java.util.Calendar.getInstance()
-            cal.set(
-                date.substring(0, 4).toInt(),
-                date.substring(4, 6).toInt() - 1,
-                date.substring(6, 8).toInt(),
-                time.substring(0, 2).toInt(),
-                time.substring(2, 4).toInt(),
-                0
-            )
-            cal.set(java.util.Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        } catch (_: Throwable) {
-            null
-        }
     }
 
     /**

@@ -13,6 +13,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.AudioEvidenceStore
 import com.georgernstgraf.polishedrecognition.pipeline.CoreLog
 import com.georgernstgraf.polishedrecognition.pipeline.CoreOs
+import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
@@ -81,9 +82,15 @@ class PolishedRecognitionApp : Application() {
         // change takes effect even when no dictation follows. Best-effort and
         // off the main thread (deleteRecursively on old bundles may take a
         // moment); failures are silent by store contract.
+        // #182: the fragment journal prunes its SIZE cap here too (no age rule
+        // — unfinished dictations are never aged away).
         Thread {
             try {
                 audioEvidenceStore.evict()
+            } catch (_: Throwable) {
+            }
+            try {
+                fragmentJournal.prune()
             } catch (_: Throwable) {
             }
         }.apply {
@@ -142,6 +149,18 @@ class PolishedRecognitionApp : Application() {
         )
     }
 
+    /**
+     * #182: the durable fragment journal (`filesDir/journal/<sessionId>/`) —
+     * write-ahead audio + transcript per fragment, independent of the evidence
+     * retention (#127/#142) and outside `cacheDir`, which the OS may clear at
+     * any time. It holds private audio AND text, so BOTH backup rule files
+     * exclude the directory (`BackupRulesTest` pins it). Bounded by a size cap
+     * only, never by age — an unfinished dictation is never aged away.
+     */
+    val fragmentJournal by lazy {
+        FragmentJournal(File(filesDir, FragmentJournal.DIR_NAME))
+    }
+
     val transcriptionPipeline by lazy {
         TranscriptionPipeline(
             getSttApi = { baseUrl -> getSttApi(baseUrl) },
@@ -186,7 +205,9 @@ class PolishedRecognitionApp : Application() {
             // comes from BuildConfig.AUDIO_EVIDENCE_DEFAULT — OFF in
             // release, ON in debug).
             audioEvidenceStore = audioEvidenceStore,
-            audioEvidenceEnabled = { settingsStore.audioEvidence })
+            audioEvidenceEnabled = { settingsStore.audioEvidence },
+            // #182: the durable journal — always on, never gated by a setting.
+            journal = fragmentJournal)
     }
 
     /**

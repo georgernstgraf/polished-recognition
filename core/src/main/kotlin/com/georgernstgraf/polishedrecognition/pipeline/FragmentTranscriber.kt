@@ -115,7 +115,22 @@ class FragmentTranscriber(
      * STT text, echo-trim tokens and the conditioning prompt here as they
      * happen. `null` in tests without a bundle.
      */
-    private val bundle: SessionBundle? = null
+    private val bundle: SessionBundle? = null,
+    /**
+     * #182: the durable fragment journal. When non-null AND [sessionId] is
+     * set, each fragment's composed upload is COPIED into
+     * `filesDir/journal/<sid>/` with a PENDING record BEFORE its first upload
+     * attempt, and the record is flipped once the transcript is stored — so a
+     * kill, reboot or flat battery leaves the session recoverable, without
+     * depending on the #127/#142 retention slider.
+     *
+     * Best-effort by design: a journal failure is logged and never fails the
+     * fragment (the same rule the #142 evidence copy follows). `null` in unit
+     * tests.
+     */
+    private val journal: FragmentJournal? = null,
+    /** #182: the journal's session key. `null` disables journaling. */
+    private val sessionId: String? = null
 ) {
 
     data class CommittedFragment(
@@ -339,6 +354,10 @@ class FragmentTranscriber(
         // the size is captured BEFORE the finally-delete — by the time the
         // outcome fold runs, a composed upload is already gone (length() = 0)
         val uploadBytes = upload.length()
+        // #182 write-ahead durability: the composed upload + a PENDING record
+        // land on disk BEFORE the first attempt, so a kill mid-request still
+        // leaves the audio (and, after a success, the text) recoverable.
+        journalPending(fragment, upload, prompt)
         // #148: wall-clock around EACH attempt — the pair that survives is
         // the SUCCESSFUL attempt's (a 400-retry below resets both, so the
         // failed attempt's latency never contaminates the recorded one).
@@ -411,6 +430,8 @@ class FragmentTranscriber(
                 val trimmed = trim.copy(response = stored)
                 transcripts[fragment.index] = stored
                 recordSeamEvidence(fragment, trimmed, prompt)
+                // #182: the transcript is on disk before the session can end.
+                journalOutcome(fragment.index, sttRaw = response.text, sttTrimmed = stored.text, error = null)
                 // #142: the forensic record — what was REALLY uploaded, the
                 // untrimmed response, the trim outcome and the prompt sent.
                 bundle?.let { b ->
@@ -432,6 +453,9 @@ class FragmentTranscriber(
                 val ex = e as? SttRequestRunner.SttRequestException
                     ?: SttRequestRunner.SttRequestException(e.message ?: e.javaClass.simpleName)
                 failures[fragment.index] = ex
+                // #182: KEEP the fragment — the journal stays PENDING so a
+                // later retry (or #185's re-run) can pick it up.
+                journalOutcome(fragment.index, sttRaw = null, sttTrimmed = null, error = ex.message)
                 bundle?.let { b ->
                     val f = b.fragment(fragment.index)
                     f.uploadFile = upload.name
@@ -476,6 +500,45 @@ class FragmentTranscriber(
             upload.delete()
             fragment.file
         }
+    }
+
+    /**
+     * #182 write-ahead: persists the fragment's composed upload plus a
+     * PENDING record BEFORE the first upload attempt. Best-effort — a journal
+     * failure is logged and the fragment proceeds, because durability
+     * bookkeeping must never cost a dictation. The IO dispatcher is REQUIRED:
+     * the worker coroutine is Main-dispatched and a ~10 MB copy must not run
+     * on it.
+     */
+    private suspend fun journalPending(fragment: CommittedFragment, upload: File, prompt: String?) {
+        val journal = journal ?: return
+        val sessionId = sessionId ?: return
+        val record = FragmentJournal.FragmentRecord(
+            index = fragment.index,
+            createdAtMs = System.currentTimeMillis(),
+            durationMs = AudioDuration.estimateMs(fragment.file),
+            preRollMs = fragment.preRoll?.takeIf { it.isFile }?.let { AudioDuration.estimateMs(it) },
+            stitched = fragment.stitched,
+            seamForced = fragment.seamForced,
+            prompt = prompt
+        )
+        val written = withContext(Dispatchers.IO) { journal.writePending(sessionId, record, upload) }
+        if (!written) CoreLog.w(TAG, "journal: write-ahead failed (index=${fragment.index})")
+    }
+
+    /**
+     * #182 outcome: flips the fragment's record — DONE with its transcript on
+     * success, still PENDING (with the error) on failure. Same best-effort
+     * rule as [journalPending].
+     */
+    private suspend fun journalOutcome(index: Int, sttRaw: String?, sttTrimmed: String?, error: String?) {
+        val journal = journal ?: return
+        val sessionId = sessionId ?: return
+        val written = withContext(Dispatchers.IO) {
+            if (error == null) journal.markDone(sessionId, index, sttRaw, sttTrimmed)
+            else journal.markFailed(sessionId, index, error)
+        }
+        if (!written) CoreLog.w(TAG, "journal: outcome write failed (index=$index)")
     }
 
     /**

@@ -731,4 +731,106 @@ class FragmentTranscriberTest {
         assertThat(json).contains("\"seamOverlapTokens\":2")
         assertThat(json).contains("\"words\":5")
     }
+
+    // ---- #182 durable journal --------------------------------------------
+
+    private val journalSession = "20260101-1200-aaaaaaaa"
+
+    private fun journaledTranscriber(
+        journal: FragmentJournal,
+        sessionId: String? = journalSession
+    ): FragmentTranscriber = FragmentTranscriber(
+        sttRunner = sttRunner,
+        configProvider = { config },
+        scope = CoroutineScope(Dispatchers.Unconfined),
+        journal = journal,
+        sessionId = sessionId
+    )
+
+    @Test
+    fun `write-ahead runs before the request, so a kill mid-request keeps the audio`() = runBlocking {
+        val journal = FragmentJournal(tmp.newFolder("journal"))
+        var stateAtRequest: String? = null
+        var audioAtRequest = 0L
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+            stateAtRequest = journal.readRecord(journalSession, 0)?.state
+            audioAtRequest = File(
+                journal.sessionDir(journalSession),
+                FragmentJournal.audioName(0, "wav")
+            ).length()
+            ok("hallo")
+        }
+
+        val t = journaledTranscriber(journal)
+        t.start()
+        t.offer(fragment(0))
+        t.drain()
+
+        assertThat(stateAtRequest).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(audioAtRequest).isGreaterThan(0L)
+    }
+
+    @Test
+    fun `a transcribed fragment is journaled DONE with its transcript`() = runBlocking {
+        val journal = FragmentJournal(tmp.newFolder("journal"))
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("hallo welt")
+
+        val t = journaledTranscriber(journal)
+        t.start()
+        t.offer(fragment(0))
+        t.drain()
+
+        val record = journal.readRecord(journalSession, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.DONE.name)
+        assertThat(record.sttTrimmed).isEqualTo("hallo welt")
+        assertThat(record.sttRaw).isEqualTo("hallo welt")
+    }
+
+    @Test
+    fun `a finally-failed fragment stays PENDING with its error and its audio`() = runBlocking {
+        val journal = FragmentJournal(tmp.newFolder("journal"))
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns
+            Result.failure(SttRequestRunner.SttRequestException("HTTP 429", httpCode = 429))
+
+        val t = journaledTranscriber(journal)
+        t.start()
+        t.offer(fragment(0))
+        t.drain()
+
+        val record = journal.readRecord(journalSession, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(record.sttError).isEqualTo("HTTP 429")
+        // the recovery path's whole point: the audio is still there
+        assertThat(File(journal.sessionDir(journalSession), record.uploadFile!!).length())
+            .isGreaterThan(0L)
+    }
+
+    @Test
+    fun `a journal failure never fails the fragment`() = runBlocking {
+        // an unwritable root: every journal call reports failure
+        val journal = FragmentJournal(tmp.newFile("not-a-dir"))
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("trotzdem")
+
+        val t = journaledTranscriber(journal)
+        t.start()
+        t.offer(fragment(0))
+        val drained = t.drain()
+
+        assertThat(drained.failedIndex).isNull()
+        assertThat(drained.text).isEqualTo("trotzdem")
+    }
+
+    @Test
+    fun `without a session id nothing is journaled`() = runBlocking {
+        val root = tmp.newFolder("journal")
+        val journal = FragmentJournal(root)
+        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("x")
+
+        val t = journaledTranscriber(journal, sessionId = null)
+        t.start()
+        t.offer(fragment(0))
+        t.drain()
+
+        assertThat(root.listFiles().orEmpty()).isEmpty()
+    }
 }

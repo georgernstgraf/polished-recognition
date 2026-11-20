@@ -148,6 +148,13 @@ class VoiceSessionController(
     /** Gate for the #127 evidence retention: the Settings toggle, wired in [com.georgernstgraf.polishedrecognition.PolishedRecognitionApp]. */
     private val audioEvidenceEnabled: () -> Boolean = { false },
     /**
+     * #182: the durable fragment journal (`filesDir/journal/<sessionId>/`).
+     * INDEPENDENT of [audioEvidenceStore] and of the retention slider — the
+     * journal is the recovery contract, the evidence store is the forensic
+     * record. `null` in unit tests.
+     */
+    private val journal: FragmentJournal? = null,
+    /**
      * Resolves the SLICE for a NEW session in SECONDS (#124): the
      * per-provider auto-sizer or the manual override. `null` (or a null
      * result) falls back to the constructor [sliceBytes]. Production wires
@@ -393,7 +400,11 @@ class VoiceSessionController(
         promptMaxChars = promptMaxChars,
         bundle = sessionBundle,
         audioEvidenceStore = audioEvidenceStore,
-        audioEvidenceEnabled = audioEvidenceEnabled
+        audioEvidenceEnabled = audioEvidenceEnabled,
+        // #182: the journal's own session key — the same #132 id the fragment
+        // dir uses, so a post-mortem can correlate journal, cache and bundle.
+        journal = journal,
+        sessionId = sessionId
     )
 
     /**
@@ -497,6 +508,12 @@ class VoiceSessionController(
         // transcripts instead of voiding them.
         val drained = transcriber?.cancel()
         transcriber = null
+        // #182: the session's audio is finished with — delivered, cancelled or
+        // flushed — so its durable journal goes with it. The pipeline-FAILURE
+        // path never reaches this method (it parks PAUSED), which is exactly
+        // the contract: a failed session keeps its journal until it is either
+        // delivered on a retry or explicitly discarded.
+        sessionId?.let { sid -> journal?.deleteSession(sid) }
         preparer?.let {
             it.stopWorker()
             it.prune()

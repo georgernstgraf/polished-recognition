@@ -96,7 +96,8 @@ class VoiceSessionControllerTest {
         sliceSizeProvider: (() -> Double?)? = null, // #124 auto-sizer
         searchPercentProvider: (() -> Double?)? = null, // #124 adaptive window
         audioEvidenceStore: AudioEvidenceStore? = null, // #127 evidence retention
-        audioEvidenceEnabled: () -> Boolean = { false }
+        audioEvidenceEnabled: () -> Boolean = { false },
+        journal: FragmentJournal? = null // #182 durable fragment journal
     ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
         pipeline,
@@ -119,7 +120,8 @@ class VoiceSessionControllerTest {
         sliceSizeProvider = sliceSizeProvider,
         searchPercentProvider = searchPercentProvider,
         audioEvidenceStore = audioEvidenceStore,
-        audioEvidenceEnabled = audioEvidenceEnabled
+        audioEvidenceEnabled = audioEvidenceEnabled,
+        journal = journal
     )
 
     private fun recordAndStop(record: (List<VoiceSessionController.Event>) -> Unit = {}): VoiceSessionController {
@@ -319,6 +321,68 @@ class VoiceSessionControllerTest {
         // one fragment (whole recording at the default huge test fragment size)
         verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) }
         verify(exactly = 1) { transcoder.transcode(any(), any()) }
+        clearSessionFiles()
+    }
+
+    // ---- #182: durable fragment journal -------------------------------------
+
+    /**
+     * #182: the journal is the RECOVERY contract, so it is consumed exactly
+     * when the audio is finished with — on a delivered session the whole
+     * session dir goes (delivered, not lost).
+     */
+    @Test
+    fun `a delivered session consumes its fragment journal`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val ctx = RuntimeEnvironment.getApplication()
+        val sid = "20260101-1200-aaaaaaaa"
+        File(ctx.cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(ctx.cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"$sid"}""")
+        val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
+        journal.sessionDir(sid).deleteRecursively()
+
+        val controller = newController(journal = journal)
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        assertThat(journal.sessionDir(sid).exists()).isFalse()
+        clearSessionFiles()
+    }
+
+    /**
+     * #182: a FAILED session never reaches `discardFragmentSession()` (it
+     * parks PAUSED), so its journal — audio included — survives the failure
+     * and waits for the retry or the recovery UI (#185).
+     */
+    @Test
+    fun `a failed session keeps its fragment journal with the audio`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val ctx = RuntimeEnvironment.getApplication()
+        val sid = "20260101-1200-bbbbbbbb"
+        File(ctx.cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(ctx.cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"$sid"}""")
+        val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
+        journal.sessionDir(sid).deleteRecursively()
+
+        val http401 =
+            @Suppress("DEPRECATION")
+            Response.error<SttResponse>(401, ResponseBody.create(null, "unauthorized"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns
+            mockSttCall(http401)
+
+        val controller = newController(journal = journal)
+        controller.restore()
+        controller.attach { }
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        val record = journal.readRecord(sid, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(File(journal.sessionDir(sid), record.uploadFile!!).length()).isGreaterThan(0L)
+        journal.sessionDir(sid).deleteRecursively()
         clearSessionFiles()
     }
 

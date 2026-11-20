@@ -11,6 +11,10 @@
   text survives process death but is never uploaded to the user's Google
   account or copied onto a new phone during setup.
 
+  #182 — the durable fragment journal (`journal/`) holds private dictation
+  AUDIO plus transcript text; it is device-local recovery state, never backup
+  material.
+
   Everything else — providers, endpoints, models, prompts, language, learned
   apps — stays in the OS backup, so a device change still restores a usable
   configuration; only the credentials have to be re-entered.
@@ -18,4 +22,5 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
     <exclude domain="file" path="dictations/" />
+    <exclude domain="file" path="journal/" />
 </full-backup-content>

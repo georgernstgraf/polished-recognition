@@ -13,14 +13,19 @@
   #167 — the Workbench dictations stay on the device too (epic #166 D14):
   they survive process death but neither cloud backup nor device-to-device
   transfer carries them.
+
+  #182 — the durable fragment journal (`journal/`) holds private dictation
+  audio plus transcript text; recovery state is device-local by design.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
         <exclude domain="file" path="dictations/" />
+        <exclude domain="file" path="journal/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="polished_recognition_secrets.xml" />
         <exclude domain="file" path="dictations/" />
+        <exclude domain="file" path="journal/" />
     </device-transfer>
 </data-extraction-rules>
