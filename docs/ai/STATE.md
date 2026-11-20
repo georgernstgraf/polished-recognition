@@ -3,13 +3,27 @@ type: State
 title: Project State
 description: Current project status and pointers to the open threads.
 tags: [knowledge, state]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
 status: stable
 ---
 
 # Project State
 
-Current status as of 2026-11-20: **#177, #178 and #123 are shipped — the IME parks after a send, the Workbench is redesigned, and a repetition loop behind a forced cut is collapsed before it can poison the next prompt.** After a successful send the voice keyboard stays and renders the parked bar (▶ enabled, Send/Flush disabled, Gear/X enabled, timer hidden); ▶ or Send starts a fresh take, a field change resumes the normal auto-start, the same field stays parked (pure `service/PostSendParkingPolicy` + the IME flag `postSendParked`; the controller stays genuinely IDLE). The Workbench now has an icon header (◀ · position label · ⚙ · ＋ · ▶), three action zones, two polish buttons sharing one per-visit language, a read-only Polished `TextView`, two dictation targets (NEW/RAW_EDIT) and enablement from pure `ui/WorkbenchActions`. The #123 loop guard is `LoopGuard.collapse()` in `:core`, gated on `seamForced`. The #174 keyboard-handover contract is unchanged, epic #166 stays complete. **777 tests green** (`:app` 541, `:core` 181, `:analyzer` 55), `lintDebug` 0 errors, `assembleRelease` and pre-push green, **NO version bump** — the app stays **1.5.1 / 10501**. Last release: v1.5.1 (#151). Open: owner device checks only (see HANDOFF.md) — the #156 screenshots are stale after the redesign.
+Current status as of 2026-11-20: **#182 — the durable fragment journal — has shipped, the first of the five #152 children.** Every fragment's composed upload plus a PENDING record lands in `filesDir/journal/<sessionId>/` BEFORE its first STT attempt and is flipped to DONE with the transcript once stored, so a kill, reboot or failed upload leaves the session recoverable — independent of the #127/#142 retention slider and outside `cacheDir`, which the OS may clear. The same release carries #177 (the IME parks after a send), #178 (the Workbench redesign) and #123 (the loop guard in `:core`). **802 tests green** (`:app` 544, `:core` 203, `:analyzer` 55), `lintDebug` 0 errors, `assembleRelease` and pre-push green, **NO version bump** — the app stays **1.5.1 / 10501**. Last release: v1.5.1 (#151). Open: the rest of the #152 program (#184 next), #156 (stale screenshots), owner device checks (see HANDOFF.md).
+
+## #182 — durable fragment journal (2026-11-20, shipped)
+
+- **Was:** the fragment audio lived only in `cacheDir/fragments/<sessionId>/` — a cache dir the OS may clear at any time — and the forensic `session.json` (#142) is gated by the retention slider (release default 0). So "the audio is still there" after a failed upload meant "until the next cleanup". The journal closes that gap.
+- **Layout:** `filesDir/journal/<sessionId>/` = `session.json` (marker, written first) + `fragment_%04d.json` + `upload_%06d.<ext>`. States `PENDING` → `DONE` | `NEEDS_MANUAL` (the last one is only ever set by #183). Atomic `.tmp` + rename everywhere; the audio is written BEFORE its record, so a crash leaves an orphan file and never a record whose audio is missing.
+- **What is journaled:** the **composed upload** (pre-roll + fragment), not the bare fragment — ~1 s pre-roll per fragment (≈2 %), and it makes a retry byte-identical to the original attempt, the property #184's idempotency rests on.
+- **Wiring:** `FragmentTranscriber` takes `journal` + `sessionId`; the write-ahead sits in `process()` right after `composeUpload()` and before `sttRunner.run(...)`, the flip after `transcripts[index] = stored`. All journal IO on `Dispatchers.IO` (the worker is Main-dispatched). Best-effort: a journal failure logs and never fails the fragment.
+- **Lifecycle:** `VoiceSessionController` creates nothing explicitly (the journal creates its session dir on the first write) and deletes the session inside `discardFragmentSession()` — the single funnel for delivered / cancelled / flushed. The pipeline-**failure** path never reaches it (it parks PAUSED), which is the contract: a failed session keeps its journal until a retry delivers or the user discards it.
+- **Cap:** 256 MB over the whole root (`prune`), **no age rule** — an unfinished dictation is never aged away; the newest session and a named live session are never evicted; every eviction logs its reason. Prune runs at app start and after each `deleteSession`.
+- **Backup:** `journal/` is excluded in `backup_rules.xml` and in BOTH containers of `data_extraction_rules.xml` (`BackupRulesTest` extended — it pins the exact exclude set and fails on any drift).
+- **Deliberate scope cut:** #182 ships **no** unfinished-session scanner (`unfinishedSessions()` is not in the class); cold-start discovery belongs to #185 and is recorded there as its own task.
+- **Refactor:** the #132 session-dir clock moved out of `AudioEvidenceStore` into `SessionDirTime` — both stores now order session dirs by the same rule, and `AudioEvidenceStoreTest` stayed green as the regression proof.
+- **Tests:** 777 → **802** (`FragmentJournalTest` 13, `SessionDirTimeTest` 4, `FragmentTranscriberTest` +5, `VoiceSessionControllerTest` +2, `BackupRulesTest` +1). No version bump.
+- **Not verified:** the force-stop acceptance criterion needs a device (claw has none) — it is an owner check in HANDOFF.md.
 
 ## #123 — Loop-Guard am erzwungenen Bruch (2026-11-20, shipped)
 

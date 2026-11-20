@@ -3,8 +3,8 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
 status: stable
 ---
 
@@ -12,6 +12,38 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-20: #182 — Das Journal hält den KOMPONIERTEN Upload, nicht das nackte Fragment
+
+Ein Diktat ist unwiederbringliche Arbeit; der Recovery-Vertrag darf nicht am
+Retention-Slider oder an `cacheDir` hängen. Das Journal ist deshalb ein eigener
+Store unter `filesDir/journal/<sessionId>/`, kein Anhängsel des Evidence-Stores.
+
+- **Komponierter Upload statt nacktem Fragment:** Der Pre-roll kostet ~1 s pro
+  Fragment (~2 %), macht aber jeden Retry **byte-identisch** zum ersten Versuch
+  — genau die Eigenschaft, auf der #184 (idempotente Uploads) aufsetzt — und
+  befreit ein späteres Re-Run (#185) von Pre-rolls, die im Cache nicht mehr
+  existieren.
+- **Journal ≠ Evidence-Store:** `AudioEvidenceStore` ist ein forensisches
+  Archiv, gesteuert vom Slider, kopiert nach `externalFilesDir` (adb-lesbar).
+  Das Journal ist der Recovery-Vertrag, immer an, in `filesDir`. Zwei Zwecke,
+  zwei Stores — kein gemeinsames Retention-Modell.
+- **Der Fragment-Root bleibt in `cacheDir`:** Ein Umzug des Preparers nach
+  `filesDir` wäre billiger (keine Doppelkopie), würde aber den Working Set mit
+  dem Durability-Record mischen; `startFragmentPreparation` prunt das
+  Verzeichnis auf **eine** Session und würde damit eine unfertige Diktatur
+  löschen.
+- **Kein Age-Cap, nur ein Size-Cap (256 MB):** Unfertige Arbeit nach Alter zu
+  löschen ist genau das Fenster, in dem der Nutzer handeln müsste; die
+  Reihenfolge ist oldest-first, die neueste (und eine benannte Live-)Session
+  überlebt immer, jede Räumung wird geloggt.
+- **Kein Scanner in #182:** `unfinishedSessions()` ist bewusst NICHT gebaut —
+  die Kaltstart-Erkennung gehört zur Recovery-UI (#185), die als einzige weiß,
+  was sie anzeigen will.
+- **`SessionDirTime` extrahiert:** Evidence-Store und Journal ordnen ihre
+  Session-Verzeichnisse nach derselben #132-Regel; die private Kopie im
+  Evidence-Store wurde zur gemeinsamen Klasse, `AudioEvidenceStoreTest` blieb
+  als Regressionsbeweis grün.
 
 ## 2026-11-20: #123 — Loop-Guard läuft NUR hinter einem erzwungenen Bruch, kollabiert statt zu kürzen
 

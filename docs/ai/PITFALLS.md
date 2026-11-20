@@ -3,8 +3,8 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
 status: stable
 ---
 
@@ -12,6 +12,8 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **`cacheDir/fragments/<sessionId>/` is a CACHE, not durability (2026-11-20, #182).** The live preparer commits every fragment there, and it is tempting to read "the audio is on disk" as a recovery path — it is not: the OS may clear `cacheDir` at any time, the dir does not survive an uninstall, and the #142 `session.json` exists only while the retention slider is non-zero (release default 0). Any recovery/replay feature must read `filesDir/journal/<sessionId>/` (#182), which keeps the COMPOSED upload from before the first attempt. Two consequences: the journal must never be gated by a setting, and it must never live inside the preparer's dir — `startFragmentPreparation` prunes that working set to one session, so sharing it would let a prune delete an unfinished dictation.
 
 - **On `claw` `/tmp` is a 1.9-GB tmpfs, and a Robolectric test that starts a REAL `AudioRecord` fills it in about a second (2026-11-20, #177/#178).** Capture writes to `cacheDir` (Robolectric maps it under `/tmp/robolectric-*`) at CPU speed, with no codec or real-time throttle — the spool grows from megabytes to gigabytes while the test is still asserting. The first visible symptom is `java.io.IOException: Disk quota exceeded`, after which Gradle reports `Process 'Gradle Test Executor N' finished with non-zero exit value 2` although every result XML in `*/build/test-results/` shows 0 failures. Do NOT start live recordings in tests (Robolectric records nothing anyway, #116); if it happens: `./gradlew --stop`, remove `/tmp/robolectric-*`, retry.
 - **Under Gradle 9.5 + configuration cache, `:app:cleanTest` reports `UP-TO-DATE` and `--rerun` does nothing (2026-11-20, #178).** Forcing a real test run by asking Gradle nicely does not work — delete the test result directories (`app/build/test-results`, `app/build/reports/tests`, plus the `:core`/`:analyzer` equivalents) and pass `--no-build-cache`.

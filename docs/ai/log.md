@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-20 (#182 — durable fragment journal)
+* **Update**: [STATE.md](STATE.md) — status line rewritten (802 tests, 1.5.1/10501, no version bump) and a new `#182 — durable fragment journal` section: layout, composed-upload choice, transcriber/controller wiring, the delete-in-`discardFragmentSession` lifecycle, the 256-MB cap without an age rule, the backup exclusions, the deliberate scanner cut, and the `SessionDirTime` extraction.
+* **Update**: [DECISIONS.md](DECISIONS.md) — entry `#182 — Das Journal hält den KOMPONIERTEN Upload, nicht das nackte Fragment`: composed upload (byte-identical retry for #184, ~2 % overhead), journal ≠ evidence store, the fragment root stays in `cacheDir`, no age cap, no scanner in #182, `SessionDirTime` extracted.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — one bullet in "Configuration" for the journal: `filesDir/journal/<sessionId>/`, always on, atomic writes, audio before record, `PENDING`/`DONE`/`NEEDS_MANUAL`, deleted in `discardFragmentSession()`, 256-MB prune rule, backup exclusion.
+* **Update**: [PITFALLS.md](PITFALLS.md) — new top entry `cacheDir/fragments/<sessionId>/ is a CACHE, not durability`: recovery features must read the journal, which must never be gated by a setting nor moved into the preparer's pruned working set.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `FragmentJournal` row in the components table + `FragmentJournal`/`SessionDirTime` in the `:core` pipeline list.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #182 checked off (1/5), #184 promoted to next with its `@PartMap`/mock-churn note, the scanner explicitly assigned to #185, a new owner device check for the force-stop acceptance.
+* **No change**: [index.md](index.md) — no new or removed concept file.
+
 ## 2026-11-20 (#177/#178 — IME park state, Workbench redesign)
 * **Update**: [STATE.md](STATE.md) — status line rewritten for 1.5.1/10501, 767 tests, no version bump; two new sections `#177 — the IME parks after a send` (parking policy, suppressed auto-start, field identity, the instance-state limit, tests) and `#178 — the Workbench redesign` (store actions, drawables, icon header + three zones, the one-entry ring regression fixed in `1cf992c`).
 * **Update**: [DECISIONS.md](DECISIONS.md) — two entries: `#174/#177 — Post-Send ist ein UI-Parkzustand, kein Controller-State` (why PAUSED was rejected, what the parked bar renders, the tradeoff) and `#178 — Die Workbench hat zwei Polish-Sites und ein read-only Polished-Feld` (two buttons/one language, read-only polished, store-based promote/clear, `WorkbenchActions`, the ring asymmetry).
