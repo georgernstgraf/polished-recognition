@@ -102,6 +102,31 @@ class DictationStore(
         if (normalized == current.polished) current else current.copy(polished = normalized)
     }
 
+    /**
+     * **Promote**: the polished text becomes the raw text, the polished slot
+     * keeps its value (it is the polished version of the *new* raw text, so
+     * nothing is stale). A real promotion bumps the MRU stamp like any other
+     * content change.
+     *
+     * No polished text means nothing to promote: `null`, no write. Promoting
+     * when `raw == polished` already holds is a strict no-op — no MRU bump
+     * (same rule as [updatePolished]).
+     */
+    @Synchronized
+    fun replaceRawWithPolished(id: String): Dictation? {
+        val current = read(fileFor(id)) ?: return null
+        val polished = current.polished ?: return null
+        return update(id) { it.copy(raw = polished) }
+    }
+
+    /**
+     * **Clear**: empties the single polished slot — `null`, never `""` — and
+     * bumps the MRU stamp. Clearing an already empty slot is the usual no-op
+     * (no write, no MRU bump).
+     */
+    @Synchronized
+    fun clearPolished(id: String): Dictation? = update(id) { it.copy(polished = null) }
+
     /** Deletes every kept dictation. */
     @Synchronized
     fun clear() {

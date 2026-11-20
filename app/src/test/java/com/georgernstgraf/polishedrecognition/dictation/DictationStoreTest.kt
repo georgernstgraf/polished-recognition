@@ -243,6 +243,126 @@ class DictationStoreTest {
         assertThat(loaded.updatedAtMs).isEqualTo(4242L)
     }
 
+    // --- promote (#178: polished becomes raw) and clear-polished ---
+
+    @Test
+    fun `promote copies the polished text into raw and keeps the polished slot`() {
+        val store = store()
+        val dictation = store.append("raw")
+        store.updatePolished(dictation.id, "polished")
+
+        val promoted = store.replaceRawWithPolished(dictation.id)
+
+        assertThat(promoted!!.raw).isEqualTo("polished")
+        assertThat(promoted.polished).isEqualTo("polished")
+        val reloaded = store.loadAll().single()
+        assertThat(reloaded.raw).isEqualTo("polished")
+        assertThat(reloaded.polished).isEqualTo("polished")
+    }
+
+    @Test
+    fun `promote without a polished text is a no-op and returns null`() {
+        val store = store()
+        val dictation = store.append("raw")
+        val before = store.loadAll()
+
+        assertThat(store.replaceRawWithPolished(dictation.id)).isNull()
+
+        assertThat(store.loadAll()).isEqualTo(before)
+    }
+
+    @Test
+    fun `promote on an unknown id is a no-op and returns null`() {
+        val store = store()
+        store.append("raw")
+
+        assertThat(store.replaceRawWithPolished("missing")).isNull()
+        assertThat(store.loadAll().map { it.raw }).containsExactly("raw")
+    }
+
+    @Test
+    fun `promoting when raw already equals polished does not bump the mru position`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        val a = store.loadAll().first { it.raw == "a" }
+        store.updatePolished(a.id, "a") // same text as raw
+        val before = store.loadAll()
+
+        val promoted = store.replaceRawWithPolished(a.id)
+
+        assertThat(promoted!!.raw).isEqualTo("a")
+        assertThat(promoted.polished).isEqualTo("a")
+        assertThat(store.loadAll()).isEqualTo(before)
+    }
+
+    @Test
+    fun `a real promotion bumps the dictation to the end of the mru order`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        val a = store.loadAll().first { it.raw == "a" }
+        store.updatePolished(a.id, "a polished")
+
+        store.replaceRawWithPolished(a.id)
+
+        assertThat(store.loadAll().map { it.raw })
+            .containsExactly("b", "a polished").inOrder()
+    }
+
+    @Test
+    fun `clearPolished empties the slot to null and keeps the raw text`() {
+        val store = store()
+        val dictation = store.append("raw")
+        store.updatePolished(dictation.id, "polished")
+
+        val cleared = store.clearPolished(dictation.id)
+
+        assertThat(cleared!!.polished).isNull()
+        assertThat(cleared.raw).isEqualTo("raw")
+        val reloaded = store.loadAll().single()
+        assertThat(reloaded.polished).isNull()
+        assertThat(reloaded.raw).isEqualTo("raw")
+    }
+
+    @Test
+    fun `clearing a filled polished slot bumps the mru position`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        val a = store.loadAll().first { it.raw == "a" }
+        store.updatePolished(a.id, "polished a")
+        clock += 1_000
+
+        store.clearPolished(a.id)
+
+        assertThat(store.loadAll().map { it.raw }).containsExactly("b", "a").inOrder()
+    }
+
+    @Test
+    fun `clearing an already empty slot is a strict no-op`() {
+        val store = store(cap = 10)
+        store.append("a")
+        clock += 1_000
+        store.append("b")
+        val a = store.loadAll().first { it.raw == "a" }
+        val before = store.loadAll()
+
+        assertThat(store.clearPolished(a.id)!!.polished).isNull()
+
+        assertThat(store.loadAll()).isEqualTo(before)
+    }
+
+    @Test
+    fun `clearPolished on an unknown id returns null`() {
+        val store = store()
+
+        assertThat(store.clearPolished("missing")).isNull()
+    }
+
     @Test
     fun `a dictation id is local-time prefixed and path safe`() {
         val id = newDictationId(Date(1_700_000_000_000L), Random(7))
