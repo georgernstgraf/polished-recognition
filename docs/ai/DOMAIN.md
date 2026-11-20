@@ -3,8 +3,8 @@ type: Domain Notes
 title: Domain Knowledge
 description: Business rules and canonical vocabulary not obvious from code.
 tags: [knowledge, domain]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
 status: stable
 ---
 
@@ -55,10 +55,10 @@ model on both platforms.
 | **Dictation** | One raw transcript plus at most one polished transcript. The unit the FIFO holds — not a session, not a fragment. | "message", "note" |
 | **Compose slot** | The id-less entry page (#173): shown on entry, in memory only, never persisted while empty, not in the ring. ＋ New returns to a fresh one. | "draft", "new dictation" (once stored it *is* a dictation) |
 | **Ring** | ◀/▶ navigation over the stored dictations with wrap-around in both directions; the compose slot sits outside it. | "list" (there is no list view) |
-| **Raw / Polished** | The two stacked, editable fields of one dictation, each a collapsible accordion with a copy button (#173). | "tabs" (there is no tab strip) |
+| **Raw / Polished** | The two permanently stacked fields of one dictation. Raw is editable; Polished is read-only (`TextView`) and carries the copy button in its label row (#178). | "tabs" (there is no tab strip) |
 | **Delivery** | Putting the text on screen onto the clipboard — on send, when a **changed** field loses focus, or via the copy button. | "copy" (that is only the button path) |
-| **Re-polish** | One LLM pass over the visible Raw text with a per-dictation target language; overwrites the polished slot. | "polish again", "retry" |
-| **Re-polish** | The single, explicit polish action of the Workbench (#176): the visible Raw text through the LLM with the per-dictation target language. Nothing polishes automatically — no setting, no field-leave trigger. | "manual polish" |
+| **Polish** | The deliberate LLM pass over the visible Raw text with the Workbench's per-visit target language; overwrites the polished slot. Two buttons (`workbench_polish_a` above Raw, `workbench_polish_b` below Polished) share one language. Nothing polishes automatically since #176 — no setting, no field-leave trigger. | "re-polish" as a separate feature, "auto polish", "retry" |
+| **Promote / Clear** | Two in-place actions on the polished slot since #178: **promote** copies Polished into Raw (`replaceRawWithPolished`), **clear** empties Polished (`clearPolished`). Neither creates a new dictation. | "save", "apply as new" |
 | **MRU (last touched)** | The FIFO's only order since #173: a real Raw/Polished change moves a dictation to the top, browsing does not, and eviction deletes the least recently edited first. | "newest" (creation time no longer orders the FIFO) |
 
 ### Time and cost

@@ -3,8 +3,8 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
 status: stable
 ---
 
@@ -12,6 +12,10 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **On `claw` `/tmp` is a 1.9-GB tmpfs, and a Robolectric test that starts a REAL `AudioRecord` fills it in about a second (2026-11-20, #177/#178).** Capture writes to `cacheDir` (Robolectric maps it under `/tmp/robolectric-*`) at CPU speed, with no codec or real-time throttle — the spool grows from megabytes to gigabytes while the test is still asserting. The first visible symptom is `java.io.IOException: Disk quota exceeded`, after which Gradle reports `Process 'Gradle Test Executor N' finished with non-zero exit value 2` although every result XML in `*/build/test-results/` shows 0 failures. Do NOT start live recordings in tests (Robolectric records nothing anyway, #116); if it happens: `./gradlew --stop`, remove `/tmp/robolectric-*`, retry.
+- **Under Gradle 9.5 + configuration cache, `:app:cleanTest` reports `UP-TO-DATE` and `--rerun` does nothing (2026-11-20, #178).** Forcing a real test run by asking Gradle nicely does not work — delete the test result directories (`app/build/test-results`, `app/build/reports/tests`, plus the `:core`/`:analyzer` equivalents) and pass `--no-build-cache`.
+- **Known flakes that redden a full gate without a code cause (2026-11-20, #178).** `SettingsStoreTest > evidenceRetentionSeconds defaults to 0` (`expected: 0 but was : 2592000` — shared-prefs bleed between tests) and `VoiceSessionControllerTest` (`expected: IDLE but was : PROCESSING`, `flush in PROCESSING is a no-op`). Verify the single class on its own, then re-run the gate; do not "fix" code for these. An executor abort with zero `<failure>` entries is the same class.
 
 - **`showSoftInput` from `onResume` does nothing on the OnePlus; the window is not focused yet (2026-11-19, #173).** Measured on the OPO (`f6de166c`, OxygenOS 12): `am start` on the Workbench showed no keyboard at all and `dumpsys input_method` read `mShowRequested=false mInputShown=false` although the code had posted `showSoftInput` from `onResume`. The identical call from `onWindowFocusChanged(hasFocus = true)` works first try (`mShowRequested=true mInputShown=true`, screenshot `/tmp/opencode/wb-173b.png`). Fix pattern in `WorkbenchActivity.revealSoftKeyboard()`: keep the `onResume` attempt, retry once the window holds focus, and also call `WindowCompat.getInsetsController(window, field).show(ime())` — both paths are idempotent while the IME is already up. Do not "fix" this with a delay constant; the trigger is window focus, not time.
 

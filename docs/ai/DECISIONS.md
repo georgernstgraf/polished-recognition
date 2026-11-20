@@ -3,8 +3,8 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-19T12:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
 status: stable
 ---
 
@@ -12,6 +12,72 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-20: #174/#177 — Post-Send ist ein UI-Parkzustand, kein Controller-State
+
+Nach dem erfolgreichen Senden bleibt die Tastatur stehen (#174) — aber der
+nächste Bind startete sofort eine frische Aufnahme, weil der Auto-Start (#165)
+unverändert ansprang. #177 löst das in der IME, nicht im Controller.
+
+- **Entscheidung:** die reine `service/PostSendParkingPolicy.decide(state,
+  parked, event)` plus das IME-Flag `postSendParked`, gesetzt in
+  `handleCompletedSuccess`. Die geparkte Leiste rendert ▶ (`ic_resume`,
+  enabled), Send und Flush disabled, Gear/X enabled, Timer ausgeblendet.
+- **Der Auto-Start wird ganz unterdrückt:** `requestAutoStart` steigt beim
+  geparkten Flag vor dem gesamten #165-Pfad aus, inklusive des verzögerten
+  First-Draw-Starts. ▶/Send löschen das Parken und starten eine frische
+  Aufnahme.
+- **Feldwechsel hebt das Parken auf** (`onStartInputView` löscht das Flag);
+  dasselbe Feld (Rotation, Ausblenden/Einblenden) bleibt geparkt; `DISMISSED`
+  ändert nichts.
+- **Warum kein Controller-State:** der Controller ist nach dem Senden echt
+  IDLE. Ein erzwungenes PAUSED würde die repo-weite Bedeutung von PAUSED
+  brechen ("Audio bereit, Resume ausstehend", #67/#84/#134) und könnte eine
+  bereits ausgelieferte Diktierung wiederbeleben.
+- **Verworfen:** (a) Controller-Zustand PAUSED — verworfen; (b) IDLE lassen
+  und nur den Auto-Start gaten — verworfen, weil die Leiste dann "senden/
+  aufnehmen" statt "▶ startet neu" suggeriert.
+- **Preis:** das Flag ist Instance-State und stirbt mit dem IME-Service — ein
+  Service-Tod nach dem Senden verhält sich beim nächsten Bind wie vor #177.
+  ▶ ist akustisch ein Neustart; die Content-Description bleibt
+  `ime_resume_desc`.
+- **Tests:** `PostSendParkingPolicyTest` (12), `ImeCompletedHandoverTest`
+  (3→6). **NO version bump (owner policy).**
+
+## 2026-11-20: #178 — Die Workbench hat zwei Polish-Sites und ein read-only Polished-Feld
+
+- **Zwei Polish-Knöpfe, eine Sprache:** `workbench_polish_a` (Zone A, über
+  Raw) und `workbench_polish_b` (Zone B, zwischen Raw und Polished) sind beide
+  `Button`s mit `ic_polish` und dem Text "Polish"; die beiden
+  Sprach-Spinner (`workbench_language_a`/`_b`) teilen EINEN per-Besuch
+  `polishLanguage` — D9 aus #173 (die per-Diktat-Sprache des Spinners, nie in
+  `settings.targetLanguage` zurückgeschrieben) bleibt gültig. Ein dritter
+  Trigger existiert nicht.
+- **Polished ist read-only:** `workbench_polished` ist ein `TextView`
+  (`focusable=false`), kein `EditText`; das Feld kann keinen Fokus halten, also
+  ist `POLISHED_EDIT` als Ziel entfallen — `DictationTarget` ist nur noch
+  `NEW` / `RAW_EDIT`.
+- **Promote und Clear sind Store-Aktionen an Ort und Stelle:**
+  `DictationStore.replaceRawWithPolished(id)` setzt Raw = Polished (der
+  Polished-Text bleibt stehen, MRU-Bump nur bei echter Änderung, `null` ohne
+  Polished-Text); `clearPolished(id)` setzt Polished auf `null` (Bump nur bei
+  Änderung).
+- **Enablement lebt in reinem Code:** `ui/WorkbenchActions.enabled(hasRaw,
+  hasPolished, polishing, ringSize, onCompose)` → `Actions(polish, promote,
+  clearPolished, copyRaw, copyPolished, prev, next, new)`; die Activity
+  schreibt keine Enablement-Regel. Die Asymmetrie ist Absicht: ein einziger
+  gespeicherter Eintrag ist von der Compose-Seite erreichbar
+  (`prev/next = ringSize >= 1`), nicht innerhalb des Rings (`>= 2` — ein
+  Ein-Eintrag-Ring wäre ein Self-Loop).
+- **Chrome:** nur Icon-Header (◀ · Positionslabel · ⚙ · ＋ · ▶) und drei
+  Aktionszonen (A über Raw, B zwischen Raw und Polished, C unter Polished); die
+  Accordion-Maschinerie aus #173 ist entfernt, beide Felder stehen dauerhaft.
+- **Tests:** neu `WorkbenchActionsTest`, `PostSendParkingPolicy`-Suite; die
+  Store-Fälle für `replaceRawWithPolished`/`clearPolished` und die
+  `WorkbenchLayoutPolicyTest`-Geometrie sind angepasst. 767 Tests grün
+  (`:app` 541, `:core` 171, `:analyzer` 55), `lintDebug` 0 Fehler,
+  `assembleRelease` grün.
+- **NO version bump (owner policy).**
 
 ## 2026-11-20: #176 — the Workbench polishes only when asked: Auto LLM removed
 
@@ -29,10 +95,13 @@ place. **It does not.**
 - **What stays untouched and matters:** Workbench dictations are still raw —
   #168 forces raw inside our own app and the IME bar is disabled there, so the
   "polish happened in the IME" and "polish happened in the Workbench" paths can
-  never both fire. The single polish site is `TranscriptionPipeline.polish`,
+  never both fire. The polish itself is `TranscriptionPipeline.polish`,
   driven by Re-polish with the per-dictation language (never written back to
   `settings.targetLanguage`). A raw edit still discards the polished slot, no
-  confirmation, no re-polish.
+  confirmation, no re-polish. **The "Re-polish is the only polish site" reading
+  is superseded by #178** — the Workbench now has two polish buttons (above Raw,
+  below Polished) sharing one per-visit language; the superseded claim is in
+  HISTORY.md.
 - **Removed:** the checkbox (`activity_workbench.xml`), `workbench_auto_llm`
   string, `SettingsStore.workbenchAutoLlm` + its key, the checkbox wiring and
   `silenceAutoLlm` guard, `onAutoLlmChanged`, the `onFieldLeft` auto-polish
@@ -43,7 +112,8 @@ place. **It does not.**
   empties the polished slot"*, because that is now the invariant for every
   delivery, not a branch.
 - **Supersedes** the Auto-LLM clauses of #171 (D8) and #173 (decision 9); the
-  ACCORDION/page/MRU model of #173 is unaffected.
+  page/MRU model of #173 is unaffected (its accordion was removed later, by
+  #178).
 - **NO version bump (owner policy).**
 
 ## 2026-11-19: #175 — the exit decides the keyboard; `switchBackAfterSend` is gone; the Workbench/IME boundary clarified
@@ -75,7 +145,9 @@ place. **It does not.**
   no dictation — by design. The user dictates with that keyboard's mic key,
   which calls our delegated `RecognitionService` (enabled from API 31,
   `values-v31/bools.xml`) into the focused field; `callerPackage` still forces
-  raw inside our own app (#168) and Auto LLM polishes afterwards (#171). No
+  raw inside our own app (#168), and since #176 nothing polishes a Workbench
+  dictation automatically — it stays raw until a polish button is tapped
+  (#178). No
   `privateImeOptions` protocol, no Activity-hosted recording bar — both were
   evaluated and rejected as unnecessary machinery.
 - **Also confirmed (no code change):** the IME inserts exactly ONCE, with the
@@ -132,13 +204,13 @@ Owner report after the first real run on the OnePlus plus the grilling of
 field ⇒ continue that edit") and D4's entry picture ("opening the screen shows
 the newest dictation and never creates")** — the page model below is binding.
 
-- **The visible page decides the target, never a text comparison.** Compose slot ⇒ NEW · stored dictation + focus in Raw ⇒ RAW_EDIT (at the caret, whether or not the user typed first) · focus in Polished ⇒ POLISHED_EDIT. The old rule compared the field text with the text shown at render time, so a caret move alone meant "new" and dictating into an old Raw silently created another entry. Consequence: on a stored page a dictation never creates an entry; the compose slot and ＋ are the only creators.
+- **The visible page decides the target, never a text comparison.** Compose slot ⇒ NEW · stored dictation ⇒ RAW_EDIT (at the caret, whether or not the user typed first). The old rule compared the field text with the text shown at render time, so a caret move alone meant "new" and dictating into an old Raw silently created another entry. Consequence: on a stored page a dictation never creates an entry; the compose slot and ＋ are the only creators. **The third branch (focus in Polished ⇒ `POLISHED_EDIT`) was removed by #178** — two targets only, and the read-only polished field cannot hold focus; the superseded text is in HISTORY.md.
 - **The compose slot is transient.** It exists in memory only, is the page on entry, is never persisted while empty, never counts against the cap and is not part of the ring. Navigating away from a pristine slot discards it; any content materialises it first (`DictationStore.append`), also when ＋ is pressed. A dictation without raw text is rejected by `read()`, so polished-only slot content becomes the raw text when materialised.
 - **A fresh slot on every `onCreate`** — cold start, rotation, dark-mode change, process-death restore alike. No `savedInstanceState` plumbing: `onPause` materialises a typed-into slot, so nothing is lost; the user returns to a fresh entry page.
 - **Ordering is last-touched (MRU).** `Dictation.updatedAtMs` is the sort and eviction key (legacy files fall back to `createdAtMs`); `append` sets both stamps, `updateRaw`/`updatePolished` bump only on a real change. Display order and eviction order are the same list, so they cannot disagree. Mere browsing never bumps.
 - **The ring wraps; the compose slot is outside it.** ◀/▶ cycle the stored dictations in both directions; both arrows leaving the compose slot land on the newest. The label is `n / m` in the ring and "new" on the compose slot. ＋ New sits centred in the header and is always enabled; on an already-pristine slot it only focuses Raw.
-- **The fields are content-sized.** `wrap_content` + `minLines=2`, no inner scrollbar, no cap — only the outer ScrollView scrolls. Each label row is a `<summary>`-style accordion (chevron + label + copy button) with a one-line ellipsised preview while collapsed; both sections start open, are expanded by focus, and the state is not persisted. `WorkbenchLayoutPolicyTest` pins the geometry statically.
-- **Auto LLM additionally polishes on Raw field-leave** (typed edits included), once per field-leave and only while the Polished slot is empty. With Auto LLM off the old rule stands: a raw edit discards the polished text.
+- **The fields are permanently visible, stacked in one column.** `wrap_content` + `minLines=2`, no inner scrollbar, no cap — only the outer ScrollView scrolls. **#178 removed the accordion:** each label row carries only the label and the copy icon, the actions live in three zones around the fields, and there is no chevron and no one-line preview any more (superseded text in HISTORY.md). `WorkbenchLayoutPolicyTest` still pins the geometry statically.
+- **No automatic polish remains.** The Auto-LLM bullet of this entry (polish once on Raw field-leave while Polished is empty) is gone since #176 — see that entry; a raw edit still discards the polished text.
 - **The IME auto-start stays** (decision 4 of the grilling): entering the Workbench starts the recording and shows the soft keyboard. `showSoftInput` from `onResume` was measurably ignored on the OPO (`mShowRequested=false`), so `revealSoftKeyboard()` retries from `onWindowFocusChanged` and also asks the compat insets controller. Verified on the device (`mInputShown=true`, keyboard above the insets-padded content).
 - **Swipe navigation is out of scope** (owner, parked 2026-11-19) — it needs its own issue and a decision between ViewPager2, a fling interceptor and chrome-only swipe.
 - **NO version bump (owner policy).**
@@ -151,7 +223,7 @@ The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 - **The FIFO is a directory, not a preference.** One JSON file per dictation under `filesDir/dictations/`, temp file + rename (#167). SharedPreferences rewrites the whole file on every `apply()` and would lose exactly the edits the persistence exists for; the directory is excluded from cloud backup and device transfer in ALL three rule containers, pinned by `BackupRulesTest` exactly like #101 does for the secrets file.
 - **A dictation is created by a transcript, and the target is decided when the recording STARTS.** The IME inserts into the focused field (D10), so after the insertion a user edit and a keyboard insertion are indistinguishable. `WorkbenchActivity` therefore snapshots the target on `StateChanged(RECORDING)`: Polished focused ⇒ edit the polished text; a manually changed Raw field ⇒ continue that edit; otherwise ⇒ a new FIFO entry (D4). Opening the screen never creates or evicts anything. (**SUPERSEDED by #173** — the target rule is now page-decided, the entry page is the transient compose slot; see the top entry.)
 - **LLM is forced off inside our own app, session-scoped, never persisted.** `LlmTargetPolicy` + `TranscriptionPipeline.forceRawMode` set by the controller for exactly one run (#168). The bar toggle shows the still-global state but renders disabled — "off" would be a lie. The global `raw_mode` is never written by the rule.
-- **The Workbench is the only polish site.** The pipeline's `polish(raw, language)` is the manual re-polish (same prompts/provider as the pipeline); Auto LLM polishes each new dictation on arrival and, on OFF→ON, the current one immediately. A raw edit discards the polished slot with no confirmation and no silent re-polish (#171).
+- **The Workbench has no automatic polish.** The pipeline's `polish(raw, language)` is the deliberate polish path; #176 removed Auto LLM entirely (no setting, no field-leave trigger, no post-delivery trigger), and #178 split its one trigger into two buttons sharing one per-visit language (see both entries). A raw edit discards the polished slot with no confirmation and no silent re-polish (#171).
 - **Delivery is unconditional and sensitive.** Send ⇒ transcript, changed field on focus loss ⇒ its text, copy button ⇒ the visible field; unchanged field left ⇒ nothing. `ClipboardDelivery` sets `EXTRA_IS_SENSITIVE` on API 33+ — an automatic delivery is not the deliberate IME-salvage copy (#170, #138's asymmetry is intended).
 - **The Workbench is the launcher entry; Settings becomes an unexported screen** reached from the Workbench and the IME gear (#169). Exactly one MAIN/LAUNCHER activity, pinned by `LauncherEntryTest`.
 - **The screen owns its insets** (`WorkbenchInsets`: bars + cutout + IME, max per side, rebuilt from the XML base) — the first activity that does, because targetSdk 36 lays it out edge-to-edge.

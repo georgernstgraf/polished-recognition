@@ -1,5 +1,17 @@
 # Persistence Log
 
+## 2026-11-20 (#177/#178 — IME park state, Workbench redesign)
+* **Update**: [STATE.md](STATE.md) — status line rewritten for 1.5.1/10501, 767 tests, no version bump; two new sections `#177 — the IME parks after a send` (parking policy, suppressed auto-start, field identity, the instance-state limit, tests) and `#178 — the Workbench redesign` (store actions, drawables, icon header + three zones, the one-entry ring regression fixed in `1cf992c`).
+* **Update**: [DECISIONS.md](DECISIONS.md) — two entries: `#174/#177 — Post-Send ist ein UI-Parkzustand, kein Controller-State` (why PAUSED was rejected, what the parked bar renders, the tradeoff) and `#178 — Die Workbench hat zwei Polish-Sites und ein read-only Polished-Feld` (two buttons/one language, read-only polished, store-based promote/clear, `WorkbenchActions`, the ring asymmetry).
+* **Deprecation**: three superseded statements moved to [HISTORY.md](HISTORY.md) — #173 decision 1 (focus in Polished ⇒ `POLISHED_EDIT`), #173 decision 8 (content-sized accordions with chevron and preview), #176's "Re-polish is the only polish site"; each leaves a one-line pointer in [DECISIONS.md](DECISIONS.md).
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — Workbench section: two dictation targets, permanently visible fields with a read-only `TextView` Polished field, `WorkbenchActions` as the only enablement source, two polish buttons sharing one per-visit language, no background on action rows/icon buttons, tint from the layout (drawable keeps `fillColor #FF000000`).
+* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: `claw`'s 1.9-GB `/tmp` tmpfs and the live-`AudioRecord` Robolectric test (disk quota → executor exit 2 with 0 recorded failures), `:app:cleanTest`/`--rerun` being no-ops under Gradle 9.5 + configuration cache, and the known gate flakes (`SettingsStoreTest` retention default, `VoiceSessionControllerTest` IDLE/PROCESSING).
+* **Update**: [HANDOFF.md](HANDOFF.md) — reduced to open tasks: the parked-bar owner check, the two unlabeled icon buttons, and #156 (stale screenshots).
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `WorkbenchActivity` row (icon header, three zones, read-only polished, `WorkbenchActions`, store-based promote/clear), the IME success path (no switch/hide, parked bar since #177), `SettingsStore` no longer lists `switchBackAfterSend`.
+* **Update**: [DOMAIN.md](DOMAIN.md) — Raw/Polished row (read-only polished), one Polish row replacing the duplicated Re-polish rows, new Promote/Clear row.
+* **No change**: [index.md](index.md) — no new or removed concept file; every pointer still describes the bundle.
+* **Update (not knowledge)**: none — this run touched `docs/ai/` only.
+
 ## 2026-11-20
 * **Update**: [STATE.md](STATE.md) — status line + `#176 — the Workbench polishes only when asked` section: what was removed, what invariants remain, the test rename, verification.
 * **Update**: [HANDOFF.md](HANDOFF.md) — new top entry for #176 with the open button-layout question and the owner device check.

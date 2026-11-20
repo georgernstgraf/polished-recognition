@@ -3,7 +3,7 @@ type: History Archive
 title: History
 description: Append-only archive of superseded decisions and pruned entries.
 tags: [knowledge, history, audit]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-13T07:15:18Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
 status: stable
 ---
 
@@ -156,3 +156,18 @@ Origin file: docs/ai/PITFALLS.md. Reason superseded: debug-keystore era long ove
 ## 2026-10-14 (SUPERSEDED 2026-10-15, origin: PITFALLS, reason: the claim was corrected 2026-10-15 — "no signing keys" was verified on claw ONLY; think holds the in-tree release keystore (`app/release.keystore` + `keystore.properties`), and key equality with CI was PROVEN by the successful in-place update over the CI-signed harness-1 build during #147's device return. The "deployments exclusively via CI" rule was an agent overgeneralization of a one-time owner availability statement. Binding host rules now live in CONVENTIONS + HANDOFF): Local hosts have NO signing keys — by design (owner decision 2026-10-14, #139)
 - **Original entry:** Local `keystore.properties` carries only `keyAlias=upload`, the keystore file is absent, and the pass-wallet GPG secret is not in the keyring → every locally-built APK is UNSIGNED and CANNOT be installed in-place over a signed one. Device deployments must download CI-built signed APKs (`gh release download build-N`, release cert `62f9d7b0…a76a85`). Do NOT attempt local signing repair.
 - Origin: PITFALLS.md. Reason: superseded by the 2026-10-15 host-rule correction (DECISIONS 2026-10-15; proven on think during #147).
+
+## 2026-11-20 (SUPERSEDED 2026-11-20, origin: DECISIONS.md, reason: #178): #173 decision 1 — focus in Polished ⇒ POLISHED_EDIT (three dictation targets)
+
+- **Original entry (pruned from DECISIONS.md, #173):** "The visible page decides the target, never a text comparison. Compose slot ⇒ NEW · stored dictation + focus in Raw ⇒ RAW_EDIT (at the caret, whether or not the user typed first) · focus in Polished ⇒ POLISHED_EDIT. The old rule compared the field text with the text shown at render time, so a caret move alone meant "new" and dictating into an old Raw silently created another entry. Consequence: on a stored page a dictation never creates an entry; the compose slot and ＋ are the only creators."
+- Origin: DECISIONS.md (the 2026-11-19 #173 entry). Reason: #178 turned `workbench_polished` into a read-only `TextView` (`focusable=false`), so it can no longer hold focus — `DictationTarget` is `NEW`/`RAW_EDIT` only. The page-decided rule itself (no text comparison, compose slot and ＋ create) is unchanged.
+
+## 2026-11-20 (SUPERSEDED 2026-11-20, origin: DECISIONS.md, reason: #178): #173 decision 8 — content-sized accordions with chevron and one-line preview
+
+- **Original entry (pruned from DECISIONS.md, #173):** "The fields are content-sized. `wrap_content` + `minLines=2`, no inner scrollbar, no cap — only the outer ScrollView scrolls. Each label row is a `<summary>`-style accordion (chevron + label + copy button) with a one-line ellipsised preview while collapsed; both sections start open, are expanded by focus, and the state is not persisted. `WorkbenchLayoutPolicyTest` pins the geometry statically."
+- Origin: DECISIONS.md (the 2026-11-19 #173 entry). Reason: #178 removed the accordion machinery — both fields are permanently visible, the label row carries only the copy icon, and the actions live in three zones around them. The `wrap_content` + `minLines=2` + "no inner scrollbar" geometry survives.
+
+## 2026-11-20 (SUPERSEDED 2026-11-20, origin: DECISIONS.md, reason: #178): #176 — "Re-polish is the only polish site"
+
+- **Original statement (pruned from DECISIONS.md, #176):** "The single polish site is `TranscriptionPipeline.polish`, driven by Re-polish with the per-dictation language (never written back to `settings.targetLanguage`)."
+- Origin: DECISIONS.md (the 2026-11-20 #176 entry). Reason: #178 gives the Workbench two polish buttons — `workbench_polish_a` above Raw and `workbench_polish_b` below Polished — that share one per-visit `polishLanguage`. "Only when asked" is still the rule and `TranscriptionPipeline.polish` is still the only polish implementation; counting the UI trigger as one site is what became false.
