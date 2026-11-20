@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-20
+* **Update**: [STATE.md](STATE.md) — status line + `#176 — the Workbench polishes only when asked` section: what was removed, what invariants remain, the test rename, verification.
+* **Update**: [HANDOFF.md](HANDOFF.md) — new top entry for #176 with the open button-layout question and the owner device check.
+* **Update**: [DECISIONS.md](DECISIONS.md) — #176 entry, superseding the Auto-LLM clauses of #171 (D8) and #173 (decision 9); the page/accordion/MRU model of #173 is unaffected.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — the `WorkbenchActivity` row no longer lists an Auto LLM checkbox and names re-polish as the only polish trigger.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — the "only polish site" bullet drops the Auto-LLM exception and states that nothing polishes automatically.
+* **Update**: [DOMAIN.md](DOMAIN.md) — the `Auto LLM` vocabulary row becomes `Re-polish` (the single explicit polish action).
+* **Update (not knowledge)**: `docs/help.html` — the Auto LLM bullet replaced by the explicit Re-polish description.
+
 ## 2026-11-19
 * **Update**: [STATE.md](STATE.md) — status line + a `#174/#175 — the keyboard handover` section: Send inserts and nothing else (no switch, no hide, `PostSendSwitchPolicy` deleted), `switchBackAfterSend` removed end to end, the `open`/`internal` test seam, the settled Workbench/IME boundary, the #116 option-C confirmation, and the flake note.
 * **Update**: [HANDOFF.md](HANDOFF.md) — new top entry for #174 (`b0ab577`) + #175 (`20f7141`) with the contract table and the owner spot check (think + OPO).
