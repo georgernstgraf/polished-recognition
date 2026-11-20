@@ -122,6 +122,14 @@ open class PolishedVoiceInputIME : InputMethodService() {
     private var pendingAutoStart: AutoStartPolicy.EntryAction? = null
     /** #165: a mic verification is already scheduled for this take. */
     private var micGuardPending = false
+    /**
+     * #177: the bar is parked after a successful send — ▶ enabled, send and
+     * flush disabled, timer hidden — and no automatic start may fire until
+     * the user taps ▶/send or the field changes. Pure UI state: the controller
+     * is genuinely IDLE (see [PostSendParkingPolicy] for why it must not be
+     * PAUSED).
+     */
+    private var postSendParked = false
     private val windowDrawTimeout = Runnable {
         val pending = pendingAutoStart ?: return@Runnable
         when (AutoStartTiming.onTimeout(windowDrawn, isInputViewShown())) {
@@ -195,7 +203,15 @@ open class PolishedVoiceInputIME : InputMethodService() {
 
         sendButton?.setOnClickListener {
             when (controller.state) {
-                VoiceSessionController.State.IDLE -> startIfPermitted()
+                VoiceSessionController.State.IDLE -> {
+                    // #177: a send tap on the parked bar ends the park and
+                    // starts a fresh take (the parked bar renders send
+                    // disabled, so this is the stale-callback path only).
+                    if (postSendParked) {
+                        applyParkingEvent(PostSendParkingPolicy.Event.USER_TAP_SEND)
+                    }
+                    startIfPermitted()
+                }
                 VoiceSessionController.State.RECORDING,
                 VoiceSessionController.State.PAUSED -> {
                     // #118: remember the field the dictation was sent from so
@@ -211,6 +227,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
             when (controller.state) {
                 VoiceSessionController.State.RECORDING -> controller.pause()
                 VoiceSessionController.State.PAUSED -> controller.resume()
+                // #177: ▶ on the parked bar ends the park and starts a fresh
+                // take — nothing is buffered, so there is nothing to resume.
+                VoiceSessionController.State.IDLE ->
+                    if (postSendParked) {
+                        applyParkingEvent(PostSendParkingPolicy.Event.USER_TAP_RESUME)
+                        startIfPermitted()
+                    } else Unit
                 else -> Unit
             }
         }
@@ -414,6 +437,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 "restored=$restoredSnapshot sameField=$sameField gateFresh=$gateFresh"
         )
         restoredSnapshot = false
+        // #177: a genuine field change ends the post-send park — the parked
+        // bar belongs to the field the dictation was sent into. Same-field
+        // rebinds (hide/show, rotation) keep it: the keyboard comes back
+        // parked instead of starting a new recording by itself.
+        if (!sameField && postSendParked) {
+            applyParkingEvent(PostSendParkingPolicy.Event.FIELD_CHANGED)
+        }
         if (outcome == ImeStartDecision.Outcome.CANCEL) {
             controller.cancel()
         }
@@ -449,6 +479,16 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * would otherwise be denied its while-in-use type and record silence.
      */
     private fun requestAutoStart(action: AutoStartPolicy.EntryAction) {
+        // #177: while the bar is parked after a send, no automatic start
+        // fires — the #165 draw gate below must not resurrect it either, so
+        // the park is checked before anything is armed.
+        if (postSendParked) {
+            ImeLifecycleTrace.log(
+                this, "autostart",
+                "suppressed action=$action reason=post-send-parked state=${controller.state}"
+            )
+            return
+        }
         if (AutoStartTiming.step(windowDrawn, timedOut = false) == AutoStartTiming.Step.RUN) {
             runAutoStart(action)
             return
@@ -490,6 +530,23 @@ open class PolishedVoiceInputIME : InputMethodService() {
         pendingAutoStart = null
         recTickHandler.removeCallbacks(windowDrawTimeout)
         ImeLifecycleTrace.log(this, "autostart", "cancelled")
+    }
+
+    /**
+     * #177: one transition of the post-send park flag ([PostSendParkingPolicy]).
+     * Repaints when the decision asks for parked controls and whenever the
+     * flag itself changed — unparking must show the normal idle bar again
+     * (send re-enabled), not a stale parked one.
+     */
+    private fun applyParkingEvent(event: PostSendParkingPolicy.Event) {
+        val wasParked = postSendParked
+        val parking = PostSendParkingPolicy.decide(controller.state, postSendParked, event)
+        postSendParked = parking.parked
+        ImeLifecycleTrace.log(
+            this, "postSend",
+            "event=$event parked=$postSendParked render=${parking.render} state=${controller.state}"
+        )
+        if (parking.render || postSendParked != wasParked) applyUiState()
     }
 
     private fun runAutoStart(action: AutoStartPolicy.EntryAction) {
@@ -619,7 +676,14 @@ open class PolishedVoiceInputIME : InputMethodService() {
         languageSpinner?.alpha = if (disabled) 0.4f else 1.0f
     }
 
-    private fun startIfPermitted() {
+    /**
+     * Starts a take if the microphone is granted. `internal open` so the #177
+     * regression tests can count the request instead of executing it — a live
+     * capture under Robolectric fills the shadow buffer at CPU speed
+     * (`ImeCompletedHandoverTest`; `ImeAutoStartGateTest` covers the real
+     * start).
+     */
+    internal open fun startIfPermitted() {
         // #165: an explicit start supersedes a parked auto-start.
         cancelPendingAutoStart()
         if (hasMicPermission()) {
@@ -738,12 +802,17 @@ open class PolishedVoiceInputIME : InputMethodService() {
     }
 
     /**
-     * #174: a successful send inserts the text and does **nothing else**. The
-     * voice keyboard stays visible and stays the default IME — exactly like a
-     * typing keyboard, which holds its place until the user dismisses it with
-     * the platform gesture (navigation-bar down arrow / Back). The old #133
-     * handover (`switchInputMethod` + `requestHideSelf`) is gone: leaving the
-     * voice keyboard is the X's job (#155, contract in #175).
+     * #174: a successful send inserts the text and does **nothing else** to
+     * the keyboard's presence. The voice keyboard stays visible and stays the
+     * default IME — exactly like a typing keyboard, which holds its place
+     * until the user dismisses it with the platform gesture (navigation-bar
+     * down arrow / Back). The old #133 handover (`switchInputMethod` +
+     * `requestHideSelf`) is gone: leaving the voice keyboard is the X's job
+     * (#155, contract in #175).
+     *
+     * #177: it does change what the keyboard *shows* — the bar parks (see
+     * [PostSendParkingPolicy]) so the next automatic bind cannot silently
+     * start a new recording.
      *
      * The controller has already stopped the recording when this runs and
      * emits `Completed` before `IDLE`, so this only ever fires on a finished,
@@ -759,6 +828,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // recorded the target at start (#102 amendment); this captures
         // the actual insertion target and is absorbed by the throttle.
         currentCallerPackage()?.let { settings.recordKnownApp(it) }
+        // #177: park the bar for the idle controller. The `Completed` event
+        // arrives before `StateChanged(IDLE)`, so the parked rendering shows
+        // up with that state change; a still-armed #165 auto-start is dropped
+        // so it cannot start a new take behind the parked bar.
+        cancelPendingAutoStart()
+        applyParkingEvent(PostSendParkingPolicy.Event.COMPLETED_SUCCESS)
     }
 
     /**
@@ -886,10 +961,20 @@ open class PolishedVoiceInputIME : InputMethodService() {
             VoiceSessionController.State.IDLE -> {
                 ms.setImageResource(R.drawable.ic_send)
                 ms.contentDescription = getString(R.string.ime_send_desc)
-                ms.isEnabled = true
-                pr.setImageResource(R.drawable.ic_pause)
-                pr.contentDescription = getString(R.string.ime_pause_desc)
-                pr.isEnabled = false
+                // #177: the post-send park looks paused — ▶ starts a fresh
+                // take — but nothing is buffered, so send and flush have
+                // nothing to act on; gear/X still work like in IDLE.
+                val parked = PostSendParkingPolicy.renders(s, postSendParked)
+                ms.isEnabled = !parked
+                if (parked) {
+                    pr.setImageResource(R.drawable.ic_resume)
+                    pr.contentDescription = getString(R.string.ime_resume_desc)
+                    pr.isEnabled = true
+                } else {
+                    pr.setImageResource(R.drawable.ic_pause)
+                    pr.contentDescription = getString(R.string.ime_pause_desc)
+                    pr.isEnabled = false
+                }
                 sw.isEnabled = true
                 fb.isEnabled = false
                 gear.isEnabled = true
