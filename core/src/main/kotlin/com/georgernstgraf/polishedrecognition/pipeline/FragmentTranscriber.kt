@@ -398,8 +398,19 @@ class FragmentTranscriber(
                 // would re-condition the decoder on the duplicated words and
                 // compound per seam.
                 val trim = trimEcho(fragment, response)
-                transcripts[fragment.index] = trim.response
-                recordSeamEvidence(fragment, trim, prompt)
+                // #123 loop guard: a FORCED cut is the only place the decoder
+                // is fed a split word (pre-roll + prompt), so it is the only
+                // place a repetition loop can be seeded AND carried into the
+                // next prompt. Collapsing here — before the store — keeps the
+                // loop out of the prompt tail and out of the joined text.
+                val stored = if (fragment.seamForced) {
+                    trim.response.copy(text = LoopGuard.collapse(trim.response.text))
+                } else {
+                    trim.response
+                }
+                val trimmed = trim.copy(response = stored)
+                transcripts[fragment.index] = stored
+                recordSeamEvidence(fragment, trimmed, prompt)
                 // #142: the forensic record — what was REALLY uploaded, the
                 // untrimmed response, the trim outcome and the prompt sent.
                 bundle?.let { b ->
@@ -409,7 +420,7 @@ class FragmentTranscriber(
                     f.preRollMs = fragment.preRoll?.takeIf { it.isFile }
                         ?.let { AudioDuration.estimateMs(it) }
                     f.sttRaw = response.text
-                    f.sttTrimmed = trim.response.text
+                    f.sttTrimmed = stored.text
                     f.echoTokens = trim.echoTokens
                     f.prompt = prompt
                     f.sttSentAt = sttSentAt

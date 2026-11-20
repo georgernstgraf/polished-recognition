@@ -266,6 +266,38 @@ class FragmentTranscriberTest {
     }
 
     @Test
+    fun `forced seam collapses a looped transcript before it becomes the next prompt`() = runBlocking {
+        val loop = List(30) { "me" }.joinToString(" ")
+        stubPromptRecordingRunner { _, index ->
+            Result.success(SttResponse(text = if (index == 0) loop else "t$index"))
+        }
+
+        transcriber.start()
+        (0..1).forEach { transcriber.offer(fragment(it, seamForced = true)) }
+        val drained = transcriber.drain()
+
+        // #123: the loop never reaches the next prompt and never reaches the join.
+        assertThat(prompts[1]).isEqualTo("me")
+        assertThat(drained.text).isEqualTo("me t1")
+    }
+
+    @Test
+    fun `silence-aligned seam leaves a repetition untouched`() = runBlocking {
+        val loop = List(30) { "me" }.joinToString(" ")
+        stubPromptRecordingRunner { _, index ->
+            Result.success(SttResponse(text = if (index == 0) loop else "t$index"))
+        }
+
+        transcriber.start()
+        (0..1).forEach { transcriber.offer(fragment(it, seamForced = false)) }
+        val drained = transcriber.drain()
+
+        // #123 owner decision: the guard runs ONLY behind a forced cut.
+        assertThat(prompts[1]).isEqualTo(loop)
+        assertThat(drained.text).isEqualTo("$loop t1")
+    }
+
+    @Test
     fun `HTTP 400 on a prompted request retries without prompt and disables prompts`() = runBlocking {
         stubPromptRecordingRunner { prompt, index ->
             if (prompt != null) {
