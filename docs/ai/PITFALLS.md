@@ -3,8 +3,8 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
 
@@ -12,6 +12,9 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **Retrofit rejects a Kotlin `Map` parameter, and only at the FIRST REAL CALL (2026-11-20, #184).** Kotlin declares `Map<K, out V>`, so `@PartMap fields: Map<String, RequestBody>` compiles into a signature with `Map<String, ? extends RequestBody>` and Retrofit throws `IllegalArgumentException: Parameter type must not include a type variable or wildcard (parameter #N)` when it builds the service method — i.e. on the first production call, not at compile time and not in any test that mocks the API interface. Two lessons: annotate `@PartMap x: Map<String, @JvmSuppressWildcards RequestBody>`, and remember that a mocked Retrofit interface proves nothing about the wire — the `:analyzer` `ReplayCommandTest` (a real Retrofit client) is what caught this.
+- **A `@Part` with a Kotlin default value is NOT `any()` in MockK (2026-11-20, #184).** `every { api.call(any(), any(), any(), any(), any()) }` on a method whose last two params default to null records the invocation as `…, null, null` — a production call that actually passes values then matches nothing and fails with "no answer found". When a mocked signature grows defaulted params, update every stubbing site to the full arity (`any()` for each), not just the failing test.
 
 - **`cacheDir/fragments/<sessionId>/` is a CACHE, not durability (2026-11-20, #182).** The live preparer commits every fragment there, and it is tempting to read "the audio is on disk" as a recovery path — it is not: the OS may clear `cacheDir` at any time, the dir does not survive an uninstall, and the #142 `session.json` exists only while the retention slider is non-zero (release default 0). Any recovery/replay feature must read `filesDir/journal/<sessionId>/` (#182), which keeps the COMPOSED upload from before the first attempt. Two consequences: the journal must never be gated by a setting, and it must never live inside the preparer's dir — `startFragmentPreparation` prunes that working set to one session, so sharing it would let a prune delete an unfinished dictation.
 

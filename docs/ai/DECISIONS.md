@@ -3,8 +3,8 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
 
@@ -12,6 +12,37 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-20: #184 — Identität als EIN `@PartMap`, leerer Map = unverändertes Wire-Format
+
+Ein Retry darf nie ein neues Fragment vortäuschen; die Fragment-Identität muss
+auf die Leitung. Die Form ist bewusst so gewählt, dass **kein bestehender
+Server** etwas merken kann.
+
+- **Ein `@PartMap` statt drei `@Part`-Parametern:** `session_id`,
+  `fragment_index`, `attempt` sind gewöhnliche multipart-Felder in EINER Map.
+  Neue Felder (z. B. #183s Fehlerklasse, #186s Offline-Zustand) erweitern nur
+  die Map, nicht die Retrofit-Signatur — und damit nicht die ~36 Mock-Stellen
+  in den Tests.
+- **Leerer Map = byte-identisch zu vorher:** der Legacy-Chunk-Pfad
+  (`TranscriptionPipeline.runStt`) und der Analyzer übergeben keine Identität,
+  senden also exakt das alte Request. Das ist der Grund, `sessionId == null`
+  als alles-oder-nichts zu behandeln statt „attempt immer mitschicken".
+- **`fragment_index` ist 0-basiert** und identisch mit dem Schlüssel in
+  `session.json` und im Journal; die Log-Spalte `chunk` bleibt die 1-basierte
+  Menschen-Nummerierung (#115). Zwei Zahlen, zwei Bedeutungen — bewusst, weil
+  ein Umnummerieren des Wire-Feldes die Idempotenz-Key-Zusage bräche.
+- **Der Client ist die eigentliche Garantie, nicht der Server:** `offer()`
+  und der Worker sortieren pro Index, `transcripts.putIfAbsent` ist die zweite
+  Linie gegen einen zweiten Erfolg. Ein verlorenes Ack + Retry kann serverseitig
+  doppelt transkribieren — genau dafür existiert der Key
+  `session_id:fragment_index`, den ein Gateway später adoptieren kann.
+- **Keine neuen `session.json`-Felder:** die im Issue geforderten Identifikatoren
+  sind dort bereits vorhanden — `SessionBundle.sessionId` ist exakt die
+  gesendete `session_id` (derselbe Controller-Wert) und der Fragment-Record ist
+  per `fragment_index` verschlüsselt. Sie zu duplizieren wäre Redundanz ohne
+  Prüfwert; das Journal trägt die Identität ohnehin im Verzeichnis- und
+  Dateinamen.
 
 ## 2026-11-20: #182 — Das Journal hält den KOMPONIERTEN Upload, nicht das nackte Fragment
 

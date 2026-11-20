@@ -3,8 +3,8 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
 
@@ -39,6 +39,7 @@ Follow these without question. Do not deviate unless explicitly told.
 
 ## API Patterns
 - Retrofit base URLs must end with `/v1/` (or the path prefix the provider uses)- All API calls use `Bearer <token>` authorization header
+- **Multipart extras go through ONE `@PartMap`, never a list of `@Part`s (#184).** `transcribeAudioSync`/`transcribeAudio` take `@PartMap extraFields: Map<String, @JvmSuppressWildcards RequestBody>`; an EMPTY map omits every extra field, which keeps the request byte-identical to the pre-#184 format — that is the contract that lets any OpenAI-compatible server keep working untouched. **`@JvmSuppressWildcards` is mandatory:** Kotlin declares `Map<K, out V>`, so the JVM signature would carry `? extends RequestBody` and Retrofit refuses it — and it refuses it LAZILY at the first real call (`Parameter type must not include a type variable or wildcard`), which a unit test with a mocked API never reaches (the `:analyzer` `ReplayCommandTest` caught it). Add a new wire field there instead of a new `@Part` parameter.
 - **Cleartext HTTP is allowed app-wide (#114):** `res/xml/network_security_config.xml` (`base-config cleartextTrafficPermitted="true"`, wired via `android:networkSecurityConfig`) — users point the app at arbitrary self-hosted OpenAI-compatible endpoints (HTTP LAN servers, HTTPS cloud), so no per-domain exceptions; keep the permissive base config.
 - STT multipart: `file` part, media type + filename **derived from the file extension** (`.ogg` → `audio/ogg`/`audio.ogg`, else `audio/wav`/`audio.wav`) — never hardcode WAV (since #60)
 - LLM request: standard `{"model": "...", "messages": [...]}` JSON body

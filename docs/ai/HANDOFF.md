@@ -3,32 +3,31 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
 
 # Hand Off
 
-Only open tasks. **#182 shipped and closed on 2026-11-20**, #123/#177/#178 are
-closed too. What remains are owner checks on the device, the rest of the #152
-program, and #156.
+Only open tasks. **#182 (durable journal) and #184 (idempotent uploads) shipped
+and closed on 2026-11-20**; #123/#177/#178 are closed too. What remains are
+owner checks on the device, the rest of the #152 program, and #156.
 
-## #152 — five sub-issues, dependency order (1/5 done)
+## #152 — five sub-issues, dependency order (2/5 done)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
-**#182 (durable journal) is done.** Start with **#184** next — independent and
-the smallest — then #183 → #185 → #186.
+**#182 and #184 are done.** Next: **#183** (STT failure classification), then
+#185 → #186.
 
 1. [x] **#182 — durable fragment journal** (closed 2026-11-20):
    `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap.
-2. [ ] **#184 — idempotent uploads** (`session_id` + `fragment_index`).
-   Independent, smallest. Planned detail: one `@PartMap` on the Retrofit
-   methods (NOT three `@Part`s), empty map = today's wire format; the arity
-   change touches ~36 mock sites in `TranscriptionPipelineTest`,
-   `VoiceSessionControllerTest`, `VoiceSessionControllerSecondaryTest`.
+2. [x] **#184 — idempotent uploads** (closed 2026-11-20): `session_id` +
+   `fragment_index` + `attempt` via one `@PartMap`; empty map = pre-#184 wire.
 3. [ ] **#183 — STT failure classification** (transient / auth / protocol,
    `Retry-After`, 401 resume). Writes `NEEDS_MANUAL` into the #182 journal
-   state that already exists.
+   state that already exists, and should extend the #184 `@PartMap` with its
+   class if the wire ever needs it. `SttRequestRunner.isTransientHttp` is the
+   place to replace with a pure `SttFailureClassifier`.
 4. [ ] **#185 — recovery UI** ("pending transcriptions", platform Views).
    **Owning the unfinished-session scanner, which #182 deliberately did NOT
    build** (`FragmentJournal` has no `unfinishedSessions()`; the journal root

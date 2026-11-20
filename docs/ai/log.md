@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-20 (#184 — idempotent fragment uploads)
+* **Update**: [STATE.md](STATE.md) — status line (806 tests, 2/5 #152 children) + a `#184 — idempotent fragment uploads` section: the one-`@PartMap` shape, empty map = unchanged wire, retry identity, the client-side `putIfAbsent` second line, the Retrofit wildcard pitfall, the `session.json` deviation.
+* **Update**: [DECISIONS.md](DECISIONS.md) — entry `#184 — Identität als EIN @PartMap, leerer Map = unverändertes Wire-Format`: one map instead of three parts (future fields cost no signature churn), all-or-nothing identity, 0-based `fragment_index` vs 1-based log `chunk`, client-side guarantee, no duplicated bundle fields.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — API Patterns: multipart extras only through the `@PartMap`, `@JvmSuppressWildcards` mandatory, empty map = unchanged wire; plus the matching PITFALLS note about Retrofit's lazy validation.
+* **Update**: [PITFALLS.md](PITFALLS.md) — two entries: Retrofit rejecting a Kotlin `Map` parameter only at the first real call (and why a mocked interface proves nothing), and MockK recording defaulted `@Part` params as `null` instead of `any()`.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `SttRequestRunner` row: the #184 identity fields, the 0-based index, and the empty-map compatibility contract.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #184 checked off (2/5), #183 promoted to next with the `isTransientHttp` seam named.
+* **No change**: [index.md](index.md) — no new or removed concept file.
+
 ## 2026-11-20 (#182 — durable fragment journal)
 * **Update**: [STATE.md](STATE.md) — status line rewritten (802 tests, 1.5.1/10501, no version bump) and a new `#182 — durable fragment journal` section: layout, composed-upload choice, transcriber/controller wiring, the delete-in-`discardFragmentSession` lifecycle, the 256-MB cap without an age rule, the backup exclusions, the deliberate scanner cut, and the `SessionDirTime` extraction.
 * **Update**: [DECISIONS.md](DECISIONS.md) — entry `#182 — Das Journal hält den KOMPONIERTEN Upload, nicht das nackte Fragment`: composed upload (byte-identical retry for #184, ~2 % overhead), journal ≠ evidence store, the fragment root stays in `cacheDir`, no age cap, no scanner in #182, `SessionDirTime` extracted.

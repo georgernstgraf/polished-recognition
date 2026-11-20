@@ -3,13 +3,23 @@ type: State
 title: Project State
 description: Current project status and pointers to the open threads.
 tags: [knowledge, state]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T13:52:31Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-20T14:40:00Z }
 status: stable
 ---
 
 # Project State
 
-Current status as of 2026-11-20: **#182 — the durable fragment journal — has shipped, the first of the five #152 children.** Every fragment's composed upload plus a PENDING record lands in `filesDir/journal/<sessionId>/` BEFORE its first STT attempt and is flipped to DONE with the transcript once stored, so a kill, reboot or failed upload leaves the session recoverable — independent of the #127/#142 retention slider and outside `cacheDir`, which the OS may clear. The same release carries #177 (the IME parks after a send), #178 (the Workbench redesign) and #123 (the loop guard in `:core`). **802 tests green** (`:app` 544, `:core` 203, `:analyzer` 55), `lintDebug` 0 errors, `assembleRelease` and pre-push green, **NO version bump** — the app stays **1.5.1 / 10501**. Last release: v1.5.1 (#151). Open: the rest of the #152 program (#184 next), #156 (stale screenshots), owner device checks (see HANDOFF.md).
+Current status as of 2026-11-20: **#182 (durable fragment journal) and #184 (idempotent fragment uploads) are shipped — 2 of the 5 #152 children.** Every fragment's composed upload plus a PENDING record lands in `filesDir/journal/<sessionId>/` BEFORE its first STT attempt and is flipped to DONE with the transcript once stored, so a kill, reboot or failed upload leaves the session recoverable — independent of the #127/#142 retention slider and outside `cacheDir`, which the OS may clear. Every fragment request now also carries `session_id`, `fragment_index` and `attempt` as ordinary multipart fields (empty map = the exact pre-#184 wire format), so a retry is distinguishable from a new fragment. The same release carries #177 (the IME parks after a send), #178 (the Workbench redesign) and #123 (the loop guard in `:core`). **806 tests green** (`:app` 544, `:core` 207, `:analyzer` 55), `lintDebug` 0 errors, `assembleRelease` and pre-push green, **NO version bump** — the app stays **1.5.1 / 10501**. Last release: v1.5.1 (#151). Open: the rest of the #152 program (#183 next), #156 (stale screenshots), owner device checks (see HANDOFF.md).
+
+## #184 — idempotent fragment uploads (2026-11-20, shipped)
+
+- **Was:** every request was a bare multipart WAV with an optional prompt — the third attempt of fragment 7 was indistinguishable from fragment 8, so a lost acknowledgement plus a retry could append the same text twice at a server that does not dedupe.
+- **Wire:** `session_id`, `fragment_index` (0-based, the journal/`session.json` key) and `attempt` go out as ordinary multipart fields through ONE `@PartMap` on `transcribeAudioSync`/`transcribeAudio`. An **empty** map omits all three, so the legacy chunk path and every server that ignores unknown fields keep the exact pre-#184 request.
+- **Retries:** all attempts repeat the same identity and bump only `attempt`; the #117 prompt-rejection retry (HTTP 400) also re-sends the same identity, or a server would see two fragments.
+- **Client guarantee:** `offer()` + the worker already key on the fragment index, and `transcripts.putIfAbsent` is the second line — a second success for one index is dropped with a `duplicate success … dropped` log line instead of doubling the joined text.
+- **Pitfall found:** Retrofit rejects Kotlin's `Map<String, out RequestBody>` (`? extends` wildcard) — `@JvmSuppressWildcards` is mandatory, and the failure appears only at the first REAL call; the `:analyzer` `ReplayCommandTest` (real Retrofit) caught it, no mocked test could.
+- **Deviation:** no new `session.json` fields — `SessionBundle.sessionId` IS the sent `session_id` and the fragment record is keyed by the same index, so duplicating them would add no verifiable information (DECISIONS entry).
+- **Tests:** 802 → **806** (`SttRequestRunnerTest` +3: identity fields, retry identity, empty map; `FragmentTranscriberTest` +1: per-fragment identity). No version bump.
 
 ## #182 — durable fragment journal (2026-11-20, shipped)
 
