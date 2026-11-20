@@ -71,7 +71,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `transcripts accumulate in fragment order regardless of offer order`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             val index = firstArg<File>().name.substringAfter("frag_").takeWhile { it.isDigit() }.toInt()
             Result.success(SttResponse(text = "f$index"))
         }
@@ -89,7 +89,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `language comes from the first fragment reporting one`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returnsMany
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(ok("eins"), ok("zwei", language = "de", ), ok("drei", language = "fr"))
 
         transcriber.start()
@@ -102,7 +102,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `failed fragment is isolated and reported at the lowest failed index`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returnsMany
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 ok("eins"),
                 Result.failure(SttRequestRunner.SttRequestException("HTTP 429", httpCode = 429)),
@@ -124,7 +124,7 @@ class FragmentTranscriberTest {
     @Test
     fun `offer is idempotent per index`() = runBlocking {
         var calls = 0
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             calls++
             ok("once")
         }
@@ -142,7 +142,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `transcribing event reports the fragment's own audio seconds`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             Result.success(SttResponse(text = "x"))
         }
 
@@ -157,7 +157,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `drain after cancel returns an empty snapshot`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("eins")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("eins")
 
         transcriber.start()
         transcriber.offer(fragment(0))
@@ -186,7 +186,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `unexpected worker exception is recorded as fragment failure`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } throws RuntimeException("boom")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } throws RuntimeException("boom")
 
         transcriber.start()
         transcriber.offer(fragment(0))
@@ -198,7 +198,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `resetFailures re-queues only the failed fragments`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returnsMany
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 ok("eins"),
                 Result.failure(SttRequestRunner.SttRequestException("read timeout")),
@@ -211,7 +211,7 @@ class FragmentTranscriberTest {
         assertThat(first.failedIndex).isEqualTo(1)
 
         // retry: fragment 1 gets a fresh attempt, 0 and 2 stay cached
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("zwei")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("zwei")
         transcriber.resetFailures()
         val second = transcriber.drain()
 
@@ -226,7 +226,7 @@ class FragmentTranscriberTest {
 
     /** Records every runner call's prompt and answers `t<fragmentIndex>`. */
     private fun stubPromptRecordingRunner(answer: (String?, Int) -> Result<SttResponse>) {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             val prompt = invocation.args[4] as String?
             prompts.add(prompt)
             val index = firstArg<File>().name.substringAfter("frag_").takeWhile { it.isDigit() }.toInt()
@@ -323,7 +323,7 @@ class FragmentTranscriberTest {
     @Test
     fun `pre-roll is prepended to the upload and the composed file is deleted`() = runBlocking {
         val uploaded = mutableListOf<Pair<String, ByteArray>>() // name to bytes AT CALL TIME
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             val file = firstArg<File>()
             uploaded.add(file.name to file.readBytes())
             ok("t${thirdArg<Int>() - 1}")
@@ -365,7 +365,7 @@ class FragmentTranscriberTest {
             audioEvidenceEnabled = { true }
         )
         val uploaded = mutableListOf<Pair<String, ByteArray>>() // name to bytes AT CALL TIME
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             val file = firstArg<File>()
             uploaded.add(file.name to file.readBytes())
             ok("t${thirdArg<Int>() - 1}")
@@ -404,7 +404,7 @@ class FragmentTranscriberTest {
             audioEvidenceStore = store, // store wired, toggle OFF (the release default)
             audioEvidenceEnabled = { false }
         )
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             ok("t${thirdArg<Int>() - 1}")
         }
 
@@ -431,7 +431,7 @@ class FragmentTranscriberTest {
             scope = CoroutineScope(Dispatchers.Unconfined),
             bundle = bundle
         )
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers { ok("text") }
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers { ok("text") }
 
         timingTranscriber.start()
         timingTranscriber.offer(fragment(0)) // bare upload
@@ -464,7 +464,7 @@ class FragmentTranscriberTest {
             scope = CoroutineScope(Dispatchers.Unconfined),
             bundle = bundle
         )
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
             Result.failure(SttRequestRunner.SttRequestException("HTTP 500", httpCode = 500))
 
         timingTranscriber.start()
@@ -482,7 +482,7 @@ class FragmentTranscriberTest {
     @Test
     fun `missing pre-roll file uploads the bare fragment`() = runBlocking {
         val uploaded = mutableListOf<File>()
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             uploaded.add(firstArg())
             ok("t${thirdArg<Int>() - 1}")
         }
@@ -499,7 +499,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `echoed pre-roll text is trimmed against the previous transcript tail`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             when (thirdArg<Int>() - 1) {
                 0 -> ok("Der Patient klagt über Schmerzen")
                 else -> ok("Der Patient klagt über Schmerzen und Fieber")
@@ -518,7 +518,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `echo trim matches a single tail token`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             when (thirdArg<Int>() - 1) {
                 0 -> ok("Der Patient klagt über Schmerzen")
                 else -> ok("Schmerzen und Fieber")
@@ -536,7 +536,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `echo trim keeps everything when no match exists`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             when (thirdArg<Int>() - 1) {
                 0 -> ok("Der Patient klagt über Schmerzen")
                 else -> ok("Völlig neuer Gedanke beginnt hier")
@@ -555,7 +555,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `a fully echoed fragment trims to empty`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             ok("Der Patient klagt über Schmerzen")
         }
 
@@ -571,7 +571,7 @@ class FragmentTranscriberTest {
 
     @Test
     fun `trim runs only when the upload carried a pre-roll`() = runBlocking {
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             when (thirdArg<Int>() - 1) {
                 0 -> ok("Der Patient klagt über Schmerzen")
                 else -> ok("Der Patient klagt über Schmerzen und Fieber")
@@ -592,7 +592,7 @@ class FragmentTranscriberTest {
     @Test
     fun `HTTP 400 retry uploads the same composed file`() = runBlocking {
         val calls = mutableListOf<Pair<String, String?>>() // upload name to prompt
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             val prompt = invocation.args[4] as String?
             calls.add(firstArg<File>().name to prompt)
             if (prompt != null) {
@@ -651,7 +651,7 @@ class FragmentTranscriberTest {
     @Test
     fun `prompt-disabled session keeps composing pre-rolls at stitched seams`() = runBlocking {
         val calls = mutableListOf<Pair<String, String?>>() // upload name to prompt
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             val prompt = invocation.args[4] as String?
             calls.add(firstArg<File>().name to prompt)
             if (prompt != null) {
@@ -711,7 +711,7 @@ class FragmentTranscriberTest {
             logger = RotatingJsonLogger(logDir),
             seamEvidence = true
         )
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             when (thirdArg<Int>() - 1) {
                 0 -> ok("Der Patient klagt über Schmerzen und Fieber")
                 else -> ok("und Fieber am Abend stärker")
@@ -752,7 +752,7 @@ class FragmentTranscriberTest {
         val journal = FragmentJournal(tmp.newFolder("journal"))
         var stateAtRequest: String? = null
         var audioAtRequest = 0L
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } answers {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
             stateAtRequest = journal.readRecord(journalSession, 0)?.state
             audioAtRequest = File(
                 journal.sessionDir(journalSession),
@@ -773,7 +773,7 @@ class FragmentTranscriberTest {
     @Test
     fun `a transcribed fragment is journaled DONE with its transcript`() = runBlocking {
         val journal = FragmentJournal(tmp.newFolder("journal"))
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("hallo welt")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("hallo welt")
 
         val t = journaledTranscriber(journal)
         t.start()
@@ -789,7 +789,7 @@ class FragmentTranscriberTest {
     @Test
     fun `a finally-failed fragment stays PENDING with its error and its audio`() = runBlocking {
         val journal = FragmentJournal(tmp.newFolder("journal"))
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
             Result.failure(SttRequestRunner.SttRequestException("HTTP 429", httpCode = 429))
 
         val t = journaledTranscriber(journal)
@@ -809,7 +809,7 @@ class FragmentTranscriberTest {
     fun `a journal failure never fails the fragment`() = runBlocking {
         // an unwritable root: every journal call reports failure
         val journal = FragmentJournal(tmp.newFile("not-a-dir"))
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("trotzdem")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("trotzdem")
 
         val t = journaledTranscriber(journal)
         t.start()
@@ -824,7 +824,7 @@ class FragmentTranscriberTest {
     fun `without a session id nothing is journaled`() = runBlocking {
         val root = tmp.newFolder("journal")
         val journal = FragmentJournal(root)
-        coEvery { sttRunner.run(any(), any(), any(), any(), any()) } returns ok("x")
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("x")
 
         val t = journaledTranscriber(journal, sessionId = null)
         t.start()
@@ -832,5 +832,25 @@ class FragmentTranscriberTest {
         t.drain()
 
         assertThat(root.listFiles().orEmpty()).isEmpty()
+    }
+
+    // ---- #184: idempotent fragment uploads --------------------------------
+
+    @Test
+    fun `each fragment request carries its session id and fragment index`() = runBlocking {
+        val seen = mutableListOf<Pair<String?, Int?>>()
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
+            seen += arg<String?>(5) to arg<Int?>(6)
+            ok(if (seen.size == 1) "eins" else "zwei")
+        }
+
+        val journal = FragmentJournal(tmp.newFolder("journal"))
+        val t = journaledTranscriber(journal)
+        t.start()
+        t.offer(fragment(0))
+        t.offer(fragment(1))
+        t.drain()
+
+        assertThat(seen).containsExactly(journalSession to 0, journalSession to 1).inOrder()
     }
 }

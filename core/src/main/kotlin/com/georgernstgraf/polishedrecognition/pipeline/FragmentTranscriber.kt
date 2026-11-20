@@ -372,7 +372,12 @@ class FragmentTranscriber(
                     audioFile = upload,
                     config = config,
                     chunk = fragment.index + 1,
-                    prompt = prompt
+                    prompt = prompt,
+                    // #184: the fragment's durable identity on the wire — the
+                    // same pair a retry repeats, so a server can dedupe on
+                    // session_id:fragment_index.
+                    sessionId = sessionId,
+                    fragmentIndex = fragment.index
                 )
             }.also { sttReceivedAt = System.currentTimeMillis() }.let { first ->
                 // A provider without prompt support rejects the field with 400:
@@ -387,7 +392,12 @@ class FragmentTranscriber(
                         sttRunner.run(
                             audioFile = upload,
                             config = config,
-                            chunk = fragment.index + 1
+                            chunk = fragment.index + 1,
+                            // #184: the prompt-rejection retry is the SAME
+                            // fragment — same identity, or a server would see
+                            // two fragments.
+                            sessionId = sessionId,
+                            fragmentIndex = fragment.index
                         )
                     }.also { sttReceivedAt = System.currentTimeMillis() }
                 } else first
@@ -428,7 +438,15 @@ class FragmentTranscriber(
                     trim.response
                 }
                 val trimmed = trim.copy(response = stored)
-                transcripts[fragment.index] = stored
+                // #184: a duplicated upload must never duplicate its text.
+                // The index-keyed offer gate is the primary guarantee; this
+                // putIfAbsent is the second line, so a second success reaching
+                // the store by any future path is DETECTED and logged instead
+                // of silently doubling the joined text.
+                if (transcripts.putIfAbsent(fragment.index, stored) != null) {
+                    CoreLog.w(TAG, "duplicate success for fragment ${fragment.index} dropped")
+                    return@fold
+                }
                 recordSeamEvidence(fragment, trimmed, prompt)
                 // #182: the transcript is on disk before the session can end.
                 journalOutcome(fragment.index, sttRaw = response.text, sttTrimmed = stored.text, error = null)

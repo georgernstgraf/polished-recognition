@@ -56,13 +56,13 @@ class SttRequestRunnerTest {
     private fun mockStt(response: Response<SttResponse>) {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } returns response
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
     }
 
     private fun mockSttMany(vararg responses: Response<SttResponse>) {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } returnsMany responses.toList()
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
     }
 
     private fun success(text: String = "hallo welt") =
@@ -173,7 +173,7 @@ class SttRequestRunnerTest {
     fun `IOException is transient and fails after three attempts`() = kotlinx.coroutines.runBlocking {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } throws IOException("read timeout")
-        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any()) } returns call
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
 
         val result = runner().run(wavFile(), config)
 
@@ -206,7 +206,7 @@ class SttRequestRunnerTest {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } returns success()
         every {
-            sttApi.transcribeAudioSync(any(), any(), any(), any(), captureNullable(promptSlot))
+            sttApi.transcribeAudioSync(any(), any(), any(), any(), captureNullable(promptSlot), any())
         } returns call
         return promptSlot
     }
@@ -235,5 +235,76 @@ class SttRequestRunnerTest {
         assertThat(result.isSuccess).isTrue()
         assertThat(promptSlot.captured).isNull()
         assertThat(readLog("stt-latency").containsKey("promptChars")).isFalse()
+    }
+
+    // ---- #184: idempotent fragment uploads --------------------------------
+
+    /** Captures the `@PartMap` of every attempt, in order. */
+    private fun captureIdempotencyFields(vararg responses: Response<SttResponse>): MutableList<Map<String, okhttp3.RequestBody>> {
+        val captured = mutableListOf<Map<String, okhttp3.RequestBody>>()
+        val call = mockk<Call<SttResponse>>()
+        every { call.execute() } returnsMany responses.toList()
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } answers {
+            captured += arg<Map<String, okhttp3.RequestBody>>(5)
+            call
+        }
+        return captured
+    }
+
+    private fun okhttp3.RequestBody.text(): String {
+        val buffer = okio.Buffer()
+        writeTo(buffer)
+        return buffer.readUtf8()
+    }
+
+    @Test
+    fun `a fragment request carries session id, fragment index and attempt`() = kotlinx.coroutines.runBlocking {
+        val fields = captureIdempotencyFields(success())
+
+        val result = runner().run(
+            wavFile(),
+            config,
+            chunk = 8,
+            sessionId = "20260101-1200-aaaaaaaa",
+            fragmentIndex = 7
+        )
+
+        assertThat(result.isSuccess).isTrue()
+        val sent = fields.single()
+        assertThat(sent.keys).containsExactly("session_id", "fragment_index", "attempt")
+        assertThat(sent.getValue("session_id").text()).isEqualTo("20260101-1200-aaaaaaaa")
+        assertThat(sent.getValue("fragment_index").text()).isEqualTo("7")
+        assertThat(sent.getValue("attempt").text()).isEqualTo("1")
+    }
+
+    @Test
+    fun `every retry repeats the same identity and bumps only the attempt`() = kotlinx.coroutines.runBlocking {
+        val fields = captureIdempotencyFields(httpError(500), httpError(429), success())
+
+        runner().run(
+            wavFile(),
+            config,
+            sessionId = "20260101-1200-bbbbbbbb",
+            fragmentIndex = 2
+        )
+
+        assertThat(fields).hasSize(3)
+        assertThat(fields.map { it.getValue("session_id").text() })
+            .containsExactly("20260101-1200-bbbbbbbb", "20260101-1200-bbbbbbbb", "20260101-1200-bbbbbbbb")
+        assertThat(fields.map { it.getValue("fragment_index").text() })
+            .containsExactly("2", "2", "2")
+        assertThat(fields.map { it.getValue("attempt").text() }).containsExactly("1", "2", "3").inOrder()
+    }
+
+    @Test
+    fun `without a session identity the wire format is unchanged`() = kotlinx.coroutines.runBlocking {
+        val fields = captureIdempotencyFields(success())
+
+        val result = runner().run(wavFile(), config, chunk = 1, chunkCount = 2)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(fields.single()).isEmpty()
+        // the pre-send record stays byte-shape-identical (Gson omits nulls)
+        assertThat(readLog("stt-upload").containsKey("sessionId")).isFalse()
     }
 }

@@ -30,6 +30,11 @@ import java.io.IOException
  *   size) and closes the #64 evidence gap ("&gt;2 min per
  *   600-s chunk" was neither provable nor refutable from the old logs).
  *
+ * #184: a fragment request ALSO carries `session_id`, `fragment_index` and
+ * `attempt` as ordinary multipart fields (see [run]); the pre-send record
+ * mirrors the identity into `stt-upload.json`. The legacy chunk path passes
+ * none of them, so its request is byte-identical to the pre-#184 format.
+ *
  * Completion records go into a dedicated rotation stream instead of extra
  * `stt-upload.json` entries: [RotatingJsonLogger] shifts history per call,
  * so two entries per request would halve the 9-slot depth of both streams.
@@ -75,7 +80,17 @@ class SttRequestRunner(
         config: SttProviderConfig,
         chunk: Int? = null,
         chunkCount: Int? = null,
-        prompt: String? = null
+        prompt: String? = null,
+        /**
+         * #184: the fragment's durable identity. When [sessionId] is non-null
+         * every attempt carries `session_id`, `fragment_index` and `attempt`
+         * as ordinary multipart fields, so a server can dedupe on
+         * `session_id:fragment_index` and a post-mortem can tell a retry from
+         * a new fragment. `null` (the legacy batch/chunk path) sends NOTHING
+         * extra — byte-identical to the pre-#184 request.
+         */
+        sessionId: String? = null,
+        fragmentIndex: Int? = null
     ): Result<SttResponse> {
         val mediaType = if (isOgg(audioFile)) "audio/ogg" else "audio/wav"
         val uploadName = if (isOgg(audioFile)) "audio.ogg" else "audio.wav"
@@ -91,7 +106,9 @@ class SttRequestRunner(
                 bytes = audioFile.length(),
                 mediaType = mediaType,
                 model = config.model,
-                baseUrl = config.baseUrl
+                baseUrl = config.baseUrl,
+                sessionId = sessionId,
+                fragmentIndex = fragmentIndex
             ))
         )
 
@@ -107,7 +124,8 @@ class SttRequestRunner(
                     ),
                     model = config.model.toRequestBody("text/plain".toMediaTypeOrNull()),
                     responseFormat = "verbose_json".toRequestBody("text/plain".toMediaTypeOrNull()),
-                    prompt = prompt?.toRequestBody("text/plain".toMediaTypeOrNull())
+                    prompt = prompt?.toRequestBody("text/plain".toMediaTypeOrNull()),
+                    extraFields = idempotencyFields(sessionId, fragmentIndex, attempt)
                 ).execute()
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
 
@@ -139,6 +157,27 @@ class SttRequestRunner(
     }
 
     private fun isTransientHttp(code: Int): Boolean = code in 500..599 || code == 429
+
+    /**
+     * #184: the optional idempotency fields. An EMPTY map (no [sessionId])
+     * leaves the multipart body exactly as it was before #184 — that is what
+     * keeps the legacy chunk path and every "unknown fields are ignored"
+     * server working unchanged. The attempt counter is included only
+     * alongside an identity: on its own it says nothing a server could use.
+     */
+    private fun idempotencyFields(
+        sessionId: String?,
+        fragmentIndex: Int?,
+        attempt: Int
+    ): Map<String, okhttp3.RequestBody> {
+        if (sessionId == null) return emptyMap()
+        val plain = "text/plain".toMediaTypeOrNull()
+        return buildMap {
+            put("session_id", sessionId.toRequestBody(plain))
+            if (fragmentIndex != null) put("fragment_index", fragmentIndex.toString().toRequestBody(plain))
+            put("attempt", attempt.toString().toRequestBody(plain))
+        }
+    }
 
     private fun logCompletion(
         audioFile: File,
@@ -197,6 +236,9 @@ class SttRequestRunner(
         val httpCode: Int? = null,
         val elapsedMs: Long? = null,
         val promptChars: Int? = null,
+        /** #184: the fragment's wire identity (null for the legacy chunk path). */
+        val sessionId: String? = null,
+        val fragmentIndex: Int? = null,
         val error: String? = null
     )
 
