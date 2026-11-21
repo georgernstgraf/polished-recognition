@@ -244,6 +244,13 @@ class VoiceSessionController(
     var state: State = State.IDLE
         private set
 
+    /**
+     * #185: the session the controller currently owns (recording, parked or
+     * processing). The recovery UI must hide it — the IME can still retry it,
+     * and a recovery re-run of the same journal would race that retry.
+     */
+    fun activeSessionId(): String? = sessionId
+
     private var callback: ((Event) -> Unit)? = null
     private var pendingResult: Event.Completed? = null
     private var accumulatedMs = 0L
@@ -631,6 +638,11 @@ class VoiceSessionController(
             if (result.isSuccess) clearPrepared()
             if (result.isSuccess) {
                 recorder.flushBuffer()
+                // #185: mark the session COMPLETE before the dir goes — every
+                // fragment is DONE and the result is about to be delivered, so
+                // a delete that fails (or a process death in between) can never
+                // masquerade as an unfinished dictation and be re-transcribed.
+                sessionId?.let { sid -> journal?.markCompleted(sid) }
                 // #138: the transcripts are consumed the moment the result is
                 // delivered — drop the transcriber cache + preparer WITHOUT
                 // salvage (the return value is deliberately ignored). Before

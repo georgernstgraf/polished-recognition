@@ -24,12 +24,14 @@ import com.georgernstgraf.polishedrecognition.delivery.ClipboardDelivery
 import com.georgernstgraf.polishedrecognition.dictation.Dictation
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * #169 (epic #166): the Workbench — the app's own window. A FIFO of
@@ -80,6 +82,9 @@ class WorkbenchActivity : Activity() {
     private lateinit var positionLabel: TextView
     private lateinit var emptyHint: TextView
 
+    /** #185: "N pending transcriptions — tap to review", GONE when there are none. */
+    private lateinit var recoveryBanner: TextView
+
     private lateinit var prevButton: ImageButton
     private lateinit var nextButton: ImageButton
     private lateinit var newButton: ImageButton
@@ -115,6 +120,9 @@ class WorkbenchActivity : Activity() {
     private var visible = false
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Seam for the Robolectric tests; production scans the journal off-main. */
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
 
     /**
      * #171: the polish call, injectable so the screen's state machine is
@@ -161,6 +169,7 @@ class WorkbenchActivity : Activity() {
         polishedField = findViewById(R.id.workbench_polished)
         positionLabel = findViewById(R.id.workbench_position)
         emptyHint = findViewById(R.id.workbench_empty_hint)
+        recoveryBanner = findViewById(R.id.workbench_recovery)
         prevButton = findViewById(R.id.workbench_prev)
         nextButton = findViewById(R.id.workbench_next)
         newButton = findViewById(R.id.workbench_new)
@@ -187,6 +196,10 @@ class WorkbenchActivity : Activity() {
         // the choice lives for this visit only and is never written back.
         seedLanguageSpinner()
         reload()
+        // #185: entering the Workbench is the moment the leftovers are picked
+        // up — the feedback Toast comes before any request goes out.
+        app.recoveryCoordinator.onFinished = { outcome -> onRecoveryFinished(outcome) }
+        recoverLeftovers()
         // D15: entering the Workbench starts the IME immediately. The IME's
         // own auto-start path does the rest — a foreign keyboard simply opens.
         rawField.requestFocus()
@@ -206,6 +219,7 @@ class WorkbenchActivity : Activity() {
 
     override fun onPause() {
         visible = false
+        app.recoveryCoordinator.onFinished = null
         // #173 decision 2/3: a slot with any content is materialised before the
         // window goes away, so nothing typed into it is ever lost.
         materialiseCompose()
@@ -218,6 +232,64 @@ class WorkbenchActivity : Activity() {
         polishJob?.cancel()
         scope.cancel()
         super.onDestroy()
+    }
+
+    // --- #185: leftover recovery ---------------------------------------------
+
+    /**
+     * Scans the durable journal on entry and retries what can heal by itself
+     * (network failures and interruptions — never a dead token or a provider
+     * protocol problem). The Toast goes out before the first request, so the
+     * user never wonders whether anything is happening; the run itself yields
+     * to a live dictation at every fragment boundary.
+     *
+     * Deliberately no [reload] afterwards: it would wipe the compose slot the
+     * user may be typing into — [syncPositions] re-reads the ring and keeps
+     * every field untouched.
+     */
+    private fun recoverLeftovers() {
+        val coordinator = app.recoveryCoordinator
+        val journal = app.fragmentJournal
+        scope.launch {
+            val sessions = withContext(ioDispatcher) { journal.recoverableSessions() }
+            val visible = sessions.filter { it.sessionId != controller.activeSessionId() }
+            bindRecoveryBanner(visible.size)
+            if (coordinator.isRunning()) return@launch
+            val auto = visible.filter { coordinator.shouldAutoRecover(it) }
+            if (auto.isEmpty()) return@launch
+            if (coordinator.startAuto(auto)) {
+                Toast.makeText(
+                    this@WorkbenchActivity,
+                    resources.getQuantityString(R.plurals.recovery_started, auto.size, auto.size),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun onRecoveryFinished(outcome: RecoveryCoordinator.Outcome) {
+        if (isFinishing || isDestroyed) return
+        val failure = outcome.failures.firstOrNull()
+        val message = when {
+            failure != null -> getString(R.string.recovery_failed, failure.message)
+            outcome.recovered > 0 ->
+                resources.getQuantityString(R.plurals.recovery_recovered, outcome.recovered, outcome.recovered)
+            else -> resources.getQuantityString(
+                R.plurals.recovery_still_pending,
+                outcome.stillPending,
+                outcome.stillPending
+            )
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        syncPositions()
+        recoverLeftovers()
+    }
+
+    private fun bindRecoveryBanner(pending: Int) {
+        recoveryBanner.visibility = if (pending > 0) View.VISIBLE else View.GONE
+        if (pending > 0) {
+            recoveryBanner.text = resources.getQuantityString(R.plurals.recovery_banner, pending, pending)
+        }
     }
 
     /** #169: targetSdk 36 lays the window out edge-to-edge; we own the insets. */
@@ -251,6 +323,9 @@ class WorkbenchActivity : Activity() {
         newButton.setOnClickListener { newEntry() }
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        recoveryBanner.setOnClickListener {
+            startActivity(Intent(this, RecoveryActivity::class.java))
         }
         prevButton.setOnClickListener { navigate(older = true) }
         nextButton.setOnClickListener { navigate(older = false) }

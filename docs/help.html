@@ -249,12 +249,20 @@
     <p>The app's own window — it is what the app icon opens. It is a place where a dictation lands, can be redacted, and then leaves in one gesture: no long-press, no select-all, no switching apps.</p>
     <ul>
         <li><strong>Dictate</strong> into <strong>Raw</strong> exactly as in any other app: the keyboard opens with the window, speak, tap <strong>Send</strong>. Each dictation becomes its own entry; use <strong>◀</strong> / <strong>▶</strong> to walk through the last few (default 3, configurable in Settings → Advanced).</li>
-        <li><strong>Redact</strong>: both fields are editable, and dictating with the cursor in <strong>Polished</strong> edits the polished text.</li>
+        <li><strong>Redact</strong>: <strong>Raw</strong> is editable; <strong>Polished</strong> is read-only — the language model produces it. <strong>Promote</strong> makes the polished text the new Raw, the bin icon empties the polished field.</li>
         <li><strong>Deliver</strong>: sending, leaving a <em>changed</em> field, or tapping <strong>Copy</strong> puts the text on the clipboard — ready to paste anywhere. On Android 13+ the copy is marked sensitive, so it does not land in the clipboard history.</li>
-        <li><strong>Re-polish</strong> is the only polish step: it sends the current Raw text through the language model with the target language you pick for that dictation. Nothing polishes on its own — dictations arrive raw, so what you redact is what was said.</li>
+        <li><strong>Polish</strong> is the only polish step: it sends the current Raw text through the language model with the target language you pick for that dictation. Nothing polishes on its own — dictations arrive raw, so what you redact is what was said.</li>
         <li>A raw edit discards the polished text — deliberately, so nothing is polished silently.</li>
     </ul>
     <p class="hint">Dictations stay on your device only: they survive a restart but are excluded from cloud backup and device transfer. Settings is reachable from the top-right of the window (and from the keyboard's gear).</p>
+    <h3>Pending transcriptions</h3>
+    <p>When the speech service cannot finish a dictation — no network, a server error, the app being killed while you spoke — the recording is kept. Open the app and it is picked up immediately: a short message announces the recovery, the text appears as a normal dictation, and nothing is re-recorded.</p>
+    <ul>
+        <li>If a retry cannot help (most often a rejected API token), a line at the top of the window names the number of pending recordings. Tap it to open the list.</li>
+        <li>Each entry shows when it was dictated, how long it was and why it did not finish. <strong>Re-run</strong> tries the missing parts again with your current provider; <strong>Share audio</strong> hands the recording to any app; <strong>Dismiss</strong> throws it away after asking you once.</li>
+        <li>An entry whose text was already produced — the app died right after finishing — offers <strong>Restore text</strong> instead: no request, the text simply comes back.</li>
+        <li>Dismissing keeps a small note that you did it. Recordings are never deleted behind your back.</li>
+    </ul>
     <p class="hint">The Workbench is a text manager, not a keyboard: it opens the field and gets out of the way. Dictating therefore needs a keyboard that can reach Polished — either the Polished keyboard itself (made your input method once), or any typing keyboard with a microphone key: that key invokes Polished's voice input service and drops the text into the focused field. The Workbench never changes your keyboard.</p>
 </section>
 

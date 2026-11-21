@@ -243,4 +243,158 @@ class FragmentJournalTest {
         assertThat(j.deleteSession(session)).isTrue()
         assertThat(j.deleteSession(" ")).isFalse()
     }
+
+    // --- #185: session state, recovery scan, dismissal -----------------------
+
+    @Test
+    fun `a session with an unfinished fragment is recoverable with its reason`() {
+        val j = journal()
+        j.writePending(session, record(0), audio("r0.wav", 100))
+        j.writePending(session, record(1), audio("r1.wav", 100))
+        j.markDone(session, 0, "raw", "done text")
+        j.markFailed(session, 1, "HTTP 429", failureClass = "TRANSIENT", httpCode = 429)
+
+        val summary = j.recoverableSessions().single()
+
+        assertThat(summary.sessionId).isEqualTo(session)
+        assertThat(summary.completed).isFalse()
+        assertThat(summary.fragmentCount).isEqualTo(2)
+        assertThat(summary.doneCount).isEqualTo(1)
+        assertThat(summary.pendingCount).isEqualTo(1)
+        assertThat(summary.unfinishedCount).isEqualTo(1)
+        assertThat(summary.durationMs).isEqualTo(14_000L)
+        assertThat(summary.failureClass).isEqualTo("TRANSIENT")
+        assertThat(summary.failureHttpCode).isEqualTo(429)
+        assertThat(summary.startedAtMs).isNotNull()
+        assertThat(summary.totalBytes).isGreaterThan(0L)
+    }
+
+    @Test
+    fun `the reason comes from the lowest-index failing fragment`() {
+        val j = journal()
+        (0..2).forEach { j.writePending(session, record(it), audio("m$it.wav")) }
+        j.markFailed(session, 2, "HTTP 401", failureClass = "AUTH", httpCode = 401)
+        j.markFailed(session, 1, "HTTP 500", failureClass = "TRANSIENT", httpCode = 500)
+
+        val summary = j.recoverableSessions().single()
+
+        assertThat(summary.failureClass).isEqualTo("TRANSIENT")
+        assertThat(summary.failureHttpCode).isEqualTo(500)
+    }
+
+    @Test
+    fun `a session without a recorded failure is recoverable but carries no class`() {
+        val j = journal()
+        j.writePending(session, record(0), audio("i.wav"))
+
+        val summary = j.recoverableSessions().single()
+
+        assertThat(summary.failureClass).isNull()
+        assertThat(summary.pendingCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `a completed session is recoverable and flagged as completed`() {
+        val j = journal()
+        j.writePending(session, record(0), audio("c.wav"))
+        j.markDone(session, 0, "raw", "text")
+
+        assertThat(j.markCompleted(session)).isTrue()
+
+        val summary = j.recoverableSessions().single()
+        assertThat(summary.completed).isTrue()
+        assertThat(summary.unfinishedCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `markCompleted needs a session marker`() {
+        val j = journal()
+        assertThat(j.markCompleted("20990101-0000-deadbeef")).isFalse()
+    }
+
+    @Test
+    fun `a session whose fragments are all done counts as completed even without the marker`() {
+        val j = journal()
+        j.writePending(session, record(0), audio("z0.wav"))
+        j.writePending(session, record(1), audio("z1.wav"))
+        j.markDone(session, 0, "r0", "eins")
+        j.markDone(session, 1, "r1", "zwei")
+
+        val summary = j.recoverableSessions().single()
+
+        // nothing left to send — the UI must offer the text, not a re-run
+        assertThat(summary.completed).isTrue()
+        assertThat(summary.unfinishedCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `a dismissed session records the reason first and keeps only its tombstone`() {
+        val j = journal()
+        j.writePending(session, record(0), audio("x0.wav", 200))
+        j.writePending(session, record(1), audio("x1.wav", 200))
+
+        assertThat(j.markDismissed(session)).isTrue()
+
+        val dir = j.sessionDir(session)
+        assertThat(dir.isDirectory).isTrue()
+        assertThat(dir.listFiles()!!.map { it.name }).containsExactly(FragmentJournal.SESSION_FILE)
+        val marker = j.readSession(session)!!
+        assertThat(marker.dismissReason).isEqualTo(FragmentJournal.REASON_USER_DISCARDED)
+        assertThat(marker.dismissedAtMs).isNotNull()
+        // the audio is gone, so it is no longer a recovery candidate
+        assertThat(j.recoverableSessions()).isEmpty()
+    }
+
+    @Test
+    fun `a dismissed session without a marker is not recorded`() {
+        val j = journal()
+        assertThat(j.markDismissed("20990101-0000-feedface")).isFalse()
+    }
+
+    @Test
+    fun `dismissal tombstones are capped by count, newest survive`() {
+        val j = journal()
+        val ids = (0..FragmentJournal.MAX_TOMBSTONES).map { i ->
+            "202601%02d-1200-%08x".format(i % 28 + 1, i)
+        }
+        ids.forEach { id ->
+            j.writePending(id, record(0), audio("t-$id.wav"))
+            j.markDismissed(id)
+        }
+
+        j.prune()
+
+        val remaining = root.listFiles()!!.filter { it.isDirectory }
+        assertThat(remaining.size).isEqualTo(FragmentJournal.MAX_TOMBSTONES)
+        // the oldest one went first
+        assertThat(remaining.map { it.name }).doesNotContain(ids.first())
+    }
+
+    @Test
+    fun `a session without any fragment record is debris and never listed`() {
+        val j = journal()
+        j.writePending(session, record(0), audio("debris.wav"))
+        // simulate a crash between mkdirs + marker and the first record
+        File(j.sessionDir(session), FragmentJournal.recordName(0)).delete()
+
+        assertThat(j.recoverableSessions()).isEmpty()
+    }
+
+    @Test
+    fun `readRecords returns the fragments in index order`() {
+        val j = journal()
+        listOf(3, 1, 2).forEach { j.writePending(session, record(it), audio("o$it.wav")) }
+
+        assertThat(j.readRecords(session).map { it.index }).containsExactly(1, 2, 3).inOrder()
+    }
+
+    @Test
+    fun `recoverable sessions are listed newest first`() {
+        val j = journal()
+        j.writePending(older, record(0), audio("n0.wav"))
+        j.writePending(newer, record(0), audio("n1.wav"))
+
+        assertThat(j.recoverableSessions().map { it.sessionId })
+            .containsExactly(newer, older).inOrder()
+    }
 }

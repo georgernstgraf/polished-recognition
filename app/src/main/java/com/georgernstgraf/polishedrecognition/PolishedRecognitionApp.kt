@@ -9,17 +9,23 @@ import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
+import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.AudioEvidenceStore
 import com.georgernstgraf.polishedrecognition.pipeline.CoreLog
 import com.georgernstgraf.polishedrecognition.pipeline.CoreOs
 import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
+import com.georgernstgraf.polishedrecognition.pipeline.JournalReplay
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -208,6 +214,40 @@ class PolishedRecognitionApp : Application() {
             audioEvidenceEnabled = { settingsStore.audioEvidence },
             // #182: the durable journal — always on, never gated by a setting.
             journal = fragmentJournal)
+    }
+
+    /**
+     * #185: the recovery re-run over the durable journal. Shares the STT
+     * runner with the live path, uses the CURRENT provider config (never a
+     * historical one) and pauses at fragment boundaries while a dictation is
+     * recording or processing — a recovery must never compete with the
+     * latency-critical live path.
+     */
+    val journalReplay by lazy {
+        JournalReplay(
+            journal = fragmentJournal,
+            runner = transcriptionPipeline.sttRequestRunner,
+            configProvider = { settingsStore.sttProvider },
+            beforeFragment = {
+                while (voiceSessionController.state == VoiceSessionController.State.RECORDING ||
+                    voiceSessionController.state == VoiceSessionController.State.PROCESSING
+                ) {
+                    kotlinx.coroutines.delay(250)
+                }
+            }
+        )
+    }
+
+    /** #185: owns the automatic and manual re-runs of leftover sessions. */
+    val recoveryCoordinator by lazy {
+        RecoveryCoordinator(
+            journal = fragmentJournal,
+            replay = journalReplay,
+            pipeline = transcriptionPipeline,
+            dictationStore = DictationStore(this, fifoSize = { settingsStore.workbenchFifoSize }),
+            controller = { voiceSessionController },
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        )
     }
 
     /**

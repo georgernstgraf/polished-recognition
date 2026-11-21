@@ -191,7 +191,7 @@ class FragmentTranscriber(
         const val DEFAULT_PROMPT_MAX_CHARS = 96
 
         /** Echo-trim match window (#117 round 2): at most 8 tokens of head. */
-        const val MAX_ECHO_TOKENS = 8
+        const val MAX_ECHO_TOKENS = EchoTrim.MAX_ECHO_TOKENS
 
         /**
          * #183: the failure text a fragment carries when its session's token
@@ -199,9 +199,6 @@ class FragmentTranscriber(
          * HTTP code to report. The class (`AUTH`) is what the UI acts on.
          */
         const val AUTH_BLOCKED_MESSAGE = "STT token rejected — no further attempts in this session"
-
-        /** Word-ish token pattern for the echo match (#117 round 2). */
-        private val TOKEN_REGEX = Regex("[\\p{L}\\p{N}]+")
 
         private const val TAG = "FragmentTranscriber"
     }
@@ -677,43 +674,21 @@ class FragmentTranscriber(
         val knownTail = transcripts[fragment.index - 1]?.text
         val text = response.text
         if (knownTail.isNullOrBlank() || text.isBlank()) return TrimResult(response, 0, uploadWithPreRoll)
-        val known = TOKEN_REGEX.findAll(knownTail).map { it.value.lowercase() }.toList()
-        val fresh = TOKEN_REGEX.findAll(text)
-            .map { it.value.lowercase() to it.range.first }
-            .toList()
-        var echoTokens = 0
-        for (k in minOf(MAX_ECHO_TOKENS, fresh.size) downTo 1) {
-            if (known.size < k) continue
-            var mismatches = 0
-            var matched = true
-            for (j in 0 until k) {
-                val freshToken = fresh[j].first
-                val knownToken = known[known.size - k + j]
-                if (freshToken == knownToken) continue
-                if (j == 0) { matched = false; break } // head[0] == tail[0] required
-                if (++mismatches > 1) { matched = false; break }
-            }
-            if (matched) {
-                echoTokens = k
-                break
-            }
-        }
+        // #185: the rule lives in EchoTrim — the recovery re-run calls the same
+        // function against the journal's stored transcripts.
+        val echo = EchoTrim.trim(text = text, knownTail = knownTail, hadPreRoll = uploadWithPreRoll)
         logger?.log(
             "stt-trim",
             gson.toJson(
                 mapOf(
                     "fragment" to fragment.index,
-                    "echoTokens" to echoTokens,
+                    "echoTokens" to echo.echoTokens,
                     "uploadWithPreRoll" to uploadWithPreRoll
                 )
             )
         )
-        if (echoTokens == 0) return TrimResult(response, 0, uploadWithPreRoll)
-        // Drop the first echoTokens tokens; the text is rebuilt from the
-        // NEXT token's offset so leading punctuation/whitespace goes too
-        // (a full-echo fragment trims to empty).
-        val trimmed = if (echoTokens >= fresh.size) "" else text.substring(fresh[echoTokens].second)
-        return TrimResult(response.copy(text = trimmed), echoTokens, uploadWithPreRoll)
+        if (echo.echoTokens == 0) return TrimResult(response, 0, uploadWithPreRoll)
+        return TrimResult(response.copy(text = echo.text), echo.echoTokens, uploadWithPreRoll)
     }
 
     /** Echo-trim outcome of one fragment (#117 round 2 / #122 evidence). */

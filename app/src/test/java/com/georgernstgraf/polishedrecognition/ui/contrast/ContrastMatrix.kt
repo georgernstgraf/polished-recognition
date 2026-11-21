@@ -7,6 +7,7 @@ import android.view.View
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
+import com.georgernstgraf.polishedrecognition.ui.RecoveryActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
 import com.georgernstgraf.polishedrecognition.ui.WorkbenchActivity
@@ -35,6 +36,7 @@ object ContrastMatrix {
 
     const val SCREEN_SETTINGS = "SettingsActivity"
     const val SCREEN_WORKBENCH = "WorkbenchActivity"
+    const val SCREEN_RECOVERY = "RecoveryActivity"
     const val SCREEN_CRASH = "CrashDialogActivity"
     const val SCREEN_HINT = "SettingsHintActivity"
     const val SCREEN_IME = "ImeVoiceInput"
@@ -96,6 +98,7 @@ object ContrastMatrix {
         val builders: List<Pair<String, () -> Screen>> = listOf(
             SCREEN_SETTINGS to { settings(themeRes) },
             SCREEN_WORKBENCH to { workbench(themeRes) },
+            SCREEN_RECOVERY to { recovery(themeRes) },
             SCREEN_CRASH to { crashDialog(themeRes) },
             SCREEN_HINT to { settingsHint(themeRes) },
             SCREEN_IME to { ime(themeRes) },
@@ -115,6 +118,12 @@ object ContrastMatrix {
     private fun workbench(themeRes: Int): Screen {
         val activity = launch(WorkbenchActivity::class.java, themeRes)
         return Screen(SCREEN_WORKBENCH, activity.findViewById(android.R.id.content))
+    }
+
+    /** #185: the pending-transcriptions list — the empty state when nothing is left. */
+    private fun recovery(themeRes: Int): Screen {
+        val activity = launch(RecoveryActivity::class.java, themeRes)
+        return Screen(SCREEN_RECOVERY, activity.findViewById(android.R.id.content))
     }
 
     /** The crash text lives in the AlertDialog's window, not in the activity's content view. */

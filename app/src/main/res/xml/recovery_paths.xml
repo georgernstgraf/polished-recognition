@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  #185: what the recovery share action may expose.
+  - `recovery_share/` holds the reconstructed single-file WAV (cacheDir).
+  - `journal/` is only used when a session cannot be rebuilt into one file
+    (OGG uploads) and its pieces are attached as they are.
+  Both are app-private; the chooser grants read access per URI only.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path
+        name="recovery_share"
+        path="recovery-share/" />
+    <files-path
+        name="journal"
+        path="journal/" />
+</paths>

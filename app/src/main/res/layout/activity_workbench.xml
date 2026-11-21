@@ -82,9 +82,25 @@
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
 
+        <!--
+          #185: the leftovers banner — GONE unless the journal holds a session
+          that never became text, so an empty state has no dead UI. Tapping it
+          opens the pending-transcriptions list.
+        -->
         <TextView
-            android:id="@+id/workbench_empty_hint"
+            android:id="@+id/workbench_recovery"
             android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/workbench_empty_hint"            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/workbench_empty"

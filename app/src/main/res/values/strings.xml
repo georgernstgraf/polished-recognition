@@ -148,4 +148,50 @@
     <string name="workbench_fifo_size">Keep last N dictations</string>
     <string name="workbench_fifo_size_hint">How many Workbench dictations are kept (1–10). The least recently edited one is deleted first.</string>
     <string name="workbench_fifo_size_error">Enter a number between 1 and 10</string>
+
+    <!-- #185: pending transcriptions (recovery) -->
+    <string name="recovery_title">Pending transcriptions</string>
+    <string name="recovery_empty">No pending transcriptions — every dictation became text.</string>
+    <plurals name="recovery_banner">
+        <item quantity="one">%1$d pending transcription — tap to review</item>
+        <item quantity="other">%1$d pending transcriptions — tap to review</item>
+    </plurals>
+    <string name="recovery_rerun">Re-run</string>
+    <string name="recovery_restore">Restore text</string>
+    <string name="recovery_share">Share audio</string>
+    <string name="recovery_dismiss">Dismiss</string>
+    <string name="recovery_running">Transcribing…</string>
+    <plurals name="recovery_detail">
+        <item quantity="one">%1$d s audio · %2$d fragment · %3$s</item>
+        <item quantity="other">%1$d s audio · %2$d fragments · %3$s</item>
+    </plurals>
+    <string name="recovery_reason_auth">STT token rejected</string>
+    <string name="recovery_reason_protocol">provider answered without a transcript</string>
+    <string name="recovery_reason_network">network or server error</string>
+    <string name="recovery_reason_terminal">provider rejected the request</string>
+    <string name="recovery_reason_interrupted">interrupted before it finished</string>
+    <string name="recovery_reason_completed">transcribed — text available</string>
+    <plurals name="recovery_started">
+        <item quantity="one">Recovering %1$d pending dictation…</item>
+        <item quantity="other">Recovering %1$d pending dictations…</item>
+    </plurals>
+    <plurals name="recovery_recovered">
+        <item quantity="one">Recovered %1$d dictation into the Workbench</item>
+        <item quantity="other">Recovered %1$d dictations into the Workbench</item>
+    </plurals>
+    <plurals name="recovery_still_pending">
+        <item quantity="one">%1$d pending transcription left — open the list for details</item>
+        <item quantity="other">%1$d pending transcriptions left — open the list for details</item>
+    </plurals>
+    <string name="recovery_failed">Re-run failed: %1$s</string>
+    <string name="recovery_busy">A recovery is already running</string>
+    <string name="recovery_dismiss_title">Dismiss this dictation?</string>
+    <string name="recovery_dismiss_message">The audio will be deleted. A record that you dismissed it is kept, so nothing disappears silently.</string>
+    <string name="recovery_dismiss_ok">Dismiss</string>
+    <string name="recovery_cancel">Cancel</string>
+    <string name="recovery_restored">Text restored to the Workbench</string>
+    <string name="recovery_restore_empty">No stored text to restore</string>
+    <string name="recovery_store_failed">Could not store the transcript</string>
+    <string name="recovery_share_empty">No audio left to share</string>
+    <string name="recovery_chooser">Share audio</string>
 </resources>
