@@ -79,3 +79,12 @@
 * **Update**: Added one entry to [PITFALLS.md](PITFALLS.md) — theme attributes must never be taken as an `Int` (`TypedValue.data` is a resource id for selector/OEM night themes), a read-only display needs the enabled variant, and a contrast test is only meaningful under a selector-based theme (#160).
 * **Update**: Regenerated [STATE.md](STATE.md) (status line + a `#158` section) and added open task 12 to [HANDOFF.md](HANDOFF.md) — the UI-contrast epic #158 with its four remaining sub-issues (#161–#164); #159 and #160 closed (#158, #159, #160).
 * **Update**: Added two entries to [PITFALLS.md](PITFALLS.md) — the IME window is edge-to-edge from API 35 (up to API 34 the platform insets the IME content itself, so the same listener is inert there; rebuild padding from the XML base, `max` not sum), and the emulator recipe that produced the evidence (3-button nav via `cmd overlay enable-exclusive`, the API-31 SystemUI ANR, the `ime enable` retry). [DECISIONS.md](DECISIONS.md) records the "no SDK gate" decision; [STATE.md](STATE.md) has the `#157` section, [HANDOFF.md](HANDOFF.md) the run entry (#157).
+
+## 2026-11-21
+* **Update**: [STATE.md](STATE.md) — new `#185` section (journal session marker, recovery scan, `JournalReplay`, auto-recovery on Workbench entry, the recovery screen, share) + refreshed status line (902 tests, no version bump).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #185 done (4/5 of #152), #186 is next, plus an owner device check for the recovery paths.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `EchoTrim` + `JournalReplay` rows, the `FragmentJournal` session states, the `RecoveryActivity` row, and the Workbench banner.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — new "Recovery / pending transcriptions (#185)" section (journal is the only source, marker states, record-before-delete, replay the gaps, yield to the live path, store-before-delete, `RecoveryActions` enablement).
+* **Update**: [DOMAIN.md](DOMAIN.md) — "Recovery (leftovers)" vocabulary table (pending transcription, finished/completed, dismissed, re-run, restore, yield).
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-21 entry: the bundle marker as the session state, no separate audit file, gap-only replay, auto-retry policy + once-per-process guard, WAV reconstruct only for sharing.
+* **Update**: `docs/help.html` — a "Pending transcriptions" section plus the #178 drift fix (Polished is read-only, the button is "Polish").

@@ -61,6 +61,18 @@ model on both platforms.
 | **Promote / Clear** | Two in-place actions on the polished slot since #178: **promote** copies Polished into Raw (`replaceRawWithPolished`), **clear** empties Polished (`clearPolished`). Neither creates a new dictation. | "save", "apply as new" |
 | **MRU (last touched)** | The FIFO's only order since #173: a real Raw/Polished change moves a dictation to the top, browsing does not, and eviction deletes the least recently edited first. | "newest" (creation time no longer orders the FIFO) |
 
+### Recovery (leftovers, #185)
+
+| Term | Definition | Do not say |
+|---|---|---|
+| **Pending transcription** | A journal session that never produced text the user received. The one thing the recovery list shows (plus completed sessions whose dir survived a failed delete). | "failed dictation" (the dictation may be half transcribed), "error" |
+| **Leftover** | Synonym for a pending transcription in conversation; the code and the UI say *pending transcription*. | — |
+| **Finished / completed** | Every fragment has its transcript (explicit `completedAtMs`, or all records `DONE`). Nothing left to send — the only honest action is *restore the text*. | "done" (that is a fragment state) |
+| **Dismissed** | Thrown away by explicit user action (`user_discarded`). Audio and records are gone; the `session.json` tombstone stays as the record. | "deleted" (there is always a record) |
+| **Re-run** | Replaying the MISSING fragments of a session through the CURRENT provider, then splicing them with the stored text. Not a reconstruction of the audio. | "retry" (the runner retries inside one fragment), "re-transcribe" |
+| **Restore** | Writing a completed session's stored text into the Workbench without any request. | "recover" (recover is the umbrella term) |
+| **Yield** | A re-run pausing at a fragment boundary while a dictation is RECORDING/PROCESSING, so the live path keeps the provider to itself. | "pause", "cancel" |
+
 ### Time and cost
 
 | Term | Definition |
