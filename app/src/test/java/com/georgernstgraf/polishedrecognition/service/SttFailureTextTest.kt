@@ -43,6 +43,25 @@ class SttFailureTextTest {
     }
 
     @Test
+    fun `an offline session says it was saved instead of failed (#186)`() {
+        assertThat(SttFailureText.resFor(SttFailure.OFFLINE)).isEqualTo(R.string.ime_stt_offline)
+
+        val text = service.failureText(
+            SttRequestRunner.SttRequestException(
+                "No usable network — saved for later",
+                null,
+                SttFailure.OFFLINE
+            )
+        )
+
+        // the hint says what happens next, the detail says what broke — and
+        // neither sentence pretends the dictation is lost
+        assertThat(text).isEqualTo(
+            service.getString(R.string.ime_stt_offline) + "\n" + "No usable network — saved for later"
+        )
+    }
+
+    @Test
     fun `a budget refusal shows the hint plus the provider's own sentence`() {
         val text = service.failureText(
             SttRequestRunner.SttRequestException(

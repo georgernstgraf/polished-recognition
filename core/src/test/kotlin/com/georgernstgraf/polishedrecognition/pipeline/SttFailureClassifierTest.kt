@@ -135,4 +135,32 @@ class SttFailureClassifierTest {
         assertThat(SttFailureClassifier.classify(502, providerError = ProviderError(type = "budget_exceeded")))
             .isEqualTo(SttFailure.TRANSIENT)
     }
+
+    // ---- #186: no usable network -------------------------------------------
+
+    @Test
+    fun `offline dominates every other input`() {
+        // #186: the request never went out, so no status, no body and no
+        // exception describes the situation better than the missing network.
+        assertThat(SttFailureClassifier.classify(401, offline = true)).isEqualTo(SttFailure.OFFLINE)
+        assertThat(SttFailureClassifier.classify(429, offline = true)).isEqualTo(SttFailure.OFFLINE)
+        assertThat(SttFailureClassifier.classify(200, offline = true)).isEqualTo(SttFailure.OFFLINE)
+        assertThat(SttFailureClassifier.classify(200, envelopeUnusable = true, offline = true))
+            .isEqualTo(SttFailure.OFFLINE)
+        assertThat(SttFailureClassifier.classify(504, providerError = ProviderError(type = "budget_exceeded"), offline = true))
+            .isEqualTo(SttFailure.OFFLINE)
+        assertThat(SttFailureClassifier.classify(null, IOException("no route"), offline = true))
+            .isEqualTo(SttFailure.OFFLINE)
+        assertThat(SttFailureClassifier.classify(null, null, offline = true))
+            .isEqualTo(SttFailure.OFFLINE)
+    }
+
+    @Test
+    fun `the same IOException with a reachable network is still transient`() {
+        // the default keeps every existing call site's behaviour untouched
+        assertThat(SttFailureClassifier.classify(null, UnknownHostException("no dns")))
+            .isEqualTo(SttFailure.TRANSIENT)
+        assertThat(SttFailureClassifier.classify(null, IOException("no route"), offline = false))
+            .isEqualTo(SttFailure.TRANSIENT)
+    }
 }

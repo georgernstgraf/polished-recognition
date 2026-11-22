@@ -242,6 +242,50 @@ class TranscriptionPipelineTest {
         verify(exactly = 0) { chatApi.chatSync(any(), any()) }
     }
 
+    /**
+     * #186: the polish is a network request too. Offline it must not be sent —
+     * and the raw transcript, the half that cost the recording, still comes
+     * out as the session's text with the OFFLINE class for the ring.
+     */
+    @Test
+    fun `an offline polish keeps the raw text and reports OFFLINE (#186)`() = runBlocking {
+        mockSttSuccess()
+        val offline = TranscriptionPipeline(
+            getSttApi, getChatApi, promptStore, settingsStore,
+            isOnline = { false }
+        )
+        val outcomes = mutableListOf<PipelineOutcome>()
+        offline.onOutcome = { outcomes += it }
+
+        val result = offline.transcribe(listOf(lincolnFile))
+
+        assertThat(result.isFailure).isTrue()
+        val failure = result.exceptionOrNull() as SttRequestRunner.SttRequestException
+        assertThat(failure.failure).isEqualTo(SttFailure.OFFLINE)
+        assertThat(failure.httpCode).isNull()
+        assertThat(failure.message).isEqualTo("No usable network — saved for later")
+        // nothing was asked of the LLM
+        verify(exactly = 0) { chatApi.chatSync(any(), any()) }
+        // ...and the raw transcript is what the session keeps
+        assertThat(outcomes.single().rawText).isEqualTo(lincolnGermanText)
+        assertThat(outcomes.single().llmError).isEqualTo("No usable network — saved for later")
+    }
+
+    @Test
+    fun `a manual re-polish offline is OFFLINE instead of a provider error (#186)`() = runBlocking {
+        val offline = TranscriptionPipeline(
+            getSttApi, getChatApi, promptStore, settingsStore,
+            isOnline = { false }
+        )
+
+        val result = offline.polish("Hallo Welt", null)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat((result.exceptionOrNull() as SttRequestRunner.SttRequestException).failure)
+            .isEqualTo(SttFailure.OFFLINE)
+        verify(exactly = 0) { chatApi.chatSync(any(), any()) }
+    }
+
     @Test
     fun `raw mode writes stt-text log but no llm-prompt log`() = runBlocking {
         settingsStore.rawMode = true

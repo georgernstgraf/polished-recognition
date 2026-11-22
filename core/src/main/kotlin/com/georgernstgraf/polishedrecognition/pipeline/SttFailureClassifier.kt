@@ -55,7 +55,20 @@ enum class SttFailure {
      * `rate_limit_exceeded` or an unparseable body stays TRANSIENT — the body
      * is the signal, never the status and never the (strippable) headers.
      */
-    BUDGET
+    BUDGET,
+
+    /**
+     * #186: the device had no USABLE network when the fragment was recorded —
+     * the platform's `NET_CAPABILITY_VALIDATED` was absent, so the request was
+     * not attempted at all.
+     *
+     * This is deliberately **not an error**: the audio is complete, the reason
+     * is recorded, and the session transcribes as soon as the network is back
+     * (a reconnect while the Workbench is visible, the next entry, or the
+     * manual Retry STT). The class exists so the journal, the ring and the IME
+     * can say "offline — saved" instead of "transcription failed".
+     */
+    OFFLINE
 }
 
 /**
@@ -80,13 +93,21 @@ object SttFailureClassifier {
      *   (`429` → BUDGET instead of TRANSIENT); a 401/403 stays AUTH, because a
      *   rejected credential is the more specific fact and retrying is wrong
      *   either way. Everything else keeps the matrix untouched.
+     * @param offline #186: the device had no validated network (the `:app`
+     *   `NetworkGate`). That dominates EVERY other input: no request went
+     *   out, so no status and no exception describes the situation better
+     *   than the missing network. Only ever `true` on a path that already
+     *   decided not to ask — a `false` value leaves the whole matrix as it
+     *   was.
      */
     fun classify(
         httpCode: Int?,
         throwable: Throwable? = null,
         envelopeUnusable: Boolean = false,
-        providerError: ProviderError? = null
+        providerError: ProviderError? = null,
+        offline: Boolean = false
     ): SttFailure {
+        if (offline) return SttFailure.OFFLINE
         if (envelopeUnusable) return SttFailure.PROTOCOL
         if (httpCode != null) {
             return when {

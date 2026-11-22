@@ -10,6 +10,8 @@ import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
+import com.georgernstgraf.polishedrecognition.network.NetworkGate
+import com.georgernstgraf.polishedrecognition.network.ReconnectMonitor
 import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
 import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
 import com.google.common.truth.Truth.assertThat
@@ -836,5 +838,100 @@ class WorkbenchActivityTest {
         idle()
 
         assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Re-run failed: HTTP 500")
+    }
+
+    // ------------------------------------------- #186: offline dictations
+
+    /**
+     * #186: a dictation recorded without a network is a page with a reason, not
+     * a failure screen — the wave-2 stamp line carries it, so no new UI.
+     */
+    @Test
+    fun `a leftover recorded offline shows that it is saved`() {
+        seedLeftover(failureClass = "OFFLINE")
+        val activity = launch()
+
+        activity.showNewest()
+
+        assertThat(activity.position()).isEqualTo("1 / 1")
+        assertThat(activity.stamp()).contains("7 s")
+        assertThat(activity.stamp()).contains("Offline — saved, will transcribe when online")
+        assertThat(activity.visible(R.id.workbench_leftover_actions)).isTrue()
+    }
+
+    /**
+     * #186: the foreground-only reconnect. The monitor is injected because the
+     * real one needs live Android network callbacks; the fake keeps the ONE
+     * rule under test (`NetworkGate.reconnectFires`) and only pretends to be
+     * the platform, so what this pins is the WIRING: one validated edge → one
+     * recovery ask, and a paused screen stops listening.
+     */
+    @Test
+    fun `a reconnect asks for a recovery once and leaving the screen stops the monitor`() {
+        val monitor = FakeReconnectMonitor()
+        val controller = Robolectric.buildActivity(WorkbenchActivity::class.java)
+        controller.get().ioDispatcher = Dispatchers.Unconfined
+        controller.get().reconnectMonitor = monitor
+        val activity = controller.setup().get().also { idle() }
+        val onEntry = activity.recoverRequests
+
+        // the entry path already recovered; now the network comes back
+        monitor.validated()
+        idle()
+        assertThat(activity.recoverRequests).isEqualTo(onEntry + 1)
+
+        // ConnectivityManager repeats onCapabilitiesChanged for the same
+        // network — a repeat is not another reconnect
+        monitor.validated()
+        idle()
+        assertThat(activity.recoverRequests).isEqualTo(onEntry + 1)
+
+        controller.pause()
+        assertThat(monitor.running).isFalse()
+
+        // nothing fires while the screen is away, even for a real new edge
+        monitor.lost()
+        monitor.validated()
+        idle()
+        assertThat(activity.recoverRequests).isEqualTo(onEntry + 1)
+    }
+
+    /**
+     * The test double for [ReconnectMonitor]: it applies the production edge
+     * rule ([NetworkGate.reconnectFires]) instead of a private one, so the
+     * "exactly once" property is the real rule and not a re-invention.
+     */
+    private class FakeReconnectMonitor : ReconnectMonitor {
+        private var onValidated: (() -> Unit)? = null
+        private var previouslyValidated = false
+        var running = false
+            private set
+
+        override fun start(onValidated: () -> Unit) {
+            running = true
+            previouslyValidated = false
+            this.onValidated = onValidated
+        }
+
+        override fun stop() {
+            running = false
+            onValidated = null
+        }
+
+        /** One `onCapabilitiesChanged` reporting a validated network. */
+        fun validated() {
+            if (!running) return
+            val fires = NetworkGate.reconnectFires(
+                validated = true,
+                previouslyValidated = previouslyValidated
+            )
+            previouslyValidated = true
+            if (fires) onValidated?.invoke()
+        }
+
+        /** The default network went away (`onLost`). */
+        fun lost() {
+            previouslyValidated = false
+        }
     }
 }

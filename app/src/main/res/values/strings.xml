@@ -113,6 +113,8 @@
     <string name="ime_stt_unusable_response">The STT server answered unusably — the audio is kept, send again to retry</string>
     <!-- #75: the provider's own spend/quota refusal — only the user can clear it. -->
     <string name="ime_stt_budget_exhausted">Provider budget exhausted — top up or switch provider</string>
+    <!-- #186: no request went out — the audio is saved and heals by itself. -->
+    <string name="ime_stt_offline">Offline — saved, will transcribe when online</string>
     <string name="ime_mic_blocked">Microphone unavailable — tap the mic to start again</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>
@@ -176,6 +178,8 @@
     <string name="recovery_reason_terminal">provider rejected the request</string>
     <string name="recovery_reason_interrupted">interrupted before it finished</string>
     <string name="recovery_reason_completed">transcribed — text available</string>
+    <!-- #186: recorded without a usable network; nothing was lost. -->
+    <string name="recovery_reason_offline">Offline — saved, will transcribe when online</string>
     <plurals name="recovery_started">
         <item quantity="one">Recovering %1$d pending dictation…</item>
         <item quantity="other">Recovering %1$d pending dictations…</item>

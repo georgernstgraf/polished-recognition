@@ -26,6 +26,7 @@ import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.delivery.ClipboardDelivery
 import com.georgernstgraf.polishedrecognition.dictation.Dictation
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
+import com.georgernstgraf.polishedrecognition.network.ReconnectMonitor
 import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
@@ -185,6 +186,22 @@ class WorkbenchActivity : Activity() {
         app.recoveryCoordinator.startManual(sessionId)
     }
 
+    /**
+     * #186: the foreground-only reconnect trigger. `null` ⇒ the app's real
+     * monitor (started in [onResume], stopped in [onPause]); the tests inject
+     * one so no Android network callback is involved.
+     */
+    internal var reconnectMonitor: ReconnectMonitor? = null
+
+    private val monitor: ReconnectMonitor get() = reconnectMonitor ?: app.reconnectMonitor
+
+    /**
+     * #186: how often this screen asked for a recovery — the observable half
+     * of the reconnect wiring (a validated edge must land exactly one ask).
+     */
+    internal var recoverRequests = 0
+        private set
+
     /** The per-dictation target language: seeded from settings, never written back. */
     private var polishLanguage: String? = null
     private var polishing = false
@@ -258,6 +275,10 @@ class WorkbenchActivity : Activity() {
         // up — the feedback Toast comes before any request goes out.
         app.recoveryCoordinator.onFinished = { outcome -> onRecoveryFinished(outcome) }
         recoverLeftovers()
+        // #186: while this screen is visible, a validated network is the
+        // moment a saved dictation becomes transcribable. Foreground only —
+        // onPause stops listening, and no background upload is ever started.
+        monitor.start { onReconnected() }
         // D15: entering the Workbench starts the IME immediately. The IME's
         // own auto-start path does the rest — a foreign keyboard simply opens.
         rawField.requestFocus()
@@ -277,6 +298,9 @@ class WorkbenchActivity : Activity() {
 
     override fun onPause() {
         visible = false
+        // #186: leaving the screen stops the reconnect trigger — the user may
+        // keep using the phone while offline; nothing uploads behind them.
+        monitor.stop()
         app.recoveryCoordinator.onFinished = null
         // #173 decision 2/3: a slot with any content is materialised before the
         // window goes away, so nothing typed into it is ever lost.
@@ -338,6 +362,7 @@ class WorkbenchActivity : Activity() {
      * at every fragment boundary.
      */
     private fun recoverLeftovers() {
+        recoverRequests++
         val coordinator = app.recoveryCoordinator
         scope.launch {
             val scanned = scanLeftovers()
@@ -354,6 +379,20 @@ class WorkbenchActivity : Activity() {
                     Toast.LENGTH_SHORT
                 ).show()
             }
+        }
+    }
+
+    /**
+     * #186: one validated network edge = one recovery ask. [ReconnectMonitor]
+     * already collapsed the repeated callbacks into a single edge; this only
+     * hops onto the UI thread (the callback arrives on a binder thread) and
+     * runs the same entry path — the leftovers that are still auto-retryable
+     * are re-run, the rest stay with their reason.
+     */
+    private fun onReconnected() {
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            recoverLeftovers()
         }
     }
 
@@ -712,6 +751,7 @@ class WorkbenchActivity : Activity() {
                 RecoveryReason.Kind.NETWORK -> R.string.recovery_reason_network
                 RecoveryReason.Kind.TERMINAL -> R.string.recovery_reason_terminal
                 RecoveryReason.Kind.INTERRUPTED -> R.string.recovery_reason_interrupted
+                RecoveryReason.Kind.OFFLINE -> R.string.recovery_reason_offline
             }
         )
     }

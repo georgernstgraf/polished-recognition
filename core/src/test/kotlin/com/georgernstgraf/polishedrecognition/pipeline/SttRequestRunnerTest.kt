@@ -56,6 +56,18 @@ class SttRequestRunnerTest {
             sleep = { delays.add(it) }
         )
 
+    private fun runner(online: () -> Boolean): SttRequestRunner =
+        SttRequestRunner(
+            getSttApi = { sttApi },
+            logger = RotatingJsonLogger(logDir),
+            backoffMs = listOf(1L, 2L),
+            sleep = { delays.add(it) },
+            isOnline = online
+        )
+
+    private fun failureOf(result: Result<SttResponse>): SttRequestRunner.SttRequestException =
+        result.exceptionOrNull() as SttRequestRunner.SttRequestException
+
     private fun mockStt(response: Response<SttResponse>) {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } returns response
@@ -341,9 +353,6 @@ class SttRequestRunnerTest {
             maxRetryWaitMs = retryWaitMs,
             maxTotalWaitMs = totalWaitMs
         )
-
-    private fun failureOf(result: Result<SttResponse>): SttRequestRunner.SttRequestException =
-        result.exceptionOrNull() as SttRequestRunner.SttRequestException
 
     /** A 2xx body as a real server sends it: the transcript key is absent. */
     private fun envelopeWithoutText(): SttResponse =
@@ -637,5 +646,69 @@ class SttRequestRunnerTest {
         every { call.execute() } throws IOException("read timeout")
         every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
         assertThat(failureOf(runner().run(wavFile("timeout.wav"), config)).rateLimitBlock()).isNull()
+    }
+
+    // ---- #186: the network gate -------------------------------------------
+
+    @Test
+    fun `a closed gate fails as OFFLINE without a request and without evidence`() =
+        kotlinx.coroutines.runBlocking {
+            mockStt(success())
+
+            val result = runner { false }.run(wavFile(), config, chunk = 1, chunkCount = 1)
+
+            // no attempt at all — not even the pre-send record: nothing went out
+            verify(exactly = 0) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+            assertThat(File(logDir, "stt-upload.json").exists()).isFalse()
+            assertThat(File(logDir, "stt-latency.json").exists()).isFalse()
+            assertThat(delays).isEmpty()
+
+            val failure = failureOf(result)
+            assertThat(failure.failure).isEqualTo(SttFailure.OFFLINE)
+            assertThat(failure.httpCode).isNull()
+            assertThat(failure.message).isEqualTo("No usable network — saved for later")
+        }
+
+    @Test
+    fun `a connection that dies while the gate closes is OFFLINE, not transient`() =
+        kotlinx.coroutines.runBlocking {
+            var online = true
+            val call = mockk<Call<SttResponse>>()
+            // the request went out, then the network vanished: the platform
+            // reports no validated network when the throw is classified
+            every { call.execute() } answers {
+                online = false
+                throw java.net.UnknownHostException("no dns")
+            }
+            every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
+
+            val failure = failureOf(runner { online }.run(wavFile(), config))
+
+            assertThat(failure.failure).isEqualTo(SttFailure.OFFLINE)
+            // one attempt: an offline request is not retried
+            verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+            assertThat(delays).isEmpty()
+            // the attempt really happened, so its completion record exists
+            val record = readLog("stt-latency")
+            assertThat(record["error"]).isEqualTo("UnknownHostException")
+        }
+
+    @Test
+    fun `the same dns failure with the gate still open stays TRANSIENT`() =
+        kotlinx.coroutines.runBlocking {
+            val call = mockk<Call<SttResponse>>()
+            every { call.execute() } throws java.net.UnknownHostException("no dns")
+            every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
+
+            val failure = failureOf(runner { true }.run(wavFile(), config))
+
+            assertThat(failure.failure).isEqualTo(SttFailure.TRANSIENT)
+            // the #116 retry ladder is untouched
+            assertThat(delays).containsExactly(1L, 2L).inOrder()
+        }
+
+    @Test
+    fun `the offline class is worth one attempt in the table`() {
+        assertThat(runner().attemptsFor(SttFailure.OFFLINE)).isEqualTo(1)
     }
 }

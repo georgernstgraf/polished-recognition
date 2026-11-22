@@ -46,4 +46,12 @@ class RecoveryReasonTest {
         assertThat(RecoveryReason.autoRetryable(RecoveryReason.Kind.TERMINAL)).isFalse()
         assertThat(RecoveryReason.autoRetryable(RecoveryReason.Kind.COMPLETED)).isFalse()
     }
+
+    @Test
+    fun `a session recorded offline has its own reason and heals by waiting`() {
+        // #186: it never reached the provider, so waiting is exactly what
+        // helps — the ring retries it on entry, on a reconnect and by hand
+        assertThat(RecoveryReason.of(false, "OFFLINE")).isEqualTo(RecoveryReason.Kind.OFFLINE)
+        assertThat(RecoveryReason.autoRetryable(RecoveryReason.Kind.OFFLINE)).isTrue()
+    }
 }

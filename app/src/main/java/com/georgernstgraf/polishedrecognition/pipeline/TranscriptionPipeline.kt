@@ -21,7 +21,15 @@ class TranscriptionPipeline(
     private val promptStore: PromptStore,
     private val settingsStore: SettingsStore,
     private val logger: RotatingJsonLogger? = null,
-    private val sttRunner: SttRequestRunner = SttRequestRunner(getSttApi, logger)
+    private val sttRunner: SttRequestRunner = SttRequestRunner(getSttApi, logger),
+    /**
+     * #186: the same network gate the STT runner uses. The polish call is a
+     * network request too, so a closed gate must not spend a failed round-trip
+     * on it: the RAW text is stored (the half that cost the recording) and the
+     * failure is [SttFailure.OFFLINE] — "saved", not "broken". Default `true`
+     * keeps every existing construction unchanged.
+     */
+    private val isOnline: () -> Boolean = { true }
 ) {
 
     data class SttResult(
@@ -166,6 +174,21 @@ class TranscriptionPipeline(
             )
         )
 
+        // #186: no request without a validated network. The raw text is the
+        // outcome (it is stored by the caller), so the session loses nothing —
+        // the polish is the part that waits.
+        if (!isOnline()) {
+            val failure = offlineFailure()
+            onOutcome?.invoke(
+                PipelineOutcome(
+                    rawText = whisper.text,
+                    rawMode = false,
+                    llmError = failure.message
+                )
+            )
+            return@withContext Result.failure(failure)
+        }
+
         val request = ChatRequest(
             model = llmConfig.model,
             messages = listOf(
@@ -231,6 +254,9 @@ class TranscriptionPipeline(
             val llmConfig = settingsStore.llmProvider ?: return@withContext Result.failure(
                 Exception("LLM provider not configured")
             )
+            // #186: the manual re-polish is a request as well — offline it
+            // fails as OFFLINE instead of pretending the provider refused.
+            if (!isOnline()) return@withContext Result.failure(offlineFailure())
             // No STT result exists for a re-polish, so the source-language
             // clause is dropped (the prompt template treats "" as "omit").
             val systemPrompt = promptStore.systemPrompt
@@ -275,6 +301,18 @@ class TranscriptionPipeline(
             providerError = providerError
         )
     }
+
+    /**
+     * #186: the offline refusal of the polish path — the same carrier an STT
+     * failure uses, with the class the ring and the IME act on. No HTTP code:
+     * nothing was asked.
+     */
+    private fun offlineFailure(): SttRequestRunner.SttRequestException =
+        SttRequestRunner.SttRequestException(
+            SttRequestRunner.OFFLINE_MESSAGE,
+            httpCode = null,
+            failure = SttFailure.OFFLINE
+        )
 
     private fun targetLanguageClause(targetLanguage: String?): String =
         if (targetLanguage != null) {

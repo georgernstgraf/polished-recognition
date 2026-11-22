@@ -35,6 +35,12 @@ import java.io.File
  * error and the limits-only response headers, so the transcriber can record
  * them in the bundle without re-reading anything.
  *
+ * #186: when [isOnline] says the device has no validated network, [run] returns
+ * a [SttFailure.OFFLINE] failure WITHOUT a request and without any evidence
+ * record — "saved for later", not "failed". A connection that dies mid-request
+ * re-reads the same gate, so a genuine outage is recorded as OFFLINE while any
+ * other exception keeps its #183 class.
+ *
  * Writes two evidence streams:
  * - `stt-upload.json` (unchanged #115 semantics): pre-send proof that the
  *   request went out, with size/model/endpoint — on a read-timeout no
@@ -79,7 +85,17 @@ class SttRequestRunner(
      */
     private val maxRetryWaitMs: Long = MAX_RETRY_WAIT_MS,
     /** #183: the whole request's wait budget, so no server can stall the worker. */
-    private val maxTotalWaitMs: Long = MAX_TOTAL_WAIT_MS
+    private val maxTotalWaitMs: Long = MAX_TOTAL_WAIT_MS,
+    /**
+     * #186: the network gate. A plain, non-suspending read of the LAST KNOWN
+     * state — the app wires it to `ConnectivityManager`'s
+     * `NET_CAPABILITY_VALIDATED`. `false` means "do not even build the
+     * request": the fragment fails as [SttFailure.OFFLINE] (not an error — the
+     * audio is kept and transcribed later), and no `stt-latency` record is
+     * written because nothing went out. Default `true` keeps every existing
+     * call site (and every test that does not care) unchanged.
+     */
+    private val isOnline: () -> Boolean = { true }
 ) {
 
     /** Successful request measurement (#116 Phase 2 profile sample). */
@@ -144,13 +160,18 @@ class SttRequestRunner(
      * | AUTH | 1 | a dead token must not be hammered |
      * | PROTOCOL | 1 | the envelope broke; a repeat breaks the same way |
      * | TERMINAL | 1 | the request itself is refused |
+     * | OFFLINE (#186) | 1 | no request is attempted; the gate returns first |
      */
     fun attemptsFor(failure: SttFailure): Int = when (failure) {
         SttFailure.TRANSIENT -> MAX_ATTEMPTS
         SttFailure.BUDGET,
         SttFailure.AUTH,
         SttFailure.PROTOCOL,
-        SttFailure.TERMINAL -> 1
+        SttFailure.TERMINAL,
+        // #186: unreachable by request — the gate returns before the attempt
+        // loop. The value exists so the table stays total, and 1 is the honest
+        // number for a fragment that never asked the network.
+        SttFailure.OFFLINE -> 1
     }
 
     /**
@@ -179,6 +200,11 @@ class SttRequestRunner(
         sessionId: String? = null,
         fragmentIndex: Int? = null
     ): Result<SttResponse> {
+        // #186: the gate, BEFORE anything observable — no upload record, no
+        // latency record, no request. A fragment recorded without a usable
+        // network is not a failed upload; it is a saved one.
+        if (!isOnline()) return Result.failure(offlineFailure())
+
         val mediaType = if (isOgg(audioFile)) "audio/ogg" else "audio/wav"
         val uploadName = if (isOgg(audioFile)) "audio.ogg" else "audio.wav"
         val durationMs = AudioDuration.estimateMs(audioFile)
@@ -273,9 +299,16 @@ class SttRequestRunner(
             } catch (e: Exception) {
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
                 logCompletion(audioFile, config, mediaType, durationMs, attempt, null, elapsedMs, e.javaClass.simpleName, prompt)
+                // #186: a connection that died mid-request is only OFFLINE when
+                // the platform agrees the device has no validated network —
+                // otherwise it is exactly the #183 TRANSIENT it always was.
                 SttRequestException(
                     e.message ?: e.javaClass.simpleName,
-                    failure = SttFailureClassifier.classify(null, e)
+                    failure = if (isOnline()) {
+                        SttFailureClassifier.classify(null, e)
+                    } else {
+                        SttFailure.OFFLINE
+                    }
                 )
             }
             lastFailure = failure
@@ -322,7 +355,20 @@ class SttRequestRunner(
     @Suppress("SENSELESS_COMPARISON")
     private fun hasTranscript(body: SttResponse): Boolean = body.text != null
 
-    /** #183: the user/log visible message, with the server's wait advice. */
+    /**
+     * #186: the failure a gated request reports — no HTTP code, because
+     * nothing was asked. The wording is the user-facing one (CONVENTIONS: say
+     * what happened AND that nothing was lost).
+     */
+    private fun offlineFailure(): SttRequestException = SttRequestException(
+        OFFLINE_MESSAGE,
+        httpCode = null,
+        failure = SttFailure.OFFLINE
+    )
+
+    /**
+     * #183: the user/log visible message, with the server's wait advice.
+     */
     private fun httpMessage(code: Int, retryAfterMs: Long?): String =
         if (retryAfterMs == null) "HTTP $code" else "HTTP $code (Retry-After ${retryAfterMs / 1_000}s)"
 
@@ -467,6 +513,12 @@ class SttRequestRunner(
 
         /** #75: per-header cap in the limits block — a value, not a document. */
         const val MAX_HEADER_VALUE_CHARS = 64
+
+        /**
+         * #186: what a gated (no usable network) request reports. It is not an
+         * error sentence: the audio is saved and will transcribe later.
+         */
+        const val OFFLINE_MESSAGE = "No usable network — saved for later"
 
         /**
          * #183: ceiling for ONE wait. A gateway that asks for more is obeyed

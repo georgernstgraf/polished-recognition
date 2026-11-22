@@ -2,6 +2,7 @@ package com.georgernstgraf.polishedrecognition
 
 import android.app.Application
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.os.Process
 import android.util.Log
 import com.georgernstgraf.polishedrecognition.api.OpenAiChatApiService
@@ -10,6 +11,11 @@ import com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
+import com.georgernstgraf.polishedrecognition.network.AndroidNetworkStatus
+import com.georgernstgraf.polishedrecognition.network.AndroidReconnectMonitor
+import com.georgernstgraf.polishedrecognition.network.NetworkGate
+import com.georgernstgraf.polishedrecognition.network.NetworkStatus
+import com.georgernstgraf.polishedrecognition.network.ReconnectMonitor
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
 import com.georgernstgraf.polishedrecognition.pipeline.AudioEvidenceStore
 import com.georgernstgraf.polishedrecognition.pipeline.CoreLog
@@ -137,6 +143,26 @@ class PolishedRecognitionApp : Application() {
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
 
     /**
+     * #186: the app's ONE answer to "is there a usable network?". A plain read
+     * of `ConnectivityManager` (VALIDATED, not merely connected) — no
+     * registration, no listener, so asking it per fragment costs nothing.
+     * Everything that issues a request reads it through [NetworkGate].
+     */
+    val networkStatus: NetworkStatus by lazy {
+        AndroidNetworkStatus(getSystemService(ConnectivityManager::class.java))
+    }
+
+    /**
+     * #186: the foreground-only reconnect trigger. Owned by
+     * [ui.WorkbenchActivity] (started in `onResume`, stopped in `onPause`) —
+     * deliberately not a service and not a background upload: a dictation
+     * recorded offline transcribes when the user is back in the Workbench.
+     */
+    val reconnectMonitor: ReconnectMonitor by lazy {
+        AndroidReconnectMonitor(getSystemService(ConnectivityManager::class.java), networkStatus)
+    }
+
+    /**
      * #127/#142: per-session audio-evidence retention
      * (`files/audio/<sessionId>/`, next to `logs/` — the adb-readable root
      * on release devices). The forensic bundle is `uploads/` + `session.json`
@@ -174,9 +200,17 @@ class PolishedRecognitionApp : Application() {
             promptStore = promptStore,
             settingsStore = settingsStore,
             logger = jsonLogger,
+            // #186: the polish call is a request too — offline it must not go
+            // out, and the raw text is what the session keeps.
+            isOnline = { NetworkGate.shouldAttempt(networkStatus.isValidated()) },
             sttRunner = SttRequestRunner(
                 getSttApi = { baseUrl -> getSttApi(baseUrl) },
                 logger = jsonLogger,
+                // #186: the gate every fragment, retry and recovery re-run
+                // reads. This ONE runner is shared by the live path, the
+                // journal replay and the legacy chunk path, so one wiring
+                // covers all three.
+                isOnline = { NetworkGate.shouldAttempt(networkStatus.isValidated()) },
                 // Per-provider latency profile feed (#116 Phase 2): every
                 // successful evidenced request is a (S, t) sample. The
                 // runner invokes this only on success with duration parsed.

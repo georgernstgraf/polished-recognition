@@ -368,9 +368,52 @@ class FragmentTranscriberTest {
         j.cancel()
     }
 
+    /**
+     * #186: a session recorded without a usable network is not a failure — no
+     * request goes out at all (the gate answers first), and every fragment
+     * keeps its audio and its reason, so the Workbench can transcribe it later.
+     */
     @Test
-    fun `unconfigured provider records a failure instead of crashing`() = runBlocking {
-        val unconfigured = FragmentTranscriber(
+    fun `an offline session makes zero requests and journals every fragment OFFLINE`() = runBlocking<Unit> {
+        val sttApi = mockk<com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService>(relaxed = true)
+        val journal = FragmentJournal(File(tmp.root, "journal-offline"))
+        val offlineRunner = SttRequestRunner(
+            getSttApi = { sttApi },
+            sleep = { },
+            isOnline = { false }
+        )
+        val j = FragmentTranscriber(
+            sttRunner = offlineRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            journal = journal,
+            sessionId = "s186"
+        )
+        j.start()
+        (0..2).forEach { j.offer(fragment(it)) }
+        val drained = j.drain()
+
+        // not one upload: the gate returned before the request
+        io.mockk.verify(exactly = 0) {
+            sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any())
+        }
+        assertThat(drained.failedIndex).isEqualTo(0)
+        assertThat(drained.failure!!.failure).isEqualTo(SttFailure.OFFLINE)
+        assertThat(drained.failure!!.httpCode).isNull()
+
+        // all three fragments are durable and retryable, with the reason on disk
+        for (index in 0..2) {
+            val record = journal.readRecord("s186", index)!!
+            assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+            assertThat(record.failureClass).isEqualTo(SttFailure.OFFLINE.name)
+            assertThat(record.failureHttpCode).isNull()
+            assertThat(File(journal.sessionDir("s186"), record.uploadFile!!).isFile).isTrue()
+        }
+        j.cancel()
+    }
+
+    @Test
+    fun `unconfigured provider records a failure instead of crashing`() = runBlocking {        val unconfigured = FragmentTranscriber(
             sttRunner = sttRunner,
             configProvider = { null },
             scope = CoroutineScope(Dispatchers.Unconfined)

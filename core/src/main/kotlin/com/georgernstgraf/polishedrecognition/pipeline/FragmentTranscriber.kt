@@ -47,14 +47,16 @@ import java.util.concurrent.atomic.AtomicLong
  * the user's rescue path. Transcripts stay cached in memory, so a retry
  * after a parked failure re-drains instantly without re-transcribing.
  *
- * **#183 — the AUTH latch, generalised by #75:** a fragment that fails with
- * [SttFailure.AUTH] (401/403) or [SttFailure.BUDGET] (the provider's own
- * spend/quota refusal) sets [blockedFailure]; every later fragment of the
+ * **#183 — the AUTH latch, generalised by #75 and #186:** a fragment that
+ * fails with [SttFailure.AUTH] (401/403), [SttFailure.BUDGET] (the provider's
+ * own spend/quota refusal) or [SttFailure.OFFLINE] (no validated network — the
+ * request was never sent) sets [blockedFailure]; every later fragment of the
  * session is recorded as failed WITHOUT a request, and its composed upload
  * still reaches the journal, so nothing is lost and the provider is not
- * hammered — one dictation can never produce more than one budget request.
- * [resetFailures] clears the latch, because a new run may carry the token the
- * user just fixed (or a budget they just topped up).
+ * hammered — one dictation can never produce more than one budget request, and
+ * an offline session costs zero. [resetFailures] clears the latch, because a
+ * new run may carry the token the user just fixed (or a budget they just
+ * topped up, or a network that is back).
  *
  * **Acoustic pre-roll (#117 round 2):** each fragment's UPLOAD is composed
  * as `preRoll + fragment` byte-concatenation (OGG chaining makes that a
@@ -209,6 +211,13 @@ class FragmentTranscriber(
         const val BUDGET_BLOCKED_MESSAGE =
             "Provider budget exhausted — no further attempts in this session"
 
+        /**
+         * #186: the same for a session that ran out of network. Not an error —
+         * the audio is complete and transcribes when the network is back; the
+         * class (`OFFLINE`) is what the ring and the auto path act on.
+         */
+        const val OFFLINE_BLOCKED_MESSAGE = "No usable network — saved for later"
+
         private const val TAG = "FragmentTranscriber"
     }
 
@@ -239,12 +248,13 @@ class FragmentTranscriber(
 
     /**
      * #183: set once a fragment fails with [SttFailure.AUTH]; #75 added
-     * [SttFailure.BUDGET]. Every LATER fragment of this session is recorded as
-     * failed WITHOUT a request — the "stop hammering" half of the 401 storm a
-     * mis-migrated endpoint produced (five 401s in one session), and the reason
-     * one dictation can never spend more than one request against a budget
-     * wall. Cleared by [resetFailures] (a new Send re-reads the token from
-     * Settings) and by [cancel].
+     * [SttFailure.BUDGET], #186 [SttFailure.OFFLINE]. Every LATER fragment of
+     * this session is recorded as failed WITHOUT a request — the "stop
+     * hammering" half of the 401 storm a mis-migrated endpoint produced (five
+     * 401s in one session), the reason one dictation can never spend more than
+     * one request against a budget wall, and why an offline session costs zero
+     * requests. Cleared by [resetFailures] (a new Send re-reads the token from
+     * Settings, and the network may be back) and by [cancel].
      */
     @Volatile private var blockedFailure: SttFailure? = null
 
@@ -533,12 +543,19 @@ class FragmentTranscriber(
                 val ex = e as? SttRequestRunner.SttRequestException
                     ?: SttRequestRunner.SttRequestException(e.message ?: e.javaClass.simpleName)
                 failures[fragment.index] = ex
-                // #183/#75: a rejected token or an exhausted budget stops THIS
-                // session's requests — the remaining fragments are recorded
-                // without one (see process).
-                if (ex.failure == SttFailure.AUTH || ex.failure == SttFailure.BUDGET) {
+                // #183/#75/#186: a rejected token, an exhausted budget or a
+                // session that ran out of network stops THIS session's
+                // requests — the remaining fragments are recorded without one
+                // (see process).
+                if (ex.failure == SttFailure.AUTH || ex.failure == SttFailure.BUDGET ||
+                    ex.failure == SttFailure.OFFLINE
+                ) {
                     if (blockedFailure != ex.failure) {
-                        val what = if (ex.failure == SttFailure.AUTH) "auth" else "budget"
+                        val what = when (ex.failure) {
+                            SttFailure.AUTH -> "auth"
+                            SttFailure.BUDGET -> "budget"
+                            else -> "offline"
+                        }
                         CoreLog.w(TAG, "$what rejected (HTTP ${ex.httpCode}) — pausing STT for this session")
                     }
                     blockedFailure = ex.failure
@@ -613,6 +630,7 @@ class FragmentTranscriber(
     private fun blockedMessage(failure: SttFailure): String = when (failure) {
         SttFailure.BUDGET -> BUDGET_BLOCKED_MESSAGE
         SttFailure.AUTH -> AUTH_BLOCKED_MESSAGE
+        SttFailure.OFFLINE -> OFFLINE_BLOCKED_MESSAGE
         else -> "STT paused for this session (${failure.name})"
     }
 
@@ -647,7 +665,9 @@ class FragmentTranscriber(
      * failure stays PENDING (the audio is retryable), a PROTOCOL failure is
      * marked NEEDS_MANUAL (a plain retry would break the same way). #75's
      * BUDGET stays PENDING too — a topped-up budget makes the audio sendable
-     * again, it just never happens automatically (#185/#188).
+     * again, it just never happens automatically (#185/#188). #186's OFFLINE
+     * stays PENDING for the same reason: the next validation of the network
+     * makes it sendable again, with no user action at all.
      */
     private suspend fun journalOutcome(
         index: Int,

@@ -29,6 +29,9 @@ object SttFailureText {
         // or point the app at another provider) — the provider's own sentence
         // follows as the technical detail.
         SttFailure.BUDGET -> R.string.ime_stt_budget_exhausted
+        // #186: nothing was sent — say so, and say the audio is safe. This is
+        // the one "failure" that fixes itself, so the hint promises that.
+        SttFailure.OFFLINE -> R.string.ime_stt_offline
         SttFailure.TRANSIENT, SttFailure.TERMINAL, null -> null
     }
 }

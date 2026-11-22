@@ -35,7 +35,15 @@ object RecoveryReason {
         BUDGET,
 
         /** No failure was ever recorded: the app died mid-dictation. */
-        INTERRUPTED
+        INTERRUPTED,
+
+        /**
+         * #186: recorded without a usable network — no request was made. Not
+         * an error: the audio is kept and the session transcribes as soon as
+         * the network is back (reconnect in the Workbench, next entry, or the
+         * manual Retry STT).
+         */
+        OFFLINE
     }
 
     fun of(completed: Boolean, failureClass: String?): Kind = when {
@@ -45,6 +53,7 @@ object RecoveryReason {
         failureClass == "TRANSIENT" -> Kind.NETWORK
         failureClass == "TERMINAL" -> Kind.TERMINAL
         failureClass == "BUDGET" -> Kind.BUDGET
+        failureClass == "OFFLINE" -> Kind.OFFLINE
         else -> Kind.INTERRUPTED
     }
 
@@ -53,6 +62,12 @@ object RecoveryReason {
      * token, a provider protocol problem, a rejected request — and #75's
      * exhausted budget — do not heal by waiting, so they stay for the manual
      * list. Network failures and interruptions do.
+     *
+     * #186: an OFFLINE session is the strongest case of "heals by waiting" —
+     * it never reached the provider at all — so it is auto-retryable like a
+     * network failure; the runner's gate keeps an attempt that happens while
+     * still offline at zero requests.
      */
-    fun autoRetryable(kind: Kind): Boolean = kind == Kind.NETWORK || kind == Kind.INTERRUPTED
+    fun autoRetryable(kind: Kind): Boolean =
+        kind == Kind.NETWORK || kind == Kind.INTERRUPTED || kind == Kind.OFFLINE
 }
