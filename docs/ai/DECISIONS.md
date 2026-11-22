@@ -63,6 +63,69 @@ Option C.
   den offenen Owner-Gerätechecks. Ein Issue, kein Epic — der Scope, der es zum
   „big rock" machte, ist explizit weggefallen.
 
+## 2026-11-22: #186 — das Gate liest VALIDATED, der Reconnect ist Vordergrund-only, und ein Offline-Diktat ist ein Zustand, kein Fehler
+
+Ein Diktat, das ohne benutzbares Netz aufgenommen wurde, ist kein Fehlschlag: es
+wird nicht gefragt, das Fragment wird als `OFFLINE` festgehalten, die Session
+bleibt als unfertiges Diktat mit Grund im Ring — und sie transkribiert, sobald
+das Netz zurück ist. Sechs Entscheidungen, alle mit dem Owner abgestimmt
+(Datenschutz und Akku: nichts lädt im Hintergrund).
+
+- **Das Gate liest `NET_CAPABILITY_VALIDATED`, nicht „connected".** Ein
+  Captive Portal oder ein WLAN ohne Upstream ist verbunden und trotzdem nicht
+  benutzbar; VALIDATED ist genau das Signal, mit dem auch das OS routet. Die
+  Abfrage (`network/AndroidNetworkStatus`) ist ein reiner Lesezugriff über
+  `activeNetwork → getNetworkCapabilities`, jeder `null`-Schritt ist `false` —
+  im Zweifel wird gespeichert statt gesendet. Kein neuer Permission:
+  `ACCESS_NETWORK_STATE` steht seit immer im Manifest.
+- **Ein Ort, zwei Konsumenten.** `SttRequestRunner` und
+  `TranscriptionPipeline` bekommen `isOnline: () -> Boolean = { true }` (Default
+  hält jeden bestehenden Aufrufer unverändert); `PolishedRecognitionApp` injiziert
+  EINEN Lambda, den Live-Pfad, `JournalReplay` und den Legacy-Chunk-Pfad
+  gemeinsam teilen. Geprüft wird mit `NetworkGate.shouldAttempt` — eine
+  nicht-suspendierende Momentaufnahme, keine Callback-Registrierung pro Fragment
+  (siehe PITFALLS).
+- **`OFFLINE` ist eine Klasse, kein Fehlertext.** `SttFailure.OFFLINE` schlägt
+  jeden anderen Input (kein Request ging raus, also beschreibt kein Status und
+  keine Exception die Lage besser); `attemptsFor(OFFLINE) = 1` ist per Vertrag
+  unerreichbar und existiert nur, damit die Tabelle total bleibt. Der Runner gibt
+  die Klasse VOR jedem Log/Record zurück — ein gated Fragment erzeugt weder
+  `stt-upload` noch `stt-latency`, weil nichts rausging. Stirbt eine Verbindung
+  MITTEN im Request, wird das Gate erneut gelesen: Netz weg → OFFLINE, sonst
+  bleibt es das #183-TRANSIENT.
+- **Der Session-Latch zählt OFFLINE mit.** `FragmentTranscriber.blockedFailure`
+  kennt jetzt AUTH, BUDGET und OFFLINE: ein 3-Fragment-Diktat offline kostet
+  NULL Requests, jedes Fragment landet PENDING mit Klasse `OFFLINE` und seinem
+  komponierten Upload im Journal — nichts wird still verworfen.
+- **Reconnect ist Vordergrund-only.** Kein Service, kein WorkManager, kein
+  Hintergrund-Upload: `network/ReconnectMonitor` (`registerDefaultNetworkCallback`)
+  wird von der Workbench in `onResume` gestartet und in `onPause` gestoppt.
+  Gefeuert wird nur auf der KANTE (`reconnectFires(validated,
+  previouslyValidated) = validated && !previouslyValidated`), weil
+  `onCapabilitiesChanged` für dasselbe Netz mehrfach kommt — sonst startet jeder
+  Wiederholungs-Callback einen Recovery-Lauf. Die Edge-Regel ist pur und liegt in
+  `NetworkGate`, damit Test und Produktion dieselbe Regel benutzen. Dazu die
+  beiden anderen Wege: der nächste Workbench-Eintritt und der manuelle
+  Retry STT — auch ohne Callback heilt also jede Session.
+- **KEINE Altersregel im Journal.** Das 256-MB-Cap hält alles, nichts läuft ab,
+  also kann nichts still verschwinden — die Forderung des Issues („entweder
+  behalten oder mit dokumentiertem Grund verwerfen") ist durch BEHALTEN erfüllt.
+  Ein `offline_expired`-Grund existiert bewusst nicht: er hätte eine zweite
+  Verwerfungsart eingeführt, für die es keinen Anlass gibt.
+- **Kein neues UI.** Der Ring aus #188 rendert den Grund aus `RecoveryReason`;
+  #186 liefert nur `Kind.OFFLINE` (auto-retryable, „Offline — saved, will
+  transcribe when online") und die IME-Zeile `ime_stt_offline`. Der geparkte
+  IME-Zustand nach einem Fehlschlag bleibt unverändert — kein neuer
+  Controller-State.
+- **Der LLM-Call ist genauso gated.** Offline liefert die Pipeline
+  `SttFailure.OFFLINE` und speichert den ROHEN Text (`PipelineOutcome.rawText`) —
+  die Hälfte, die die Aufnahme gekostet hat, geht nie verloren; beides,
+  `finishTranscription` und das manuelle `polish`.
+- **Verworfen:** ein Hintergrund-Upload (Datenschutz/Akku und ein zweiter,
+  unsichtbarer Schreiber auf denselben Provider), eine persistierte
+  Offline-Queue (das Journal IST die Queue), und eine Altersregel für unfertige
+  Sessions.
+
 ## 2026-11-22: #188 — die unfertigen Diktate sind Seiten des Workbench-Rings
 
 #185 gab den Leftovers einen eigenen Screen (Activity + Layout + eigene Liste) neben dem Ring.

@@ -9,23 +9,25 @@ status: stable
 
 # Hand Off
 
-Only open tasks. **#188 (incomplete dictations in the Workbench) is closed
-(2026-11-22)** — the leftovers are pages of the Workbench ring now, with a
-when-line, their four actions on the page and a count+jump banner; the #185
-recovery screen is retired. The #152 program is at **4/5 with exactly ONE open
-child: #186 (offline sessions)**. #182–#184 were closed on 2026-11-20; #185
-(recovery UI) on 2026-11-21; **#187 was reopened and closed again on
-2026-11-22**; #75 on 2026-11-22. What remains are owner checks on the device,
-#186 and #156.
+Only open tasks. **#186 (offline sessions) is closed (2026-11-22) — and with it
+epic #152: all six children have shipped, „never lose a dictation" is
+complete.** A dictation recorded without a usable network makes no request,
+lands in the journal as `OFFLINE`, shows as an incomplete page with that reason
+and transcribes when the network is back (validated reconnect while the
+Workbench is visible, the next entry, or Retry STT). #188 (incomplete
+dictations in the Workbench) closed 2026-11-22 as well; #182–#184 were closed
+on 2026-11-20; #185 (recovery UI) on 2026-11-21; **#187 was reopened and closed
+again on 2026-11-22**; #75 on 2026-11-22. What remains are owner checks on the
+device and #156.
 
-## #152 — five sub-issues, dependency order (4/5 done)
+## #152 — six sub-issues, all closed (the epic is COMPLETE)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
-**#182, #183, #184, #185 and #188 are done.** Open child: **#186** (offline
-sessions, the fifth sibling).
+**#182, #183, #184, #185, #186 and #188 are done** — the last one (#186) closed
+2026-11-22.
 
 1. [x] **#182 — durable fragment journal** (closed 2026-11-20):
-   `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap.
+   `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap, no age rule.
 2. [x] **#184 — idempotent uploads** (closed 2026-11-20): `session_id` +
    `fragment_index` + `attempt` via one `@PartMap`; empty map = pre-#184 wire.
 3. [x] **#183 — STT failure classification** (closed 2026-11-20):
@@ -49,7 +51,14 @@ sessions, the fifth sibling).
    (`recovery/RecoveryRestore` + `RecoveryShare`), the count+jump banner, and
    the #185 screen deleted with its 4 assertions moved to
    `WorkbenchActivityTest`.
-6. [ ] **#186 — offline sessions** (record now, transcribe on reconnect).
+6. [x] **#186 — offline sessions** (closed 2026-11-22): the `NetworkGate`
+   (VALIDATED, `reconnectFires` edge rule), `SttFailure.OFFLINE` +
+   `isOnline` in the runner and the pipeline, the OFFLINE latch in
+   `FragmentTranscriber`, `network/AndroidNetworkStatus` +
+   `network/ReconnectMonitor` (started in the Workbench's `onResume`, stopped
+   in `onPause`), `RecoveryReason.Kind.OFFLINE` (auto-retryable) and
+   `ime_stt_offline`. **No journal age rule** — the 256-MB cap keeps
+   everything, so nothing expires.
 
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the
    bar stays visible and parked (▶ enabled, Send and Flush greyed out, Gear/X
@@ -77,9 +86,8 @@ sessions, the fifth sibling).
    `headers` block, and re-entering the Workbench must NOT upload again (the row
    reads "Provider budget exhausted", no auto-retry of that session).
 5. [ ] **#185/#188 device check (owner): the recovery paths on a real device.**
-   (a) Airplane mode → dictate → the failure parks; reopen the Workbench with
-   network back → auto-recovery Toast, the text appears in the ring, the banner
-   disappears. (b) A wrong STT token → the incomplete page's when-line says
+   (a) see the #186 check below — offline is its own item now. (b) A wrong STT
+   token → the incomplete page's when-line says
    "STT token rejected" and it is NOT auto-retried; fix the token → Retry STT
    works. (c) Share audio on a WAV session → ONE file whose seams do not repeat
    words; on an OGG session → the pieces. (d) Dismiss → confirmation, then the
@@ -94,7 +102,19 @@ sessions, the fifth sibling).
    when-line is legible on a phone (14sp, secondary colour) and the four
    buttons fit in one row in portrait — if they wrap, that is a follow-up, not
    a code fix on the spot.
-7. [ ] **#156 — the screenshots are stale after the Workbench redesign**
+7. [ ] **#186 device check (owner, USB host): a dictation recorded offline.**
+   `adb shell cmd connectivity airplane-mode enable` → dictate → open the
+   Workbench: the page must show "Offline — saved, will transcribe when online"
+   and `stt-latency.json` must gain **no** record for that session (nothing went
+   out; only `stt-upload.json` stays untouched too). Then
+   `airplane-mode disable`: with the Workbench visible the page must transcribe
+   right away (Reconnect Toast), otherwise the next entry or Retry STT must do
+   it. Evidence: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs`
+   + `files/audio`. Use the Samsung `R7SRB06XF5K`, never the OnePlus. **Not done
+   in the #186 session: the Samsung is PIN-locked and no credentials were
+   available** (the release APK was installed and the Workbench launched behind
+   the keyguard; no input reaches a locked screen).
+8. [ ] **#156 — the screenshots are stale after the Workbench redesign**
    ([#156](https://github.com/georgernstgraf/polished-recognition/issues/156),
    open). Re-capture from a current release build; the issue carries the
    authoritative shot list (`docs/img/ime-recording.png` + `settings.png`), do

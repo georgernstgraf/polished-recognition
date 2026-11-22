@@ -75,6 +75,7 @@ An **incomplete dictation** is the one term: a journal session that never produc
 | **Restore text** | Writing a completed session's stored text into the Workbench without any request. | "recover" (recover is the umbrella term) |
 | **When-line** | The tiered stamp under the Workbench header: `HH:mm` today, `EEE HH:mm` within a week, `d MMM` (+ year) older; a leftover continues it with its size and reason. | "timestamp", "date field" |
 | **Yield** | A re-run pausing at a fragment boundary while a dictation is RECORDING/PROCESSING, so the live path keeps the provider to itself. | "pause", "cancel" |
+| **Offline session** | A dictation recorded while the device had no *validated* network (`NET_CAPABILITY_VALIDATED` absent): no request was made at all, every fragment is journaled PENDING with class `OFFLINE`, and the page's reason reads "Offline — saved, will transcribe when online". It is **not an error** and it heals by waiting — the next validated reconnect while the Workbench is visible, the next entry, or Retry STT (#186). | "failed dictation", "upload failed", "error", "queued upload" (there is no queue — the journal is it) |
 
 ### Provider answers (#75, #186/#188)
 
