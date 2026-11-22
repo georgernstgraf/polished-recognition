@@ -41,17 +41,11 @@
             android:exported="false"
             android:theme="@style/Theme.PolishedRecognition.Plain" />
 
-        <!-- #185: the pending-transcriptions list. -->
-        <activity
-            android:name=".ui.RecoveryActivity"
-            android:exported="false"
-            android:theme="@style/Theme.PolishedRecognition.Plain" />
-
-        <!--
-          #185: hands the recovery audio to a share target. The journal lives
-          under files/ (read-only grant per URI) and the reconstructed WAV under
-          cache/; both are private to the app until the chooser grants them.
-        -->
+    <!--
+      #185/#188: hands the recovery audio to a share target. The journal lives
+      under files/ (read-only grant per URI) and the reconstructed WAV under
+      cache/; both are private to the app until the chooser grants them.
+    -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.recovery"

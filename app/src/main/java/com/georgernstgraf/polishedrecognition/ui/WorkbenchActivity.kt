@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.ui
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
@@ -11,8 +12,10 @@ import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -23,8 +26,12 @@ import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.delivery.ClipboardDelivery
 import com.georgernstgraf.polishedrecognition.dictation.Dictation
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
+import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
+import com.georgernstgraf.polishedrecognition.recovery.RecoveryReason
+import com.georgernstgraf.polishedrecognition.recovery.RecoveryRestore
+import com.georgernstgraf.polishedrecognition.recovery.RecoveryShare
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,6 +39,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.Locale
 
 /**
  * #169 (epic #166): the Workbench — the app's own window. A FIFO of
@@ -66,6 +75,15 @@ import kotlinx.coroutines.withContext
  * send; a **changed** raw field that loses focus delivers itself; the per-field
  * copy button always delivers what is visible. The clipboard is marked
  * sensitive on API 33+ (D12).
+ *
+ * #188 merges the leftovers into the ring: a page is a [WorkbenchPage.Stored]
+ * dictation **or** a [WorkbenchPage.Leftover] (an unfinished journal session,
+ * ordered by its start — [WorkbenchPages]). A leftover page has no text at all:
+ * Raw is read-only and non-focusable (the IME must never commit into it),
+ * [DictationTarget] is NEW there, the stamp line carries its reason, and the
+ * four recovery actions sit on the page itself. The #185 recovery screen is retired
+ * with that; the Workbench is the only screen and the only owner of
+ * [RecoveryCoordinator.onFinished].
  */
 class WorkbenchActivity : Activity() {
 
@@ -82,8 +100,18 @@ class WorkbenchActivity : Activity() {
     private lateinit var positionLabel: TextView
     private lateinit var emptyHint: TextView
 
-    /** #185: "N pending transcriptions — tap to review", GONE when there are none. */
+    /** #188: the page's "when" line — empty on the compose slot, so GONE there. */
+    private lateinit var stampLabel: TextView
+
+    /** #185/#188: "<n> incomplete · <stamp>", GONE when there are none. */
     private lateinit var recoveryBanner: TextView
+
+    /** #188: the four actions of a leftover page — GONE on every other page. */
+    private lateinit var leftoverActions: LinearLayout
+    private lateinit var retryButton: Button
+    private lateinit var restoreButton: Button
+    private lateinit var shareButton: Button
+    private lateinit var dismissButton: Button
 
     private lateinit var prevButton: ImageButton
     private lateinit var nextButton: ImageButton
@@ -99,15 +127,31 @@ class WorkbenchActivity : Activity() {
     private lateinit var polishA: Button
     private lateinit var polishB: Button
 
-    /** MRU order, least recently edited first — the last element is "newest". */
-    private var dictations: List<Dictation> = emptyList()
+    /**
+     * #188: the ring — stored dictations AND the journal's leftovers as pages
+     * of ONE list, ascending by their last change ([WorkbenchPages.merge]).
+     * The last element is "newest"; the compose slot stays outside it.
+     */
+    private var pages: List<WorkbenchPage> = emptyList()
+
+    /** The journal scan behind the leftover pages and the banner (#185). */
+    private var leftovers: List<WorkbenchPage.Leftover> = emptyList()
 
     /**
      * [FifoNavigation.COMPOSE_INDEX] on the entry page, otherwise the position
-     * of the shown dictation in [dictations].
+     * of the shown page in [pages].
      */
     private var index = FifoNavigation.COMPOSE_INDEX
     private var currentId: String? = null
+
+    /** The session id of the shown page when it is a leftover (#188). */
+    private var currentSession: String? = null
+
+    /**
+     * #188: the session this screen last asked for a MANUAL re-run, so a
+     * finished run can tell "it became text" from "it is still pending".
+     */
+    private var manualSession: String? = null
 
     /** The transient compose slot's content, while it is not yet materialised. */
     private var composeRaw = ""
@@ -131,6 +175,14 @@ class WorkbenchActivity : Activity() {
      */
     internal var polishRunner: suspend (String, String?) -> Result<String> = { text, language ->
         app.transcriptionPipeline.polish(text, language)
+    }
+
+    /**
+     * #188: the manual re-run of one journal session, injectable for the same
+     * reason (the retry path must be testable without a request).
+     */
+    internal var retryRunner: (String) -> Boolean = { sessionId ->
+        app.recoveryCoordinator.startManual(sessionId)
     }
 
     /** The per-dictation target language: seeded from settings, never written back. */
@@ -169,7 +221,13 @@ class WorkbenchActivity : Activity() {
         polishedField = findViewById(R.id.workbench_polished)
         positionLabel = findViewById(R.id.workbench_position)
         emptyHint = findViewById(R.id.workbench_empty_hint)
+        stampLabel = findViewById(R.id.workbench_stamp)
         recoveryBanner = findViewById(R.id.workbench_recovery)
+        leftoverActions = findViewById(R.id.workbench_leftover_actions)
+        retryButton = findViewById(R.id.workbench_retry_stt)
+        restoreButton = findViewById(R.id.workbench_restore_text)
+        shareButton = findViewById(R.id.workbench_share_audio)
+        dismissButton = findViewById(R.id.workbench_dismiss_leftover)
         prevButton = findViewById(R.id.workbench_prev)
         nextButton = findViewById(R.id.workbench_next)
         newButton = findViewById(R.id.workbench_new)
@@ -234,28 +292,60 @@ class WorkbenchActivity : Activity() {
         super.onDestroy()
     }
 
-    // --- #185: leftover recovery ---------------------------------------------
+    // --- #185/#188: leftover recovery -----------------------------------------
 
     /**
-     * Scans the durable journal on entry and retries what can heal by itself
-     * (network failures and interruptions — never a dead token or a provider
-     * protocol problem). The Toast goes out before the first request, so the
-     * user never wonders whether anything is happening; the run itself yields
-     * to a live dictation at every fragment boundary.
+     * The journal scan behind the leftover pages and the banner — off the main
+     * thread, one call per [reload]/[recoverLeftovers], never per navigation.
      *
-     * Deliberately no [reload] afterwards: it would wipe the compose slot the
-     * user may be typing into — [syncPositions] re-reads the ring and keeps
-     * every field untouched.
+     * `hasAudio` is decided here because it needs the file system (a fragment
+     * upload that is already gone cannot be shared or re-sent) and must never
+     * block the UI.
+     */
+    private suspend fun scanLeftovers(): List<WorkbenchPage.Leftover> = withContext(ioDispatcher) {
+        val journal = app.fragmentJournal
+        val active = controller.activeSessionId()
+        journal.recoverableSessions()
+            .filter { it.sessionId != active }
+            .map { summary ->
+                val dir = journal.sessionDir(summary.sessionId)
+                val hasAudio = journal.readRecords(summary.sessionId).any { record ->
+                    record.uploadFile?.let { name -> File(dir, name).isFile } == true
+                }
+                WorkbenchPage.Leftover(summary, hasAudio)
+            }
+    }
+
+    /**
+     * Re-reads the journal and folds the leftovers into the ring — the shown
+     * page stays where the user put it ([syncPositions] never rewrites a
+     * field), so a scan can never eat a half-typed dictation.
+     */
+    private fun rescanLeftovers() {
+        scope.launch {
+            leftovers = scanLeftovers()
+            syncPositions()
+            bindRecoveryBanner()
+        }
+    }
+
+    /**
+     * #185: entering the Workbench (and every finished run) picks the
+     * leftovers up and retries what can heal by itself (network failures and
+     * interruptions — never a dead token or a provider protocol problem). The
+     * Toast goes out before the first request, so the user never wonders
+     * whether anything is happening; the run itself yields to a live dictation
+     * at every fragment boundary.
      */
     private fun recoverLeftovers() {
         val coordinator = app.recoveryCoordinator
-        val journal = app.fragmentJournal
         scope.launch {
-            val sessions = withContext(ioDispatcher) { journal.recoverableSessions() }
-            val visible = sessions.filter { it.sessionId != controller.activeSessionId() }
-            bindRecoveryBanner(visible.size)
+            val scanned = scanLeftovers()
+            leftovers = scanned
+            syncPositions()
+            bindRecoveryBanner()
             if (coordinator.isRunning()) return@launch
-            val auto = visible.filter { coordinator.shouldAutoRecover(it) }
+            val auto = scanned.map { it.summary }.filter { coordinator.shouldAutoRecover(it) }
             if (auto.isEmpty()) return@launch
             if (coordinator.startAuto(auto)) {
                 Toast.makeText(
@@ -267,8 +357,21 @@ class WorkbenchActivity : Activity() {
         }
     }
 
+    /**
+     * #188: one [RecoveryCoordinator.Outcome], one Toast, one reload — the
+     * Workbench is the only owner of the coordinator's single `onFinished`
+     * slot now.
+     *
+     * A recovered session leaves the ring, so the page that was shown is gone;
+     * [refreshPages] then selects the **newest stored page**, which is exactly
+     * where the recovered text landed ("it moved to the top"). Any content the
+     * user typed into the compose slot meanwhile is materialised first, so the
+     * jump never eats a draft.
+     */
     private fun onRecoveryFinished(outcome: RecoveryCoordinator.Outcome) {
         if (isFinishing || isDestroyed) return
+        val retried = manualSession
+        manualSession = null
         val failure = outcome.failures.firstOrNull()
         val message = when {
             failure != null -> getString(R.string.recovery_failed, failure.message)
@@ -281,14 +384,56 @@ class WorkbenchActivity : Activity() {
             )
         }
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        syncPositions()
-        recoverLeftovers()
+        commitEdits()
+        materialiseCompose()
+        refreshPages { merged ->
+            val stillPending = merged.any {
+                it is WorkbenchPage.Leftover && it.summary.sessionId == retried
+            }
+            if (retried != null && !stillPending) {
+                val newest = merged.lastOrNull { it is WorkbenchPage.Stored }
+                if (newest != null) Selection.Stored(WorkbenchPages.idOf(newest)) else Selection.Compose
+            } else {
+                currentSelection()
+            }
+        }
     }
 
-    private fun bindRecoveryBanner(pending: Int) {
-        recoveryBanner.visibility = if (pending > 0) View.VISIBLE else View.GONE
-        if (pending > 0) {
-            recoveryBanner.text = resources.getQuantityString(R.plurals.recovery_banner, pending, pending)
+    /**
+     * #188: count plus the newest leftover's stamp. A tap jumps to that page
+     * ([WorkbenchPages.newestLeftoverIndex]) instead of opening a list — the
+     * leftover IS a page of the ring now.
+     */
+    private fun bindRecoveryBanner() {
+        val count = leftovers.size
+        recoveryBanner.visibility = if (count > 0) View.VISIBLE else View.GONE
+        if (count == 0) return
+        val newest = WorkbenchPages.newestLeftoverIndex(pages)
+            ?.let { pages[it] as? WorkbenchPage.Leftover }
+            ?: leftovers.lastOrNull()
+        val stamp = WorkbenchStamp.label(
+            newest?.summary?.startedAtMs,
+            System.currentTimeMillis(),
+            locale()
+        )
+        val countText = resources.getQuantityString(R.plurals.recovery_banner, count, count)
+        recoveryBanner.text = if (stamp == null) countText else "$countText · $stamp"
+    }
+
+    /** The resource locale — the stamp's day/month names follow it. */
+    private fun locale(): Locale = resources.configuration.locales[0]
+
+    /**
+     * Re-reads the journal and the store, then follows [select] — used after an
+     * action changed the journal (restore, dismiss, a finished run), where the
+     * leftover list itself is stale.
+     */
+    private fun refreshPages(select: (List<WorkbenchPage>) -> Selection) {
+        scope.launch {
+            leftovers = scanLeftovers()
+            val merged = WorkbenchPages.merge(store.loadAll(), leftovers)
+            applyPages(merged, select(merged), rewriteFields = true)
+            bindRecoveryBanner()
         }
     }
 
@@ -324,9 +469,11 @@ class WorkbenchActivity : Activity() {
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
-        recoveryBanner.setOnClickListener {
-            startActivity(Intent(this, RecoveryActivity::class.java))
-        }
+        recoveryBanner.setOnClickListener { jumpToNewestLeftover() }
+        retryButton.setOnClickListener { retryLeftover() }
+        restoreButton.setOnClickListener { restoreLeftover() }
+        shareButton.setOnClickListener { shareLeftover() }
+        dismissButton.setOnClickListener { confirmDismissLeftover() }
         prevButton.setOnClickListener { navigate(older = true) }
         nextButton.setOnClickListener { navigate(older = false) }
         copyRawButton.setOnClickListener { deliver(rawField.text.toString(), notify = true) }
@@ -392,45 +539,181 @@ class WorkbenchActivity : Activity() {
         rendering = false
     }
 
-    private fun reload(selectId: String? = currentId) {
-        dictations = store.loadAll()
-        val found = selectId?.let { id -> dictations.indexOfFirst { it.id == id } } ?: -1
-        index = if (found >= 0) found else FifoNavigation.COMPOSE_INDEX
-        if (index == FifoNavigation.COMPOSE_INDEX) {
-            composeRaw = ""
-            composePolished = ""
+    /**
+     * #188: which page the ring should show — the compose slot, a stored
+     * dictation, or a leftover session. Identity survives a re-merge, which is
+     * what keeps the shown page under the user while positions shift.
+     */
+    private sealed interface Selection {
+        object Compose : Selection
+        data class Stored(val id: String) : Selection
+        data class Leftover(val sessionId: String) : Selection
+    }
+
+    private fun currentSelection(): Selection {
+        val page = pages.getOrNull(index) ?: return Selection.Compose
+        return when (page) {
+            is WorkbenchPage.Stored -> Selection.Stored(page.dictation.id)
+            is WorkbenchPage.Leftover -> Selection.Leftover(page.summary.sessionId)
         }
-        render()
+    }
+
+    private fun indexOf(selection: Selection): Int = when (selection) {
+        Selection.Compose -> -1
+        is Selection.Stored ->
+            pages.indexOfFirst { it is WorkbenchPage.Stored && it.dictation.id == selection.id }
+        is Selection.Leftover ->
+            pages.indexOfFirst {
+                it is WorkbenchPage.Leftover && it.summary.sessionId == selection.sessionId
+            }
+    }
+
+    private fun reload(
+        selection: Selection = currentSelection(),
+        rescan: Boolean = true
+    ) {
+        applyPages(
+            WorkbenchPages.merge(store.loadAll(), leftovers),
+            selection,
+            rewriteFields = true
+        )
+        if (rescan) rescanLeftovers()
     }
 
     /**
-     * Re-reads the store and follows [selectId] to its new ring position
-     * **without** rewriting the fields — the field the user is typing in keeps
-     * its caret (#173 decision 5: a touched dictation moves to the top).
+     * Re-reads the store and the journal and follows [selection] to its new ring
+     * position **without** rewriting the fields — the field the user is typing
+     * in keeps its caret (#173 decision 5: a touched dictation moves to the top).
      */
-    private fun syncPositions(selectId: String? = currentId) {
-        dictations = store.loadAll()
-        val found = selectId?.let { id -> dictations.indexOfFirst { it.id == id } } ?: -1
+    private fun syncPositions(selection: Selection = currentSelection()) {
+        applyPages(
+            WorkbenchPages.merge(store.loadAll(), leftovers),
+            selection,
+            rewriteFields = false
+        )
+    }
+
+    /**
+     * Merges [merged] and follows [selection]; a selection that no longer
+     * exists (an evicted dictation, a recovered or dismissed session) falls
+     * back to a fresh compose slot, because the page the user was reading is
+     * gone with its content.
+     */
+    private fun applyPages(
+        merged: List<WorkbenchPage>,
+        selection: Selection,
+        rewriteFields: Boolean
+    ) {
+        pages = merged
+        val found = indexOf(selection)
         if (found >= 0) {
             index = found
-            currentId = selectId
-        } else if (index != FifoNavigation.COMPOSE_INDEX) {
-            // The shown dictation was evicted — fall back to the entry page.
+        } else {
             index = FifoNavigation.COMPOSE_INDEX
-            currentId = null
-            composeRaw = ""
-            composePolished = ""
+            if (selection != Selection.Compose) {
+                composeRaw = ""
+                composePolished = ""
+            }
         }
+        render(rewriteFields)
+    }
+
+    /**
+     * The one writer of the page's content (#188).
+     *
+     * [rewriteFields] is `false` for a position sync: the page identity and the
+     * chrome follow the data, the fields keep whatever the user has in them.
+     *
+     * A leftover page has **no text**: Raw is read-only *and* non-focusable —
+     * a field that cannot take focus can never receive an IME commit, which is
+     * the property [DictationTarget.NEW] relies on.
+     */
+    private fun render(rewriteFields: Boolean = true) {
+        val page = pages.getOrNull(index)
+        val leftover = page is WorkbenchPage.Leftover
+        currentId = (page as? WorkbenchPage.Stored)?.dictation?.id
+        currentSession = (page as? WorkbenchPage.Leftover)?.summary?.sessionId
+
+        rendering = true
+        setRawEditable(!leftover)
+        if (rewriteFields) {
+            val raw = when (page) {
+                is WorkbenchPage.Stored -> page.dictation.raw
+                is WorkbenchPage.Leftover -> ""
+                null -> composeRaw
+            }
+            val polished = when (page) {
+                is WorkbenchPage.Stored -> page.dictation.polished.orEmpty()
+                is WorkbenchPage.Leftover -> ""
+                null -> composePolished
+            }
+            rawField.setText(raw)
+            polishedField.text = polished
+            shownRaw = raw
+        }
+        rendering = false
+        // A PAGE CHANGE re-arms the IME (D15): the field the user was in may
+        // have been a leftover page, and its successor must be able to take a
+        // dictation. A mere position sync never grabs focus back — the user may
+        // just have left the field on purpose (D11b).
+        if (rewriteFields && rawField.isEnabled && visible && !rawField.hasFocus()) {
+            rawField.requestFocus()
+        }
+        renderStamp(page)
         updateChrome()
     }
 
-    private fun render() {
-        val dictation = dictations.getOrNull(index)
-        currentId = dictation?.id
-        val compose = index == FifoNavigation.COMPOSE_INDEX
-        showRaw(if (compose) composeRaw else dictation?.raw.orEmpty())
-        showPolished(if (compose) composePolished else dictation?.polished.orEmpty())
-        updateChrome()
+    /** A disabled EditText can neither take focus nor receive a commit. */
+    private fun setRawEditable(editable: Boolean) {
+        rawField.isEnabled = editable
+        rawField.isFocusable = editable
+        rawField.isFocusableInTouchMode = editable
+        rawField.isCursorVisible = editable
+    }
+
+    /**
+     * #188: the when-line under the header. A stored page shows its last
+     * change; a leftover continues the same line with its size and the reason
+     * it never became text (seconds · fragments · reason, from
+     * [RecoveryReason] — this screen invents no rule). The compose slot has no
+     * instant, so the line is GONE rather than an empty row.
+     */
+    private fun renderStamp(page: WorkbenchPage?) {
+        val at = page?.let { WorkbenchPages.changedAt(it) }
+        val whenText = WorkbenchStamp.label(at, System.currentTimeMillis(), locale())
+        val detail = (page as? WorkbenchPage.Leftover)?.let { leftoverDetail(it.summary) }
+        val text = when {
+            whenText == null -> detail.orEmpty()
+            detail == null -> whenText
+            else -> "$whenText · $detail"
+        }
+        stampLabel.text = text
+        stampLabel.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun leftoverDetail(summary: FragmentJournal.SessionSummary): String =
+        resources.getQuantityString(
+            R.plurals.workbench_leftover_detail,
+            summary.fragmentCount,
+            (summary.durationMs / 1000L).toInt(),
+            summary.fragmentCount,
+            reasonLabel(summary)
+        )
+
+    /** #185: the one reason a leftover shows — never a rule written here. */
+    private fun reasonLabel(summary: FragmentJournal.SessionSummary): String {
+        val kind = RecoveryReason.of(summary.completed, summary.failureClass)
+        return getString(
+            when (kind) {
+                RecoveryReason.Kind.COMPLETED -> R.string.recovery_reason_completed
+                RecoveryReason.Kind.AUTH -> R.string.recovery_reason_auth
+                RecoveryReason.Kind.BUDGET -> R.string.recovery_reason_budget
+                RecoveryReason.Kind.PROTOCOL -> R.string.recovery_reason_protocol
+                RecoveryReason.Kind.NETWORK -> R.string.recovery_reason_network
+                RecoveryReason.Kind.TERMINAL -> R.string.recovery_reason_terminal
+                RecoveryReason.Kind.INTERRUPTED -> R.string.recovery_reason_interrupted
+            }
+        )
     }
 
     /**
@@ -439,17 +722,26 @@ class WorkbenchActivity : Activity() {
      * action the shown page cannot carry out (#178).
      */
     private fun updateChrome() {
+        val page = pages.getOrNull(index)
+        val leftover = page as? WorkbenchPage.Leftover
         val actions = WorkbenchActions.enabled(
             hasRaw = rawField.text.toString().isNotBlank(),
             hasPolished = polishedField.text.toString().isNotBlank(),
             polishing = polishing,
-            ringSize = dictations.size,
+            ringSize = pages.size,
             onCompose = index == FifoNavigation.COMPOSE_INDEX
         )
-        emptyHint.visibility =
-            if (index == FifoNavigation.COMPOSE_INDEX && dictations.isEmpty()) View.VISIBLE
-            else View.GONE
-        positionLabel.text = FifoNavigation.positionLabel(index, dictations.size)
+        // The hint speaks for the page: a leftover explains why it is empty and
+        // what to do; the compose slot only explains the very first dictation.
+        emptyHint.visibility = when {
+            leftover != null -> View.VISIBLE
+            index == FifoNavigation.COMPOSE_INDEX && pages.isEmpty() -> View.VISIBLE
+            else -> View.GONE
+        }
+        emptyHint.text = getString(
+            if (leftover != null) R.string.workbench_leftover_hint else R.string.workbench_empty
+        )
+        positionLabel.text = FifoNavigation.positionLabel(index, pages.size)
         prevButton.isEnabled = actions.prev
         nextButton.isEnabled = actions.next
         newButton.isEnabled = actions.new
@@ -467,6 +759,30 @@ class WorkbenchActivity : Activity() {
         )
         polishA.text = polishLabel
         polishB.text = polishLabel
+        bindLeftoverActions(leftover)
+    }
+
+    /**
+     * #188: the four actions on a leftover page — the enablement rule is
+     * #185's [RecoveryActions] unchanged (retry needs a provider, audio and an
+     * idle device; restore exists only for a completed session; dismiss is only
+     * blocked while a run is under way).
+     */
+    private fun bindLeftoverActions(page: WorkbenchPage.Leftover?) {
+        leftoverActions.visibility = if (page != null) View.VISIBLE else View.GONE
+        if (page == null) return
+        val actions = RecoveryActions.enabled(
+            completed = page.summary.completed,
+            hasAudio = page.hasAudio,
+            busy = app.recoveryCoordinator.isRunning(),
+            providerConfigured = app.settingsStore.sttProvider != null
+        )
+        retryButton.visibility = if (actions.restore) View.GONE else View.VISIBLE
+        retryButton.isEnabled = actions.reRun
+        restoreButton.visibility = if (actions.restore) View.VISIBLE else View.GONE
+        restoreButton.isEnabled = actions.restore
+        shareButton.isEnabled = actions.share
+        dismissButton.isEnabled = actions.dismiss
     }
 
     // ------------------------------------------------------------- navigation
@@ -477,9 +793,9 @@ class WorkbenchActivity : Activity() {
         materialiseCompose()
         syncPositions()
         index = if (older) {
-            FifoNavigation.older(index, dictations.size)
+            FifoNavigation.older(index, pages.size)
         } else {
-            FifoNavigation.newer(index, dictations.size)
+            FifoNavigation.newer(index, pages.size)
         }
         render()
     }
@@ -495,6 +811,7 @@ class WorkbenchActivity : Activity() {
         if (index != FifoNavigation.COMPOSE_INDEX) {
             index = FifoNavigation.COMPOSE_INDEX
             currentId = null
+            currentSession = null
             composeRaw = ""
             composePolished = ""
             render()
@@ -523,11 +840,139 @@ class WorkbenchActivity : Activity() {
         }
         composeRaw = ""
         composePolished = ""
-        dictations = store.loadAll()
-        index = dictations.indexOfFirst { it.id == created.id }
+        pages = WorkbenchPages.merge(store.loadAll(), leftovers)
+        index = pages.indexOfFirst { it is WorkbenchPage.Stored && it.dictation.id == created.id }
             .takeIf { it >= 0 } ?: FifoNavigation.COMPOSE_INDEX
         currentId = created.id
+        currentSession = null
         return created.id
+    }
+
+    // ------------------------------------------------- leftover page actions
+
+    /**
+     * #188: the banner's tap. It jumps to the newest leftover page
+     * ([WorkbenchPages.newestLeftoverIndex]) — there is no list behind it any
+     * more, the leftover is one of the ring's pages.
+     */
+    private fun jumpToNewestLeftover() {
+        commitEdits()
+        materialiseCompose()
+        val target = WorkbenchPages.newestLeftoverIndex(pages) ?: return
+        index = target
+        render()
+    }
+
+    /**
+     * Retry STT: the explicit re-run of THIS session ([RecoveryCoordinator.startManual]).
+     * A refused start (another run won) is said out loud instead of silently
+     * doing nothing.
+     */
+    private fun retryLeftover() {
+        val page = pages.getOrNull(index) as? WorkbenchPage.Leftover ?: return
+        val sessionId = page.summary.sessionId
+        if (!retryRunner(sessionId)) {
+            Toast.makeText(this, getString(R.string.recovery_busy), Toast.LENGTH_LONG).show()
+            return
+        }
+        manualSession = sessionId
+        updateChrome()
+    }
+
+    /** Restore text: the stored transcript of a completed session, no request. */
+    private fun restoreLeftover() {
+        val page = pages.getOrNull(index) as? WorkbenchPage.Leftover ?: return
+        val sessionId = page.summary.sessionId
+        scope.launch {
+            val outcome = withContext(ioDispatcher) {
+                RecoveryRestore.restore(
+                    sessionId,
+                    app.fragmentJournal.readRecords(sessionId),
+                    restoreTarget
+                )
+            }
+            val message = when (outcome) {
+                is RecoveryRestore.Outcome.Restored -> R.string.recovery_restored
+                RecoveryRestore.Outcome.NoText -> R.string.recovery_restore_empty
+                RecoveryRestore.Outcome.NotStored -> R.string.recovery_store_failed
+            }
+            Toast.makeText(this@WorkbenchActivity, getString(message), Toast.LENGTH_LONG).show()
+            refreshPages { merged ->
+                val restored = (outcome as? RecoveryRestore.Outcome.Restored)?.dictationId
+                if (restored != null && merged.any { WorkbenchPages.idOf(it) == restored }) {
+                    Selection.Stored(restored)
+                } else {
+                    currentSelection()
+                }
+            }
+        }
+    }
+
+    /**
+     * The store write and the journal delete [RecoveryRestore] orders: the
+     * store first, the journal only when it really holds the new dictation.
+     */
+    private val restoreTarget = object : RecoveryRestore.Target {
+        override fun store(text: String): String? {
+            val created = store.append(text)
+            return created.id.takeIf { id -> store.loadAll().any { it.id == id } }
+        }
+
+        override fun drop(sessionId: String) {
+            app.fragmentJournal.deleteSession(sessionId)
+        }
+    }
+
+    /** Share audio: the reconstructed WAV (or the OGG pieces) through a chooser. */
+    private fun shareLeftover() {
+        val page = pages.getOrNull(index) as? WorkbenchPage.Leftover ?: return
+        val sessionId = page.summary.sessionId
+        val authority = "$packageName.recovery"
+        scope.launch {
+            val files = withContext(ioDispatcher) {
+                RecoveryShare.files(
+                    sessionId,
+                    app.fragmentJournal.sessionDir(sessionId),
+                    app.fragmentJournal.readRecords(sessionId),
+                    cacheDir
+                )
+            }
+            val uris = files.mapNotNull { file ->
+                RecoveryShare.uriOf(file) { target ->
+                    FileProvider.getUriForFile(this@WorkbenchActivity, authority, target)
+                }
+            }
+            val intent = RecoveryShare.intent(uris)
+            if (intent == null) {
+                Toast.makeText(
+                    this@WorkbenchActivity,
+                    getString(R.string.recovery_share_empty),
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            startActivity(Intent.createChooser(intent, getString(R.string.recovery_chooser)))
+        }
+    }
+
+    /** Dismiss: it asks first — a leftover is never dropped without a word. */
+    private fun confirmDismissLeftover() {
+        val page = pages.getOrNull(index) as? WorkbenchPage.Leftover ?: return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.recovery_dismiss_title)
+            .setMessage(R.string.recovery_dismiss_message)
+            .setPositiveButton(R.string.recovery_dismiss_ok) { _, _ ->
+                dismissLeftover(page.summary.sessionId)
+            }
+            .setNegativeButton(R.string.recovery_cancel, null)
+            .show()
+    }
+
+    private fun dismissLeftover(sessionId: String) {
+        scope.launch {
+            withContext(ioDispatcher) { app.fragmentJournal.markDismissed(sessionId) }
+            refreshPages { currentSelection() }
+        }
     }
 
     // -------------------------------------------------------------------- LLM
@@ -576,9 +1021,7 @@ class WorkbenchActivity : Activity() {
         // polished — polishing must never work on an entry that cannot be saved.
         materialiseCompose()
         val id = currentId ?: return
-        val raw = rawField.text.toString().ifBlank {
-            dictations.firstOrNull { it.id == id }?.raw.orEmpty()
-        }
+        val raw = rawField.text.toString().ifBlank { storedById(id)?.raw.orEmpty() }
         if (raw.isBlank()) return
         polish(id, raw)
     }
@@ -594,7 +1037,7 @@ class WorkbenchActivity : Activity() {
                 // D9: the result overwrites the single polished slot and is
                 // delivered to the clipboard; Raw is untouched.
                 store.updatePolished(id, polished)
-                reload(id)
+                reload(Selection.Stored(id))
                 deliver(polished, notify = true)
             }.onFailure {
                 // Keep the previous polished text — a failed call never
@@ -630,7 +1073,7 @@ class WorkbenchActivity : Activity() {
         val id = currentId ?: return
         val promoted = store.replaceRawWithPolished(id) ?: return
         showRaw(promoted.raw)
-        syncPositions(id)
+        syncPositions(Selection.Stored(id))
     }
 
     /** #178: "Empty the Polished field" — `null`, never `""`, through the store. */
@@ -647,7 +1090,7 @@ class WorkbenchActivity : Activity() {
         val id = currentId ?: return
         store.clearPolished(id)
         showPolished("")
-        syncPositions(id)
+        syncPositions(Selection.Stored(id))
     }
 
     /**
@@ -655,6 +1098,9 @@ class WorkbenchActivity : Activity() {
      * A changed **raw** field discards the polished transcript (inherited
      * desktop rule: no confirmation, no silent re-polish) — the store does
      * that in [DictationStore.updateRaw], the field is then re-read from it.
+     *
+     * A leftover page has no id and no text: there is nothing to commit, which
+     * is also why its field never reaches this code with content.
      */
     private fun commitEdits() {
         val raw = rawField.text.toString()
@@ -665,13 +1111,19 @@ class WorkbenchActivity : Activity() {
             return
         }
         val id = currentId ?: return
-        val current = dictations.firstOrNull { it.id == id } ?: return
+        val current = storedById(id) ?: return
         if (raw != current.raw) {
             val updated = store.updateRaw(id, raw)
             showPolished(updated?.polished.orEmpty())
         }
         shownRaw = raw
     }
+
+    /** The stored dictation [id] from the shown ring, or `null` (it may be gone). */
+    private fun storedById(id: String): Dictation? =
+        pages.filterIsInstance<WorkbenchPage.Stored>()
+            .firstOrNull { it.dictation.id == id }
+            ?.dictation
 
     /**
      * Where the transcript of the running dictation belongs (#173 decision 1).
@@ -690,9 +1142,14 @@ class WorkbenchActivity : Activity() {
      *  - compose slot ⇒ NEW (the entry page; the IME's text becomes Raw),
      *  - stored dictation ⇒ RAW_EDIT (at the caret, whether or not the user
      *    typed first). Polished cannot take focus, so there is no third target.
+     *
+     * #188: a **leftover page is NEW too**. It has no text a transcript could
+     * extend, so a delivery must create a dictation — treating it as an edit
+     * would throw the text at a page that cannot hold it.
      */
     internal fun onRecordingStarted() {
-        pendingTarget = if (index == FifoNavigation.COMPOSE_INDEX) {
+        val leftover = pages.getOrNull(index) is WorkbenchPage.Leftover
+        pendingTarget = if (index == FifoNavigation.COMPOSE_INDEX || leftover) {
             DictationTarget.NEW
         } else {
             DictationTarget.RAW_EDIT
@@ -704,6 +1161,9 @@ class WorkbenchActivity : Activity() {
      * compose slot becomes that entry. The IME has already inserted the text
      * into the focused field (D10) when this runs, so the field is the truth.
      *
+     * #188: on a leftover page the field is read-only (the IME could not insert
+     * anything), so the transcript itself is the content of the new dictation.
+     *
      * D11a: the send delivers the transcript to the clipboard.
      */
     internal fun onTranscriptArrived(text: String) {
@@ -714,7 +1174,7 @@ class WorkbenchActivity : Activity() {
             DictationTarget.RAW_EDIT -> {
                 val id = currentId
                 if (id == null) {
-                    reload(store.append(rawField.text.toString().ifBlank { text }).id)
+                    reload(Selection.Stored(store.append(rawField.text.toString().ifBlank { text }).id))
                 } else {
                     // The IME wrote into Raw, so the store discards the
                     // polished slot; the field follows the stored result.
@@ -722,7 +1182,7 @@ class WorkbenchActivity : Activity() {
                     showRaw(updated?.raw ?: rawField.text.toString())
                     showPolished(updated?.polished.orEmpty())
                     // #173 decision 5: the edit bumps it to the top of the ring.
-                    syncPositions(id)
+                    syncPositions(Selection.Stored(id))
                 }
             }
             DictationTarget.NEW -> {
@@ -733,7 +1193,7 @@ class WorkbenchActivity : Activity() {
                 }
                 composeRaw = ""
                 composePolished = ""
-                reload(created.id)
+                reload(Selection.Stored(created.id))
             }
         }
         deliver(text, notify = false)

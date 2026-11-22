@@ -5,32 +5,48 @@ import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
 import com.georgernstgraf.polishedrecognition.dictation.DictationStore
+import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
+import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.shadows.ShadowAlertDialog
+import org.robolectric.shadows.ShadowToast
 import java.io.File
 
 /**
  * #169 (epic #166 D5/D6/D15), #173 and #178: the screen, the compose slot, the
  * MRU ring and the icon header with its three action zones.
+ *
+ * #188 adds the merged ring: the journal's leftovers are pages of the same
+ * ring, carry their reason and their four actions, and are retired from a
+ * screen of their own.
  */
 @RunWith(RobolectricTestRunner::class)
 class WorkbenchActivityTest {
 
-    private val context get() = RuntimeEnvironment.getApplication()
+    private val context get() = RuntimeEnvironment.getApplication() as PolishedRecognitionApp
+    private val journal get() = context.fragmentJournal
+
+    private val leftoverSession = "20260101-1200-aaaaaaaa"
 
     @Before
     fun setUp() {
         context.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         File(context.filesDir, DictationStore.DIR_NAME).deleteRecursively()
+        File(context.filesDir, FragmentJournal.DIR_NAME).deleteRecursively()
+        ShadowToast.reset()
     }
 
     private fun seed(vararg texts: String): DictationStore {
@@ -39,7 +55,45 @@ class WorkbenchActivityTest {
         return store
     }
 
-    private fun launch() = Robolectric.buildActivity(WorkbenchActivity::class.java).setup().get()
+    /**
+     * #188: a journal leftover. A dead token (AUTH) is one of the reasons the
+     * auto path never retries, so these tests stay network-free.
+     */
+    private fun seedLeftover(
+        sessionId: String = leftoverSession,
+        failureClass: String? = "AUTH",
+        completed: Boolean = false
+    ) {
+        val audio = File(context.cacheDir, "seed-$sessionId.wav")
+            .apply { writeBytes(ByteArray(64)) }
+        journal.writePending(
+            sessionId,
+            FragmentJournal.FragmentRecord(index = 0, durationMs = 7_000L, preRollMs = 1_000L),
+            audio
+        )
+        if (failureClass != null) {
+            journal.markFailed(sessionId, 0, "HTTP 401", failureClass = failureClass, httpCode = 401)
+        }
+        if (completed) {
+            journal.markDone(sessionId, 0, "roh", "fertiger Text")
+            journal.markCompleted(sessionId)
+        }
+    }
+
+    private fun configureSttProvider() {
+        SettingsStore(context).sttProvider = SttProviderConfig(
+            displayName = "Groq",
+            baseUrl = "https://api.groq.com/openai/v1",
+            apiToken = "t",
+            model = "whisper-large-v3"
+        )
+    }
+
+    private fun launch(): WorkbenchActivity {
+        val controller = Robolectric.buildActivity(WorkbenchActivity::class.java)
+        controller.get().ioDispatcher = Dispatchers.Unconfined
+        return controller.setup().get().also { idle() }
+    }
 
     private fun EditText.text() = text.toString()
 
@@ -50,9 +104,15 @@ class WorkbenchActivityTest {
     private fun WorkbenchActivity.position() =
         findViewById<TextView>(R.id.workbench_position).text.toString()
 
+    private fun WorkbenchActivity.stamp() =
+        findViewById<TextView>(R.id.workbench_stamp).text.toString()
+
     private fun WorkbenchActivity.click(id: Int) = findViewById<View>(id).performClick()
 
     private fun WorkbenchActivity.enabled(id: Int) = findViewById<View>(id).isEnabled
+
+    private fun WorkbenchActivity.visible(id: Int) =
+        findViewById<View>(id).visibility == View.VISIBLE
 
     /**
      * ◀ and ▶ enter the ring at the newest dictation. On the compose slot one
@@ -562,5 +622,219 @@ class WorkbenchActivityTest {
             .containsExactly("typed before rotation")
         assertThat(recreated.position()).isEqualTo("new")
         assertThat(recreated.raw().text()).isEmpty()
+    }
+
+    // ------------------------------------------------ #188: the merged ring
+
+    /**
+     * #185's "an empty journal shows the hint and no rows", carried over: an
+     * empty journal adds nothing to the ring and keeps the entry page.
+     */
+    @Test
+    fun `an empty journal adds no page to the ring`() {
+        val activity = launch()
+
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.enabled(R.id.workbench_prev)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_next)).isFalse()
+        assertThat(activity.visible(R.id.workbench_leftover_actions)).isFalse()
+        assertThat(activity.stamp()).isEmpty()
+    }
+
+    @Test
+    fun `a leftover page shows its reason and a raw field that cannot take focus`() {
+        seedLeftover()
+        val activity = launch()
+
+        activity.showNewest()
+
+        assertThat(activity.position()).isEqualTo("1 / 1")
+        // the when-line: the start plus seconds, fragments and the reason
+        assertThat(activity.stamp()).contains("7 s")
+        assertThat(activity.stamp()).contains("1 fragment")
+        assertThat(activity.stamp()).contains("STT token rejected")
+        assertThat(activity.raw().text()).isEmpty()
+        assertThat(activity.raw().isEnabled).isFalse()
+        assertThat(activity.raw().isFocusable).isFalse()
+        assertThat(activity.raw().requestFocus()).isFalse()
+        assertThat(activity.findViewById<TextView>(R.id.workbench_empty_hint).text.toString())
+            .isEqualTo("Not transcribed yet — Retry STT or start a new dictation")
+        assertThat(activity.visible(R.id.workbench_leftover_actions)).isTrue()
+    }
+
+    @Test
+    fun `navigating from a leftover to a stored page restores the editable field`() {
+        // the leftover is seeded FIRST, so it is the older page (and its session
+        // id orders before any dictation id on a same-millisecond tie)
+        seedLeftover()
+        val store = seed("stored text")
+        val activity = launch()
+        activity.showNewest()
+        activity.click(R.id.workbench_prev)
+        assertThat(activity.raw().isEnabled).isFalse()
+
+        activity.click(R.id.workbench_prev)
+
+        assertThat(activity.position()).isEqualTo("2 / 2")
+        assertThat(activity.raw().isEnabled).isTrue()
+        assertThat(activity.raw().isFocusable).isTrue()
+        assertThat(activity.raw().text()).isEqualTo("stored text")
+        assertThat(store.loadAll().map { it.raw }).containsExactly("stored text")
+    }
+
+    @Test
+    fun `a delivery while a leftover page is shown creates a new dictation`() {
+        seedLeftover()
+        val activity = launch()
+        activity.showNewest()
+        val raw = activity.raw()
+
+        activity.onRecordingStarted()
+        activity.onTranscriptArrived("diktiert")
+
+        // the leftover page cannot take an edit — the transcript becomes a page
+        assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("diktiert")
+        assertThat(raw.text()).isEqualTo("diktiert")
+        assertThat(activity.position()).isEqualTo("2 / 2")
+        assertThat(journal.recoverableSessions().map { it.sessionId })
+            .containsExactly(leftoverSession)
+    }
+
+    @Test
+    fun `the position label counts stored and leftover pages`() {
+        seed("eins", "zwei")
+        seedLeftover()
+        val activity = launch()
+
+        // walk the whole ring: three pages, exactly one of them a leftover
+        val labels = mutableListOf<String>()
+        var leftoverPages = 0
+        activity.showNewest()
+        repeat(3) {
+            labels += activity.position()
+            if (!activity.raw().isEnabled) leftoverPages++
+            activity.click(R.id.workbench_prev)
+        }
+
+        assertThat(labels).containsExactly("3 / 3", "2 / 3", "1 / 3").inOrder()
+        assertThat(leftoverPages).isEqualTo(1)
+    }
+
+    /**
+     * #185's "an unfinished session offers a re-run — disabled without a
+     * provider", carried over: the retry lives on the page now.
+     */
+    @Test
+    fun `an unfinished leftover offers retry - disabled without a provider`() {
+        seedLeftover()
+        val activity = launch()
+        activity.showNewest()
+
+        assertThat(activity.visible(R.id.workbench_retry_stt)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_retry_stt)).isFalse()
+        assertThat(activity.visible(R.id.workbench_restore_text)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_dismiss_leftover)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_share_audio)).isTrue()
+    }
+
+    @Test
+    fun `a retry tap asks the coordinator for exactly that session`() {
+        configureSttProvider()
+        seedLeftover()
+        val activity = launch()
+        activity.showNewest()
+        var asked: String? = null
+        activity.retryRunner = { sessionId ->
+            asked = sessionId
+            true
+        }
+
+        assertThat(activity.enabled(R.id.workbench_retry_stt)).isTrue()
+        activity.click(R.id.workbench_retry_stt)
+
+        assertThat(asked).isEqualTo(leftoverSession)
+    }
+
+    @Test
+    fun `a refused retry says so instead of doing nothing`() {
+        configureSttProvider()
+        seedLeftover()
+        val activity = launch()
+        activity.showNewest()
+        activity.retryRunner = { false }
+
+        activity.click(R.id.workbench_retry_stt)
+
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("A recovery is already running")
+    }
+
+    /**
+     * #185's "a completed session offers the stored text instead of a re-run",
+     * carried over.
+     */
+    @Test
+    fun `a completed leftover offers restore instead of retry`() {
+        seedLeftover(failureClass = null, completed = true)
+        val activity = launch()
+        activity.showNewest()
+
+        assertThat(activity.visible(R.id.workbench_restore_text)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_restore_text)).isTrue()
+        assertThat(activity.visible(R.id.workbench_retry_stt)).isFalse()
+        assertThat(activity.stamp()).contains("transcribed — text available")
+
+        activity.click(R.id.workbench_restore_text)
+        idle()
+
+        assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("fertiger Text")
+        assertThat(activity.raw().text()).isEqualTo("fertiger Text")
+        assertThat(journal.recoverableSessions()).isEmpty()
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Text restored to the Workbench")
+    }
+
+    /**
+     * #185's "dismissing asks first, then records the reason and removes the
+     * row", carried over — the page disappears instead of a row.
+     */
+    @Test
+    fun `dismissing a leftover asks first, then records the reason and drops the page`() {
+        seedLeftover(failureClass = "TERMINAL")
+        val activity = launch()
+        activity.showNewest()
+
+        activity.click(R.id.workbench_dismiss_leftover)
+        idle()
+
+        val dialog = ShadowAlertDialog.getLatestAlertDialog()!!
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
+        idle()
+
+        assertThat(journal.recoverableSessions()).isEmpty()
+        val marker = journal.readSession(leftoverSession)!!
+        assertThat(marker.dismissReason).isEqualTo(FragmentJournal.REASON_USER_DISCARDED)
+        assertThat(marker.dismissedAtMs).isNotNull()
+        // only the tombstone is left — the audio is gone
+        assertThat(journal.sessionDir(leftoverSession).listFiles()!!.map { it.name })
+            .containsExactly(FragmentJournal.SESSION_FILE)
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.visible(R.id.workbench_leftover_actions)).isFalse()
+    }
+
+    @Test
+    fun `a failed run lands as a toast naming the failure`() {
+        seedLeftover()
+        val activity = launch()
+        activity.showNewest()
+
+        context.recoveryCoordinator.onFinished!!.invoke(
+            RecoveryCoordinator.Outcome(
+                recovered = 0,
+                failures = listOf(RecoveryCoordinator.Failure(leftoverSession, "HTTP 500")),
+                skipped = 0
+            )
+        )
+        idle()
+
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Re-run failed: HTTP 500")
     }
 }

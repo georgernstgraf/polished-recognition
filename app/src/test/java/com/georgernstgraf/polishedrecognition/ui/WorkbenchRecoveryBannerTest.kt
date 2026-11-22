@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.ui
 
 import android.view.View
+import android.widget.EditText
 import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
@@ -19,8 +20,10 @@ import org.robolectric.Shadows.shadowOf
 import java.io.File
 
 /**
- * #185: the Workbench entry point — the leftovers banner is GONE when there is
- * nothing to recover (no dead UI) and names the count otherwise.
+ * #185/#188: the Workbench entry point — the leftovers banner is GONE when
+ * there is nothing to recover (no dead UI), names the count AND the newest
+ * leftover's stamp otherwise, and a tap jumps to that page instead of opening
+ * a screen of its own.
  */
 @RunWith(RobolectricTestRunner::class)
 class WorkbenchRecoveryBannerTest {
@@ -29,6 +32,7 @@ class WorkbenchRecoveryBannerTest {
     private val journal get() = context.fragmentJournal
 
     private val session = "20260101-1200-cccccccc"
+    private val newerSession = "20260101-1201-dddddddd"
 
     @Before
     fun setUp() {
@@ -53,11 +57,19 @@ class WorkbenchRecoveryBannerTest {
 
     private fun WorkbenchActivity.banner(): TextView = findViewById(R.id.workbench_recovery)
 
+    private fun WorkbenchActivity.stamp(): TextView = findViewById(R.id.workbench_stamp)
+
+    private fun WorkbenchActivity.raw(): EditText = findViewById(R.id.workbench_raw)
+
     /** A dead token is never auto-retried, so the test stays network-free. */
-    private fun seedUnrecoverable() {
-        val audio = File(context.cacheDir, "seed-banner.wav").apply { writeBytes(ByteArray(64)) }
-        journal.writePending(session, FragmentJournal.FragmentRecord(index = 0), audio)
-        journal.markFailed(session, 0, "HTTP 401", failureClass = "AUTH", httpCode = 401)
+    private fun seedUnrecoverable(
+        sessionId: String = session,
+        failureClass: String = "AUTH"
+    ) {
+        val audio = File(context.cacheDir, "seed-banner-$sessionId.wav")
+            .apply { writeBytes(ByteArray(64)) }
+        journal.writePending(sessionId, FragmentJournal.FragmentRecord(index = 0), audio)
+        journal.markFailed(sessionId, 0, "HTTP 401", failureClass = failureClass, httpCode = 401)
     }
 
     @Test
@@ -68,12 +80,33 @@ class WorkbenchRecoveryBannerTest {
     }
 
     @Test
-    fun `a leftover names its count in the banner`() {
+    fun `a leftover names its count and the newest stamp in the banner`() {
         seedUnrecoverable()
 
         val activity = launch()
 
         assertThat(activity.banner().visibility).isEqualTo(View.VISIBLE)
-        assertThat(activity.banner().text.toString()).contains("1")
+        // "<n> incomplete · <stamp of the newest>"
+        assertThat(activity.banner().text.toString())
+            .matches("""1 incomplete dictation · \d{2}:\d{2}""")
+    }
+
+    @Test
+    fun `two leftovers count twice and tap jumps to the newest page`() {
+        // two sessions, a millisecond apart in the journal's own clock; AUTH is
+        // older than TERMINAL so the reason alone tells them apart
+        seedUnrecoverable(session, failureClass = "AUTH")
+        seedUnrecoverable(newerSession, failureClass = "TERMINAL")
+
+        val activity = launch()
+        assertThat(activity.banner().text.toString()).startsWith("2 incomplete dictations")
+
+        activity.banner().performClick()
+
+        // the jump lands on a leftover page — its field cannot take focus
+        assertThat(activity.raw().isEnabled).isFalse()
+        assertThat(activity.stamp().text.toString()).contains("provider rejected the request")
+        assertThat(activity.findViewById<View>(R.id.workbench_leftover_actions).visibility)
+            .isEqualTo(View.VISIBLE)
     }
 }

@@ -151,22 +151,24 @@
     <string name="workbench_fifo_size_hint">How many Workbench dictations are kept (1–10). The least recently edited one is deleted first.</string>
     <string name="workbench_fifo_size_error">Enter a number between 1 and 10</string>
 
-    <!-- #185: pending transcriptions (recovery) -->
-    <string name="recovery_title">Pending transcriptions</string>
-    <string name="recovery_empty">No pending transcriptions — every dictation became text.</string>
+    <!--
+      #185/#188: unfinished dictations live in the Workbench ring. The screen
+      #185 added for them is gone — these strings are what the leftover page,
+      its actions and the recovery Toasts say.
+    -->
     <plurals name="recovery_banner">
-        <item quantity="one">%1$d pending transcription — tap to review</item>
-        <item quantity="other">%1$d pending transcriptions — tap to review</item>
+        <item quantity="one">%1$d incomplete dictation</item>
+        <item quantity="other">%1$d incomplete dictations</item>
     </plurals>
-    <string name="recovery_rerun">Re-run</string>
-    <string name="recovery_restore">Restore text</string>
-    <string name="recovery_share">Share audio</string>
-    <string name="recovery_dismiss">Dismiss</string>
-    <string name="recovery_running">Transcribing…</string>
-    <plurals name="recovery_detail">
-        <item quantity="one">%1$d s audio · %2$d fragment · %3$s</item>
-        <item quantity="other">%1$d s audio · %2$d fragments · %3$s</item>
+    <plurals name="workbench_leftover_detail">
+        <item quantity="one">%1$d s · %2$d fragment · %3$s</item>
+        <item quantity="other">%1$d s · %2$d fragments · %3$s</item>
     </plurals>
+    <string name="workbench_retry_stt">Retry STT</string>
+    <string name="workbench_restore_text">Restore text</string>
+    <string name="workbench_share_audio">Share audio</string>
+    <string name="workbench_dismiss_leftover">Dismiss</string>
+    <string name="workbench_leftover_hint">Not transcribed yet — Retry STT or start a new dictation</string>
     <string name="recovery_reason_auth">STT token rejected</string>
     <string name="recovery_reason_budget">Provider budget exhausted</string>
     <string name="recovery_reason_protocol">provider answered without a transcript</string>
@@ -183,8 +185,8 @@
         <item quantity="other">Recovered %1$d dictations into the Workbench</item>
     </plurals>
     <plurals name="recovery_still_pending">
-        <item quantity="one">%1$d pending transcription left — open the list for details</item>
-        <item quantity="other">%1$d pending transcriptions left — open the list for details</item>
+        <item quantity="one">%1$d pending transcription left — open it in the Workbench for details</item>
+        <item quantity="other">%1$d pending transcriptions left — open them in the Workbench for details</item>
     </plurals>
     <string name="recovery_failed">Re-run failed: %1$s</string>
     <string name="recovery_busy">A recovery is already running</string>

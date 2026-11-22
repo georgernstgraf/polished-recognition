@@ -255,13 +255,13 @@
         <li>A raw edit discards the polished text — deliberately, so nothing is polished silently.</li>
     </ul>
     <p class="hint">Dictations stay on your device only: they survive a restart but are excluded from cloud backup and device transfer. Settings is reachable from the top-right of the window (and from the keyboard's gear).</p>
-    <h3>Pending transcriptions</h3>
+    <h3>Unfinished dictations</h3>
     <p>When the speech service cannot finish a dictation — no network, a server error, the app being killed while you spoke — the recording is kept. Open the app and it is picked up immediately: a short message announces the recovery, the text appears as a normal dictation, and nothing is re-recorded.</p>
     <ul>
-        <li>If a retry cannot help (most often a rejected API token), a line at the top of the window names the number of pending recordings. Tap it to open the list.</li>
-        <li>Each entry shows when it was dictated, how long it was and why it did not finish. <strong>Re-run</strong> tries the missing parts again with your current provider; <strong>Share audio</strong> hands the recording to any app; <strong>Dismiss</strong> throws it away after asking you once.</li>
-        <li>An entry whose text was already produced — the app died right after finishing — offers <strong>Restore text</strong> instead: no request, the text simply comes back.</li>
-        <li>Dismissing keeps a small note that you did it. Recordings are never deleted behind your back.</li>
+        <li>What a retry cannot fix (most often a rejected API token) stays in the window as its own page: <strong>◀</strong> / <strong>▶</strong> walk through it like any other dictation, its when-line says when you dictated it, how long it was and why it did not finish. A line at the top names how many there are and when the newest one was started — tap it to jump straight there.</li>
+        <li><strong>Retry STT</strong> tries the missing parts again with your current provider; <strong>Share audio</strong> hands the recording to any app; <strong>Dismiss</strong> throws it away after asking you once.</li>
+        <li>A page whose text was already produced — the app died right after finishing — offers <strong>Restore text</strong> instead: no request, the text simply comes back.</li>
+        <li>Dismissing keeps a small note that you did it. Recordings are never deleted behind your back, and an unfinished dictation is never aged away.</li>
     </ul>
     <p class="hint">The Workbench is a text manager, not a keyboard: it opens the field and gets out of the way. Dictating therefore needs a keyboard that can reach Polished — either the Polished keyboard itself (made your input method once), or any typing keyboard with a microphone key: that key invokes Polished's voice input service and drops the text into the focused field. The Workbench never changes your keyboard.</p>
 </section>
