@@ -9,7 +9,7 @@ status: stable
 
 # Hand Off
 
-Only open tasks. **#75 (provider refusals) shipped on 2026-11-22** — the
+Only open tasks. **#75 (provider refusals) is closed (2026-11-22)** — the
 provider's error body now decides the `BUDGET` class, a budget wall costs exactly
 one request per session, and the limits land in the existing diagnostics. The
 #152 program is at 4/5 with **two open children: #186 (offline sessions) and #188
