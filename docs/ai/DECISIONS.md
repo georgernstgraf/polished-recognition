@@ -13,6 +13,47 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-22: #186 — ein Raw-Rescue ist KEINE Fertigstellung; ein leeres Rescue wird nie eingefügt
+
+Der Gerätetest des #186-Fluges (Samsung SM-A032F, Flugmodus an, Raw-Modus an,
+Release `147d404`) hat den Kern des Features widerlegt: die Session war komplett
+offline, alle Fragmente scheiterten — und `runTranscription` lieferte trotzdem
+`Result.success("")`. Der Erfolgs-Zweig von `stopAndTranscribe` markierte die
+Journal-Session als fertig und löschte sie; die IME fügte einen leeren String ein
+und sagte nichts. Weder Workbench noch Toast: das Diktat war weg, obwohl das
+Feature „nichts geht verloren" heißt. Vier Regeln, die daraus folgen.
+
+- **Completed + Delete nur ohne Rescue.** `journal.markCompleted(sid)` und
+  `discardFragmentSession()` laufen im Erfolgs-Zweig nur, wenn
+  `rescuePartial == null` ist. Ein Rescue behält seine Journal-Session (alle
+  Fragmente bleiben PENDING mit ihrer aufgezeichneten Fehlerklasse), damit
+  `recoverableSessions()` sie als unfertiges Diktat listet und der Grund sichtbar
+  bleibt. Der Speicher-Cache (Transcriber/Preparer) fällt wie bisher — die
+  Journalkopie ist die dauerhafte, nicht `cacheDir`. Damit ist ein Rescue
+  ausdrücklich KEIN `completedAtMs`-Fall, obwohl Text geliefert wurde: geliefert
+  ≠ fertig.
+- **Der Grund reist mit dem Event.** `Event.PartialInfo` trägt additiv und
+  defaulted `failure: SttFailure?` und `message: String?` (beide mit Default,
+  jede bestehende Konstruktion kompiliert unverändert). Ein Beobachter kann
+  dadurch sagen, WARUM gerettet wurde (OFFLINE vs. 410), statt nur „irgendwas
+  fehlt". `deliver()` konsumiert das Feld weiterhin genau einmal.
+- **Ein leeres Rescue wird NIE eingefügt — und ist nie stumm.** Die IME fügt
+  den Text nur ein, wenn er nicht leer ist, und zeigt IMMER genau EINEN Toast:
+  Hinweis der Fehlerklasse (`SttFailureText.resFor`) + technischer Grund +
+  `ime_rescue_saved` („The recording is saved in the Workbench — Retry STT
+  there."). Kein zusätzlicher generischer Fehler-Toast — das Diktat ist
+  gespeichert, nur nicht vollständig transkribiert.
+- **Der delegierte Mic-Pfad stimmt zu.** `PolishedRecognitionService` meldet ein
+  Rescue mit leerem Text als `error` (Grund über `mapRecognitionError`) statt als
+  leeren `results`-Erfolg — und ruft dabei ausdrücklich NICHT
+  `controller.cancel()`: das würde über `discardFragmentSession()` genau das
+  Journal löschen, das der Rescue gerettet hat.
+- **Die Workbench-Retry-STT ist der Fertigstellungsweg.** Ein gerettetes Diktat
+  kann nur dort vollständig werden (bzw. nach dem nächsten Netzanlauf
+  automatisch), weil die IME-Session mit dem Rescue endet. Der saubere Erfolg
+  bleibt unverändert (Completed + Delete) — beide Hälften sind durch
+  Controller-Tests gepinnt, nicht nur die neue.
+
 ## 2026-11-22: #190 — die Zwischenanzeige läuft über die Composing-Region, der Endzustand bleibt #116 Option C
 
 Das Diktat soll im Zielfeld wachsen, während transkribiert wird — und nach Send

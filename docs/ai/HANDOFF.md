@@ -9,22 +9,27 @@ status: stable
 
 # Hand Off
 
-Only open tasks. **#186 (offline sessions) is closed (2026-11-22) — and with it
-epic #152: all six children have shipped, „never lose a dictation" is
-complete.** A dictation recorded without a usable network makes no request,
-lands in the journal as `OFFLINE`, shows as an incomplete page with that reason
-and transcribes when the network is back (validated reconnect while the
-Workbench is visible, the next entry, or Retry STT). #188 (incomplete
-dictations in the Workbench) closed 2026-11-22 as well; #182–#184 were closed
-on 2026-11-20; #185 (recovery UI) on 2026-11-21; **#187 was reopened and closed
-again on 2026-11-22**; #75 on 2026-11-22. What remains are owner checks on the
-device and #156.
+Only open tasks. **#186 (offline sessions) is NOT shipped: the owner's device
+check found a defect and it is fixed in the working tree, but the flight must be
+repeated before the issue can close — so epic #152 stays open** (five of its six
+children shipped; #186 is the last one). A dictation recorded without a usable
+network makes no request, lands in the journal as `OFFLINE`, shows as an
+incomplete page with that reason and transcribes when the network is back
+(validated reconnect while the Workbench is visible, the next entry, or Retry
+STT). The defect: in **raw mode** a fully failed session was delivered as an
+empty "rescue success", the journal session was marked complete and deleted, and
+the user saw neither the page nor a Toast. Now a rescue keeps its journal, an
+empty rescue inserts nothing, and one Toast names the reason and the Workbench
+(see STATE.md and PITFALLS.md). #188 (incomplete dictations in the Workbench)
+closed 2026-11-22 as well; #182–#184 were closed on 2026-11-20; #185 (recovery
+UI) on 2026-11-21; **#187 was reopened and closed again on 2026-11-22**; #75 on
+2026-11-22. What remains are owner checks on the device and #156.
 
-## #152 — six sub-issues, all closed (the epic is COMPLETE)
+## #186 — the last open child of #152 (the epic stays open until it is shipped)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
-**#182, #183, #184, #185, #186 and #188 are done** — the last one (#186) closed
-2026-11-22.
+**#182, #183, #184, #185 and #188 are done**; **#186 is fixed but NOT verified on
+a device**, so neither #186 nor #152 may be closed yet.
 
 1. [x] **#182 — durable fragment journal** (closed 2026-11-20):
    `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap, no age rule.
@@ -51,14 +56,20 @@ Epic #152 ("never lose a dictation") is decomposed and formally linked.
    (`recovery/RecoveryRestore` + `RecoveryShare`), the count+jump banner, and
    the #185 screen deleted with its 4 assertions moved to
    `WorkbenchActivityTest`.
-6. [x] **#186 — offline sessions** (closed 2026-11-22): the `NetworkGate`
-   (VALIDATED, `reconnectFires` edge rule), `SttFailure.OFFLINE` +
+6. [x] **#186 — offline sessions** (fixed 2026-11-22, **NOT shipped**): the
+   `NetworkGate` (VALIDATED, `reconnectFires` edge rule), `SttFailure.OFFLINE` +
    `isOnline` in the runner and the pipeline, the OFFLINE latch in
    `FragmentTranscriber`, `network/AndroidNetworkStatus` +
    `network/ReconnectMonitor` (started in the Workbench's `onResume`, stopped
    in `onPause`), `RecoveryReason.Kind.OFFLINE` (auto-retryable) and
    `ime_stt_offline`. **No journal age rule** — the 256-MB cap keeps
    everything, so nothing expires.
+   **Device defect found by the owner and fixed here:** in raw mode a fully
+   failed session was delivered as an empty "rescue success" (journal marked
+   complete + deleted, no page, no Toast). A rescue now keeps its journal
+   (PENDING, failure class intact), an empty rescue inserts nothing, and one
+   Toast names the reason and the Workbench. The airplane-mode flight has to be
+   repeated on the device before #186 (and #152) can close — item 7 below.
 
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the
    bar stays visible and parked (▶ enabled, Send and Flush greyed out, Gear/X
@@ -102,18 +113,26 @@ Epic #152 ("never lose a dictation") is decomposed and formally linked.
    when-line is legible on a phone (14sp, secondary colour) and the four
    buttons fit in one row in portrait — if they wrap, that is a follow-up, not
    a code fix on the spot.
-7. [ ] **#186 device check (owner, USB host): a dictation recorded offline.**
-   `adb shell cmd connectivity airplane-mode enable` → dictate → open the
-   Workbench: the page must show "Offline — saved, will transcribe when online"
-   and `stt-latency.json` must gain **no** record for that session (nothing went
-   out; only `stt-upload.json` stays untouched too). Then
+7. [ ] **#186 device check (owner, USB host): a dictation recorded offline —
+   raw mode ON, the defect case.** `adb shell cmd connectivity airplane-mode
+   enable` → dictate with the **LLM checkbox unchecked (raw mode)** → the device
+   must show ONE Toast ("Offline — saved, will transcribe when online" + "No
+   usable network — saved for later" + "The recording is saved in the
+   Workbench — Retry STT there."), insert no text, and NOT lose the dictation.
+   Open the Workbench: the page must show "Offline — saved, will transcribe when
+   online" and `stt-latency.json` must gain **no** record for that session
+   (nothing went out; only `stt-upload.json` stays untouched too), while
+   `insertion.json` reads `RAW_RESCUE_PARTIAL` with `length 0` and the journal
+   session (`files/journal/<sid>/session.json`) has NO `completedAtMs`. Then
    `airplane-mode disable`: with the Workbench visible the page must transcribe
    right away (Reconnect Toast), otherwise the next entry or Retry STT must do
-   it. Evidence: `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs`
-   + `files/audio`. Use the Samsung `R7SRB06XF5K`, never the OnePlus. **Not done
-   in the #186 session: the Samsung is PIN-locked and no credentials were
-   available** (the release APK was installed and the Workbench launched behind
-   the keyguard; no input reaches a locked screen).
+   it — and the page must disappear once it has. Repeat once in LLM mode (the
+   session parks PAUSED with the offline failure Toast, as before). Evidence:
+   `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs` +
+   `files/audio` + `files/journal`. Use the Samsung `R7SRB06XF5K`, never the
+   OnePlus. **The first run of this check (release `147d404`) found the
+   raw-mode defect — fixed in the working tree; the re-run is what closes
+   #186 and #152.**
 8. [ ] **#156 — the screenshots are stale after the Workbench redesign**
    ([#156](https://github.com/georgernstgraf/polished-recognition/issues/156),
    open). Re-capture from a current release build; the issue carries the
