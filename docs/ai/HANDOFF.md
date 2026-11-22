@@ -3,27 +3,26 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
 status: stable
 ---
 
 # Hand Off
 
-Only open tasks. **#75 (provider refusals) is closed (2026-11-22)** — the
-provider's error body now decides the `BUDGET` class, a budget wall costs exactly
-one request per session, and the limits land in the existing diagnostics. The
-#152 program is at 4/5 with **two open children: #186 (offline sessions) and #188
-(the manual Retry STT row)**. #182–#184 were closed on 2026-11-20; #185 (recovery
-UI) on 2026-11-21; **#187 was reopened and closed again on 2026-11-22**. What
-remains are owner checks on the device, #186, #188 and #156.
+Only open tasks. **#188 (incomplete dictations in the Workbench) is closed
+(2026-11-22)** — the leftovers are pages of the Workbench ring now, with a
+when-line, their four actions on the page and a count+jump banner; the #185
+recovery screen is retired. The #152 program is at **4/5 with exactly ONE open
+child: #186 (offline sessions)**. #182–#184 were closed on 2026-11-20; #185
+(recovery UI) on 2026-11-21; **#187 was reopened and closed again on
+2026-11-22**; #75 on 2026-11-22. What remains are owner checks on the device,
+#186 and #156.
 
 ## #152 — five sub-issues, dependency order (4/5 done)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
-**#182, #183, #184 and #185 are done.** Open children: **#186** (offline
-sessions, the fifth sibling) and **#188** (the row-level Retry STT / Workbench
-text for pending transcriptions — since #75 the rows can also say "Provider
-budget exhausted", #188 owns the retry affordance).
+**#182, #183, #184, #185 and #188 are done.** Open child: **#186** (offline
+sessions, the fifth sibling).
 
 1. [x] **#182 — durable fragment journal** (closed 2026-11-20):
    `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap.
@@ -37,14 +36,20 @@ budget exhausted", #188 owns the retry affordance).
    carries the session state (`completedAtMs`, `dismissedAtMs`/reason) —
    `recoverableSessions()` is the single source. The Workbench scans on entry,
    Toasts before the first request and auto-retries `TRANSIENT`/interrupted
-   sessions (never AUTH/PROTOCOL/TERMINAL), once per process, yielding to a
-   live dictation at every fragment boundary. The banner (GONE at zero) opens
-   `RecoveryActivity`: Re-run (`JournalReplay` — only the missing fragments,
-   byte-identical, recorded prompt, `EchoTrim`, `LoopGuard`), Restore (a
-   completed session's stored text, no request), Share (one rebuilt WAV, pieces
-   for OGG), Dismiss (record `user_discarded`, then delete; a capped tombstone
-   stays).
-5. [ ] **#186 — offline sessions** (record now, transcribe on reconnect).
+   sessions (never AUTH/PROTOCOL/TERMINAL/BUDGET), once per process, yielding to
+   a live dictation at every fragment boundary. Re-run (`JournalReplay` — only
+   the missing fragments, byte-identical, recorded prompt, `EchoTrim`,
+   `LoopGuard`), Restore (a completed session's stored text, no request), Share
+   (one rebuilt WAV, pieces for OGG), Dismiss (record `user_discarded`, then
+   delete; a capped tombstone stays).
+5. [x] **#188 — incomplete dictations in the Workbench** (closed 2026-11-22):
+   `ui/WorkbenchPage` + `WorkbenchPages.merge` (one ring, ordered by the last
+   change), the tiered when-line (`ui/WorkbenchStamp`), the leftover page
+   (read-only Raw, `DictationTarget` = NEW), the four actions on the page
+   (`recovery/RecoveryRestore` + `RecoveryShare`), the count+jump banner, and
+   the #185 screen deleted with its 4 assertions moved to
+   `WorkbenchActivityTest`.
+6. [ ] **#186 — offline sessions** (record now, transcribe on reconnect).
 
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the
    bar stays visible and parked (▶ enabled, Send and Flush greyed out, Gear/X
@@ -71,16 +76,25 @@ budget exhausted", #188 owns the retry affordance).
    ONE `complete` attempt with `providerError.type = budget_exceeded` and the
    `headers` block, and re-entering the Workbench must NOT upload again (the row
    reads "Provider budget exhausted", no auto-retry of that session).
-5. [ ] **#185 device check (owner): the recovery paths on a real device.**
+5. [ ] **#185/#188 device check (owner): the recovery paths on a real device.**
    (a) Airplane mode → dictate → the failure parks; reopen the Workbench with
    network back → auto-recovery Toast, the text appears in the ring, the banner
-   disappears. (b) A wrong STT token → the row shows "STT token rejected" and is
-   NOT auto-retried; fix the token → Re-run works. (c) Share audio on a WAV
-   session → ONE file whose seams do not repeat words; on an OGG session →
-   the pieces. (d) Dismiss → confirmation, then the row is gone and the
-   tombstone survives a restart (Settings' journalling is invisible to the
-   user; check `logcat` for the `FragmentJournal prune` line at most).
-6. [ ] **#156 — the screenshots are stale after the Workbench redesign**
+   disappears. (b) A wrong STT token → the incomplete page's when-line says
+   "STT token rejected" and it is NOT auto-retried; fix the token → Retry STT
+   works. (c) Share audio on a WAV session → ONE file whose seams do not repeat
+   words; on an OGG session → the pieces. (d) Dismiss → confirmation, then the
+   page is gone and the tombstone survives a restart (check `logcat` for the
+   `FragmentJournal prune` line at most).
+6. [ ] **#188 device check (owner): the merged ring on a real screen.**
+   (a) With two incomplete dictations the banner reads "2 incomplete dictations
+   · <time>" and a tap lands on the NEWEST one — not on a stored dictation.
+   (b) ◀/▶ walk from a leftover page to a stored one and the Raw field becomes
+   editable again; dictating while a leftover page is shown creates a NEW
+   dictation at the ring's end and leaves the leftover in place. (c) The
+   when-line is legible on a phone (14sp, secondary colour) and the four
+   buttons fit in one row in portrait — if they wrap, that is a follow-up, not
+   a code fix on the spot.
+7. [ ] **#156 — the screenshots are stale after the Workbench redesign**
    ([#156](https://github.com/georgernstgraf/polished-recognition/issues/156),
    open). Re-capture from a current release build; the issue carries the
    authoritative shot list (`docs/img/ime-recording.png` + `settings.png`), do

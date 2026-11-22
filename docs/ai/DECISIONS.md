@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -62,6 +62,53 @@ Option C.
 - **Beschlossen, nicht gebaut:** die Umsetzung steht hinter #186, #188, #156 und
   den offenen Owner-Gerätechecks. Ein Issue, kein Epic — der Scope, der es zum
   „big rock" machte, ist explizit weggefallen.
+
+## 2026-11-22: #188 — die unfertigen Diktate sind Seiten des Workbench-Rings
+
+#185 gab den Leftovers einen eigenen Screen (Activity + Layout + eigene Liste) neben dem Ring.
+Das waren zwei Listen über dieselbe Frage — „was wartet noch auf mich?" — und
+der Nutzer musste zwischen ihnen springen. #188 legt sie zusammen: ein Ring,
+zwei Seitenarten. Vier Entscheidungen, alle vom Owner am 2026-11-22 bestätigt.
+
+- **Zusammengelegte Sicht, KEIN Schema-Wechsel.** Ein `WorkbenchPage` ist eine
+  Sicht über seine Quelle — `DictationStore` bleibt die eine Wahrheit für Text,
+  `FragmentJournal` die eine für Audio. Keine Seite wird persistiert, kein Feld
+  kommt dazu, kein zweiter Store entsteht. Ein Schema-Umzug hätte die
+  Audio-Wahrheit in die Text-Welt kopiert, und der nächste abgebrochene Lauf
+  hätte zwei Zustände, die auseinanderlaufen können.
+- **Chronologisch nach der letzten Änderung.** Aufsteigend wie
+  `DictationStore.loadAll()` (`updatedAtMs` für gespeicherte Diktate,
+  `startedAtMs` für ein Leftover, ein undatiertes Leftover ans ENDE, Gleichstand
+  über die id). Das letzte Element ist „neueste". Begründung: ein Leftover hat
+  keinen Inhalt, den man anfassen könnte — sein Start ist sein ganzes Sein, und
+  eine Seite, die von heute sein könnte, darf nicht unter allem anderen
+  begraben werden. Ein Sonderfall „Leftovers immer oben" wurde verworfen: er
+  hätte zwei Ordnungen in einem Ring erzeugt, und der MRU-Begriff (#173) gilt
+  für Text, nicht für Seiten.
+- **Die Leftover-Seite ist read-only und nicht fokussierbar.** Raw ist leer,
+  `isEnabled`/`isFocusable` false; `DictationTarget` ist dort `NEW`, also legt
+  ein geliefertes Transkript ein NEUES Diktat an, statt eine Seite zu editieren,
+  die nichts zu editieren hat. Die Alternative (Raw editierbar lassen) hätte
+  bedeutet, dass die IME in ein Feld schreibt, dessen Inhalt nie gespeichert
+  werden darf — der `read()`-Invariant von `DictationStore` (leeres `raw` wird
+  verworfen) macht daraus sonst eine still verlorene Eingabe.
+- **Der eigene Screen aus #185 wird eingestellt, die Aktionen ziehen auf die Seite.**
+  Die Activity, `activity_recovery.xml`, `item_recovery.xml`, ihr Manifest-Eintrag,
+  `ContrastMatrix.SCREEN_RECOVERY` und ihr Test sind gelöscht;
+  Retry STT / Restore text / Share audio / Dismiss sitzen auf der Seite
+  (`RecoveryActions`-Regel unverändert). Die zwei nicht-trivialen Abläufe sind
+  als `recovery/RecoveryRestore` und `recovery/RecoveryShare` extrahiert, damit
+  die Workbench keine zweite Kopie trägt und die Verträge (Store vor
+  Journal-Delete; SEND vs SEND_MULTIPLE) testbar bleiben. `RecoveryCoordinator.onFinished`
+  hat jetzt genau EINEN Besitzer (die Workbench).
+- **Der Banner ist Zähler + Sprung.** `"<n> incomplete dictations · <stamp des
+  neuesten>"`, Tap springt auf `WorkbenchPages.newestLeftoverIndex` — es gibt
+  keine Liste mehr, hinter die er führen könnte.
+- **Verworfen:** ein `updatedAtMs`-Feld im Journal (Schema), eine dritte
+  Store-Instanz als Merge-Cache (die drei bestehenden Instanzen und ihr
+  per-Instanz-`@Synchronized` sind schon eine Falle), und ein Auto-Öffnen der
+  neuesten Leftover-Seite beim Betreten (das würde den Nutzer aus der
+  Compose-Slot-Zone reißen, D15).
 
 ## 2026-11-22: #75 — die Refusal-BODY entscheidet; ein Budget-Wall wird genau EINMAL gefragt
 
@@ -1686,7 +1733,7 @@ The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 - **Choice**: (a) **The session state lives in the journal's `session.json`** (owner idea: write a marker into the bundle), not in a separate audit file: `completedAtMs` (written by the controller's success branch immediately before the existing delete), `dismissedAtMs`/`dismissReason` (tombstone). A session without either marker is a leftover. A marker-less session whose records are all `DONE` ALSO counts as completed — nothing is left to send, so the honest action is restore, not re-run. (b) **Dismissal = write the reason, then delete the audio and the records, keeping only `session.json`.** Tombstones are capped by count (50, newest win) inside `prune`; they do not consume the 256-MB audio cap. (c) **Re-run = per-fragment replay of the MISSING fragments only**, spliced with the stored text in index order: the journal's own composed upload (byte-identical), the recorded prompt, `EchoTrim` (now a pure `:core` object, delegated to by `FragmentTranscriber`), `LoopGuard` on a forced seam, `session_id`/`fragment_index` unchanged. Stops at the first failure; every `DONE` flip is durable. (d) **The Workbench is the entry point**: on entry it scans, shows a GONE-at-zero banner, Toasts BEFORE the first request, auto-retries only `TRANSIENT`/interrupted sessions (never AUTH/PROTOCOL/TERMINAL), remembers its attempts per PROCESS (`autoAttempted` — no persisted backoff; a restart is a new chance), and yields at every fragment boundary while the controller is RECORDING/PROCESSING. (e) **Sharing** rebuilds ONE WAV for WAV sessions (pre-rolls cut, `recovery/RecoveryAudio`) and attaches the pieces for OGG (no decoder on device), through a new `FileProvider` (`<pkg>.recovery`). (f) **The text is stored before the journal is deleted**; a failed polish falls back to the raw transcript.
 - **Reason**: The owner's model ("the bundle is written during dictation, deleted on success, kept on failure") is already the #182 journal — the release default of 0 bundles gates only the *evidence* copy under `files/audio`, which is why the recovery UI must never read it. The marker the owner asked for fits the journal's `session.json`, which already is the write-ahead validity marker; a separate `dismissed.json` would be a second source of truth. Replaying byte-identical composed uploads is the only re-run that keeps every live-path property (prompt conditioning, acoustic echo trim, loop guard, #184 idempotency); reconstructing audio would fail for OGG and lose the prompts.
 - **Tradeoff**: The delete on success is NOT reordered (#138 is load-bearing: the transcriber cache must be consumed before `deliver()`), so the completion marker is one tiny write whose visible effect is a delete that fails or a process death in between — deliberately accepted, it costs nothing and turns an invisible loss into a "text available" row. A completed dir that survives lingers until the user acts (there is no age rule; it is a handful of KB of audio). The re-run's `attempt` counter restarts at 1 — the dedupe identity is `session_id:fragment_index`, which stays. Journal audio of `DONE` fragments is KEPT (deleting it would strip the audio from a session the user may still want to share); the 256-MB cap bounds it.
-- **Verification**: 874 tests green (`:core` 258 incl. `EchoTrimTest` 10, `JournalReplayTest` 13, `FragmentJournalTest` +13; `:app` +`RecoveryActionsTest`, `RecoveryReasonTest`, `RecoveryAudioTest`, `RecoveryCoordinatorTest`, `RecoveryActivityTest`, `WorkbenchRecoveryBannerTest`, `RecoveryActivity` added to `ContrastMatrix`), `lintDebug` green (only the three pre-existing warnings), `assembleRelease` green, pre-push green. No version bump (consistent with #182–#184).
+- **Verification**: 874 tests green (`:core` 258 incl. `EchoTrimTest` 10, `JournalReplayTest` 13, `FragmentJournalTest` +13; `:app` +`RecoveryActionsTest`, `RecoveryReasonTest`, `RecoveryAudioTest`, `RecoveryCoordinatorTest`, its own screen test, `WorkbenchRecoveryBannerTest`, the recovery screen added to `ContrastMatrix`), `lintDebug` green (only the three pre-existing warnings), `assembleRelease` green, pre-push green. No version bump (consistent with #182–#184).
 - **Not verified**: the force-stop acceptance criterion needs a device (claw has none) — owner check in HANDOFF.
 
 ## 2026-11-22: #187 (reopened) — das Ausgabeprotokoll des Release-Builds ist ebenfalls ein Gate

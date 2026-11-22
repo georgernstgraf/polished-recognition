@@ -3,7 +3,7 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
@@ -95,18 +95,26 @@ Follow these without question. Do not deviate unless explicitly told.
 - **The Workbench has two polish buttons and one language (#176, #178).** `workbench_polish_a` (zone A, above Raw) and `workbench_polish_b` (zone B, between Raw and Polished) both call `TranscriptionPipeline.polish(raw, language)`; the two language spinners write into the SAME per-visit `polishLanguage`, which is per-dictation and never written to `settings.targetLanguage`. A raw edit discards the polished slot with no confirmation and no silent re-polish; since #176 nothing polishes automatically at all — only a polish button does.
 - **The screen owns its insets** (`ui/WorkbenchInsets`: bars + cutout + IME, max per side, rebuilt from the XML base) and must stay in `ui/contrast/ContrastMatrix`; the layout is platform-only with `?android:attr/…` colours. **Do not give the action rows or icon buttons a background**: `selectableItemBackground` resolves to an opaque white layer under the night theme and the contrast gate measured white-on-white (cheap ripple, real regression). Icon tint comes from the layout (`?android:attr/textColorPrimary`, `…Secondary` for secondary actions), never from the drawable — a vector keeps `fillColor #FF000000` only.
 
-## Recovery / pending transcriptions (#185)
+## Incomplete dictations (#185, one vocabulary since #188)
 
-- **The journal is the single recovery source.** The list and the auto-retry read `FragmentJournal.recoverableSessions()` — never the #142 evidence store (the retention slider defaults to 0 in release, so it would be empty) and never `cacheDir` (the OS may clear it).
+- **The journal is the single recovery source.** The ring's leftover pages and the auto-retry read `FragmentJournal.recoverableSessions()` — never the #142 evidence store (the retention slider defaults to 0 in release, so it would be empty) and never `cacheDir` (the OS may clear it).
 - **A session's state lives in its `session.json`**: no marker = unfinished (a leftover), `completedAtMs` = finished (a surviving dir means "text available", so the UI offers **restore**, never a re-run), `dismissedAtMs` + `dismissReason` = tombstone. A marker-less session whose records are ALL `DONE` also counts as completed — nothing is left to send.
 - **A dismissal is recorded BEFORE the audio is deleted** (`markDismissed` writes the marker, then removes every other file). Dismissal tombstones are capped by COUNT (`MAX_TOMBSTONES` = 50, newest win) inside `prune`; they never consume the 256-MB audio cap.
 - **Re-run sends only the missing fragments.** The `DONE` text is spliced in index order; a fragment costs a request only when it has no stored transcript. The upload is the journal's own composed file (byte-identical), the prompt is the RECORDED one, and the echo is trimmed by `EchoTrim` — the same rule the live worker uses. Never reconstruct a session WAV for a re-run (OGG cannot be decoded on device, and the prompts would be lost); reconstruction exists only for **sharing** (`recovery/RecoveryAudio`).
 - **The re-run stops at the first failure** and leaves the journal as it is (`markFailed` with class + HTTP code); a `DONE` flip is durable, so a cancelled run resumes. Never let a recovery become a second retry storm — the runner's own transient retries inside one fragment are the only retries.
 - **A recovery never competes with a dictation.** `JournalReplay.beforeFragment` yields while the controller is RECORDING or PROCESSING, and `RecoveryCoordinator` refuses to start a second run. The auto path remembers the sessions it tried per PROCESS (`autoAttempted`) so re-entering the launcher does not re-upload a session that just failed; a manual re-run from the list is always allowed.
-- **Auto-retry only what can heal**: `TRANSIENT` (network) and "no failure class" (interruption). `AUTH`, `PROTOCOL`/`NEEDS_MANUAL` and `TERMINAL` stay for the list — waiting cannot fix a dead token or a broken provider envelope. The rule is `RecoveryReason.autoRetryable`, not a condition in an Activity.
+- **Auto-retry only what can heal**: `TRANSIENT` (network) and "no failure class" (interruption). `AUTH`, `PROTOCOL`/`NEEDS_MANUAL`, `TERMINAL` and `BUDGET` stay for the manual Retry STT — waiting cannot fix a dead token, a broken provider envelope or an empty balance. The rule is `RecoveryReason.autoRetryable`, not a condition in an Activity.
 - **The text is stored before the journal is deleted** (append to `DictationStore`, verify, then `markCompleted` + `deleteSession`). A failed polish falls back to the RAW transcript; a failed store keeps the journal. Deleting the audio first would be the one unrecoverable mistake.
-- **Enablement comes from `ui/RecoveryActions.enabled(...)`** (house pattern) — the Activity and the row XML carry no rule of their own. The screen uses theme attributes only and is part of `ContrastMatrix` (`SCREEN_RECOVERY`).
+- **Enablement comes from `ui/RecoveryActions.enabled(...)`** (house pattern) — the page and the layout carry no rule of their own. Since #188 the actions live on the leftover page in the Workbench (`workbench_retry_stt` / `_restore_text` / `_share_audio` / `_dismiss_leftover`); there is no recovery screen any more, so the leftovers are part of `ContrastMatrix` through the Workbench.
 - **The Workbench banner is the only entry point** and is `GONE` at zero pending (no dead UI). The feedback Toast goes out BEFORE the first request.
+
+## The merged ring (#188)
+
+- **One ring, two page kinds.** `WorkbenchPage` is `Stored(dictation)` or `Leftover(summary, hasAudio)`; `WorkbenchPages.merge` is the only order rule (ascending by last change — `updatedAtMs` / `startedAtMs`, an undated leftover LAST, ties by id). Never sort in the Activity and never build a second list.
+- **The store and the journal stay the two truths.** A page is a view over its source: text comes from `DictationStore`, audio from `FragmentJournal`. A page is never persisted — no schema change, no cache, no third store.
+- **A leftover page has no text and cannot take focus.** Raw is `isEnabled = false` / `isFocusable = false` with empty text; `DictationTarget` is `NEW` on it, so a delivered transcript APPENDS a dictation instead of editing a page that has nothing to edit. The IME's commit path is exactly why: a field that cannot take focus can never receive a commit.
+- **The when-line is one tiered stamp** (`ui/WorkbenchStamp`, pure): same local day `HH:mm`, ≤ 7 local days `EEE HH:mm`, older `d MMM` (+ `yyyy`). Local DATES decide the tier, not 24-hour buckets — a DST night stays one day. For a leftover the same line continues with `seconds · fragments · reason` (`RecoveryReason`, `workbench_leftover_detail`).
+- **Restore keeps the #185 order** (`recovery/RecoveryRestore`): store the text, verify the store holds it, then delete the journal session. Share keeps the #185 file rule (`recovery/RecoveryShare`): one reconstructed WAV, the pieces for OGG, `null` when there is nothing left.
 
 ## Prompt Variables
 The transcription pipeline resolves the following template variables at runtime. The **system** prompt is the single editable instruction surface; the **user** message is an automatic, non-editable carrier containing only `{{text}}`.

@@ -3,7 +3,7 @@ type: Domain Notes
 title: Domain Knowledge
 description: Business rules and canonical vocabulary not obvious from code.
 tags: [knowledge, domain]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
 status: stable
 ---
@@ -54,23 +54,26 @@ model on both platforms.
 | **Workbench** | The app's own window: dictate → redact → deliver. The launcher entry since #169. | "editor mode", "editor" |
 | **Dictation** | One raw transcript plus at most one polished transcript. The unit the FIFO holds — not a session, not a fragment. | "message", "note" |
 | **Compose slot** | The id-less entry page (#173): shown on entry, in memory only, never persisted while empty, not in the ring. ＋ New returns to a fresh one. | "draft", "new dictation" (once stored it *is* a dictation) |
-| **Ring** | ◀/▶ navigation over the stored dictations with wrap-around in both directions; the compose slot sits outside it. | "list" (there is no list view) |
+| **Ring** | ◀/▶ navigation over the ring's pages with wrap-around in both directions — a stored dictation and an **incomplete dictation** are both pages of it (#188). The compose slot sits outside it. | "list" (there is no list view) |
 | **Raw / Polished** | The two permanently stacked fields of one dictation. Raw is editable; Polished is read-only (`TextView`) and carries the copy button in its label row (#178). | "tabs" (there is no tab strip) |
 | **Delivery** | Putting the text on screen onto the clipboard — on send, when a **changed** field loses focus, or via the copy button. | "copy" (that is only the button path) |
 | **Polish** | The deliberate LLM pass over the visible Raw text with the Workbench's per-visit target language; overwrites the polished slot. Two buttons (`workbench_polish_a` above Raw, `workbench_polish_b` below Polished) share one language. Nothing polishes automatically since #176 — no setting, no field-leave trigger. | "re-polish" as a separate feature, "auto polish", "retry" |
 | **Promote / Clear** | Two in-place actions on the polished slot since #178: **promote** copies Polished into Raw (`replaceRawWithPolished`), **clear** empties Polished (`clearPolished`). Neither creates a new dictation. | "save", "apply as new" |
 | **MRU (last touched)** | The FIFO's only order since #173: a real Raw/Polished change moves a dictation to the top, browsing does not, and eviction deletes the least recently edited first. | "newest" (creation time no longer orders the FIFO) |
 
-### Recovery (leftovers, #185)
+### Incomplete dictations and recovery (#185, vocabulary since #188)
+
+An **incomplete dictation** is the one term: a journal session that never produced text the user received. It is a **page of the Workbench ring** (its own kind of page, not a separate list), ordered by when it started. "Pending transcription" is the pre-#188 name of the same thing and is no longer used in UI or docs.
 
 | Term | Definition | Do not say |
 |---|---|---|
-| **Pending transcription** | A journal session that never produced text the user received. The one thing the recovery list shows (plus completed sessions whose dir survived a failed delete). | "failed dictation" (the dictation may be half transcribed), "error" |
-| **Leftover** | Synonym for a pending transcription in conversation; the code and the UI say *pending transcription*. | — |
+| **Incomplete dictation** | A journal session that never produced text the user received — plus a completed session whose dir survived a failed delete. It appears in the Workbench as its own page with its reason and Retry STT / Restore text / Share audio / Dismiss. | "pending transcription" (the #185 name, retired), "failed dictation" (it may be half transcribed), "error" |
+| **Leftover page** | The Workbench page that shows an incomplete dictation. **No text at all**: empty Raw field, read-only and non-focusable, the when-line carries seconds · fragments · reason. | "row", "card", "entry" (an entry is a stored dictation) |
 | **Finished / completed** | Every fragment has its transcript (explicit `completedAtMs`, or all records `DONE`). Nothing left to send — the only honest action is *restore the text*. | "done" (that is a fragment state) |
 | **Dismissed** | Thrown away by explicit user action (`user_discarded`). Audio and records are gone; the `session.json` tombstone stays as the record. | "deleted" (there is always a record) |
-| **Re-run** | Replaying the MISSING fragments of a session through the CURRENT provider, then splicing them with the stored text. Not a reconstruction of the audio. | "retry" (the runner retries inside one fragment), "re-transcribe" |
-| **Restore** | Writing a completed session's stored text into the Workbench without any request. | "recover" (recover is the umbrella term) |
+| **Retry STT** | Replaying the MISSING fragments of an incomplete dictation through the CURRENT provider, then splicing them with the stored text. Not a reconstruction of the audio. The UI's action (`workbench_retry_stt`); the code path stays `JournalReplay` + `RecoveryCoordinator.startManual`. | "Re-run" (the #185 label), "re-transcribe", "retry" alone (the runner also retries inside one fragment) |
+| **Restore text** | Writing a completed session's stored text into the Workbench without any request. | "recover" (recover is the umbrella term) |
+| **When-line** | The tiered stamp under the Workbench header: `HH:mm` today, `EEE HH:mm` within a week, `d MMM` (+ year) older; a leftover continues it with its size and reason. | "timestamp", "date field" |
 | **Yield** | A re-run pausing at a fragment boundary while a dictation is RECORDING/PROCESSING, so the live path keeps the provider to itself. | "pause", "cancel" |
 
 ### Provider answers (#75, #186/#188)

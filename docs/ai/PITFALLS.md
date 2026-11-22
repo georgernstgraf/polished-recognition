@@ -3,7 +3,7 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
@@ -12,6 +12,12 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **Eine Seite im Ring kann KEINEN Text haben — und darf deshalb auch keinen Focus bekommen (2026-11-22, #188).** Das Leftover-Blatt zeigt Raw leer; `DictationStore.read()` verwirft jeden Record mit leerem `raw`, und die IME committet nur in das FOKUSSIERTE Feld. Lässt man Raw fokussierbar, kann die IME hineinschreiben, `commitEdits()` findet keinen `currentId` — die Eingabe ist weg, ohne Fehler. Deshalb setzt `render()` für eine Leftover-Seite `isEnabled`/`isFocusable`/`isFocusableInTouchMode` false (in EINEM `rendering`-Block, sonst feuert der Focus-Verlust `onRawFieldLeft` und liefert den Seiteninhalt an die Zwischenablage), und `onRecordingStarted` entscheidet dort `NEW` statt `RAW_EDIT`. Zweite Falle: `isEnabled=false` nimmt dem Feld den Focus — der Wechsel zurück auf ein gespeichertes Diktat muss die Flags ZURÜCKSETZEN und `requestFocus()` nachziehen, sonst landet das nächste Diktat nirgends.
+
+- **`onFinished` im `RecoveryCoordinator` ist EIN Slot — zwei Besitzer heißt ein stummer Screen (2026-11-22, #188).** #185 hatte die Workbench UND den Recovery-Screen als Setter; wer zuletzt `onResume` hatte, bekam das Outcome, der andere zeigte stillschweigend nichts. Seit #188 gibt es nur noch die Workbench. Wer je einen zweiten Setter braucht, braucht zuerst einen Event-Bus, keinen zweiten Slot; `onPause` MUSS den Slot auf `null` setzen, sonst schreibt ein fertiger Lauf in eine zerstörte Activity.
+
+- **`DictationStore` hat drei Instanzen, und `@Synchronized` ist pro Instanz (2026-11-22, #188).** Die Workbench, der `RecoveryCoordinator` und jeder Test bauen ihr eigenes `DictationStore`-Objekt; das Lock schützt nur gegen Threads DERSELBEN Instanz. Ein Recovery-Lauf kann also parallel zu einem `append` der Workbench schreiben — deshalb wird nach jedem Eingriff NEU GELESEN (`store.loadAll()`), nie ein zwischengespeichertes `pages`/`dictations` weiterverwendet, und der FIFO-Cap gilt pro Schreibvorgang: eine wiederhergestellte Transkription kann ein altes Diktat verdrängen (der Store-Vertrag, kein Bug).
 
 - **Der Provider-Fehler-BODY ist das Signal, die Rate-Limit-Header sind es NICHT (2026-11-22, #75).** Das School-Gateway (nginx + LiteLLM) darf `x-ratelimit-*` und `retry-after` strippen oder ersetzen — in den 100 gemessenen Request-Records waren sie nie die Grundlage einer Entscheidung, der Body war immer da. Deshalb entscheidet `ProviderError` (aus dem Body) über `SttFailure.BUDGET`, und `headers`/`rateLimit` sind reine Diagnose. Wer eine Nutzer-Entscheidung an einen Header hängt, baut ein Feature, das auf genau der Installation verschwindet, für die es gedacht war. Zweiter Teil derselben Falle: `response.errorBody()` ist EINMALIG lesbar — einmal lesen, das Ergebnis auf der Exception tragen; ein zweiter Lesezugriff (z. B. im Transcriber) sieht nichts mehr. Und: die Feld-Kappung in `ProviderError` (64 Zeichen für `type`/`code`) darf NICHT auf `message` angewendet werden — sie kappte den Provider-Satz mitten im Satz (`… Spend=5.0006,` / Test `the measured budget body parses and is a budget refusal` hat es gefangen).
 

@@ -83,7 +83,7 @@
 ## 2026-11-21
 * **Update**: [STATE.md](STATE.md) — new `#185` section (journal session marker, recovery scan, `JournalReplay`, auto-recovery on Workbench entry, the recovery screen, share) + refreshed status line (902 tests, no version bump).
 * **Update**: [HANDOFF.md](HANDOFF.md) — #185 done (4/5 of #152), #186 is next, plus an owner device check for the recovery paths.
-* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `EchoTrim` + `JournalReplay` rows, the `FragmentJournal` session states, the `RecoveryActivity` row, and the Workbench banner.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `EchoTrim` + `JournalReplay` rows, the `FragmentJournal` session states, the recovery-screen row, and the Workbench banner.
 * **Update**: [CONVENTIONS.md](CONVENTIONS.md) — new "Recovery / pending transcriptions (#185)" section (journal is the only source, marker states, record-before-delete, replay the gaps, yield to the live path, store-before-delete, `RecoveryActions` enablement).
 * **Update**: [DOMAIN.md](DOMAIN.md) — "Recovery (leftovers)" vocabulary table (pending transcription, finished/completed, dismissed, re-run, restore, yield).
 * **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-21 entry: the bundle marker as the session state, no separate audit file, gap-only replay, auto-retry policy + once-per-process guard, WAV reconstruct only for sharing.
@@ -96,3 +96,14 @@
 * **Update**: [PITFALLS.md](PITFALLS.md) — three entries: `lintVitalRelease` is fatal-only so a global baseline always looks stale there; a literal `%` in `strings.xml` is a format specifier; a baselined "newer version" notice stops matching on its own.
 * **Update**: [HANDOFF.md](HANDOFF.md) — #187 reopened and closed again; the baseline burn-down recorded as not scheduled.
 * **No change**: [index.md](index.md) — no new concept file.
+
+## 2026-11-22 (#188 — incomplete dictations in the Workbench ring)
+* **Update**: [STATE.md](STATE.md) — status line (962 tests, #152 at 4/5 with #186 as the only open child) + a `#188` section: merged ring, the read-only leftover page, the when-line, the four actions on the page, the retired screen, the count+jump banner, the string/help drift fixed en route.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #188 checked off (5 of 5 done), the owner device check for the merged ring (banner jump, editable-again Raw, a delivery on a leftover page).
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — the recovery-screen row is gone; new `WorkbenchPage`/`WorkbenchPages`, `WorkbenchStamp` and `RecoveryRestore`/`RecoveryShare` rows; the `WorkbenchActivity` row carries the merged ring.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — "Recovery / pending transcriptions" became "Incomplete dictations"; a new "The merged ring (#188)" section (one ring, two page kinds; the two truths; a leftover page cannot take focus; the tiered stamp; restore/share contracts).
+* **Update**: [DOMAIN.md](DOMAIN.md) — "incomplete dictation" is THE term ("pending transcription" retired), plus `leftover page`, `Retry STT`, `when-line`.
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-22 entry: merged view without a schema change, chronological ordering by last change, a read-only leftover page, retiring the screen into the page.
+* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: a page without text must not be focusable; the coordinator's single `onFinished` slot; three `DictationStore` instances with a per-instance lock.
+* **Update**: `docs/help.html` — the "Pending transcriptions" section became "Unfinished dictations": the page, Retry STT, the banner jump, and the never-aged-away rule.
+* **No change**: [index.md](index.md) — no new or removed concept file.
