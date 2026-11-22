@@ -1555,6 +1555,13 @@ class VoiceSessionControllerTest {
         assertThat(recoverable.failureClass).isEqualTo(SttFailure.OFFLINE.name)
         assertThat(recoverable.unfinishedCount).isEqualTo(4)
 
+        // #186: the controller must forget the session — the IME's `onDestroy`
+        // calls `cancel()` whenever the controller is IDLE, and that would
+        // delete exactly the journal this rescue saved.
+        assertThat(controller.activeSessionId()).isNull()
+        controller.cancel()
+        assertThat(journal.sessionDir(sid).exists()).isTrue()
+
         journal.sessionDir(sid).deleteRecursively()
         clearSessionFiles()
     }

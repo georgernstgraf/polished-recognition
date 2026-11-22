@@ -688,8 +688,17 @@ class VoiceSessionController(
                 // the text was already inserted. The transcriber is lazily
                 // rebuilt for the next session.
                 // #186: a rescue skips the journal delete (see above) — the
-                // pending session is the recovery contract now.
+                // pending session is the recovery contract now. The controller
+                // must FORGET the session id too: the IME's `onDestroy` calls
+                // `cancel()` whenever the controller is IDLE, and
+                // `discardFragmentSession()` would delete exactly the journal
+                // this rescue just saved.
                 discardFragmentSession(keepJournal = rescue != null)
+                if (rescue != null) {
+                    sessionId = null
+                    preparer = null
+                    sessionBundle = null
+                }
                 deliver(result)
                 accumulatedMs = 0L
                 segStartMs = 0L
