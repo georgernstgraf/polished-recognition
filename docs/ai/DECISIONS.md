@@ -13,6 +13,56 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-22: #190 — die Zwischenanzeige läuft über die Composing-Region, der Endzustand bleibt #116 Option C
+
+Das Diktat soll im Zielfeld wachsen, während transkribiert wird — und nach Send
+soll das Feld aussehen wie heute. Beides zusammen ist nur eine Anzeige-Frage:
+`setComposingText` (bisher an keiner Stelle im Repo) ist der einzige Kanal, den
+die IME besitzt und der kein Input des Clients ist. Der Richtungswechsel gegen
+#116 Option C ist gewollt — aber nur für die ANZEIGE; der Endzustand bleibt
+Option C.
+
+- **Composing statt Commit — nie ein Rewrite.** Jedes fertige Fragment hängt sich
+  an eine Composing-Region. Die Texte liegen heute privat in
+  `FragmentTranscriber.transcripts` und werden erst in `snapshot()`/`drain()`
+  gejoint (core/…/FragmentTranscriber.kt:217, :799) — es braucht ein neues
+  Controller-Event (kein UI-Polling). Am Send wird die Region VERWORFEN
+  (`setComposingText("", 1)`), danach läuft der heutige Pfad unverändert:
+  `commitWithSpacing(polished)` → `InsertionSpacingPolicy` → `commitText`.
+  `deleteSurroundingText` auf committetem Text bleibt verboten — das war der
+  eigentliche #116-Felsen (Selection-State, Auto-Edits, fremde Compose-Regions),
+  und er wird nicht angefasst.
+- **Der Terminal-Pfad ist eingefroren.** Jedes Ergebnis, das heute nichts
+  einfügt, räumt die Composing-Region und fügt nichts ein: X/Cancel (#113
+  Salvage bleibt Clipboard), STT-Fehler, geparktes PAUSED, AUTH/BUDGET-Wall — und
+  **Flush (#86)**, dessen Audio bewusst verworfen wird, also muss seine
+  Zwischenanzeige mit ihm verschwinden. #118 Phase B bleibt dadurch unberührt:
+  Streaming kann nicht ändern, was landet.
+- **Guard vor jedem Append.** `getTextBeforeCursor(n)` muss noch mit unserem
+  Composing-Text enden. Sonst (App hat den Zwischentext gesendet, App hat die
+  Composition zurückgesetzt, Autocomplete hat umgeschrieben, Feld gewechselt)
+  wird für die Session nicht mehr gestreamt und der heutige Terminal-Pfad
+  entscheidet (Feldwechsel → Clipboard, #118). Zwei stale Readbacks nacheinander
+  = die App kämpft gegen die Composition.
+- **Rotation setzt keine Composition wieder auf.** Die Region stirbt mit dem
+  Input-View; nach dem Rebind bleibt das Feld leer, bis der Terminal-Commit
+  (`pendingResult`, #83) ganz landet. Ein Wiederaufbau wäre eine zweite Wahrheit
+  über Text, den niemand committet hat.
+- **Der Owner hat die Nebenwirkungen akzeptiert:** in einem plain `EditText`
+  (Markor, Settings-Felder) ist der Zwischentext voraussichtlich unterstrichen,
+  `TextWatcher` feuern pro Fragment (Drafts, Markor dirty), App-Autocomplete und
+  Spell-Check sehen Composing-Wörter, und ein App-Send mitten im Diktat kann den
+  rohen Zwischentext verschicken. „Exakt wie heute" gilt für **Feldinhalt und
+  Cursor nach Send**, nicht für die Event-Historie der App.
+- **Verworfen:** eine reine Bar-Vorschau ohne Feld-Schreibzugriff (das
+  risikofreie Gegenmodell — der Wunsch ist, die App füllen zu sehen); jede
+  satzweise oder pro-Fragment-Politur (#116-Entscheid: EIN Full-Context-Pass);
+  Partial Results auf der `RecognitionService`-Fläche (Gboard-Mikro, API 31+ —
+  eigene Fläche, eigenes Issue; `partialResults` ist heute unbenutzt).
+- **Beschlossen, nicht gebaut:** die Umsetzung steht hinter #186, #188, #156 und
+  den offenen Owner-Gerätechecks. Ein Issue, kein Epic — der Scope, der es zum
+  „big rock" machte, ist explizit weggefallen.
+
 ## 2026-11-22: #75 — die Refusal-BODY entscheidet; ein Budget-Wall wird genau EINMAL gefragt
 
 Die einzige Fehlerart, die das Gerät je erzeugt hat, ist eine Kostengrenze, die
@@ -707,6 +757,7 @@ The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 - **Tests**: +13 (SilenceCutterTest ×7; FragmentPreparerTest ×7 — silence-aligned cut, hard-cut fallback, gapless reconstruction, wait-for-window, manifest-resume with variable offsets, legacy-manifest wipe, byte-capped chunks; FragmentTranscriberTest ×3 — prompt plumbing, tail truncation, 400-fallback; SttRequestRunnerTest ×3 — multipart prompt part + `promptChars`, omission, evidence suppression). 376 tests green, `assembleRelease` green, commit `400d13f` pushed. **Open**: owner on-device verify vs gregor via `stt-shadow.json`.
 
 ## 2026-10-08: #116 Phase 1 shipped — no IME field rewrite (Option C), dedicated latency stream, failure-cache retry semantics
+> **Nachtrag 2026-11-22 (#190):** Die Zwischenanzeige während der Transkription ist beschlossen — als Composing-Region, also ohne Feld-Rewrite (Eintrag oben). Für den ENDZUSTAND gilt Option C unverändert: ein einziger Commit nach dem Polish, nichts wird committet und später ersetzt.
 - **Choice**: Phase 1 of #116 implemented (`bd9ba63` STT plumbing, `e9799df` live worker + IME lines). (a) **No committed-span rewrite** (owner picked option C): nothing is committed to the field until the polished text is ready — the IME bar's stage line carries the progress instead (`56s → STT` = pending audio seconds while the fragment drain runs, `120 words → LLM` = word count of the full transcript during the single polish pass; the old "Polishing (LLM)…" wording is gone). On failure the session parks PAUSED with NO insertion (unchanged) — the Raw toggle is the user's rescue: a raw-mode retry re-attempts only the FAILED fragments (`FragmentTranscriber.resetFailures()`; cached successes are never re-transcribed) and delivers the joined raw text. (b) **Completion records live in a dedicated `stt-latency.json` stream** (one entry per attempt: `durationMs`, `httpCode`, `elapsedMs`, `mediaType`, attempt, error class), NOT as extra `stt-upload.json` entries — `RotatingJsonLogger` rotates history per call, so two entries per request would halve the 9-slot depth of both streams; `stt-upload.json` keeps its exact #115 proof-of-send shape (deviation from the issue's literal "in stt-upload.json", intent preserved). `durationMs` is parsed from the media itself via `AudioDuration` (canonical WAV header; Ogg/Opus last-page granule at 48 kHz; null on parse failure = no profile sample, never an error). (c) The live path **uploads fragment files directly** per fragment — the batch `pipeline.transcribe(files)` is no longer called on the compress-on path; the pipeline's post-STT half was extracted as `finishTranscription(Result<SttResult>)` and is shared by both paths.
 - **Reason**: the committed-span rewrite was the one design rock with real field-quirk risk (selection state, app auto-edits, composing regions); Option C removes it entirely while keeping the perceived-latency win (stage feedback at ~1.3 s instead of text in the field). GROQ rate limits checked (free tier: 20 RPM / 2,000 RPD / 7,200 audio-s/h for Whisper): live 7-s cadence ≈ 8.6 RPM and 1× realtime consumption — no cadence change needed. Cached-transcript retry + `resetFailures` came out of the owner's failure-flow statement ("stay paused, do not insert text, user can enable raw to paste the text") — a transient-exhausted fragment must get a fresh attempt on the user's retry, but successful fragments must never pay twice.
 - **Out of scope / next**: Phase 2 (per-provider profiles: robust `t(S) ≈ a + b·S` fit → auto `fragmentSeconds` + concurrency, bootstrap 7 s/C=1 until ≥12 samples, stepwise adaptation, manual override) — second half of #116, after on-device verification.
