@@ -3,7 +3,7 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
@@ -12,6 +12,8 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **Der Provider-Fehler-BODY ist das Signal, die Rate-Limit-Header sind es NICHT (2026-11-22, #75).** Das School-Gateway (nginx + LiteLLM) darf `x-ratelimit-*` und `retry-after` strippen oder ersetzen — in den 100 gemessenen Request-Records waren sie nie die Grundlage einer Entscheidung, der Body war immer da. Deshalb entscheidet `ProviderError` (aus dem Body) über `SttFailure.BUDGET`, und `headers`/`rateLimit` sind reine Diagnose. Wer eine Nutzer-Entscheidung an einen Header hängt, baut ein Feature, das auf genau der Installation verschwindet, für die es gedacht war. Zweiter Teil derselben Falle: `response.errorBody()` ist EINMALIG lesbar — einmal lesen, das Ergebnis auf der Exception tragen; ein zweiter Lesezugriff (z. B. im Transcriber) sieht nichts mehr. Und: die Feld-Kappung in `ProviderError` (64 Zeichen für `type`/`code`) darf NICHT auf `message` angewendet werden — sie kappte den Provider-Satz mitten im Satz (`… Spend=5.0006,` / Test `the measured budget body parses and is a budget refusal` hat es gefangen).
 
 - **`lintVitalRelease` runs FATAL checks only — a global lint baseline therefore always looks "stale" there (2026-11-22, #187).** `assembleRelease`/`installRelease` print "N errors/warnings were listed in the baseline file … but not found in the project" plus "The baseline was created using a different target/variant than it was checked against. Creation variant: lint, Current variant: lintVitalRelease". That is NOT rot: `app/lint-baseline.xml` is written by the global `lint` task (`variant="all"`, every check) while the vital run executes only fatal-severity checks, so it matches the one fatal entry and reports the rest as unfound. AGP 9.1.1 has no per-variant baseline (`com.android.build.api.variant` exposes no baseline property), so the mismatch cannot be configured away. ACCEPTED (owner decision): keep `checkReleaseBuilds` at its default for the fatal gate; do not "refresh" the baseline to chase this message and do not read it as a signal. The real staleness signal is `LintBaselineFixed` on `lintDebug`.
 

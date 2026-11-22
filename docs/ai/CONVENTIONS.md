@@ -3,7 +3,7 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
@@ -147,26 +147,38 @@ The transcription pipeline resolves the following template variables at runtime.
 - **The opt-in render test stays opt-in** (`-Pcontrast.render=true`, `RenderSmokeTest`): it costs > 10 s and depends on Robolectric `NATIVE` graphics internals. Promotion into the required suite requires (a) 10 consecutive identical runs on the host, (b) green in CI for two weeks, (c) runtime under 10 s inside the suite. Flake criterion: any non-reproducible verdict reverts it to opt-in.
 - **`ui/contrast/` is a shared test-helper package, not a mirror of a source package** — `Contrast`, `ViewColors`, `ContrastAudit`, `ContrastMatrix`, `ContrastGate`, `AuditFormat` are reused by several test classes (`ThemeContrastAuditTest`, `ThemeContrastAuditNightTest`, `TextPaletteContrastTest`), so it deliberately breaks the "test classes mirror source directory structure" rule above. Add a new shared helper there instead of duplicating it.
 
-## STT failure classes (#183)
+## STT failure classes (#183, extended by #75)
 
 - **Every STT failure is classified BEFORE anything acts on it**
   (`pipeline/SttFailureClassifier`, pure): TRANSIENT (IOException/timeouts,
-  408, 429, 5xx), AUTH (401/403), PROTOCOL (2xx without a transcript,
-  undecodable body), TERMINAL (other 4xx, unexpected exceptions). The runner
-  derives its attempts from the class, the journal stores it, the UI acts on it.
-- **TRANSIENT retries, AUTH and TERMINAL never do, PROTOCOL exactly once** (with
-  the identical request — a broken envelope is not a request-shape problem).
-  `Retry-After` (seconds or HTTP date, `RetryAfter`) is honoured up to
+  408, 429, 5xx), AUTH (401/403), BUDGET (#75: a 4xx whose error BODY names a
+  spend/quota wall), PROTOCOL (2xx without a transcript, undecodable body),
+  TERMINAL (other 4xx, unexpected exceptions). The runner derives its attempts
+  from the class, the journal stores it, the UI acts on it.
+- **Attempts come from `SttRequestRunner.attemptsFor`:** TRANSIENT 3
+  (`MAX_ATTEMPTS` stays the hard bound), BUDGET/AUTH/PROTOCOL/TERMINAL 1.
+  PROTOCOL no longer repeats (#183 said "exactly once", #75 dropped it to one —
+  the class never occurred in the device logs and the manual retry covers a
+  glitch). `Retry-After` (seconds or HTTP date, `RetryAfter`) is honoured up to
   `MAX_RETRY_WAIT_MS` per wait and `MAX_TOTAL_WAIT_MS` per request; a longer
   advice fails the request instead of retrying early.
-- **An AUTH failure latches the SESSION** (`FragmentTranscriber.authBlocked`):
+- **The provider's error BODY decides BUDGET, never the status or a header**
+  (`pipeline/ProviderError`, pure): read `errorBody()` once (≤4 KB), parse
+  `{"error":{…}}` or a flat envelope with string OR numeric `type`/`code`, and
+  match `budget_exceeded`/`insufficient_quota`/`quota_exceeded`
+  case-insensitively. A bare 429, a `rate_limit_exceeded` and an HTML/empty
+  body stay TRANSIENT. `x-ratelimit-*`/`retry-after` are DIAGNOSTICS — a
+  gateway may strip them (PITFALLS).
+- **AUTH and BUDGET latch the SESSION** (`FragmentTranscriber.blockedFailure`):
   later fragments are recorded as failed without a request, their composed
-  upload still reaches the journal. `resetFailures()` clears the latch — the
-  only place that may, because it marks the moment a new token may exist.
+  upload still reaches the journal (PENDING, class included).
+  `resetFailures()` clears the latch — the only place that may, because it marks
+  the moment a new token (or a topped-up budget) may exist.
 - **A failure carries its class end to end:** `SttRequestException.failure`
-  (default TERMINAL), journal `failureClass`/`failureHttpCode`, and the IME's
-  `SttFailureText` hint (AUTH, PROTOCOL) in FRONT of the technical detail —
-  never instead of it.
+  (default TERMINAL) plus the parsed `providerError` and the limits-only
+  `headers`, journal `failureClass`/`failureHttpCode`, the bundle's `rateLimit`
+  block, and the IME's `SttFailureText` hint (AUTH, PROTOCOL, BUDGET) in FRONT
+  of the technical detail — never instead of it.
 - **Raw provider bodies reach a log only through `LogRedaction`** (Bearer plus
   `sk-`/`gsk_`-style keys). Keep the token charset free of `"`/`'`, or the
   redaction eats the JSON string's closing quote.

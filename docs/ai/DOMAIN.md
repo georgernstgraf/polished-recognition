@@ -3,7 +3,7 @@ type: Domain Notes
 title: Domain Knowledge
 description: Business rules and canonical vocabulary not obvious from code.
 tags: [knowledge, domain]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
 status: stable
 ---
@@ -72,6 +72,15 @@ model on both platforms.
 | **Re-run** | Replaying the MISSING fragments of a session through the CURRENT provider, then splicing them with the stored text. Not a reconstruction of the audio. | "retry" (the runner retries inside one fragment), "re-transcribe" |
 | **Restore** | Writing a completed session's stored text into the Workbench without any request. | "recover" (recover is the umbrella term) |
 | **Yield** | A re-run pausing at a fragment boundary while a dictation is RECORDING/PROCESSING, so the live path keeps the provider to itself. | "pause", "cancel" |
+
+### Provider answers (#75, #186/#188)
+
+| Term | Definition | Do not say |
+|---|---|---|
+| **Provider refusal** | The provider's own error answer to a request: an HTTP status PLUS its error body, parsed into a type, a code and one sentence. The sentence is what the user reads; the status alone is not a diagnosis. | "HTTP error", "failure code" |
+| **Budget wall** | The one refusal retrying cannot clear: the body names a spend/quota/credit condition (`budget_exceeded`, `insufficient_quota`, `quota_exceeded`). Costs ONE request per session (`SttFailure.BUDGET`), is never auto-retried, and only the user can lift it (top up, switch provider). | "rate limit" (a 429 that clears on its own is TRANSIENT, not a wall), "quota error" for both |
+| **Rate limit** | A refusal that may clear by itself (`rate_limit_exceeded`, a bare 429, a 5xx). TRANSIENT: up to three attempts with backoff, then the manual path. | "budget" |
+| **Limits block** | The recorded header slice (`retry-after`, `x-ratelimit-*`) plus the parsed refusal, in `stt-latency.json` and in `session.json`'s fragment `rateLimit`. Diagnostics only — a gateway may strip the headers, so nothing decides on them. | "usage panel", "quota display" |
 
 ### Time and cost
 

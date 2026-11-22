@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -12,6 +12,69 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-22: #75 — die Refusal-BODY entscheidet; ein Budget-Wall wird genau EINMAL gefragt
+
+Die einzige Fehlerart, die das Gerät je erzeugt hat, ist eine Kostengrenze, die
+kein Retry aufhebt: LiteLLM antwortet `429` mit
+`{"type":"budget_exceeded","message":"ExceededBudget: … Spend=5.0006, Budget=5.0"}`,
+die #183-Matrix liest daraus „transient", der Runner verbraucht drei Versuche
+pro Fragment, #185 versucht es beim nächsten Workbench-Eintritt erneut — und der
+Nutzer liest „HTTP 429". 9 von 100 gemessenen Request-Records waren genau das.
+
+- **Der Body entscheidet, nicht der Status und nicht die Header.** `ProviderError`
+  (`:core`, pure) liest den Fehler-Envelope defensiv (`{"error":{…}}` ODER flach,
+  `type`/`code` als String ODER Zahl, HTML/leer → kein Provider-Fehler), macht
+  aus der Provider-Sentence EINE Zeile, schickt sie durch `LogRedaction` und
+  kappt sie bei 300 Zeichen. `isBudget` gilt nur für `budget_exceeded`,
+  `insufficient_quota`, `quota_exceeded` (case-insensitive, gegen `type` UND
+  `code`). **Header sind Diagnose, nie Entscheidung:** das School-Gateway
+  (nginx + LiteLLM) darf `x-ratelimit-*`/`retry-after` strippen oder ersetzen —
+  wir haben sie nie gesehen; der Body war immer da. Ein blanker `429`, ein
+  `rate_limit_exceeded` oder ein unparsebarer Body bleiben `TRANSIENT`.
+- **`SttFailure.BUDGET`** ist die fünfte Klasse. 4xx mit Budget-Body → BUDGET;
+  401/403 bleiben AUTH (die spezifischere Tatsache, und Retry ist so oder so
+  falsch); 5xx bleiben bei der Matrix (ein Gateway-Fehler ist ein
+  Gateway-Fehler, auch wenn er den Provider-Body weiterreicht).
+- **Versuche pro Klasse (`SttRequestRunner.attemptsFor`):** TRANSIENT 3
+  (`MAX_ATTEMPTS` bleibt die harte Obergrenze), BUDGET 1, AUTH 1, TERMINAL 1,
+  **PROTOCOL 1 — das ersetzt #183s „wiederholt byte-identisch genau einmal".**
+  Begründung: PROTOCOL ist in den Gerätelogs nie aufgetreten, und der manuelle
+  Retry STT (#188) deckt den Einzelfall ab. BUDGET 1 ist die eigentliche
+  Korrektur: eine Kostengrenze kann sich zwischen zwei Versuchen nicht ändern.
+- **Ein Budget-Request pro Session:** das #183-AUTH-Latch heißt jetzt
+  `FragmentTranscriber.blockedFailure` und deckt AUTH + BUDGET. Jedes spätere
+  Fragment wird ohne Request als Fehler verbucht (Klasse bleibt im Record, das
+  komponierte Upload landet weiter im Journal, PENDING), `resetFailures()`
+  löscht das Latch — der Moment, in dem der Nutzer aufgeladen oder den Token
+  getauscht hat. Eine Diktatrunde von 40 Fragmenten kostet gegen eine leere Kasse
+  also genau EINEN Request.
+- **Der Provider-Satz erreicht den Nutzer:** die Exception trägt
+  `"HTTP 429 — ExceededBudget: … Spend=5.0006, Budget=5.0"` (Status/Retry-After
+  zuerst, Provider-Satz angehängt, nur wenn vorhanden), `SttFailureText` mappt
+  BUDGET auf „Provider budget exhausted — top up or switch provider", die IME
+  stellt den Hinweis VOR den technischen Detailtext. Kein neuer Event, kein
+  neuer Screen.
+- **Die LLM-Strecke ist dieselbe Strecke:** beide Chat-Aufrufe parsen denselben
+  Envelope und werfen denselben Träger (`SttRequestException`, `failure =
+  BUDGET`), Nachricht `"LLM post-processing failed: HTTP 429 — …"`. Der RAW-Text
+  wird unverändert gespeichert (`PipelineOutcome.rawText`) — ein gescheiterter
+  Polish kostet nie die Diktatur.
+- **Diagnose in den BESTEHENDEN Behältern:** der `stt-latency`-Record bekommt
+  `headers` (nur `retry-after` + `x-ratelimit-*`, lowercased, 64 Zeichen pro
+  Wert) und `providerError` (type/code/message) — auch auf dem Erfolgspfad, denn
+  „wie viel Budget war um 14:12 übrig" ist nur so beantwortbar. Beide Felder
+  sind `null` und damit omittiert, wenn nichts da ist: pre-#75-Records behalten
+  ihre Form. `session.json` bekommt pro Fragment `rateLimit` (httpCode, type,
+  message, headers), geschrieben wo `sttError` schon geschrieben wird — kein
+  neues File, kein neuer Stream, retention-gated wie alles dort.
+  **Die Gate-Skip-Zeile aus dem Issue-Text** (ein ohne Request verbuchtes
+  Fragment zusätzlich als Skip-Record loggen) ist NICHT gebaut: das Fragment
+  steht mit Klasse und Text im Journal und im Bundle, ein zweiter Datensatz
+  hätte keinen Leser.
+- **Kein Usage-UI.** Die ursprüngliche Idee (Settings-Panel über
+  `x-ratelimit-*`) ist gestrichen: die Header waren nie das Problem, und ein
+  Panel wäre ein zweiter Ort für Daten, die die Diagnose schon hat.
 
 ## 2026-11-20: #183 — Fehlerklasse vor Aktion; der PROTOCOL-Retry wiederholt BYTE-IDENTISCH
 

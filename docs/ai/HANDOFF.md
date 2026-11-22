@@ -3,22 +3,27 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T16:00:00Z }
 status: stable
 ---
 
 # Hand Off
 
-Only open tasks. **#185 (recovery UI) shipped on 2026-11-21** — the #152 program
-is at 4/5; only **#186 (offline sessions)** is left. #182–#184 were closed on
-2026-11-20; **#187 was reopened and closed again on 2026-11-22** (the rest of the
-release-build output: AAPT substitutions, the two unbaselined warnings, baseline
-91 → 77). What remains are owner checks on the device, #186, and #156.
+Only open tasks. **#75 (provider refusals) shipped on 2026-11-22** — the
+provider's error body now decides the `BUDGET` class, a budget wall costs exactly
+one request per session, and the limits land in the existing diagnostics. The
+#152 program is at 4/5 with **two open children: #186 (offline sessions) and #188
+(the manual Retry STT row)**. #182–#184 were closed on 2026-11-20; #185 (recovery
+UI) on 2026-11-21; **#187 was reopened and closed again on 2026-11-22**. What
+remains are owner checks on the device, #186, #188 and #156.
 
 ## #152 — five sub-issues, dependency order (4/5 done)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
-**#182, #183, #184 and #185 are done.** Next: **#186** (offline sessions).
+**#182, #183, #184 and #185 are done.** Open children: **#186** (offline
+sessions, the fifth sibling) and **#188** (the row-level Retry STT / Workbench
+text for pending transcriptions — since #75 the rows can also say "Provider
+budget exhausted", #188 owns the retry affordance).
 
 1. [x] **#182 — durable fragment journal** (closed 2026-11-20):
    `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap.
@@ -54,8 +59,19 @@ Epic #152 ("never lose a dictation") is decomposed and formally linked.
    Start a dictation, `adb shell am force-stop com.georgernstgraf.polishedrecognition`
    while the bar is still recording, then open the Workbench: the banner must
    name the leftover, a Toast must announce the recovery, and the dictation must
-   land in the ring. NOT verifiable on claw (no device attached).
-4. [ ] **#185 device check (owner): the recovery paths on a real device.**
+   land in the ring. Two devices are attached to `think` (`adb devices`:
+   `R7SRB06XF5K` Samsung SM-A032F, `f6de166c` OnePlus HD1903), and the app's
+   logs are readable at
+   `/sdcard/Android/data/com.georgernstgraf.polishedrecognition/files/logs` —
+   pull the evidence before judging.
+4. [ ] **#75 device check (owner, USB host): a real budget wall.** Point the app
+   at the school gateway with the spend cap used up → dictate → the Toast must
+   read "Provider budget exhausted — top up or switch provider" plus the
+   provider's own `ExceededBudget: …` line, `stt-latency.json` must show exactly
+   ONE `complete` attempt with `providerError.type = budget_exceeded` and the
+   `headers` block, and re-entering the Workbench must NOT upload again (the row
+   reads "Provider budget exhausted", no auto-retry of that session).
+5. [ ] **#185 device check (owner): the recovery paths on a real device.**
    (a) Airplane mode → dictate → the failure parks; reopen the Workbench with
    network back → auto-recovery Toast, the text appears in the ring, the banner
    disappears. (b) A wrong STT token → the row shows "STT token rejected" and is
@@ -64,7 +80,7 @@ Epic #152 ("never lose a dictation") is decomposed and formally linked.
    the pieces. (d) Dismiss → confirmation, then the row is gone and the
    tombstone survives a restart (Settings' journalling is invisible to the
    user; check `logcat` for the `FragmentJournal prune` line at most).
-5. [ ] **#156 — the screenshots are stale after the Workbench redesign**
+6. [ ] **#156 — the screenshots are stale after the Workbench redesign**
    ([#156](https://github.com/georgernstgraf/polished-recognition/issues/156),
    open). Re-capture from a current release build; the issue carries the
    authoritative shot list (`docs/img/ime-recording.png` + `settings.png`), do
