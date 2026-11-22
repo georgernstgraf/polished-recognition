@@ -3,8 +3,8 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
 
@@ -173,13 +173,35 @@ The transcription pipeline resolves the following template variables at runtime.
 - **Tests:** use **410 Gone** for "a plain permanent failure" (401 is the auth
   latch, 400 the prompt fallback — see PITFALLS).
 
-## Compiler warnings (#187)
+## Build-output warnings (#187)
 
+- **The release build's OUTPUT is part of the acceptance, not just `BUILD SUCCESSFUL`.**
+  Read the log of `./gradlew installRelease`: a new AAPT message, a `w:` line or a new
+  lint finding is a finding. The one exception is the pair of baseline notes described
+  in PITFALLS (`lintVitalRelease` cannot match a global baseline) — those stay.
+- **A string with a literal `%` declares `formatted="false"`.** `strings.xml` hints
+  carry percentages ("10–60 %"); without the attribute AAPT reads them as format
+  strings, prints "Multiple substitutions specified in non-positional format" on every
+  `merge*Resources` and lint raises the fatal `StringFormatInvalid`. A string that DOES
+  take arguments uses positional specifiers (`%1$s`) and never `formatted="false"`.
+- **Numeric prefill is `String.format(Locale.ROOT, "%d", value)`**, never
+  `value.toString()` and never a localized number: these fields are re-parsed with
+  `toInt()`, so a grouping separator would break the round trip. `SetTextI18n` flags the
+  `toString()` form.
+- **`NewerVersionAvailable`, `GradleDependency` and `AndroidGradlePluginVersion` are
+  `severity="ignore"` in `app/lint.xml` and are NEVER baselined.** Their message changes
+  whenever upstream publishes a version, so a baseline entry stops matching on its own
+  and the same notice returns as new. A dependency upgrade is a deliberate, manual
+  decision, not a lint finding.
+- **`lint { checkReleaseBuilds }` stays at its default (`true`).** The `lintVitalRelease`
+  baseline notes are accepted (owner decision 2026-11-22); the gate remains
+  `lintDebug` in CI and in `scripts/pre-push`.
 - **The release compile stays warning-free.** The acceptance is the absence of
   `w:` lines from `:core:compileKotlin` + `:app:compileReleaseKotlin`, not
-  `BUILD SUCCESSFUL` — a new warning is a finding, not noise. Two
-  `Unchecked cast` warnings remain in `VoiceSessionControllerTest` (Gson-map
-  assertions over `session.json`); they never show up in the release compile.
+  `BUILD SUCCESSFUL` — a new warning is a finding, not noise. Test-only compile
+  warnings remain outside this claim (three `Unchecked cast` in
+  `VoiceSessionControllerTest`/`TranscriptionPipelineTest` plus a deprecated
+  `ResponseBody.create` call); they never show up in the release compile.
 - **No `@DelicateCoroutinesApi` surface.** `Channel.isClosedForSend` /
   `isClosedForReceive` are off-limits; when the class itself closes the
   channel, own a `@Volatile` flag (`FragmentTranscriber.closed`).

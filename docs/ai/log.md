@@ -88,3 +88,11 @@
 * **Update**: [DOMAIN.md](DOMAIN.md) — "Recovery (leftovers)" vocabulary table (pending transcription, finished/completed, dismissed, re-run, restore, yield).
 * **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-21 entry: the bundle marker as the session state, no separate audit file, gap-only replay, auto-retry policy + once-per-process guard, WAV reconstruct only for sharing.
 * **Update**: `docs/help.html` — a "Pending transcriptions" section plus the #178 drift fix (Polished is read-only, the button is "Polish").
+
+## 2026-11-22
+* **Update**: [STATE.md](STATE.md) — status line + the #187 section extended: AAPT literal-`%` strings declare `formatted="false"`, the two unseen warnings fixed, update notices ignored instead of baselined, baseline 91 → 77, the `lintVitalRelease` notes accepted and documented; the #163 gate line carries the amendment.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — "Compiler warnings (#187)" became "Build-output warnings (#187)" (read the build log, literal `%` → `formatted="false"`, `Locale.ROOT` prefill, ignored update notices, `checkReleaseBuilds` stays default, test-only warnings outside the claim).
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-22 entry: the release-build output is a gate, update notices are never baselined, the vital-baseline notes are accepted (owner decision).
+* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: `lintVitalRelease` is fatal-only so a global baseline always looks stale there; a literal `%` in `strings.xml` is a format specifier; a baselined "newer version" notice stops matching on its own.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #187 reopened and closed again; the baseline burn-down recorded as not scheduled.
+* **No change**: [index.md](index.md) — no new concept file.

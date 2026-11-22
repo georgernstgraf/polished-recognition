@@ -3,7 +3,7 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-21T18:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
 
@@ -11,7 +11,9 @@ status: stable
 
 Only open tasks. **#185 (recovery UI) shipped on 2026-11-21** — the #152 program
 is at 4/5; only **#186 (offline sessions)** is left. #182–#184 were closed on
-2026-11-20. What remains are owner checks on the device, #186, and #156.
+2026-11-20; **#187 was reopened and closed again on 2026-11-22** (the rest of the
+release-build output: AAPT substitutions, the two unbaselined warnings, baseline
+91 → 77). What remains are owner checks on the device, #186, and #156.
 
 ## #152 — five sub-issues, dependency order (4/5 done)
 
@@ -67,3 +69,13 @@ Epic #152 ("never lose a dictation") is decomposed and formally linked.
    open). Re-capture from a current release build; the issue carries the
    authoritative shot list (`docs/img/ime-recording.png` + `settings.png`), do
    not duplicate it here.
+
+## Not scheduled (owner-gated, no issue yet)
+
+- **Burn down the lint baseline (77 entries).** It is warning-only backlog
+  (`UseKtx` 26, `UnusedResources` 15, `Autofill` 10, `IconLauncherShape` 5,
+  `HardcodedText` 4, …); the one error is `MissingPermission` on
+  `AudioRecorder.start()` (callers check `RECORD_AUDIO`, lint cannot see it).
+  Reaching zero would let the baseline file go away entirely and make
+  `warningsAsErrors = true` meaningful — which would finally turn "only new
+  findings fail the build" into the truth for warnings too (#163/#187).

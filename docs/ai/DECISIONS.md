@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -1574,3 +1574,46 @@ The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 - **Tradeoff**: The delete on success is NOT reordered (#138 is load-bearing: the transcriber cache must be consumed before `deliver()`), so the completion marker is one tiny write whose visible effect is a delete that fails or a process death in between — deliberately accepted, it costs nothing and turns an invisible loss into a "text available" row. A completed dir that survives lingers until the user acts (there is no age rule; it is a handful of KB of audio). The re-run's `attempt` counter restarts at 1 — the dedupe identity is `session_id:fragment_index`, which stays. Journal audio of `DONE` fragments is KEPT (deleting it would strip the audio from a session the user may still want to share); the 256-MB cap bounds it.
 - **Verification**: 874 tests green (`:core` 258 incl. `EchoTrimTest` 10, `JournalReplayTest` 13, `FragmentJournalTest` +13; `:app` +`RecoveryActionsTest`, `RecoveryReasonTest`, `RecoveryAudioTest`, `RecoveryCoordinatorTest`, `RecoveryActivityTest`, `WorkbenchRecoveryBannerTest`, `RecoveryActivity` added to `ContrastMatrix`), `lintDebug` green (only the three pre-existing warnings), `assembleRelease` green, pre-push green. No version bump (consistent with #182–#184).
 - **Not verified**: the force-stop acceptance criterion needs a device (claw has none) — owner check in HANDOFF.
+
+## 2026-11-22: #187 (reopened) — das Ausgabeprotokoll des Release-Builds ist ebenfalls ein Gate
+
+Die vier Kotlin-Warnungen waren weg, aber ein gewöhnliches `installRelease`
+druckte weiter drei Blöcke: zwei AAPT-Substitutionswarnungen, die
+Baseline-Meldung von `lintVitalRelease` und — unsichtbar für CI, weil neue
+*Warnungen* den Build nie brechen — zwei echte Findings aus der #172-Arbeit.
+
+- **Literal-`%`-Strings werden als Nicht-Format deklariert:** `formatted="false"`
+  auf `slice_seconds_hint`, `search_percent_hint` und (Konsistenz) `search_percent`,
+  `search_percent_error`, `compress_audio_hint`. Keiner davon wird mit Argumenten
+  benutzt; AAPT hört auf, sie als Formatstrings zu lesen, und der fatale
+  `StringFormatInvalid`-Eintrag verschwindet. Eine Format-Zeichenkette MIT
+  Argumenten bleibt positionell (`%1$s`) — niemals `formatted="false"`.
+- **Die zwei neuen Warnungen werden behoben, nicht baselined:** `Autofill` auf
+  `app_wrap_width` (`importantForAutofill="no"`, die Konvention der Nachbarfelder)
+  und `SetTextI18n` auf dem FIFO-Prefill
+  (`String.format(Locale.ROOT, "%d", …)`). Bewusst `Locale.ROOT`: das Feld wird
+  später mit `toInt()` zurückgelesen, ein lokalisierter Gruppentrenner würde den
+  Roundtrip brechen.
+- **Update-Hinweise werden ignoriert, nie baselined:** `NewerVersionAvailable`,
+  `GradleDependency` und `AndroidGradlePluginVersion` tragen die gefundene Version
+  in der MESSAGE. Sobald upstream eine neuere publiziert, matcht der alte Eintrag
+  nichts mehr, lint meldet ihn als „fixed" und erhebt denselben Hinweis erneut als
+  neues Finding (genau das war am 2026-11-22 zu sehen: Gradle 9.9.1 → 9.9.2,
+  robolectric 4.17 → 4.18.1). Sie stehen jetzt als `severity="ignore"` in
+  `app/lint.xml`; ein Dependency-Upgrade bleibt eine bewusste, manuelle Entscheidung.
+- **Die `lintVitalRelease`-Baseline-Meldungen bleiben (Owner-Entscheidung
+  2026-11-22):** Die Baseline wird vom globalen `lint`-Task geschrieben
+  (`variant="all"`), `lintVitalRelease` prüft nur FATAL — AGP 9.1.1 kennt keine
+  Baseline pro Variante. `checkReleaseBuilds` bleibt deshalb auf dem Default; die
+  Fatal-Prüfung bleibt erhalten, die zwei Meldungen sind akzeptiertes Rauschen.
+  Die Alternative (`checkReleaseBuilds = false`) hätte das Gate nur verschoben.
+- **Tradeoff:** Neue Warnungen brechen den Build weiterhin nicht (`abortOnError`
+  greift nur bei Errors). Der Wächter für den Backlog ist `LintBaselineFixed` in
+  `lintDebug` — deshalb wurde die Baseline an diesem Tag neu erzeugt und schrumpfte
+  von 91 auf **77 Einträge** (1 Error + 76 Warnungen); die 77 sind akzeptierter
+  Bestand (26 `UseKtx`, 15 `UnusedResources`, 10 `Autofill`, …), ein Abbau ist ein
+  eigenes Vorhaben.
+- **Verification:** beide `merge*Resources` ohne Substitutionswarnung;
+  `lintDebug` → „No errors or warnings (and 1 error, 76 warnings filtered)"; 902
+  Tests grün; `assembleRelease` grün; `installRelease` auf dem angeschlossenen
+  SM-A032F installiert. Kein Versions-Bump.

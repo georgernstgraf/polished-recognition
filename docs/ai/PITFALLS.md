@@ -3,8 +3,8 @@ type: Pitfalls
 title: Pitfalls
 description: Hard-won knowledge about what does not work and non-obvious constraints.
 tags: [knowledge, pitfalls]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
 status: stable
 ---
 
@@ -12,6 +12,12 @@ status: stable
 
 Things that do not work, subtle bugs, and non-obvious constraints.
 Read this file carefully before making changes in affected areas.
+
+- **`lintVitalRelease` runs FATAL checks only — a global lint baseline therefore always looks "stale" there (2026-11-22, #187).** `assembleRelease`/`installRelease` print "N errors/warnings were listed in the baseline file … but not found in the project" plus "The baseline was created using a different target/variant than it was checked against. Creation variant: lint, Current variant: lintVitalRelease". That is NOT rot: `app/lint-baseline.xml` is written by the global `lint` task (`variant="all"`, every check) while the vital run executes only fatal-severity checks, so it matches the one fatal entry and reports the rest as unfound. AGP 9.1.1 has no per-variant baseline (`com.android.build.api.variant` exposes no baseline property), so the mismatch cannot be configured away. ACCEPTED (owner decision): keep `checkReleaseBuilds` at its default for the fatal gate; do not "refresh" the baseline to chase this message and do not read it as a signal. The real staleness signal is `LintBaselineFixed` on `lintDebug`.
+
+- **A literal `%` in `strings.xml` is a format specifier — twice is a build warning, and a wrong conversion is a fatal lint error (2026-11-22, #187).** `slice_seconds_hint`/`search_percent_hint` contain "10–60 %" style text, so AAPT printed "Multiple substitutions specified in non-positional format … Did you mean to add the formatted=\"false\" attribute?" on every `merge*Resources` (debug and release), and lint reported the fatal `StringFormatInvalid` on the same string. A single `%` does not warn (AAPT only rejects two or more), which is why the neighbouring `search_percent` looked fine. Fix: `formatted="false"` on any string with literal percent signs that is never formatted; never add it to a string that takes arguments.
+
+- **A baselined "newer version available" notice stops matching on its own (2026-11-22, #187).** `NewerVersionAvailable`/`GradleDependency`/`AndroidGradlePluginVersion` compare against the live repositories and put the found version IN THE MESSAGE ("9.9.1", "4.17"). When upstream publishes 9.9.2/4.18.1 the old entry matches nothing, lint reports it as fixed (`LintBaselineFixed`) and raises the same notice again as a new finding — every upstream release costs a baseline edit. Keep these IDs out of the baseline (`severity="ignore"` in `app/lint.xml`); the same hazard applies to any check whose message embeds environment state.
 
 - **Ein `2xx` ist kein Erfolg: `SttResponse.text` ist zur Laufzeit `null`, obwohl Kotlin `String` sagt (2026-11-20, #183).** Gson füllt fehlende Referenzfelder nicht — `{"error":"bad gateway"}` mit Status 200 ergibt ein `SttResponse` mit `text == null`; Retrofit validiert nichts. Wer `.text` ungeprüft benutzt (etwa in `trimEcho`), bekommt eine NPE, die im `catch (Throwable)` des Workers als generischer Fehler landet — also unklassifiziert und ohne Journal-Grund. Regel: 2xx nur als Erfolg werten, wenn `text != null` (`hasTranscript`; die SENSELESS_COMPARISON-Warnung ist hier korrekt unterdrückt). **Leer ist NICHT fehlend:** `text == ""` ist die legitime Antwort auf ein stilles Fragment — `isBlank()` als Fehlerkriterium würde echte Diktate brechen.
 - **`401`/`403` sind seit #183 kein neutraler „permanenter Fehler" mehr — Tests brauchen 410 (2026-11-20).** AUTH setzt das Session-Latch im `FragmentTranscriber`: alle späteren Fragmente werden ohne Request als Fehler verbucht. Ein Test, der „ein Fragment scheitert, die anderen laufen weiter" prüfen will, bekommt mit 401 plötzlich „alle nach dem ersten fehlen". 400 ist ebenfalls untauglich (Prompt-Fallback, #117) — **410 Gone** ist die neutrale TERMINAL-Antwort für solche Tests.
