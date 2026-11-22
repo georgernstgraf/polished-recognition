@@ -144,4 +144,34 @@ class SessionBundleTest {
         // nulls are omitted (Gson default) — the analyzer sees a lean shape
         assertThat(fragments[0].containsKey("preRollMs")).isFalse()
     }
+
+    @Test
+    fun `the rate limit block round-trips and stays absent when empty`() {
+        val bundle = SessionBundle("20261122-1200-budget01").apply {
+            fragment(0).let { f ->
+                f.sttError = "HTTP 429 — ExceededBudget: User=grafg over budget."
+                f.rateLimit = mapOf(
+                    "httpCode" to 429,
+                    "type" to "budget_exceeded",
+                    "message" to "ExceededBudget: User=grafg over budget.",
+                    "headers" to mapOf("x-ratelimit-remaining-requests" to "0")
+                )
+            }
+            // a fragment that failed without a provider answer keeps no block
+            fragment(1).let { f -> f.sttError = "read timeout" }
+        }
+
+        val parsed = Gson().fromJson(bundle.write(), Map::class.java) as Map<String, Any>
+        val fragments = parsed["fragments"] as List<Map<String, Any>>
+
+        // #75: additive field — type, message, the limit headers and the code
+        val rateLimit = fragments[0]["rateLimit"] as Map<*, *>
+        assertThat(rateLimit["httpCode"]).isEqualTo(429.0)
+        assertThat(rateLimit["type"]).isEqualTo("budget_exceeded")
+        assertThat(rateLimit["message"]).isEqualTo("ExceededBudget: User=grafg over budget.")
+        assertThat((rateLimit["headers"] as Map<*, *>)["x-ratelimit-remaining-requests"])
+            .isEqualTo("0")
+        // absent (not null) when there was nothing to record — Gson omits nulls
+        assertThat(fragments[1].containsKey("rateLimit")).isFalse()
+    }
 }

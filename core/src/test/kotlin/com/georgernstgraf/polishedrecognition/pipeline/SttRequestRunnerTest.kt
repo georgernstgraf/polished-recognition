@@ -9,7 +9,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -412,29 +414,22 @@ class SttRequestRunnerTest {
         }
 
     @Test
-    fun `a 2xx without a transcript is a protocol failure retried exactly once`() =
+    fun `a 2xx without a transcript is a protocol failure with exactly one request`() =
         kotlinx.coroutines.runBlocking {
-            mockSttMany(Response.success(envelopeWithoutText()), success("after the retry"))
+            // #75: PROTOCOL dropped from two attempts to ONE — the class has
+            // never occurred in the device logs, and the manual Retry STT
+            // covers a one-off glitch.
+            mockSttMany(Response.success(envelopeWithoutText()), success("should not be asked"))
 
             val result = runner().run(wavFile(), config)
 
-            assertThat(result.isSuccess).isTrue()
-            assertThat(result.getOrThrow().text).isEqualTo("after the retry")
-            assertThat(delays).containsExactly(1L).inOrder()
-            assertThat((readLog("stt-latency_1")["error"] as String)).isEqualTo("unusableEnvelope")
+            assertThat(result.isFailure).isTrue()
+            assertThat(failureOf(result).failure).isEqualTo(SttFailure.PROTOCOL)
+            assertThat(failureOf(result).message).isEqualTo("HTTP 200 (unusable response body)")
+            assertThat(delays).isEmpty()
+            assertThat((readLog("stt-latency")["error"] as String)).isEqualTo("unusableEnvelope")
+            verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
         }
-
-    @Test
-    fun `a persistent protocol failure gives up after one retry`() = kotlinx.coroutines.runBlocking {
-        mockSttMany(Response.success(envelopeWithoutText()), Response.success(envelopeWithoutText()))
-
-        val result = runner().run(wavFile(), config)
-
-        assertThat(result.isFailure).isTrue()
-        assertThat(failureOf(result).failure).isEqualTo(SttFailure.PROTOCOL)
-        // exactly ONE repeat — a third attempt would just break the same way
-        verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
-    }
 
     @Test
     fun `an empty transcript is a legitimate silent fragment, not a protocol failure`() =
@@ -449,7 +444,7 @@ class SttRequestRunnerTest {
         }
 
     @Test
-    fun `an undecodable body is protocol and gets its one retry`() = kotlinx.coroutines.runBlocking {
+    fun `an undecodable body is protocol with exactly one request`() = kotlinx.coroutines.runBlocking {
         val call = mockk<Call<SttResponse>>()
         every { call.execute() } throws com.google.gson.JsonSyntaxException("Expected BEGIN_OBJECT")
         every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
@@ -458,6 +453,189 @@ class SttRequestRunnerTest {
 
         assertThat(result.isFailure).isTrue()
         assertThat(failureOf(result).failure).isEqualTo(SttFailure.PROTOCOL)
+        verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+    }
+
+    // ---- #75: the provider's own refusal ----------------------------------
+
+    /** The body the device actually produced (LiteLLM spend cap, OPO logs). */
+    private val budgetBody =
+        """{"error":{"message":"ExceededBudget: User=grafg over budget. Spend=5.00060467499998, Budget=5.0","type":"budget_exceeded","code":"429"}}"""
+
+    private val rateLimitBody =
+        """{"error":{"message":"Rate limit reached for requests","type":"rate_limit_exceeded","code":"429"}}"""
+
+    /**
+     * An HTTP failure with a real body (and optional headers) to parse. Named
+     * apart from [httpError] on purpose: a 2-arg call would otherwise resolve
+     * to the `retryAfter` overload and silently skip the body.
+     */
+    private fun errorWithBody(
+        code: Int,
+        body: String,
+        headers: Map<String, String> = emptyMap()
+    ): Response<SttResponse> {
+        val responseBody = body.toResponseBody("application/json".toMediaTypeOrNull())
+        val raw = okhttp3.Response.Builder()
+            .request(okhttp3.Request.Builder().url("http://localhost/v1/audio/transcriptions").build())
+            .protocol(okhttp3.Protocol.HTTP_1_1)
+            .code(code)
+            .message("error")
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
+            .body(responseBody)
+            .build()
+        @Suppress("DEPRECATION")
+        return Response.error(responseBody, raw)
+    }
+
+    @Test
+    fun `a budget refusal makes exactly one request and carries the provider's sentence`() =
+        kotlinx.coroutines.runBlocking {
+            mockStt(errorWithBody(429, budgetBody))
+
+            val result = runner().run(wavFile(), config)
+
+            assertThat(result.isFailure).isTrue()
+            val failure = failureOf(result)
+            // the #183 matrix alone would call a 429 TRANSIENT and spend three
+            // attempts against a wall that cannot clear
+            assertThat(failure.failure).isEqualTo(SttFailure.BUDGET)
+            assertThat(failure.httpCode).isEqualTo(429)
+            // the user sees the provider's own line, after what the app did
+            assertThat(failure.message).isEqualTo(
+                "HTTP 429 — ExceededBudget: User=grafg over budget. " +
+                    "Spend=5.00060467499998, Budget=5.0"
+            )
+            assertThat(failure.providerError!!.type).isEqualTo("budget_exceeded")
+            assertThat(delays).isEmpty()
+            verify(exactly = 1) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `a rate_limit_exceeded body keeps the transient retries`() = kotlinx.coroutines.runBlocking {
+        mockSttMany(errorWithBody(429, rateLimitBody), success("second try"))
+
+        val result = runner().run(wavFile(), config)
+
+        // one minute later the same request may work — this is not a spend cap
+        assertThat(result.isSuccess).isTrue()
+        assertThat(delays).containsExactly(1L).inOrder()
         verify(exactly = 2) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `an unparseable 429 body keeps the transient retries`() = kotlinx.coroutines.runBlocking {
+        // an nginx HTML page says nothing about a budget
+        mockSttMany(errorWithBody(429, "<html><body>429 Too Many Requests</body></html>"), success())
+        assertThat(runner().run(wavFile(), config).isSuccess).isTrue()
+
+        delays.clear()
+        // ... and neither does an empty body
+        mockSttMany(errorWithBody(429, ""), success())
+        assertThat(runner().run(wavFile("empty-body.wav"), config).isSuccess).isTrue()
+        assertThat(delays).isNotEmpty()
+    }
+
+    @Test
+    fun `attempts per failure class are the #75 contract`() {
+        val runner = runner()
+
+        assertThat(runner.attemptsFor(SttFailure.BUDGET)).isEqualTo(1)
+        assertThat(runner.attemptsFor(SttFailure.PROTOCOL)).isEqualTo(1)
+        assertThat(runner.attemptsFor(SttFailure.AUTH)).isEqualTo(1)
+        assertThat(runner.attemptsFor(SttFailure.TERMINAL)).isEqualTo(1)
+        assertThat(runner.attemptsFor(SttFailure.TRANSIENT))
+            .isEqualTo(SttRequestRunner.MAX_ATTEMPTS)
+    }
+
+    @Test
+    fun `a transient failure still uses all three attempts`() = kotlinx.coroutines.runBlocking {
+        mockStt(errorWithBody(503, "upstream unavailable"))
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(failureOf(result).failure).isEqualTo(SttFailure.TRANSIENT)
+        verify(exactly = 3) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `the completion record carries the limits block and the parsed refusal`() =
+        kotlinx.coroutines.runBlocking {
+            mockStt(
+                errorWithBody(
+                    429,
+                    budgetBody,
+                    mapOf(
+                        "x-ratelimit-remaining-requests" to "0",
+                        "Retry-After" to "30",
+                        "X-Request-Id" to "not-a-limit"
+                    )
+                )
+            )
+
+            runner().run(wavFile(), config)
+
+            val record = readLog("stt-latency")
+            val headers = record["headers"] as Map<*, *>
+            // limits only, names lowercased — an unrelated header is no evidence
+            assertThat(headers.keys).containsExactly("x-ratelimit-remaining-requests", "retry-after")
+            assertThat(headers["x-ratelimit-remaining-requests"]).isEqualTo("0")
+            assertThat(headers["retry-after"]).isEqualTo("30")
+
+            val providerError = record["providerError"] as Map<*, *>
+            assertThat(providerError["type"]).isEqualTo("budget_exceeded")
+            assertThat(providerError["message"] as String).startsWith("ExceededBudget:")
+        }
+
+    @Test
+    fun `a record without limits omits both fields`() = kotlinx.coroutines.runBlocking {
+        mockStt(success())
+
+        runner().run(wavFile(), config)
+
+        val record = readLog("stt-latency")
+        // pre-#75 records keep their exact shape (Gson omits nulls)
+        assertThat(record.containsKey("headers")).isFalse()
+        assertThat(record.containsKey("providerError")).isFalse()
+    }
+
+    @Test
+    fun `the success path logs the limits too`() = kotlinx.coroutines.runBlocking {
+        // a 200 still carries the gateway's budget state — that is what makes
+        // a "how much was left at 14:12" question answerable afterwards
+        val raw = okhttp3.Response.Builder()
+            .request(okhttp3.Request.Builder().url("http://localhost/v1/audio/transcriptions").build())
+            .protocol(okhttp3.Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .header("x-ratelimit-remaining-tokens", "42")
+            .body("{}".toResponseBody("application/json".toMediaTypeOrNull()))
+            .build()
+        mockStt(Response.success(success().body()!!, raw.headers))
+
+        val result = runner().run(wavFile(), config)
+
+        assertThat(result.isSuccess).isTrue()
+        val headers = readLog("stt-latency")["headers"] as Map<*, *>
+        assertThat(headers["x-ratelimit-remaining-tokens"]).isEqualTo("42")
+    }
+
+    @Test
+    fun `the failure carries the limits block for the bundle`() = kotlinx.coroutines.runBlocking {
+        mockStt(errorWithBody(429, budgetBody, mapOf("x-ratelimit-remaining-requests" to "0")))
+
+        val block = failureOf(runner().run(wavFile(), config)).rateLimitBlock()!!
+
+        assertThat(block["httpCode"]).isEqualTo(429)
+        assertThat(block["type"]).isEqualTo("budget_exceeded")
+        assertThat(block["message"] as String).startsWith("ExceededBudget:")
+        assertThat((block["headers"] as Map<*, *>)["x-ratelimit-remaining-requests"]).isEqualTo("0")
+
+        // a transport failure has neither body nor headers — nothing to record
+        val call = mockk<Call<SttResponse>>()
+        every { call.execute() } throws IOException("read timeout")
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns call
+        assertThat(failureOf(runner().run(wavFile("timeout.wav"), config)).rateLimitBlock()).isNull()
     }
 }

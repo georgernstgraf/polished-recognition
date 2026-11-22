@@ -179,6 +179,7 @@ class RecoveryActivity : Activity() {
             when (kind) {
                 RecoveryReason.Kind.COMPLETED -> R.string.recovery_reason_completed
                 RecoveryReason.Kind.AUTH -> R.string.recovery_reason_auth
+                RecoveryReason.Kind.BUDGET -> R.string.recovery_reason_budget
                 RecoveryReason.Kind.PROTOCOL -> R.string.recovery_reason_protocol
                 RecoveryReason.Kind.NETWORK -> R.string.recovery_reason_network
                 RecoveryReason.Kind.TERMINAL -> R.string.recovery_reason_terminal

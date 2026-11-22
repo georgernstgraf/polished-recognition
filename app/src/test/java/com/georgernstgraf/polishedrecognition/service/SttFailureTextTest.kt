@@ -33,12 +33,32 @@ class SttFailureTextTest {
     }
 
     @Test
-    fun `auth and protocol carry a hint, transient and terminal do not`() {
+    fun `auth, protocol and budget carry a hint, transient and terminal do not`() {
         assertThat(SttFailureText.resFor(SttFailure.AUTH)).isEqualTo(R.string.ime_stt_token_rejected)
         assertThat(SttFailureText.resFor(SttFailure.PROTOCOL)).isEqualTo(R.string.ime_stt_unusable_response)
+        assertThat(SttFailureText.resFor(SttFailure.BUDGET)).isEqualTo(R.string.ime_stt_budget_exhausted)
         assertThat(SttFailureText.resFor(SttFailure.TRANSIENT)).isNull()
         assertThat(SttFailureText.resFor(SttFailure.TERMINAL)).isNull()
         assertThat(SttFailureText.resFor(null)).isNull()
+    }
+
+    @Test
+    fun `a budget refusal shows the hint plus the provider's own sentence`() {
+        val text = service.failureText(
+            SttRequestRunner.SttRequestException(
+                "HTTP 429 — ExceededBudget: User=grafg over budget. Spend=5.0006, Budget=5.0",
+                429,
+                SttFailure.BUDGET
+            )
+        )
+
+        // #75: "HTTP 429" alone told the user nothing — the hint names the
+        // action, the detail carries the provider's own words verbatim
+        assertThat(text).isEqualTo(
+            service.getString(R.string.ime_stt_budget_exhausted) +
+                "\n" +
+                "HTTP 429 — ExceededBudget: User=grafg over budget. Spend=5.0006, Budget=5.0"
+        )
     }
 
     @Test

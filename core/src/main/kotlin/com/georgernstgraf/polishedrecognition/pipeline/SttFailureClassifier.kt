@@ -40,12 +40,32 @@ enum class SttFailure {
     PROTOCOL,
 
     /** Any other client-side refusal (400/410/413/415, unexpected exceptions). */
-    TERMINAL
+    TERMINAL,
+
+    /**
+     * #75: the provider's own error body names a spend/quota wall
+     * (`budget_exceeded`, `insufficient_quota`, `quota_exceeded`).
+     *
+     * The measured case is a LiteLLM spend cap answering `429` with
+     * `ExceededBudget: … Spend=5.0006, Budget=5.0` — a status the #183 matrix
+     * calls TRANSIENT. Asking again cannot clear a budget: the runner makes
+     * exactly ONE attempt, the transcriber latches the session (no further
+     * requests), #185 never auto-retries it, and the user reads the provider's
+     * own sentence plus an actionable hint. A bare `429`, a
+     * `rate_limit_exceeded` or an unparseable body stays TRANSIENT — the body
+     * is the signal, never the status and never the (strippable) headers.
+     */
+    BUDGET
 }
 
 /**
  * #183: maps an attempt's outcome to its [SttFailure]. Pure — the matrix is
  * the contract, and the runner's behaviour is derived from it.
+ *
+ * #75 extends it with BUDGET, decided from the provider's error BODY
+ * ([ProviderError]) instead of from the status code: the spend cap that
+ * produced this extension answers `429`, which the matrix alone would keep
+ * retrying forever.
  */
 object SttFailureClassifier {
 
@@ -55,16 +75,26 @@ object SttFailureClassifier {
      * @param envelopeUnusable `true` for a 2xx whose parsed body carries no
      *   transcript ([com.georgernstgraf.polishedrecognition.api.dto.SttResponse]
      *   gives no validation: Gson leaves `text` null when the key is missing)
+     * @param providerError #75: the parsed non-2xx body, when there was one. A
+     *   4xx whose body names a budget/quota condition outranks the #183 matrix
+     *   (`429` → BUDGET instead of TRANSIENT); a 401/403 stays AUTH, because a
+     *   rejected credential is the more specific fact and retrying is wrong
+     *   either way. Everything else keeps the matrix untouched.
      */
     fun classify(
         httpCode: Int?,
         throwable: Throwable? = null,
-        envelopeUnusable: Boolean = false
+        envelopeUnusable: Boolean = false,
+        providerError: ProviderError? = null
     ): SttFailure {
         if (envelopeUnusable) return SttFailure.PROTOCOL
         if (httpCode != null) {
             return when {
                 httpCode == 401 || httpCode == 403 -> SttFailure.AUTH
+                // #75: the body decides before the status does. 402 is
+                // "Payment Required" and is simply the other 4xx a spend cap
+                // may use.
+                providerError?.isBudget == true && httpCode in 400..499 -> SttFailure.BUDGET
                 httpCode == 408 || httpCode == 429 || httpCode in 500..599 -> SttFailure.TRANSIENT
                 // A 2xx that reached here was rejected by the caller as
                 // unusable; classifying it as PROTOCOL keeps the function

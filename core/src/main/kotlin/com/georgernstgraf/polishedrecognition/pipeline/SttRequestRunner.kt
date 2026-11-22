@@ -16,17 +16,24 @@ import java.io.File
 /**
  * Runs ONE STT request for one audio file with the #116 retry policy, refined
  * by the #183 failure classification: up to [MAX_ATTEMPTS] attempts, retried
- * only while the failure class allows it —
+ * only while the failure class allows it (see [attemptsFor]) —
  *
  * - **[SttFailure.TRANSIENT]** (IOException/timeouts, 408, 429, 5xx) backs off
  *   and retries, honouring `Retry-After` up to [maxRetryWaitMs] per wait and
  *   [maxTotalWaitMs] per request.
- * - **[SttFailure.AUTH]** (401/403) and **[SttFailure.TERMINAL]** (other 4xx)
- *   fail IMMEDIATELY — a dead token must not be hammered.
- * - **[SttFailure.PROTOCOL]** (2xx without a transcript, undecodable body)
- *   retries EXACTLY ONCE with the identical request: the envelope broke, not
- *   the request shape, so repeating the bytes is the whole fix (#184 keeps
- *   the repeat idempotent).
+ * - **[SttFailure.AUTH]** (401/403), **[SttFailure.BUDGET]** (#75: a 4xx whose
+ *   body names a spend/quota wall), **[SttFailure.TERMINAL]** (other 4xx) and
+ *   **[SttFailure.PROTOCOL]** (2xx without a transcript, undecodable body) get
+ *   exactly ONE request: a dead token must not be hammered, a budget cannot
+ *   clear by asking again, a broken envelope breaks the same way twice (#183
+ *   repeated PROTOCOL once; #75 cut it to one attempt because the class has
+ *   never occurred in the logs and the manual Retry STT covers a glitch).
+ *
+ * #75: on a non-2xx the provider's own error body is read (capped) and parsed
+ * ([ProviderError]) — its sentence becomes part of the user-visible message and
+ * its `type`/`code` decide BUDGET. `SttRequestException` carries the parsed
+ * error and the limits-only response headers, so the transcriber can record
+ * them in the bundle without re-reading anything.
  *
  * Writes two evidence streams:
  * - `stt-upload.json` (unchanged #115 semantics): pre-send proof that the
@@ -38,6 +45,10 @@ import java.io.File
  *   latency-profile input (robust fit of t(S) ≈ a + b·S → auto fragment
  *   size) and closes the #64 evidence gap ("&gt;2 min per
  *   600-s chunk" was neither provable nor refutable from the old logs).
+ *   #75 adds a LIMITS-ONLY header block (`retry-after`, `x-ratelimit-*`) and
+ *   the provider's parsed refusal — on the success path too, so a session can
+ *   be read after the fact ("how much budget was left at 14:12?"). Both
+ *   fields are omitted when absent, so a pre-#75 record keeps its shape.
  *
  * #184: a fragment request ALSO carries `session_id`, `fragment_index` and
  * `attempt` as ordinary multipart fields (see [run]); the pre-send record
@@ -83,14 +94,64 @@ class SttRequestRunner(
     /**
      * Final failure after all attempts; [httpCode] is set for HTTP failures and
      * [failure] carries the #183 class the caller acts on (the transcriber
-     * stops a session on AUTH, the journal marks PROTOCOL as manual work).
-     * Defaults to TERMINAL: a failure nobody classified is not retry-worthy.
+     * stops a session on AUTH/BUDGET, the journal marks PROTOCOL as manual
+     * work). Defaults to TERMINAL: a failure nobody classified is not
+     * retry-worthy.
+     *
+     * #75: [providerError] is the provider's parsed refusal (its own sentence
+     * included) and [headers] the limits-only response headers of the LAST
+     * attempt — both nullable and absent on the pre-#75 paths. **The LLM path
+     * shares this carrier:** `TranscriptionPipeline` raises the same exception
+     * for a refused polish call, so the polish's class (`BUDGET` included) and
+     * message arrive at the user through the same values as an STT failure.
      */
     class SttRequestException(
         message: String,
         val httpCode: Int? = null,
-        val failure: SttFailure = SttFailure.TERMINAL
-    ) : Exception(message)
+        val failure: SttFailure = SttFailure.TERMINAL,
+        /** #75: the parsed error body, when the provider sent one. */
+        val providerError: ProviderError? = null,
+        /** #75: limits-only response headers (`retry-after`, `x-ratelimit-*`), lowercased. */
+        val headers: Map<String, String>? = null
+    ) : Exception(message) {
+
+        /**
+         * #75: the per-fragment limits block for the forensic bundle
+         * (`session.json`), or `null` when the refusal was not an HTTP one —
+         * an IOException has no body and no headers. The bundling itself is
+         * the transcriber's; this is the shape, so it is testable without one.
+         */
+        fun rateLimitBlock(): Map<String, Any?>? {
+            if (providerError == null && headers == null) return null
+            return buildMap {
+                httpCode?.let { put("httpCode", it) }
+                providerError?.type?.let { put("type", it) }
+                providerError?.message?.let { put("message", it) }
+                headers?.let { put("headers", it) }
+            }
+        }
+    }
+
+    /**
+     * #75: how many requests a failure class is worth. [MAX_ATTEMPTS] stays the
+     * hard bound (a class can never ask for more), and only TRANSIENT may use
+     * all of it:
+     *
+     * | class | attempts | why |
+     * |---|---|---|
+     * | TRANSIENT | [MAX_ATTEMPTS] (3) | the same request may succeed later |
+     * | BUDGET | 1 | a spend cap cannot clear between two attempts |
+     * | AUTH | 1 | a dead token must not be hammered |
+     * | PROTOCOL | 1 | the envelope broke; a repeat breaks the same way |
+     * | TERMINAL | 1 | the request itself is refused |
+     */
+    fun attemptsFor(failure: SttFailure): Int = when (failure) {
+        SttFailure.TRANSIENT -> MAX_ATTEMPTS
+        SttFailure.BUDGET,
+        SttFailure.AUTH,
+        SttFailure.PROTOCOL,
+        SttFailure.TERMINAL -> 1
+    }
 
     /**
      * Executes one upload. Fails fast on non-retryable errors; otherwise
@@ -160,6 +221,9 @@ class SttRequestRunner(
                 ).execute()
                 val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
                 val code = response.code()
+                // #75: limits-only headers — diagnostics, never a decision
+                // (the gateway may strip them; the body is the signal).
+                val headers = limitHeaders(response.headers())
 
                 if (response.isSuccessful) {
                     val body = response.body()
@@ -168,7 +232,10 @@ class SttRequestRunner(
                     // fragment); a MISSING one is not — Gson leaves `text` null
                     // and Retrofit validates nothing.
                     if (body != null && hasTranscript(body)) {
-                        logCompletion(audioFile, config, mediaType, durationMs, attempt, code, elapsedMs, null, prompt)
+                        logCompletion(
+                            audioFile, config, mediaType, durationMs, attempt, code, elapsedMs,
+                            null, prompt, headers = headers
+                        )
                         if (durationMs != null) {
                             onCompletion?.invoke(Completion(config, mediaType, durationMs, elapsedMs, attempt))
                         }
@@ -176,7 +243,7 @@ class SttRequestRunner(
                     }
                     logCompletion(
                         audioFile, config, mediaType, durationMs, attempt, code, elapsedMs,
-                        if (body == null) "emptyBody" else "unusableEnvelope", prompt
+                        if (body == null) "emptyBody" else "unusableEnvelope", prompt, headers = headers
                     )
                     SttRequestException(
                         "HTTP $code (unusable response body)",
@@ -185,14 +252,20 @@ class SttRequestRunner(
                     )
                 } else {
                     retryAfter = RetryAfter.parse(response.headers()["Retry-After"])
+                    // #75: the provider's own refusal. Read ONCE, capped, and
+                    // carried on the exception so the bundle/journal see the
+                    // same value without a second read of a consumed body.
+                    val providerError = ProviderError.parse(ProviderError.bodyOf(response))
                     logCompletion(
                         audioFile, config, mediaType, durationMs, attempt, code, elapsedMs,
-                        null, prompt, retryAfter
+                        null, prompt, retryAfter, headers, providerError?.asMap()
                     )
                     SttRequestException(
-                        httpMessage(code, retryAfter),
+                        httpMessage(code, retryAfter, providerError),
                         httpCode = code,
-                        failure = SttFailureClassifier.classify(code)
+                        failure = SttFailureClassifier.classify(code, providerError = providerError),
+                        providerError = providerError,
+                        headers = headers
                     )
                 }
             } catch (e: CancellationException) {
@@ -207,14 +280,12 @@ class SttRequestRunner(
             }
             lastFailure = failure
 
-            // #183: AUTH must not be hammered, TERMINAL cannot be fixed by
-            // asking again, and PROTOCOL gets exactly ONE repeat.
-            when (failure.failure) {
-                SttFailure.AUTH, SttFailure.TERMINAL -> return Result.failure(failure)
-                SttFailure.PROTOCOL -> if (attempt > 1) return Result.failure(failure)
-                SttFailure.TRANSIENT -> Unit
-            }
-            if (attempt >= MAX_ATTEMPTS) return Result.failure(failure)
+            // #75: the class decides the attempts (TRANSIENT 3, everything else
+            // ONE) — AUTH must not be hammered, a budget cannot clear, TERMINAL
+            // cannot be fixed by asking again, and a broken envelope breaks the
+            // same way twice. MAX_ATTEMPTS stays the hard bound.
+            val allowed = minOf(attemptsFor(failure.failure), MAX_ATTEMPTS)
+            if (attempt >= allowed) return Result.failure(failure)
             // null = do not retry: the server asked for longer than we are
             // willing to wait, or this request's whole budget is spent.
             val wait = nextWaitMs(zeroBased, retryAfter, waitedMs) ?: return Result.failure(failure)
@@ -256,6 +327,38 @@ class SttRequestRunner(
         if (retryAfterMs == null) "HTTP $code" else "HTTP $code (Retry-After ${retryAfterMs / 1_000}s)"
 
     /**
+     * #75: the user-visible refusal — the status line, the wait advice, and the
+     * PROVIDER'S OWN sentence appended when its body named one:
+     * `HTTP 429 — ExceededBudget: … Spend=5.0006, Budget=5.0`. The technical
+     * detail stays first (CONVENTIONS: the user must see what broke), and
+     * nothing is invented when the body was an HTML page or empty.
+     */
+    private fun httpMessage(code: Int, retryAfterMs: Long?, providerError: ProviderError?): String {
+        val base = httpMessage(code, retryAfterMs)
+        return providerError?.appendTo(base) ?: base
+    }
+
+    /**
+     * #75: the LIMITS-ONLY slice of a response's headers (`retry-after` and
+     * every `x-ratelimit-*`), lowercased with values capped at
+     * [MAX_HEADER_VALUE_CHARS]. Deliberately a diagnostic, never an input to a
+     * decision: the school gateway may strip or rewrite them, while the body
+     * is what the provider actually says. `null` when there is nothing to log,
+     * so Gson omits the field and a pre-#75 record keeps its shape.
+     */
+    private fun limitHeaders(headers: okhttp3.Headers): Map<String, String>? {
+        val limits = buildMap {
+            for (index in 0 until headers.size) {
+                val name = headers.name(index).lowercase()
+                if (name == "retry-after" || name.startsWith("x-ratelimit-")) {
+                    put(name, headers.value(index).take(MAX_HEADER_VALUE_CHARS))
+                }
+            }
+        }
+        return limits.ifEmpty { null }
+    }
+
+    /**
      * #184: the optional idempotency fields. An EMPTY map (no [sessionId])
      * leaves the multipart body exactly as it was before #184 — that is what
      * keeps the legacy chunk path and every "unknown fields are ignored"
@@ -287,7 +390,11 @@ class SttRequestRunner(
         error: String?,
         prompt: String? = null,
         /** #183: the server's wait advice, when it sent one. */
-        retryAfterMs: Long? = null
+        retryAfterMs: Long? = null,
+        /** #75: the limits-only response headers of this attempt, if any. */
+        headers: Map<String, String>? = null,
+        /** #75: the provider's parsed refusal (type/code/redacted message), if any. */
+        providerError: Map<String, Any?>? = null
     ) {
         logger?.log(
             "stt-latency",
@@ -306,6 +413,8 @@ class SttRequestRunner(
                 // — prompt-induced latency must not read as audio-size cost
                 promptChars = prompt?.length,
                 retryAfterMs = retryAfterMs,
+                headers = headers,
+                providerError = providerError,
                 error = error
             ))
         )
@@ -341,12 +450,23 @@ class SttRequestRunner(
         val fragmentIndex: Int? = null,
         /** #183: the server's `Retry-After` advice for this attempt, if any. */
         val retryAfterMs: Long? = null,
+        /**
+         * #75: the limits-only response headers (`retry-after`, `x-ratelimit-*`,
+         * lowercased). Omitted when the provider sent none — a pre-#75 record
+         * keeps its exact shape.
+         */
+        val headers: Map<String, String>? = null,
+        /** #75: the provider's parsed refusal (type/code/redacted message). */
+        val providerError: Map<String, Any?>? = null,
         val error: String? = null
     )
 
     companion object {
         const val MAX_ATTEMPTS = 3
         const val EVENT_COMPLETION = "complete"
+
+        /** #75: per-header cap in the limits block — a value, not a document. */
+        const val MAX_HEADER_VALUE_CHARS = 64
 
         /**
          * #183: ceiling for ONE wait. A gateway that asks for more is obeyed

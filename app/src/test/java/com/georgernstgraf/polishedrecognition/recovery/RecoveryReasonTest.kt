@@ -18,6 +18,14 @@ class RecoveryReasonTest {
     }
 
     @Test
+    fun `a recorded budget wall gets its own reason and is never retried automatically`() {
+        // #75: the provider said "over budget" — waiting cannot clear it, so
+        // the row must say so and the automatic path must leave it alone
+        assertThat(RecoveryReason.of(false, "BUDGET")).isEqualTo(RecoveryReason.Kind.BUDGET)
+        assertThat(RecoveryReason.autoRetryable(RecoveryReason.Kind.BUDGET)).isFalse()
+    }
+
+    @Test
     fun `an interrupted session carries no class`() {
         assertThat(RecoveryReason.of(false, null)).isEqualTo(RecoveryReason.Kind.INTERRUPTED)
         assertThat(RecoveryReason.of(false, "something-new")).isEqualTo(RecoveryReason.Kind.INTERRUPTED)

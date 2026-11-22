@@ -11,6 +11,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.SttFailure
  * produced the issue. The hint is a separate, pure lookup so the mapping is
  * testable without Robolectric; the IME prefixes it to the technical detail
  * (CONVENTIONS: the user must SEE why, not only that something failed).
+ * (#75 adds a fourth: a spend cap no retry can clear.)
  *
  * `null` means: no advice for this class, show the detail alone.
  */
@@ -24,6 +25,10 @@ object SttFailureText {
         // A 2xx we could not read: the audio is in the journal, one more send
         // is the honest offer.
         SttFailure.PROTOCOL -> R.string.ime_stt_unusable_response
+        // #75: the provider's spend cap. Only the user can clear it (top up,
+        // or point the app at another provider) — the provider's own sentence
+        // follows as the technical detail.
+        SttFailure.BUDGET -> R.string.ime_stt_budget_exhausted
         SttFailure.TRANSIENT, SttFailure.TERMINAL, null -> null
     }
 }

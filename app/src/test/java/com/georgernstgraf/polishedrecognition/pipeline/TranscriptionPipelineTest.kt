@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -491,6 +492,40 @@ class TranscriptionPipelineTest {
         assertThat(result.isFailure).isTrue()
         assertThat(result.exceptionOrNull()!!.message!!).contains("HTTP 503")
     }
+
+    @Test
+    fun `a budget refusal on the polish call carries the provider's sentence and class`() =
+        runBlocking {
+            settingsStore.rawMode = false
+            mockSttSuccess()
+            every { chatApi.chatSync(any(), any<ChatRequest>()) } returns
+                mockCall(
+                    Response.error(
+                        429,
+                        """{"error":{"message":"ExceededBudget: User=grafg over budget. Spend=5.0006, Budget=5.0","type":"budget_exceeded","code":"429"}}"""
+                            .toResponseBody("application/json".toMediaTypeOrNull())
+                    )
+                )
+
+            val outcomes = mutableListOf<PipelineOutcome>()
+            pipeline.onOutcome = { outcomes += it }
+            val result = pipeline.transcribe(listOf(lincolnFile))
+            pipeline.onOutcome = null
+
+            assertThat(result.isFailure).isTrue()
+            // #75: both endpoints sit behind the same gateway and the same
+            // spend cap, so the polish call raises the STT path's carrier
+            val failure = result.exceptionOrNull() as SttRequestRunner.SttRequestException
+            assertThat(failure.failure).isEqualTo(SttFailure.BUDGET)
+            assertThat(failure.httpCode).isEqualTo(429)
+            assertThat(failure.message).isEqualTo(
+                "LLM post-processing failed: HTTP 429 — " +
+                    "ExceededBudget: User=grafg over budget. Spend=5.0006, Budget=5.0"
+            )
+            // a failed polish never costs the dictation: the RAW text is stored
+            assertThat(outcomes.single().rawText).isEqualTo(lincolnGermanText)
+            assertThat(outcomes.single().llmError).isEqualTo(failure.message)
+        }
 
     @Test
     fun `raw mode wraps output at configured width`() = runBlocking {

@@ -80,7 +80,16 @@ class SessionBundle(val sessionId: String) {
          */
         var uploadBytes: Long? = null,
         /** Final STT failure of this fragment (after the runner's retries). */
-        var sttError: String? = null
+        var sttError: String? = null,
+        /**
+         * #75: the provider's refusal as it was recorded for THIS fragment —
+         * `httpCode`, the parsed `type`/`message` of its error body and the
+         * limits-only response headers (`retry-after`, `x-ratelimit-*`). Null
+         * on a fragment that succeeded, on a transport failure (no response at
+         * all) and on every pre-#75 bundle. Retention-gated like the rest of
+         * the bundle: no new file, no new stream.
+         */
+        var rateLimit: Map<String, Any?>? = null
     )
 
     /** Session-level provider configuration (the state the session ran with). */

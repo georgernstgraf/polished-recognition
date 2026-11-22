@@ -47,12 +47,14 @@ import java.util.concurrent.atomic.AtomicLong
  * the user's rescue path. Transcripts stay cached in memory, so a retry
  * after a parked failure re-drains instantly without re-transcribing.
  *
- * **#183 — the AUTH latch:** a fragment that fails with
- * [SttFailure.AUTH] (401/403) sets [authBlocked]; every later fragment of
- * the session is recorded as failed WITHOUT a request, and its composed
- * upload still reaches the journal, so nothing is lost and the provider is
- * not hammered. [resetFailures] clears the latch, because a new run may carry
- * the token the user just fixed.
+ * **#183 — the AUTH latch, generalised by #75:** a fragment that fails with
+ * [SttFailure.AUTH] (401/403) or [SttFailure.BUDGET] (the provider's own
+ * spend/quota refusal) sets [blockedFailure]; every later fragment of the
+ * session is recorded as failed WITHOUT a request, and its composed upload
+ * still reaches the journal, so nothing is lost and the provider is not
+ * hammered — one dictation can never produce more than one budget request.
+ * [resetFailures] clears the latch, because a new run may carry the token the
+ * user just fixed (or a budget they just topped up).
  *
  * **Acoustic pre-roll (#117 round 2):** each fragment's UPLOAD is composed
  * as `preRoll + fragment` byte-concatenation (OGG chaining makes that a
@@ -200,6 +202,13 @@ class FragmentTranscriber(
          */
         const val AUTH_BLOCKED_MESSAGE = "STT token rejected — no further attempts in this session"
 
+        /**
+         * #75: the same for a budget latch — the fragment is recorded as failed
+         * without a request, and the class (`BUDGET`) is what the UI acts on.
+         */
+        const val BUDGET_BLOCKED_MESSAGE =
+            "Provider budget exhausted — no further attempts in this session"
+
         private const val TAG = "FragmentTranscriber"
     }
 
@@ -229,13 +238,15 @@ class FragmentTranscriber(
     @Volatile private var pendingDrain: CompletableDeferred<Unit>? = null
 
     /**
-     * #183: set once a fragment fails with [SttFailure.AUTH]. Every LATER
-     * fragment of this session is recorded as failed WITHOUT a request — the
-     * "stop hammering" half of the 401 storm a mis-migrated endpoint produced
-     * (five 401s in one session). Cleared by [resetFailures] (a new Send
-     * re-reads the token from Settings) and by [cancel].
+     * #183: set once a fragment fails with [SttFailure.AUTH]; #75 added
+     * [SttFailure.BUDGET]. Every LATER fragment of this session is recorded as
+     * failed WITHOUT a request — the "stop hammering" half of the 401 storm a
+     * mis-migrated endpoint produced (five 401s in one session), and the reason
+     * one dictation can never spend more than one request against a budget
+     * wall. Cleared by [resetFailures] (a new Send re-reads the token from
+     * Settings) and by [cancel].
      */
-    @Volatile private var authBlocked = false
+    @Volatile private var blockedFailure: SttFailure? = null
 
     /**
      * Set by [cancel] — the ONE place the channel is closed. [drain] must not
@@ -326,8 +337,9 @@ class FragmentTranscriber(
         val failed = failures.keys.toList()
         failures.clear()
         // #183: a new run may carry a NEW token (Settings was open in
-        // between), so the AUTH latch must not survive a Send tap.
-        authBlocked = false
+        // between), so the AUTH latch must not survive a Send tap. #75: the
+        // same is true of a budget the user just topped up.
+        blockedFailure = null
         failed.forEach { index -> offered[index]?.let { offer(it) } }
     }
 
@@ -354,7 +366,7 @@ class FragmentTranscriber(
         seamEvidenceRecords.clear()
         pendingAudioMs.set(0)
         promptDisabled = false
-        authBlocked = false
+        blockedFailure = null
         pendingDrain?.cancel()
         pendingDrain = null
         return drained
@@ -400,16 +412,18 @@ class FragmentTranscriber(
         var sttSentAt: Long? = null
         var sttReceivedAt: Long? = null
         val result = try {
-            if (authBlocked) {
-                // #183: the token was already rejected in this session — no
+            val blocked = blockedFailure
+            if (blocked != null) {
+                // #183/#75: the token was already rejected — or the provider's
+                // budget is already spent — in this session, so there is no
                 // request. The fragment still runs the normal failure fold
                 // (journal + bundle + failure list), so its audio and the
                 // reason survive exactly like a request that failed.
                 Result.failure(
                     SttRequestRunner.SttRequestException(
-                        AUTH_BLOCKED_MESSAGE,
+                        blockedMessage(blocked),
                         httpCode = null,
-                        failure = SttFailure.AUTH
+                        failure = blocked
                     )
                 )
             } else {
@@ -519,11 +533,15 @@ class FragmentTranscriber(
                 val ex = e as? SttRequestRunner.SttRequestException
                     ?: SttRequestRunner.SttRequestException(e.message ?: e.javaClass.simpleName)
                 failures[fragment.index] = ex
-                // #183: a rejected token stops THIS session's requests — the
-                // remaining fragments are recorded without one (see process).
-                if (ex.failure == SttFailure.AUTH) {
-                    if (!authBlocked) CoreLog.w(TAG, "auth rejected (HTTP ${ex.httpCode}) — pausing STT for this session")
-                    authBlocked = true
+                // #183/#75: a rejected token or an exhausted budget stops THIS
+                // session's requests — the remaining fragments are recorded
+                // without one (see process).
+                if (ex.failure == SttFailure.AUTH || ex.failure == SttFailure.BUDGET) {
+                    if (blockedFailure != ex.failure) {
+                        val what = if (ex.failure == SttFailure.AUTH) "auth" else "budget"
+                        CoreLog.w(TAG, "$what rejected (HTTP ${ex.httpCode}) — pausing STT for this session")
+                    }
+                    blockedFailure = ex.failure
                 }
                 // #182: KEEP the fragment — the journal stays PENDING so a
                 // later retry (or #185's re-run) can pick it up; #183 records
@@ -543,6 +561,10 @@ class FragmentTranscriber(
                     f.preRollMs = fragment.preRoll?.takeIf { it.isFile }
                         ?.let { AudioDuration.estimateMs(it) }
                     f.sttError = ex.message
+                    // #75: WHAT the provider refused and how much budget its
+                    // headers claimed — best-effort like every bundle write,
+                    // and null (omitted) when the refusal had no body/headers.
+                    f.rateLimit = ex.rateLimitBlock()
                 }
             }
         )
@@ -583,6 +605,18 @@ class FragmentTranscriber(
     }
 
     /**
+     * #183/#75: the recorded text of a fragment the session latch skipped (no
+     * request was made, so there is no HTTP code). The CLASS travels beside it
+     * ([SttRequestRunner.SttRequestException.failure]) — that is what the
+     * journal, the recovery list and the IME act on.
+     */
+    private fun blockedMessage(failure: SttFailure): String = when (failure) {
+        SttFailure.BUDGET -> BUDGET_BLOCKED_MESSAGE
+        SttFailure.AUTH -> AUTH_BLOCKED_MESSAGE
+        else -> "STT paused for this session (${failure.name})"
+    }
+
+    /**
      * #182 write-ahead: persists the fragment's composed upload plus a
      * PENDING record BEFORE the first upload attempt. Best-effort — a journal
      * failure is logged and the fragment proceeds, because durability
@@ -611,7 +645,9 @@ class FragmentTranscriber(
      * success, still PENDING (with the error) on failure. Same best-effort
      * rule as [journalPending]. #183 adds the failure class: an AUTH/TRANSIENT
      * failure stays PENDING (the audio is retryable), a PROTOCOL failure is
-     * marked NEEDS_MANUAL (a plain retry would break the same way).
+     * marked NEEDS_MANUAL (a plain retry would break the same way). #75's
+     * BUDGET stays PENDING too — a topped-up budget makes the audio sendable
+     * again, it just never happens automatically (#185/#188).
      */
     private suspend fun journalOutcome(
         index: Int,

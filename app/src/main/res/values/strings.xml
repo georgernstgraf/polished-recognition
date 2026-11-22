@@ -111,6 +111,8 @@
     <!-- #183: STT failure classes that need a user action, shown before the technical detail. -->
     <string name="ime_stt_token_rejected">STT token rejected — update it in Settings, then send again</string>
     <string name="ime_stt_unusable_response">The STT server answered unusably — the audio is kept, send again to retry</string>
+    <!-- #75: the provider's own spend/quota refusal — only the user can clear it. -->
+    <string name="ime_stt_budget_exhausted">Provider budget exhausted — top up or switch provider</string>
     <string name="ime_mic_blocked">Microphone unavailable — tap the mic to start again</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>
@@ -166,6 +168,7 @@
         <item quantity="other">%1$d s audio · %2$d fragments · %3$s</item>
     </plurals>
     <string name="recovery_reason_auth">STT token rejected</string>
+    <string name="recovery_reason_budget">Provider budget exhausted</string>
     <string name="recovery_reason_protocol">provider answered without a transcript</string>
     <string name="recovery_reason_network">network or server error</string>
     <string name="recovery_reason_terminal">provider rejected the request</string>

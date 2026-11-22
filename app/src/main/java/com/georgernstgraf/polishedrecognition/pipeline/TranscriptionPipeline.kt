@@ -12,6 +12,7 @@ import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.Response
 import java.io.File
 
 class TranscriptionPipeline(
@@ -181,17 +182,21 @@ class TranscriptionPipeline(
         ).execute()
 
         if (!response.isSuccessful || response.body() == null) {
-            val error = "LLM post-processing failed: HTTP ${response.code()}"
+            // #75: the polish call speaks the same language as the STT call —
+            // the provider's own error body is parsed, its class travels (a
+            // budget wall is a BUDGET here too) and its sentence rides the
+            // message. The RAW text is still stored (rawText below), unchanged.
+            val failure = llmFailure(response)
             onOutcome?.invoke(
                 PipelineOutcome(
                     rawText = whisper.text,
                     rawMode = false,
                     systemPrompt = systemPrompt,
                     userPrompt = userPrompt,
-                    llmError = error
+                    llmError = failure.message
                 )
             )
-            return@withContext Result.failure(Exception(error))
+            return@withContext Result.failure(failure)
         }
 
         val polished = response.body()!!.getContent().trim()
@@ -247,12 +252,29 @@ class TranscriptionPipeline(
                 request = request
             ).execute()
             if (!response.isSuccessful || response.body() == null) {
-                return@withContext Result.failure(
-                    Exception("LLM post-processing failed: HTTP ${response.code()}")
-                )
+                return@withContext Result.failure(llmFailure(response))
             }
             Result.success(response.body()!!.getContent().trim())
         }
+
+    /**
+     * #75: a refused chat call as the same carrier the STT path uses
+     * ([SttRequestRunner.SttRequestException]) — `LLM post-processing failed:
+     * HTTP 429 — <provider sentence>`, with the provider's error body parsed by
+     * [ProviderError] so a budget/quota refusal is classified `BUDGET` on this
+     * path too (both endpoints sit behind the same gateway and the same spend
+     * cap). Falls back to the plain status line when the body says nothing.
+     */
+    private fun llmFailure(response: Response<*>): SttRequestRunner.SttRequestException {
+        val providerError = ProviderError.parse(ProviderError.bodyOf(response))
+        val base = "LLM post-processing failed: HTTP ${response.code()}"
+        return SttRequestRunner.SttRequestException(
+            providerError?.appendTo(base) ?: base,
+            httpCode = response.code(),
+            failure = SttFailureClassifier.classify(response.code(), providerError = providerError),
+            providerError = providerError
+        )
+    }
 
     private fun targetLanguageClause(targetLanguage: String?): String =
         if (targetLanguage != null) {

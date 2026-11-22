@@ -182,6 +182,119 @@ class FragmentTranscriberTest {
         failure = SttFailure.AUTH
     )
 
+    /**
+     * #75: the measured refusal — a 429 whose body names the provider's spend
+     * cap. It carries the parsed error and the limits, exactly as the runner
+     * builds it, so the bundle/journal assertions below see the real shape.
+     */
+    private fun budgetFailure() = SttRequestRunner.SttRequestException(
+        "HTTP 429 — ExceededBudget: User=grafg over budget. Spend=5.0006, Budget=5.0",
+        httpCode = 429,
+        failure = SttFailure.BUDGET,
+        providerError = ProviderError(
+            type = "budget_exceeded",
+            code = "429",
+            message = "ExceededBudget: User=grafg over budget. Spend=5.0006, Budget=5.0"
+        ),
+        headers = mapOf("x-ratelimit-remaining-requests" to "0")
+    )
+
+    @Test
+    fun `a budget failure stops the session's remaining fragments after one request`() = runBlocking {
+        val journal = FragmentJournal(tmp.newFolder("journal"))
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(budgetFailure())
+
+        val t = journaledTranscriber(journal)
+        t.start()
+        (0..2).forEach { t.offer(fragment(it)) }
+        val drained = t.drain()
+
+        // ONE request for a three-fragment session: a spend cap cannot clear
+        // between attempts or between fragments
+        coVerify(exactly = 1) { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) }
+        assertThat(drained.failedIndex).isEqualTo(0)
+        assertThat(drained.chunkCount).isEqualTo(3)
+        assertThat(drained.failure!!.failure).isEqualTo(SttFailure.BUDGET)
+        // the provider's own sentence survives the whole way to the user
+        assertThat(drained.failure!!.message).contains("ExceededBudget:")
+
+        // every fragment is journaled PENDING with its class — the audio of
+        // the two skipped fragments is kept too, they merely never went out
+        for (index in 0..2) {
+            val record = journal.readRecord(journalSession, index)!!
+            assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+            assertThat(record.failureClass).isEqualTo(SttFailure.BUDGET.name)
+            assertThat(File(journal.sessionDir(journalSession), record.uploadFile!!).length())
+                .isGreaterThan(0L)
+        }
+        assertThat(journal.readRecord(journalSession, 1)!!.sttError)
+            .isEqualTo(FragmentTranscriber.BUDGET_BLOCKED_MESSAGE)
+    }
+
+    @Test
+    fun `the bundle records the provider's refusal for the failed fragment`() = runBlocking {
+        val bundle = SessionBundle("test-session")
+        val t = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            bundle = bundle
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(budgetFailure())
+
+        t.start()
+        t.offer(fragment(0))
+        t.drain()
+
+        val rateLimit = bundle.fragments[0]!!.rateLimit!!
+        assertThat(rateLimit["httpCode"]).isEqualTo(429)
+        assertThat(rateLimit["type"]).isEqualTo("budget_exceeded")
+        assertThat(rateLimit["message"] as String).contains("ExceededBudget:")
+        assertThat((rateLimit["headers"] as Map<*, *>)["x-ratelimit-remaining-requests"])
+            .isEqualTo("0")
+    }
+
+    @Test
+    fun `a transport failure records no rate-limit block`() = runBlocking {
+        val bundle = SessionBundle("test-session")
+        val t = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            bundle = bundle
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(SttRequestRunner.SttRequestException("read timeout", failure = SttFailure.TRANSIENT))
+
+        t.start()
+        t.offer(fragment(0))
+        t.drain()
+
+        // no response means no body and no headers — the field stays absent
+        assertThat(bundle.fragments[0]!!.rateLimit).isNull()
+        assertThat(bundle.toJson()).doesNotContain("rateLimit")
+    }
+
+    @Test
+    fun `resetting failures clears the budget latch so a topped-up budget can retry`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(budgetFailure())
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.drain()
+        coVerify(exactly = 1) { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) }
+
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns ok("zwei")
+        transcriber.resetFailures()
+        val drained = transcriber.drain()
+
+        assertThat(drained.failure).isNull()
+        assertThat(drained.text).isNotEmpty()
+    }
+
     @Test
     fun `an auth failure stops the session's remaining fragments without requests`() = runBlocking {
         coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
