@@ -550,6 +550,7 @@
             android:hint="@string/wrap_width"
             android:inputType="number"
             android:imeOptions="actionDone"
+            android:importantForAutofill="no"
             android:layout_marginBottom="4dp" />
 
         <TextView

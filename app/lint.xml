@@ -27,4 +27,19 @@
     <issue id="UnknownIssueId">
         <ignore path="lint.xml" />
     </issue>
+
+    <!--
+      #187 — update notices are not defects and are never baselined.
+
+      `NewerVersionAvailable`, `GradleDependency` and `AndroidGradlePluginVersion`
+      compare against the live repositories, so their MESSAGE changes whenever an
+      upstream version is published. A baseline entry therefore stops matching on its
+      own (Gradle 9.9.1 → 9.9.2, robolectric 4.17 → 4.18.1 on 2026-11-22) and lint
+      reports the entry as "fixed" while raising the same notice again as a new
+      finding. Ignore the whole class here; a dependency upgrade stays a deliberate,
+      manual decision.
+    -->
+    <issue id="NewerVersionAvailable" severity="ignore" />
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
 </lint>

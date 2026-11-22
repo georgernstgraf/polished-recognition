@@ -19,7 +19,7 @@
         errorLine2="        ^">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/PolishedRecognitionApp.kt"
-            line="62"
+            line="69"
             column="9"/>
     </issue>
 
@@ -30,140 +30,8 @@
         errorLine2="                                                                    ~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/service/PolishedVoiceInputIME.kt"
-            line="126"
+            line="180"
             column="69"/>
-    </issue>
-
-    <issue
-        id="AndroidGradlePluginVersion"
-        message="A newer version of Gradle than 9.5.1 is available: 9.9.1"
-        errorLine1="distributionUrl=https\://services.gradle.org/distributions/gradle-9.5.1-bin.zip"
-        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="../gradle/wrapper/gradle-wrapper.properties"
-            line="3"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.core:core-ktx than 1.12.0 is available: 1.19.1"
-        errorLine1="    implementation(&quot;androidx.core:core-ktx:1.12.0&quot;)"
-        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="230"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.test:core than 1.6.1 is available: 1.7.0"
-        errorLine1="    testImplementation(&quot;androidx.test:core:1.6.1&quot;)"
-        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="240"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-android than 1.7.3 is available: 1.11.0"
-        errorLine1="    implementation(&quot;org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3&quot;)"
-        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="231"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.squareup.retrofit2:retrofit than 2.9.0 is available: 3.0.0"
-        errorLine1="    implementation(&quot;com.squareup.retrofit2:retrofit:2.9.0&quot;)"
-        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="232"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.squareup.retrofit2:converter-gson than 2.9.0 is available: 3.0.0"
-        errorLine1="    implementation(&quot;com.squareup.retrofit2:converter-gson:2.9.0&quot;)"
-        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="233"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.squareup.okhttp3:okhttp than 4.12.0 is available: 5.5.1"
-        errorLine1="    implementation(&quot;com.squareup.okhttp3:okhttp:4.12.0&quot;)"
-        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="234"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.mockk:mockk than 1.14.4 is available: 1.14.12"
-        errorLine1="    testImplementation(&quot;io.mockk:mockk:1.14.4&quot;)"
-        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="237"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.google.truth:truth than 1.4.4 is available: 1.4.5"
-        errorLine1="    testImplementation(&quot;com.google.truth:truth:1.4.4&quot;)"
-        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="238"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.robolectric:robolectric than 4.14.1 is available: 4.17"
-        errorLine1="    testImplementation(&quot;org.robolectric:robolectric:4.14.1&quot;)"
-        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="239"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-test than 1.7.3 is available: 1.11.0"
-        errorLine1="    testImplementation(&quot;org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3&quot;)"
-        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="242"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="StringFormatInvalid"
-        message="Incorrect formatting string `slice_seconds_hint`; missing conversion character in &apos;`% a`&apos;?"
-        errorLine1="    &lt;string name=&quot;slice_seconds_hint&quot;>The slice is a fragment\&apos;s MAXIMUM length. The cut is searched in the last part of the slice, so a fragment ends up between (100 − search window) % and 100 % of it. Auto measures your STT provider\&apos;s latency and picks the largest slice whose stop wait stays within budget — bigger slices mean fewer seams. Manual: 5–180 s.&lt;/string>"
-        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="23"
-            column="5"/>
     </issue>
 
     <issue
@@ -173,7 +41,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="65"
+            line="63"
             column="5"/>
     </issue>
 
@@ -184,7 +52,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="99"
+            line="97"
             column="5"/>
     </issue>
 
@@ -195,7 +63,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="121"
+            line="123"
             column="5"/>
     </issue>
 
@@ -286,7 +154,7 @@
     <issue
         id="UnusedResources"
         message="The resource `R.string.compress_audio_hint` appears to be unused"
-        errorLine1="    &lt;string name=&quot;compress_audio_hint&quot;>On: uploads are ~10x smaller (OGG/Opus) but the phone spends ~8 % of the audio length encoding before each request — that delay is part of the stop wait. Off: WAV, no encode cost. Live transcription runs either way.&lt;/string>"
+        errorLine1="    &lt;string name=&quot;compress_audio_hint&quot; formatted=&quot;false&quot;>On: uploads are ~10x smaller (OGG/Opus) but the phone spends ~8 % of the audio length encoding before each request — that delay is part of the stop wait. Off: WAV, no encode cost. Live transcription runs either way.&lt;/string>"
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
@@ -301,7 +169,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="64"
+            line="62"
             column="13"/>
     </issue>
 
@@ -312,7 +180,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="71"
+            line="69"
             column="13"/>
     </issue>
 
@@ -323,7 +191,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="75"
+            line="73"
             column="13"/>
     </issue>
 
@@ -334,7 +202,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="76"
+            line="74"
             column="13"/>
     </issue>
 
@@ -345,7 +213,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="77"
+            line="75"
             column="13"/>
     </issue>
 
@@ -356,7 +224,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="78"
+            line="76"
             column="13"/>
     </issue>
 
@@ -367,7 +235,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="79"
+            line="77"
             column="13"/>
     </issue>
 
@@ -378,7 +246,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="84"
+            line="82"
             column="13"/>
     </issue>
 
@@ -389,7 +257,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="92"
+            line="90"
             column="13"/>
     </issue>
 
@@ -400,7 +268,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="111"
+            line="109"
             column="13"/>
     </issue>
 
@@ -468,7 +336,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="147"
+            line="130"
             column="10"/>
     </issue>
 
@@ -479,7 +347,7 @@
         errorLine2="             ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="162"
+            line="145"
             column="14"/>
     </issue>
 
@@ -490,7 +358,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="218"
+            line="201"
             column="10"/>
     </issue>
 
@@ -501,7 +369,7 @@
         errorLine2="             ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="233"
+            line="216"
             column="14"/>
     </issue>
 
@@ -512,7 +380,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="324"
+            line="307"
             column="10"/>
     </issue>
 
@@ -523,7 +391,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="364"
+            line="347"
             column="10"/>
     </issue>
 
@@ -534,7 +402,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="418"
+            line="401"
             column="10"/>
     </issue>
 
@@ -545,7 +413,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="443"
+            line="426"
             column="10"/>
     </issue>
 
@@ -556,7 +424,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="470"
+            line="445"
             column="10"/>
     </issue>
 
@@ -567,7 +435,7 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="544"
+            line="472"
             column="10"/>
     </issue>
 
@@ -611,7 +479,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="89"
+            line="118"
             column="22"/>
     </issue>
 
@@ -622,18 +490,18 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="93"
+            line="122"
             column="22"/>
     </issue>
 
     <issue
         id="UseKtx"
         message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        set(value) = prefs.edit().putBoolean(SWITCH_BACK_AFTER_SEND_KEY, value).apply()"
+        errorLine1="        set(value) = prefs.edit()"
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="104"
+            line="133"
             column="22"/>
     </issue>
 
@@ -644,7 +512,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="129"
+            line="163"
             column="13"/>
     </issue>
 
@@ -655,7 +523,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="132"
+            line="166"
             column="22"/>
     </issue>
 
@@ -666,7 +534,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="146"
+            line="180"
             column="22"/>
     </issue>
 
@@ -677,7 +545,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="155"
+            line="189"
             column="22"/>
     </issue>
 
@@ -688,7 +556,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="161"
+            line="195"
             column="22"/>
     </issue>
 
@@ -699,7 +567,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="179"
+            line="213"
             column="13"/>
     </issue>
 
@@ -710,7 +578,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="185"
+            line="219"
             column="22"/>
     </issue>
 
@@ -721,7 +589,7 @@
         errorLine2="                     ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="197"
+            line="231"
             column="22"/>
     </issue>
 
@@ -732,7 +600,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="252"
+            line="286"
             column="17"/>
     </issue>
 
@@ -743,7 +611,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="268"
+            line="302"
             column="17"/>
     </issue>
 
@@ -754,7 +622,7 @@
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="288"
+            line="322"
             column="13"/>
     </issue>
 
@@ -765,7 +633,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="327"
+            line="361"
             column="9"/>
     </issue>
 
@@ -776,7 +644,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="336"
+            line="370"
             column="13"/>
     </issue>
 
@@ -787,7 +655,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="363"
+            line="397"
             column="13"/>
     </issue>
 
@@ -798,7 +666,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="365"
+            line="399"
             column="9"/>
     </issue>
 
@@ -809,7 +677,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="473"
+            line="507"
             column="9"/>
     </issue>
 
@@ -820,7 +688,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="481"
+            line="515"
             column="13"/>
     </issue>
 
@@ -831,7 +699,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="493"
+            line="527"
             column="9"/>
     </issue>
 
@@ -842,7 +710,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="509"
+            line="543"
             column="13"/>
     </issue>
 
@@ -853,7 +721,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/config/SettingsStore.kt"
-            line="511"
+            line="545"
             column="13"/>
     </issue>
 
@@ -864,7 +732,7 @@
         errorLine2="        ^">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/service/PolishedVoiceInputIME.kt"
-            line="777"
+            line="1078"
             column="9"/>
     </issue>
 
@@ -875,7 +743,7 @@
         errorLine2="                                   ^">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/service/PolishedVoiceInputIME.kt"
-            line="777"
+            line="1078"
             column="36"/>
     </issue>
 
@@ -886,7 +754,7 @@
         errorLine2="                                                                                        ~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/ui/SettingsActivity.kt"
-            line="214"
+            line="226"
             column="89"/>
     </issue>
 
@@ -897,7 +765,7 @@
         errorLine2="                                                                                         ~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/ui/SettingsActivity.kt"
-            line="215"
+            line="227"
             column="90"/>
     </issue>
 
@@ -908,19 +776,8 @@
         errorLine2="                                                                                         ~~~">
         <location
             file="src/main/java/com/georgernstgraf/polishedrecognition/ui/SettingsActivity.kt"
-            line="216"
+            line="228"
             column="90"/>
-    </issue>
-
-    <issue
-        id="SetTextI18n"
-        message="Number formatting does not take into account locale settings. Consider using `String.format` instead."
-        errorLine1="        wrapWidthField.setText(settings.wrapWidth.toString())"
-        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/georgernstgraf/polishedrecognition/ui/SettingsActivity.kt"
-            line="417"
-            column="32"/>
     </issue>
 
     <issue
@@ -930,7 +787,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="498"
+            line="500"
             column="17"/>
     </issue>
 
@@ -941,7 +798,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="505"
+            line="507"
             column="17"/>
     </issue>
 
@@ -952,7 +809,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="512"
+            line="514"
             column="17"/>
     </issue>
 
@@ -963,7 +820,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/layout/activity_settings.xml"
-            line="519"
+            line="521"
             column="17"/>
     </issue>
 

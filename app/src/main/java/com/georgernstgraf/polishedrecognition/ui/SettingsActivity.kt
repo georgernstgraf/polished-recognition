@@ -40,6 +40,7 @@ import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
 import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
 import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -424,9 +425,9 @@ class SettingsActivity : Activity() {
 
             override fun onStopTrackingTouch(bar: SeekBar?) = Unit
         })
-        wrapWidthField.setText(settings.wrapWidth.toString())
+        wrapWidthField.setText(String.format(Locale.ROOT, "%d", settings.wrapWidth))
         // #172: Workbench FIFO depth (epic #166 D2)
-        workbenchFifoSizeField.setText(settings.workbenchFifoSize.toString())
+        workbenchFifoSizeField.setText(String.format(Locale.ROOT, "%d", settings.workbenchFifoSize))
         loadFragmentGeometry()
         loadAppWrapSection()
         targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
