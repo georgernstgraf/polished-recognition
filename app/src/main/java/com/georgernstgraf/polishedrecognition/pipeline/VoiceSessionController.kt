@@ -194,8 +194,19 @@ class VoiceSessionController(
          * Raw-mode rescue detail (#116/#118): the delivered text joins
          * [chunkCount] fragments with the 1-based fragment [failedIndex]
          * missing, so the text is incomplete by construction.
+         *
+         * #186: the failed fragment's [failure] class and [message] ride along
+         * so an observer can say WHY the rescue happened (the device case was
+         * an OFFLINE session: every fragment failed, nothing was sent, and the
+         * user saw neither text nor reason). Both are defaulted so every
+         * pre-#186 construction site still compiles.
          */
-        data class PartialInfo(val failedIndex: Int, val chunkCount: Int)
+        data class PartialInfo(
+            val failedIndex: Int,
+            val chunkCount: Int,
+            val failure: SttFailure? = null,
+            val message: String? = null
+        )
 
         /**
          * A cancel destroyed a session whose fragments were already
@@ -516,8 +527,13 @@ class VoiceSessionController(
      * discarded). Returns the transcriber's accumulated transcripts when the
      * worker already transcribed anything (#113 salvage); the caller decides
      * what to do with them (cancel salvages, flush deliberately ignores).
+     *
+     * #186: [keepJournal] leaves the durable journal session on disk. A
+     * raw-mode RESCUE reaches this method from the success branch, but it is
+     * not a completion — the audio of the failed fragment only exists in the
+     * journal, so deleting it would silently destroy the dictation.
      */
-    private fun discardFragmentSession(): FragmentTranscriber.Drained? {
+    private fun discardFragmentSession(keepJournal: Boolean = false): FragmentTranscriber.Drained? {
         // In-flight fragment transcriptions belong to the discarded audio
         // (#116). #113: the transcriber's cancel() hands back the completed
         // transcripts instead of voiding them.
@@ -527,8 +543,9 @@ class VoiceSessionController(
         // flushed — so its durable journal goes with it. The pipeline-FAILURE
         // path never reaches this method (it parks PAUSED), which is exactly
         // the contract: a failed session keeps its journal until it is either
-        // delivered on a retry or explicitly discarded.
-        sessionId?.let { sid -> journal?.deleteSession(sid) }
+        // delivered on a retry or explicitly discarded. #186: a rescue is the
+        // third case — delivered, but INCOMPLETE, so it keeps its journal too.
+        if (!keepJournal) sessionId?.let { sid -> journal?.deleteSession(sid) }
         preparer?.let {
             it.stopWorker()
             it.prune()
@@ -638,11 +655,29 @@ class VoiceSessionController(
             if (result.isSuccess) clearPrepared()
             if (result.isSuccess) {
                 recorder.flushBuffer()
-                // #185: mark the session COMPLETE before the dir goes — every
-                // fragment is DONE and the result is about to be delivered, so
-                // a delete that fails (or a process death in between) can never
-                // masquerade as an unfinished dictation and be re-transcribed.
-                sessionId?.let { sid -> journal?.markCompleted(sid) }
+                // #186: a raw-mode rescue delivers text, but it is NOT a
+                // completion — at least one fragment never made it. Marking it
+                // complete would delete the only copy of that fragment's audio
+                // and make the session vanish from the Workbench: the device
+                // case was a fully offline session delivered as an empty
+                // "success" (nothing inserted, nothing said, journal gone).
+                // The rescue keeps the journal PENDING with every fragment's
+                // recorded failure class, so the Workbench lists it as an
+                // incomplete dictation and Retry STT can finish it.
+                val rescue = rescuePartial
+                if (rescue == null) {
+                    // #185: mark the session COMPLETE before the dir goes — every
+                    // fragment is DONE and the result is about to be delivered, so
+                    // a delete that fails (or a process death in between) can never
+                    // masquerade as an unfinished dictation and be re-transcribed.
+                    sessionId?.let { sid -> journal?.markCompleted(sid) }
+                } else {
+                    Log.w(
+                        TAG,
+                        "raw-mode rescue: fragment ${rescue.failedIndex}/${rescue.chunkCount} " +
+                            "failed (${rescue.failure}): ${rescue.message} — journal kept for the Workbench"
+                    )
+                }
                 // #138: the transcripts are consumed the moment the result is
                 // delivered — drop the transcriber cache + preparer WITHOUT
                 // salvage (the return value is deliberately ignored). Before
@@ -652,7 +687,9 @@ class VoiceSessionController(
                 // undelivered work and emitted the #113 salvage event after
                 // the text was already inserted. The transcriber is lazily
                 // rebuilt for the next session.
-                discardFragmentSession()
+                // #186: a rescue skips the journal delete (see above) — the
+                // pending session is the recovery contract now.
+                discardFragmentSession(keepJournal = rescue != null)
                 deliver(result)
                 accumulatedMs = 0L
                 segStartMs = 0L
@@ -929,7 +966,12 @@ class VoiceSessionController(
                             )
                         )
                     }
-                    rescuePartial = Event.PartialInfo(failedIndex, drained.chunkCount)
+                    rescuePartial = Event.PartialInfo(
+                        failedIndex = failedIndex,
+                        chunkCount = drained.chunkCount,
+                        failure = failure.failure,
+                        message = failure.message
+                    )
                     logger?.log(
                         "prepare",
                         gson.toJson(

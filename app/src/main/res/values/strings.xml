@@ -115,6 +115,8 @@
     <string name="ime_stt_budget_exhausted">Provider budget exhausted — top up or switch provider</string>
     <!-- #186: no request went out — the audio is saved and heals by itself. -->
     <string name="ime_stt_offline">Offline — saved, will transcribe when online</string>
+    <!-- #186: a raw-mode rescue is not a completion — say where the rest waits. -->
+    <string name="ime_rescue_saved">The recording is saved in the Workbench — Retry STT there.</string>
     <string name="ime_mic_blocked">Microphone unavailable — tap the mic to start again</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>

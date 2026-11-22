@@ -97,7 +97,9 @@ class VoiceSessionControllerTest {
         searchPercentProvider: (() -> Double?)? = null, // #124 adaptive window
         audioEvidenceStore: AudioEvidenceStore? = null, // #127 evidence retention
         audioEvidenceEnabled: () -> Boolean = { false },
-        journal: FragmentJournal? = null // #182 durable fragment journal
+        journal: FragmentJournal? = null, // #182 durable fragment journal
+        /** #186: the network gate the runner asks before the first request. */
+        online: () -> Boolean = { true }
     ): VoiceSessionController = VoiceSessionController(
         RuntimeEnvironment.getApplication(),
         pipeline,
@@ -115,7 +117,7 @@ class VoiceSessionControllerTest {
         fragmentQualityMin = fragmentQualityMin,
         // real live-fragment engine (#116) over the mocked STT endpoint,
         // with zero backoff so failure-path tests stay fast
-        sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L)),
+        sttRunnerOverride = SttRequestRunner({ sttApi }, backoffMs = listOf(0L, 0L), isOnline = online),
         logger = logger,
         sliceSizeProvider = sliceSizeProvider,
         searchPercentProvider = searchPercentProvider,
@@ -1489,6 +1491,104 @@ class VoiceSessionControllerTest {
         assertThat(partial).isNotNull()
         assertThat(partial!!.failedIndex).isEqualTo(2)
         assertThat(partial.chunkCount).isEqualTo(4)
+        // #186: the reason rides along, so an observer can say WHY.
+        assertThat(partial.failure).isEqualTo(SttFailure.TERMINAL)
+        assertThat(partial.message).contains("HTTP 410")
+        clearSessionFiles()
+    }
+
+    /**
+     * #186 (device defect): the Samsung flight with airplane mode on, raw mode
+     * ON, delivered a fully failed session as an empty "rescue success" — the
+     * success branch then marked the journal session COMPLETE and deleted it,
+     * so the Workbench showed nothing and no Toast explained why.
+     *
+     * A rescue is NOT a completion: the journal survives with every fragment
+     * PENDING and its failure class, which is exactly what the Workbench lists
+     * as an incomplete dictation and what Retry STT finishes.
+     */
+    @Test
+    fun `raw-mode rescue keeps the journal session recoverable instead of completing it`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        settings.rawMode = true
+        val ctx = RuntimeEnvironment.getApplication()
+        val sid = "20260101-1200-cccccccc"
+        File(ctx.cacheDir, "session.pcm").writeBytes(ByteArray(40_000) { i -> (i % 97).toByte() })
+        File(ctx.cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"$sid"}""")
+        val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
+        journal.sessionDir(sid).deleteRecursively()
+
+        // The device case: no usable network. The #186 gate answers OFFLINE
+        // BEFORE the wire, so the session makes ZERO requests and journals
+        // every fragment PENDING with class OFFLINE.
+        val controller = newController(fragmentBytes = 10_000, journal = journal, online = { false })
+        controller.restore()
+        // The delivered text is the joined partial — which is EMPTY here.
+        val sttSlot = slot<Result<TranscriptionPipeline.SttResult>>()
+        coEvery { pipeline.finishTranscription(capture(sttSlot), any(), any()) } answers {
+            Result.success(sttSlot.captured.getOrThrow().text)
+        }
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        // Nothing went out (the gate held) — the #186 behaviour is untouched.
+        verify(exactly = 0) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
+        val completed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last()
+        assertThat(completed.result.getOrThrow()).isEmpty()
+        val partial = completed.partial!!
+        assertThat(partial.failedIndex).isEqualTo(1)
+        assertThat(partial.chunkCount).isEqualTo(4)
+        assertThat(partial.failure).isEqualTo(SttFailure.OFFLINE)
+        assertThat(partial.message).contains("No usable network")
+
+        // NOT marked complete, NOT deleted: the journal is the recovery contract.
+        assertThat(journal.sessionDir(sid).exists()).isTrue()
+        val record = journal.readRecord(sid, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(record.failureClass).isEqualTo(SttFailure.OFFLINE.name)
+        val recoverable = journal.recoverableSessions().single { it.sessionId == sid }
+        assertThat(recoverable.completed).isFalse()
+        assertThat(recoverable.failureClass).isEqualTo(SttFailure.OFFLINE.name)
+        assertThat(recoverable.unfinishedCount).isEqualTo(4)
+
+        journal.sessionDir(sid).deleteRecursively()
+        clearSessionFiles()
+    }
+
+    /**
+     * #186 regression: the CLEAN success path is unchanged — every fragment
+     * DONE, no rescue marker, so the session is marked complete and its
+     * journal dir goes with the delivered transcripts (#185/#138).
+     */
+    @Test
+    fun `a clean raw-mode success still completes and deletes the journal session`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        settings.rawMode = true
+        val ctx = RuntimeEnvironment.getApplication()
+        val sid = "20260101-1200-dddddddd"
+        File(ctx.cacheDir, "session.pcm").writeBytes(ByteArray(40_000) { i -> (i % 97).toByte() })
+        File(ctx.cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"$sid"}""")
+        val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
+        journal.sessionDir(sid).deleteRecursively()
+
+        val controller = newController(fragmentBytes = 10_000, journal = journal)
+        controller.restore()
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+
+        controller.stopAndTranscribe()
+        controller.awaitIdle()
+
+        val completed = events.filterIsInstance<VoiceSessionController.Event.Completed>().last()
+        assertThat(completed.result.isSuccess).isTrue()
+        assertThat(completed.partial).isNull()
+        assertThat(journal.sessionDir(sid).exists()).isFalse()
+        assertThat(journal.recoverableSessions().none { it.sessionId == sid }).isTrue()
         clearSessionFiles()
     }
 

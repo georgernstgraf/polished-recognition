@@ -4,6 +4,8 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import com.georgernstgraf.polishedrecognition.pipeline.SttFailure
+import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
@@ -59,5 +61,35 @@ class PolishedRecognitionServiceTest {
             .containsExactly("hello world")
         assertThat(bundle.getStringArrayList(RecognizerIntent.EXTRA_RESULTS))
             .containsExactly("hello world")
+    }
+
+    /**
+     * #186: a delegated caller (a system mic) must never be handed an empty
+     * "success" for a raw-mode rescue that recovered nothing — the same rule
+     * the IME applies. The decision is pure so it is testable here.
+     */
+    @Test
+    fun `a rescue with no recovered text is reported as an error`() {
+        val partial = VoiceSessionController.Event.PartialInfo(
+            failedIndex = 1,
+            chunkCount = 1,
+            failure = SttFailure.OFFLINE,
+            message = "No usable network — saved for later"
+        )
+
+        assertThat(PolishedRecognitionService.isBlankRescue(partial, "")).isTrue()
+        assertThat(PolishedRecognitionService.isBlankRescue(partial, "   ")).isTrue()
+        // The reason maps to the caller's network error, not ERROR_SERVER.
+        assertThat(PolishedRecognitionService.mapRecognitionError(partial.message!!))
+            .isEqualTo(SpeechRecognizer.ERROR_NETWORK)
+    }
+
+    @Test
+    fun `a rescue that recovered text, or a clean result, stays a success`() {
+        val partial = VoiceSessionController.Event.PartialInfo(1, 2, SttFailure.TRANSIENT, "HTTP 500")
+
+        assertThat(PolishedRecognitionService.isBlankRescue(partial, "erster Teil")).isFalse()
+        assertThat(PolishedRecognitionService.isBlankRescue(null, "")).isFalse()
+        assertThat(PolishedRecognitionService.isBlankRescue(null, "hello")).isFalse()
     }
 }

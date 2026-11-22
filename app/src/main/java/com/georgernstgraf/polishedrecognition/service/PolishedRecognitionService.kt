@@ -188,16 +188,34 @@ class PolishedRecognitionService : RecognitionService() {
                     controller.removeSecondaryListener(secondaryListener)
                     event.result.fold(
                         onSuccess = { text ->
-                            logServiceInsertion(text, event)
-                            // Re-learn on successful delivery (#100): the session
-                            // already recorded the target at start (#102 amendment);
-                            // this captures the actual delivery and is throttled.
-                            callerPackage?.let { settings.recordKnownApp(it) }
-                            cb.results(buildResultBundle(text))
-                            runCatching { cb.endOfSpeech() }
-                            clientCallback = null
-                            stopServiceForeground()
-                            stopSelf()
+                            if (isBlankRescue(event.partial, text)) {
+                                // #186: a raw-mode rescue that recovered NOTHING
+                                // is not a success — reporting an empty result
+                                // would look like a silent, complete delivery
+                                // while the audio waits in the journal. Report
+                                // the reason instead. Deliberately NO
+                                // controller.cancel(): the rescued journal
+                                // session must survive for the Workbench (cancel
+                                // would delete it and the audio with it).
+                                logServiceInsertion(text, event)
+                                val msg = event.partial?.message ?: getString(R.string.ime_error)
+                                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                                cb.error(mapRecognitionError(msg))
+                                clientCallback = null
+                                stopServiceForeground()
+                                stopSelf()
+                            } else {
+                                logServiceInsertion(text, event)
+                                // Re-learn on successful delivery (#100): the session
+                                // already recorded the target at start (#102 amendment);
+                                // this captures the actual delivery and is throttled.
+                                callerPackage?.let { settings.recordKnownApp(it) }
+                                cb.results(buildResultBundle(text))
+                                runCatching { cb.endOfSpeech() }
+                                clientCallback = null
+                                stopServiceForeground()
+                                stopSelf()
+                            }
                         },
                         onFailure = { e ->
                             val msg = e.message ?: getString(R.string.ime_error)
@@ -332,6 +350,17 @@ class PolishedRecognitionService : RecognitionService() {
                 SpeechRecognizer.ERROR_NETWORK_TIMEOUT
             else -> SpeechRecognizer.ERROR_SERVER
         }
+
+        /**
+         * #186: is this a raw-mode rescue that recovered nothing? Such a
+         * delivery must reach a delegated caller as an ERROR (with its
+         * reason), never as an empty successful transcript — the same rule the
+         * IME applies. Pure so the rule is testable without a bound session.
+         */
+        internal fun isBlankRescue(
+            partial: VoiceSessionController.Event.PartialInfo?,
+            text: String?
+        ): Boolean = partial != null && text != null && text.isBlank()
 
         internal fun buildResultBundle(text: String): Bundle = Bundle().apply {
             putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, arrayListOf(text))

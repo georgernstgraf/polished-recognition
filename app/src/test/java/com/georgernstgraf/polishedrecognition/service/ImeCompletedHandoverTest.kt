@@ -6,6 +6,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.pipeline.SttFailure
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
@@ -16,6 +17,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 /**
  * #174: a successful send inserts the text and NOTHING else — the voice
@@ -86,6 +88,24 @@ class ImeCompletedHandoverTest {
 
     private fun completed(text: String) = VoiceSessionController.Event.Completed(
         result = Result.success(text)
+    )
+
+    /**
+     * #186: a raw-mode rescue event — the device case was an offline session
+     * whose every fragment failed, so the delivered text was EMPTY.
+     */
+    private fun rescued(
+        text: String,
+        failure: SttFailure? = SttFailure.OFFLINE,
+        message: String? = "No usable network — saved for later"
+    ) = VoiceSessionController.Event.Completed(
+        result = Result.success(text),
+        partial = VoiceSessionController.Event.PartialInfo(
+            failedIndex = 1,
+            chunkCount = 1,
+            failure = failure,
+            message = message
+        )
     )
 
     private fun field(fieldId: Int = 1) = EditorInfo().apply {
@@ -176,5 +196,44 @@ class ImeCompletedHandoverTest {
         service.onInputViewDrawn()
 
         assertThat(service.startCalls).isEqualTo(1)
+    }
+
+    /**
+     * #186 (device defect): a fully failed raw-mode session — airplane mode,
+     * every fragment OFFLINE — was delivered as an empty "rescue success". The
+     * IME inserted nothing and said nothing, while the controller had already
+     * marked the journal complete and deleted it.
+     *
+     * An empty rescue inserts NOTHING and always tells the user why plus where
+     * the recording waits — exactly one Toast, never a generic failure one.
+     */
+    @Test
+    fun `an empty raw-mode rescue inserts nothing and tells the user where the audio is`() {
+        ShadowToast.reset()
+
+        service.handleCompletedSuccess("", rescued(""))
+
+        assertThat(service.inserted).isEmpty()
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(1)
+        val toast = ShadowToast.getTextOfLatestToast()
+        assertThat(toast).contains(app.getString(R.string.ime_stt_offline))
+        assertThat(toast).contains("No usable network — saved for later")
+        assertThat(toast).contains(app.getString(R.string.ime_rescue_saved))
+    }
+
+    /**
+     * #186: a rescue that DID recover text inserts it — and shows the same one
+     * Toast, because the session is still incomplete.
+     */
+    @Test
+    fun `a non-blank raw-mode rescue inserts the recovered text and the same Toast`() {
+        ShadowToast.reset()
+
+        service.handleCompletedSuccess("erster Teil", rescued("erster Teil"))
+
+        assertThat(service.inserted).containsExactly("erster Teil")
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(1)
+        assertThat(ShadowToast.getTextOfLatestToast())
+            .contains(app.getString(R.string.ime_rescue_saved))
     }
 }

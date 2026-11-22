@@ -828,13 +828,27 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * The controller has already stopped the recording when this runs and
      * emits `Completed` before `IDLE`, so this only ever fires on a finished,
      * successfully inserted session.
+     *
+     * #186: a RESCUED delivery ([VoiceSessionController.Event.Completed.partial])
+     * is not a clean success — it inserts the recovered text only when there is
+     * any and always shows [rescueText], so an empty rescue can never look like
+     * a silent success.
      */
     internal fun handleCompletedSuccess(
         text: String,
         event: VoiceSessionController.Event.Completed
     ) {
         logInsertion(text, event)
-        insertResultText(text)
+        val partial = event.partial
+        if (partial == null) {
+            insertResultText(text)
+        } else {
+            // #186: a raw-mode rescue is not a clean success — a fragment is
+            // missing. Insert what was recovered (an EMPTY rescue inserts
+            // nothing at all), and always say why plus where the rest is.
+            if (text.isNotBlank()) insertResultText(text)
+            Toast.makeText(this, rescueText(partial), Toast.LENGTH_LONG).show()
+        }
         // Re-learn on successful insertion (#100): the session already
         // recorded the target at start (#102 amendment); this captures
         // the actual insertion target and is absorbed by the throttle.
@@ -845,6 +859,20 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // so it cannot start a new take behind the parked bar.
         cancelPendingAutoStart()
         applyParkingEvent(PostSendParkingPolicy.Event.COMPLETED_SUCCESS)
+    }
+
+    /**
+     * #186: the ONE Toast a rescued delivery shows — the actionable hint for
+     * the failure class (when it has one), the technical reason, and where the
+     * recording waits. Never a second, generic failure Toast: the text WAS
+     * saved, just not completely transcribed.
+     */
+    internal fun rescueText(partial: VoiceSessionController.Event.PartialInfo): String {
+        val parts = mutableListOf<String>()
+        SttFailureText.resFor(partial.failure)?.let { parts += getString(it) }
+        partial.message?.takeIf { it.isNotBlank() }?.let { parts += it }
+        parts += getString(R.string.ime_rescue_saved)
+        return parts.joinToString("\n")
     }
 
     /**
