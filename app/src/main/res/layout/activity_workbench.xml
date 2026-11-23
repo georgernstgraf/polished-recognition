@@ -8,6 +8,10 @@
   content-sized (wrap_content + minLines, no inner scrollbar — only this
   ScrollView scrolls), and the actions sit in three zones:
 
+  #191: on an INCOMPLETE page the order is header → banner → when-line → the
+  four leftover actions → zones → Raw. The reason and the actions it leads to
+  stay together at the top; the banner is the one affordance that gets there.
+
     A — above Raw:        target language + Polish
     B — below Raw:        target language + Polish, promote + empty Polished
     C — below Polished:   promote
@@ -83,6 +87,31 @@
         </LinearLayout>
 
         <!--
+          #185/#188/#191: the leftovers banner — the ONE affordance that leads
+          to an unfinished dictation, directly under the header. It spans the
+          page, is painted in the theme accent (accent text on the theme
+          background with an accent border: that pair stays readable in both
+          modes, unlike an accent FILL), takes the theme's touch height and
+          carries a ripple — the whole bar is the tap target. GONE unless the
+          journal holds a session that never became text, so an empty state has
+          no dead UI and no dead tap target.
+        -->
+        <TextView
+            android:id="@+id/workbench_recovery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/workbench_recovery_banner"
+            android:gravity="center_vertical"
+            android:minHeight="?android:attr/listPreferredItemHeightSmall"
+            android:paddingStart="?android:attr/listPreferredItemPaddingStart"
+            android:paddingEnd="?android:attr/listPreferredItemPaddingEnd"
+            android:textColor="?android:attr/colorAccent"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <!--
           #188: the "when" line of the shown page. A stored dictation shows its
           last change, a leftover its start plus seconds · fragments · reason.
           Empty on the compose slot, so the line takes no room there.
@@ -98,21 +127,58 @@
             android:visibility="gone" />
 
         <!--
-          #185/#188: the leftovers banner — GONE unless the journal holds a
-          session that never became text, so an empty state has no dead UI.
-          Since #188 it counts and dates them and jumps to the newest page.
+          #188/#191: the four actions of an unfinished dictation — directly
+          under the when-line, so the reason and the way out sit together (the
+          device check paged 1/3 · 2/3 · 3/3 before finding them at the bottom).
+          Visible only while a leftover page is shown; every enable state comes
+          from RecoveryActions, never from XML. Equal weights keep the long
+          labels inside the page on a narrow screen — a button wraps its text,
+          the row never scrolls on its own.
         -->
-        <TextView
-            android:id="@+id/workbench_recovery"
+        <LinearLayout
+            android:id="@+id/workbench_leftover_actions"
+            style="?android:attr/buttonBarStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:textColor="?android:attr/textColorPrimary"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/workbench_retry_stt"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/workbench_retry_stt" />
+
+            <Button
+                android:id="@+id/workbench_restore_text"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/workbench_restore_text"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/workbench_share_audio"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/workbench_share_audio" />
+
+            <Button
+                android:id="@+id/workbench_dismiss_leftover"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/workbench_dismiss_leftover" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/workbench_empty_hint"            android:layout_width="match_parent"
@@ -304,52 +370,6 @@
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_promote"
                 android:tint="?android:attr/textColorSecondary" />
-        </LinearLayout>
-
-        <!--
-          #188: the four actions of an unfinished dictation — #185's screen,
-          moved onto the page. Visible only while a leftover page is shown;
-          every enable state comes from RecoveryActions, never from XML.
-        -->
-        <LinearLayout
-            android:id="@+id/workbench_leftover_actions"
-            style="?android:attr/buttonBarStyle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <Button
-                android:id="@+id/workbench_retry_stt"
-                style="?android:attr/buttonBarButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/workbench_retry_stt" />
-
-            <Button
-                android:id="@+id/workbench_restore_text"
-                style="?android:attr/buttonBarButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/workbench_restore_text"
-                android:visibility="gone" />
-
-            <Button
-                android:id="@+id/workbench_share_audio"
-                style="?android:attr/buttonBarButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/workbench_share_audio" />
-
-            <Button
-                android:id="@+id/workbench_dismiss_leftover"
-                style="?android:attr/buttonBarButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/workbench_dismiss_leftover" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

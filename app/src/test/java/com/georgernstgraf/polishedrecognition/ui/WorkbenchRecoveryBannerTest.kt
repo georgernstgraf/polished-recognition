@@ -20,10 +20,10 @@ import org.robolectric.Shadows.shadowOf
 import java.io.File
 
 /**
- * #185/#188: the Workbench entry point — the leftovers banner is GONE when
- * there is nothing to recover (no dead UI), names the count AND the newest
- * leftover's stamp otherwise, and a tap jumps to that page instead of opening
- * a screen of its own.
+ * #185/#188/#191: the Workbench entry point — the leftovers banner is GONE when
+ * there is nothing to recover (no dead UI, no dead tap target), names the count
+ * AND the newest leftover's stamp otherwise, says what a tap does ("tap to
+ * open"), and a tap jumps to that page instead of opening a screen of its own.
  */
 @RunWith(RobolectricTestRunner::class)
 class WorkbenchRecoveryBannerTest {
@@ -77,18 +77,20 @@ class WorkbenchRecoveryBannerTest {
         val activity = launch()
 
         assertThat(activity.banner().visibility).isEqualTo(View.GONE)
+        // a GONE view is not on screen, so it cannot be a dead tap target
+        assertThat(activity.banner().isShown).isFalse()
     }
 
     @Test
-    fun `a leftover names its count and the newest stamp in the banner`() {
+    fun `a leftover names its count, the newest stamp and what a tap does`() {
         seedUnrecoverable()
 
         val activity = launch()
 
         assertThat(activity.banner().visibility).isEqualTo(View.VISIBLE)
-        // "<n> incomplete · <stamp of the newest>"
+        // "<n> incomplete · <stamp of the newest> — tap to open" (#191)
         assertThat(activity.banner().text.toString())
-            .matches("""1 incomplete dictation · \d{2}:\d{2}""")
+            .matches("""1 incomplete dictation · (?:\w{3} )?\d{2}:\d{2} — tap to open""")
     }
 
     @Test
@@ -99,7 +101,8 @@ class WorkbenchRecoveryBannerTest {
         seedUnrecoverable(newerSession, failureClass = "TERMINAL")
 
         val activity = launch()
-        assertThat(activity.banner().text.toString()).startsWith("2 incomplete dictations")
+        assertThat(activity.banner().text.toString())
+            .matches("""2 incomplete dictations · (?:\w{3} )?\d{2}:\d{2} — tap to open""")
 
         activity.banner().performClick()
 

@@ -164,6 +164,8 @@
         <item quantity="one">%1$d incomplete dictation</item>
         <item quantity="other">%1$d incomplete dictations</item>
     </plurals>
+    <!-- #191: the banner is the one affordance — it says what a tap does. -->
+    <string name="recovery_banner_tap_to_open">%1$s — tap to open</string>
     <plurals name="workbench_leftover_detail">
         <item quantity="one">%1$d s · %2$d fragment · %3$s</item>
         <item quantity="other">%1$d s · %2$d fragments · %3$s</item>

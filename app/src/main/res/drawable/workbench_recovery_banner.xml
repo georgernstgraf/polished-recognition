@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  #191: the tap affordance of the leftovers banner — a visible accent border
+  over the theme background, with a ripple so the whole bar reads as something
+  that leads somewhere. Theme attributes only (XmlColorPolicyTest rule 1/2):
+  no colour literal, no bare `?attr/`.
+
+  The FILL is deliberately not the accent: DeviceDefault's accent is dark in
+  the light theme (#475D92 on AOSP) and very light in the night theme
+  (#D9E2FF), so neither `textColorPrimary` nor `textColorPrimaryInverse`
+  stays readable on it in both modes. Accent border + accent text on the
+  theme background holds its contrast in both.
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?android:attr/colorControlHighlight">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?android:attr/colorBackground" />
+            <stroke
+                android:width="2dp"
+                android:color="?android:attr/colorAccent" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+</ripple>

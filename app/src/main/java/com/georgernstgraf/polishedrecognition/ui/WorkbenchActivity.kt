@@ -85,6 +85,11 @@ import java.util.Locale
  * four recovery actions sit on the page itself. The #185 recovery screen is retired
  * with that; the Workbench is the only screen and the only owner of
  * [RecoveryCoordinator.onFinished].
+ *
+ * #191 puts the actions DIRECTLY under the when-line (reason and way out
+ * together at the top, found by paging 1/3 · 2/3 · 3/3 on a device otherwise)
+ * and makes the banner the one affordance that leads there: accent bar under
+ * the header, count + newest stamp + "tap to open", GONE at zero.
  */
 class WorkbenchActivity : Activity() {
 
@@ -104,7 +109,7 @@ class WorkbenchActivity : Activity() {
     /** #188: the page's "when" line — empty on the compose slot, so GONE there. */
     private lateinit var stampLabel: TextView
 
-    /** #185/#188: "<n> incomplete · <stamp>", GONE when there are none. */
+    /** #185/#188/#191: "<n> incomplete · <stamp> — tap to open", GONE at zero. */
     private lateinit var recoveryBanner: TextView
 
     /** #188: the four actions of a leftover page — GONE on every other page. */
@@ -442,6 +447,10 @@ class WorkbenchActivity : Activity() {
      * #188: count plus the newest leftover's stamp. A tap jumps to that page
      * ([WorkbenchPages.newestLeftoverIndex]) instead of opening a list — the
      * leftover IS a page of the ring now.
+     *
+     * #191: the banner is the ONE affordance that leads to a leftover, so it
+     * says what it does ("— tap to open") and is GONE at zero (no count = no
+     * element, hence no tap target).
      */
     private fun bindRecoveryBanner() {
         val count = leftovers.size
@@ -456,7 +465,9 @@ class WorkbenchActivity : Activity() {
             locale()
         )
         val countText = resources.getQuantityString(R.plurals.recovery_banner, count, count)
-        recoveryBanner.text = if (stamp == null) countText else "$countText · $stamp"
+        val detail = if (stamp == null) countText else "$countText · $stamp"
+        recoveryBanner.text =
+            getString(R.string.recovery_banner_tap_to_open, detail)
     }
 
     /** The resource locale — the stamp's day/month names follow it. */

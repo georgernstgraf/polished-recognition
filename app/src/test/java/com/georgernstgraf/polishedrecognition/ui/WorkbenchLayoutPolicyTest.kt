@@ -182,6 +182,70 @@ class WorkbenchLayoutPolicyTest {
             .that(violations).isEmpty()
     }
 
+    /**
+     * #191: the actions sit DIRECTLY under the when-line and above the
+     * language/Polish zone — the reason and the way out stay together at the
+     * top of an incomplete page (the device check paged through the whole ring
+     * before finding Retry STT at the bottom). The file order is the screen
+     * order, so it is the assertion.
+     */
+    @Test
+    fun `the leftover actions sit directly under the when-line`() {
+        val order = orderOf(
+            "workbench_recovery",
+            "workbench_stamp",
+            "workbench_leftover_actions",
+            "workbench_language_a",
+        )
+        fun at(id: String) = order.getValue(id)
+
+        val violations = mutableListOf<String>()
+        if (at("workbench_recovery") > at("workbench_stamp")) {
+            violations += "the banner must precede the when-line (#191: directly under the header)"
+        }
+        if (at("workbench_leftover_actions") < at("workbench_stamp")) {
+            violations += "workbench_leftover_actions must follow workbench_stamp (#191)"
+        }
+        if (at("workbench_leftover_actions") > at("workbench_language_a")) {
+            violations += "workbench_leftover_actions must precede the language/Polish zone (#191)"
+        }
+
+        assertWithMessage("the #191 order on an incomplete page is out of order:\n" +
+            violations.joinToString("\n")).that(violations).isEmpty()
+    }
+
+    /**
+     * #191: the row must never scroll on its own and must never have a fixed
+     * width — the long labels wrap inside equal-weight buttons instead.
+     */
+    @Test
+    fun `the leftover actions are a wrapping-safe horizontal row`() {
+        val row = elementById("workbench_leftover_actions")
+        assertWithMessage("line ${row.line}: the leftover actions must stay horizontal")
+            .that(row.attributes["android:orientation"]).isEqualTo("horizontal")
+        assertWithMessage("line ${row.line}: the row must grow with its buttons")
+            .that(row.attributes["android:layout_height"]).isEqualTo("wrap_content")
+
+        val buttons = parse(layout).filter {
+            it.attributes["android:id"] in setOf(
+                "@+id/workbench_retry_stt",
+                "@+id/workbench_restore_text",
+                "@+id/workbench_share_audio",
+                "@+id/workbench_dismiss_leftover",
+            )
+        }
+        assertWithMessage("the leftover row declares no Button at all — the scan is vacuous")
+            .that(buttons).hasSize(4)
+        val fixed = buttons.filter {
+            it.attributes["android:layout_width"] != "0dp" ||
+                it.attributes["android:layout_weight"] != "1"
+        }.map { "line ${it.line} ${it.attributes["android:id"]}: " +
+            "layout_width=\"${it.attributes["android:layout_width"]}\" " +
+            "layout_weight=\"${it.attributes["android:layout_weight"]}\"" }
+        assertWithMessage("each leftover button must divide the row by weight, not by a " +
+            "fixed width (#191):\n" + fixed.joinToString("\n")).that(fixed).isEmpty()
+    }
+
     /** #178: Polished is produced by the pipeline, never typed into. */
     @Test
     fun `polished is a read-only text view while raw stays editable`() {
