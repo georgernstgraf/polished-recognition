@@ -3,7 +3,6 @@
     <color name="recording_overlay">#E6000000</color>
     <color name="recording_text_primary">#FFFFFF</color>
     <color name="recording_divider">#4DFFFFFF</color>
-    <color name="recording_pill_bg">#33FFFFFF</color>
     <color name="recording_icon_tint">#FFFFFF</color>
 
     <!-- #161: theme text palette (night). Ratios against the app background #191C1E:

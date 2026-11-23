@@ -914,7 +914,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
                     is TranscriptionPipeline.TranscriptionStage.RequestingSttFragment ->
                         getString(R.string.ime_stage_stt_seconds, stage.audioSeconds)
                     is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
-                        getString(R.string.ime_stage_llm_words, stage.wordCount)
+                        resources.getQuantityString(
+                            R.plurals.ime_stage_llm_words,
+                            stage.wordCount,
+                            stage.wordCount
+                        )
                 }
             }
             is VoiceSessionController.Event.CancelledWithTranscripts -> {
@@ -933,7 +937,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 }
                 Toast.makeText(
                     this,
-                    getString(R.string.cancelled_dictation_saved, event.text.length),
+                    resources.getQuantityString(
+                        R.plurals.cancelled_dictation_saved,
+                        event.text.length,
+                        event.text.length
+                    ),
                     Toast.LENGTH_LONG
                 ).show()
             }

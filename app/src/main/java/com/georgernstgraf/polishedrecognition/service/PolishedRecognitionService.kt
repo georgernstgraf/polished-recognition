@@ -265,7 +265,11 @@ class PolishedRecognitionService : RecognitionService() {
             is TranscriptionPipeline.TranscriptionStage.RequestingSttFragment ->
                 getString(R.string.ime_stage_stt_seconds, s.audioSeconds)
             is TranscriptionPipeline.TranscriptionStage.RequestingLlm ->
-                getString(R.string.ime_stage_llm_words, s.wordCount)
+                resources.getQuantityString(
+                    R.plurals.ime_stage_llm_words,
+                    s.wordCount,
+                    s.wordCount
+                )
         }
 
     private fun hasMicPermission(): Boolean =

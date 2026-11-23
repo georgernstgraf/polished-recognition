@@ -600,7 +600,11 @@ class SettingsActivity : Activity() {
                     }
                     sttTokenField.error = null
                     Toast.makeText(this@SettingsActivity, getString(R.string.token_valid), Toast.LENGTH_SHORT).show()
-                    Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@SettingsActivity,
+                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
                     sttTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
@@ -645,7 +649,11 @@ class SettingsActivity : Activity() {
                         }
                     }
                     llmTokenField.error = null
-                    Toast.makeText(this@SettingsActivity, getString(R.string.models_fetched, models.size), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@SettingsActivity,
+                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
                     llmTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)

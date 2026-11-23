@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Polished Recognition</string>
-    <string name="settings_title">Configure Voice Providers</string>
     <string name="stt_section">STT (Speech-to-Text)</string>
     <string name="llm_section">LLM Post-Processing</string>
     <string name="processing_section">Output Control</string>
@@ -16,7 +15,6 @@
     <string name="fetch_models">Fetch Models</string>
     <string name="test_token">Test Token</string>
     <string name="compress_audio">Slow connection: upload OGG/Opus</string>
-    <string name="compress_audio_hint" formatted="false">On: uploads are ~10x smaller (OGG/Opus) but the phone spends ~8 % of the audio length encoding before each request — that delay is part of the stop wait. Off: WAV, no encode cost. Live transcription runs either way.</string>
     <string name="advanced_section">Advanced / seldom needed</string>
     <string name="slice_auto">Fragment cut: auto</string>
     <string name="slice_seconds">Fragment cut (slice) in seconds</string>
@@ -40,6 +38,7 @@
     <string name="wrap_width_preset_80" translatable="false">80</string>
     <string name="wrap_width_preset_120" translatable="false">120</string>
     <string name="wrap_width_preset_200" translatable="false">200</string>
+    <string name="wrap_width_preset_off">0 (off)</string>
     <string name="app_wrap_section">Line wrap per app</string>
     <string name="app_wrap_pick">App</string>
     <string name="app_wrap_global_hint">global (%1$d)</string>
@@ -63,27 +62,22 @@
     <string name="settings_save_blocked">Not saved — fix the highlighted field (%1$s). It may be further down the screen.</string>
     <string name="token_valid">Token valid</string>
     <string name="token_invalid">Invalid token or no access</string>
-    <string name="no_models_endpoint">Provider does not support model listing — enter model name manually</string>
-    <string name="models_fetched">%1$d models loaded</string>
+    <plurals name="models_fetched">
+        <item quantity="one">%1$d model loaded</item>
+        <item quantity="other">%1$d models loaded</item>
+    </plurals>
     <string name="no_models_yet">No cached models for this endpoint — validate / fetch first</string>
     <string name="select_model_from_list">Select a model from the list</string>
     <string name="select_or_enter_model">Select or enter a model — a space shows all</string>
     <string name="settings_hint_message">Polished is your active keyboard, so Settings can\'t be edited here. Switch back to your text keyboard and open Polished Recognition from the app launcher.</string>
     <string name="settings_hint_title">Open from launcher</string>
-    <string name="add_from_preset">Add from preset…</string>
     <string name="custom_provider">Custom provider…</string>
     <string name="listening_notification">Listening…</string>
     <string name="processing_notification">Processing voice input…</string>
-    <string name="error_no_stt_token">STT API token not configured</string>
-    <string name="error_no_llm_token">LLM API token not configured</string>
-    <string name="error_network">Network error — check connection</string>
-    <string name="error_transcription_failed">Transcription failed</string>
-    <string name="error_postprocess_failed">Post-processing failed</string>
     <string name="reset_prompt">Reset</string>
     <string name="prompt_variables" translatable="false">Variables:</string>
     <string name="enable_voice_keyboard">Enable Voice Keyboard (IME)</string>
     <string name="voice_keyboard_hint">Enable “Polished Recognition” in the on-screen keyboard list, then choose it as the voice input in your keyboard’s settings (HeliBoard, Fossify Keyboard, or OpenBoard).</string>
-    <string name="voice_input_info_title">Voice Input Setup</string>
     <string name="voice_input_info_message" translatable="false">Polished Recognition works with English prompts, so enter your target language in English (e.g. "German" not "Deutsch").\n\nFull setup guide:\n<a href="https://github.com/georgernstgraf/polished-recognition#readme">github.com/georgernstgraf/polished-recognition#readme</a>\n\nMade with love by Georg Graf 💙</string>
 
     <string name="about_title">About</string>
@@ -91,14 +85,16 @@
     <string name="about_version">Version: %s</string>
     <string name="about_commit">Commit: %s</string>
     <string name="quick_llm">LLM</string>
-    <string name="quick_language_hint">Language</string>
 
     <string name="voice_subtype_label" translatable="false">Polished Recognition voice</string>
     <string name="ime_stage_compressing">Preparing upload\u2026</string>
     <string name="ime_stage_stt">Transcribing (STT)\u2026</string>
     <!-- #116: live drain progress — pending audio seconds during the fragment STT drain, word count during the single LLM pass. -->
     <string name="ime_stage_stt_seconds">STT \u00b7 %1$ds audio</string>
-    <string name="ime_stage_llm_words">%1$d words \u2192 LLM</string>
+    <plurals name="ime_stage_llm_words">
+        <item quantity="one">%1$d word \u2192 LLM</item>
+        <item quantity="other">%1$d words \u2192 LLM</item>
+    </plurals>
     <string name="ime_settings_desc">Settings</string>
     <string name="ime_switch_keyboard_desc">Switch keyboard</string>
     <string name="ime_pause_desc">Pause</string>
@@ -117,7 +113,6 @@
     <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>
     <string name="ime_flush_desc">Discard recording</string>
     <string name="ime_delete_word_desc">Delete last word</string>
-    <string name="ime_processing">\u2026</string>
     <string name="ime_error">Transcription failed</string>
     <!-- #183: STT failure classes that need a user action, shown before the technical detail. -->
     <string name="ime_stt_token_rejected">STT token rejected — update it in Settings, then send again</string>
@@ -137,7 +132,10 @@
     <string name="crash_copied">Copied to clipboard</string>
     <!-- #113 salvage: cancel destroyed a session with finished transcripts -->
     <string name="cancelled_dictation_clip">Cancelled dictation</string>
-    <string name="cancelled_dictation_saved">Dictation discarded — transcript (%d chars) copied to clipboard</string>
+    <plurals name="cancelled_dictation_saved">
+        <item quantity="one">Dictation discarded — transcript (%1$d char) copied to clipboard</item>
+        <item quantity="other">Dictation discarded — transcript (%1$d chars) copied to clipboard</item>
+    </plurals>
 
     <!--
       #169/#170/#171: Workbench (epic #166) — the app's own editor window.

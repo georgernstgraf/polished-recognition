@@ -127,12 +127,16 @@
             android:cursorVisible="false"
             android:layout_marginBottom="8dp" />
 
+        <!-- #195: these fields hold endpoints, credentials and app tuning, never
+             personal data — autofill stays out of them (as it already does on
+             the two model pickers below). -->
         <EditText
             android:id="@+id/stt_url"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/api_url"
             android:inputType="textUri"
+            android:importantForAutofill="no"
             android:imeOptions="actionDone"
             android:layout_marginBottom="8dp" />
 
@@ -149,6 +153,7 @@
                 android:layout_weight="1"
                 android:hint="@string/api_token"
                 android:inputType="textPassword"
+                android:importantForAutofill="no"
                 android:imeOptions="actionDone" />
             <ImageButton
                 android:id="@+id/stt_token_toggle"
@@ -204,6 +209,7 @@
             android:layout_height="wrap_content"
             android:hint="@string/api_url"
             android:inputType="textUri"
+            android:importantForAutofill="no"
             android:imeOptions="actionDone"
             android:layout_marginBottom="8dp" />
 
@@ -220,6 +226,7 @@
                 android:layout_weight="1"
                 android:hint="@string/api_token"
                 android:inputType="textPassword"
+                android:importantForAutofill="no"
                 android:imeOptions="actionDone" />
             <ImageButton
                 android:id="@+id/llm_token_toggle"
@@ -309,6 +316,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textMultiLine"
+            android:importantForAutofill="no"
             android:minLines="5"
             android:gravity="top"
             android:layout_marginBottom="16dp" />
@@ -349,6 +357,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textMultiLine"
+            android:importantForAutofill="no"
             android:minLines="2"
             android:gravity="top"
             android:layout_marginBottom="16dp" />
@@ -404,6 +413,7 @@
             android:layout_height="wrap_content"
             android:hint="@string/slice_seconds"
             android:inputType="numberDecimal"
+            android:importantForAutofill="no"
             android:imeOptions="actionDone"
             android:layout_marginBottom="4dp" />
 
@@ -429,6 +439,7 @@
             android:layout_height="wrap_content"
             android:hint="@string/search_percent"
             android:inputType="number"
+            android:importantForAutofill="no"
             android:imeOptions="actionDone"
             android:layout_marginBottom="4dp" />
 
@@ -449,6 +460,7 @@
             android:hint="@string/workbench_fifo_size"
             android:imeOptions="actionDone"
             android:inputType="number"
+            android:importantForAutofill="no"
             android:layout_marginBottom="4dp" />
 
         <TextView
@@ -475,6 +487,7 @@
             android:layout_height="wrap_content"
             android:hint="@string/wrap_width"
             android:inputType="number"
+            android:importantForAutofill="no"
             android:imeOptions="actionDone"
             android:layout_marginBottom="4dp" />
 
@@ -497,28 +510,28 @@
                 android:id="@+id/wrap_80"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="80"
+                android:text="@string/wrap_width_preset_80"
                 style="@android:style/Widget.DeviceDefault.Button.Borderless" />
 
             <Button
                 android:id="@+id/wrap_120"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="120"
+                android:text="@string/wrap_width_preset_120"
                 style="@android:style/Widget.DeviceDefault.Button.Borderless" />
 
             <Button
                 android:id="@+id/wrap_200"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="200"
+                android:text="@string/wrap_width_preset_200"
                 style="@android:style/Widget.DeviceDefault.Button.Borderless" />
 
             <Button
                 android:id="@+id/wrap_off"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="0 (off)"
+                android:text="@string/wrap_width_preset_off"
                 style="@android:style/Widget.DeviceDefault.Button.Borderless" />
         </LinearLayout>
 

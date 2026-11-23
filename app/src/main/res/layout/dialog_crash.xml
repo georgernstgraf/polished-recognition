@@ -39,6 +39,7 @@
 
         <Button
             android:id="@+id/crash_close_button"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
