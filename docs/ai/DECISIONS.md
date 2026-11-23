@@ -13,6 +13,77 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-23: #192 — Eine Pause gehört zu EINER App: dieselbe setzt immer fort, eine fremde rettet und ersetzt
+
+Eine Pause war anonym: `pause()` setzte PAUSED, und der nächste Bind entschied
+„PAUSED + gleiches Feld → weiter" — unabhängig davon, WER pausiert hat. Auf dem
+OnePlus des Owners hat das eine Aufnahme zerstört: X (Tastaturwechsel) um 20:17
+pausiert, 3,6 Minuten später automatisch fortgesetzt, und der nächste Send trug
+das alte Audio mit (`INSERTION length=1125` um 20:23:44; das Audio stammte von
+vor 20:17). Die entscheidende Frage ist nicht „ist pausiert?", sondern „gehört
+diese Aufnahme in die App, die jetzt die Tastatur bindet?".
+
+- **Die Regel ist die kürzestmögliche: dieselbe Ziel-App setzt IMMER fort.**
+  Pause-Knopf, X (#155), Nav-Bar-Schließen, ein verstecktes Tastaturfenster und
+  eine nach Prozess-Tod/Reboot aus dem #67-Snapshot wiederhergestellte Aufnahme
+  verhalten sich identisch: Rückkehr in dieselbe App → `RESUME` (Audio wird
+  angehängt). **Kein Zeitfenster, kein „braucht ↺", kein Sonderfall für
+  Restore** — Owner, nach zwei Korrekturen an einem ersten Entwurf mit
+  10-s-Fenster: „continue even after ten seconds", dann „always continue, no
+  exceptions". Eine verstrichene Zeit darf nie über eine Aufnahme entscheiden.
+- **Eine fremde App beendet die Aufnahme über den bestehenden #113-Weg.**
+  Anderes Zielpaket → `FRESH_START`: `cancel()` (kopiert bereits transkribierte
+  Fragmente in die Zwischenablage + Toast) und eine frische leere Aufnahme.
+  Das ersetzt #134s FELD-Vergleich für PAUSED: ein anderes Feld DERSELBEN App
+  ist weiterhin „mein eigenes Diktat" und wird fortgesetzt.
+- **Der einzige verbleibende Zustand ist das Zielpaket.** Der Controller merkt
+  sich beim Pausieren `callerPackage` (`pausedPackage()`), löscht es in
+  `resume()`/`cancel()`/`stopAndTranscribe()` und schreibt es in den
+  BESTEHENDEN Prozess-Tod-Snapshot (`cacheDir/session.meta`, additiv und
+  nullable — ein pre-#192-Snapshot parst weiter und fällt auf das zuletzt
+  bediente Feld zurück). Kein Workbench-Eintrag, keine Journal-Session, kein
+  weiterer Zustand.
+- **Bewusst KEINE `PauseReason`-Taxonomie.** Ein erster Entwurf hatte ein Enum
+  (`USER_PAUSE`/`KEYBOARD_SWITCH`/`KEYBOARD_DISMISSED`) plus
+  `SALVAGE_AND_FRESH`. Nach der finalen Regel entscheidet der Grund NICHTS
+  mehr — „dieselbe App → weiter, fremde App → retten" gilt für jeden Pause-Pfad
+  — und ein Typ ohne Entscheidung ist totes Gewicht. Entfernt (Owner: „do not
+  keep a taxonomy that carries no decision"). Was bleibt: `AutoStartPolicy`
+  bekommt nur noch `(state, sameTarget, permission)` → `RESUME` /
+  `FRESH_START` / `NONE`; der Grund steht als reines Label in der bestehenden
+  `pause cause=… pkg=…`-Zeile in `ime-lifecycle.log` (kein neuer Stream).
+- **Ein verschwindendes Tastaturfenster pausiert eine laufende Aufnahme.**
+  Bisher lief sie unsichtbar weiter (gemessen `20:13:36 onWindowHidden
+  state=RECORDING`); jetzt pausiert `onWindowHidden`/`onFinishInputView` — aber
+  nur ohne Rotationssignal (`configChangeInProgress`, frisches `RotationGate`),
+  sonst würde jedes Drehen die Aufnahme anhalten (#83, Oplus-Rebind-Sturm).
+  `ImeStartDecision` bleibt unverändert; der verzögerte PROVISIONAL_FREEZE-
+  Resume (500 ms) ruft jetzt DIESELBE Entscheidung statt unbedingt `resume()`.
+- **Restore ist kein FREEZE-Fall mehr.** `ImeStartDecision` verliert den
+  `restored`-Parameter: „always continue, no exceptions" heißt, dass auch eine
+  aus dem Snapshot wiederhergestellte Aufnahme beim ERSTEN Bind entschieden wird
+  (gleiche App → weiter). Nur die Rotation friert weiter ein — dort ist die
+  Session lebendig und der Bind eine Neuerzeugung, keine Rückkehr.
+- **Der Post-Send-Park endet mit der Tastatur.** „if after send I close the IME
+  with nav, and then tap to edit text, it should just start a new dictation" —
+  `PostSendParkingPolicy.Event.DISMISSED` hebt den Park auf (vorher hielt er
+  ihn); für die stehende Tastatur bleibt #177 unverändert.
+- **Der Park sieht nicht mehr wie eine tiefe Pause aus.** ↺ trägt
+  `ime_new_take_desc` („New take"), die Stage-Zeile sagt `ime_post_send_parked`,
+  Send bleibt disabled, der Timer bleibt versteckt; eine echte Pause zeigt
+  gepufferte Zeit und aktives Send. Keine Layout-Änderung, keine Farbe.
+- **Bewusste Konsequenz (Owner-Entscheid, kein Versehen):** eine am Vortag
+  pausierte Aufnahme kann an eine viel spätere Diktat-Session in derselben App
+  anschließen. Das ist der Preis von „always continue, no exceptions".
+- **Tests:** +18 (`:app` 642 → 660): `AutoStartPolicyTest` als Matrix,
+  `ImePauseEntryTest` (11: Schließen → gleiche App; fremde App → Rettung +
+  frisch; Restore → gleiche App; anderes Feld derselben App; X × Pause-Knopf;
+  Rotationssturm; Hide-RECORDING; Park-Ende beim Schließen; Park vs. Pause),
+  `VoiceSessionControllerTest` +5 (Ziel gemerkt/gelöscht/Snapshot-Roundtrip),
+  `ImeStartDecisionTest` (Restore fällt nicht mehr unter FREEZE),
+  `PostSendParkingPolicyTest` (DISMISSED hebt auf). **Kein Version bump** — die
+  App bleibt 1.5.1 / 10501.
+
 ## 2026-11-23: #118 Phase C — ein Rebind überspringt identische Arbeit, statt sie zu wiederholen
 
 Eine Drehung liefert auf Oplus einen Rebind-**Sturm** (mehrere

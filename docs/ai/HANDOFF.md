@@ -9,6 +9,13 @@ status: stable
 
 # Hand Off
 
+**#192 (2026-11-23, shipped):** a pause belongs to ONE app — the same app always
+continues it („always continue, no exceptions": pause button, X, nav-bar close,
+restored snapshot; no time window, no ↺ requirement), another app ends it
+through the #113 cancel and starts fresh. Nothing is written for a paused take.
+The parked post-send bar now ends with the keyboard and no longer reads as a
+pause. Owner check: item 0 below.
+
 **#191 (2026-11-23, shipped):** the owner's device check of #186 paged 1/3 ·
 2/3 · 3/3 before finding Retry STT, so the four leftover actions now sit
 directly under the when-line and the banner is an accent bar under the header
@@ -86,10 +93,26 @@ a device**, so neither #186 nor #152 may be closed yet.
    Toast names the reason and the Workbench. The airplane-mode flight has to be
    repeated on the device before #186 (and #152) can close — item 7 below.
 
+0. [ ] **#192 device check (owner, OnePlus `f6de166c`): the pause has a home now.**
+   (a) Dictate → close the keyboard with the nav-bar down arrow → reopen the
+   same app and tap the field: the SAME dictation continues (the audio from
+   before the close is still in it — that is the rule, listen for it). (b) Same
+   start, but switch to ANOTHER app and dictate: the old audio is NOT sent; a
+   Toast/clipboard keeps whatever was already transcribed and a fresh take
+   starts. (c) X (keyboard switch) → back into the same app → continues; press
+   it, type elsewhere for two minutes, come back → still continues (no ↺ is
+   required, by design). (d) Start a take and close the keyboard while the bar
+   says it is RECORDING: the microphone must stop (the take is paused, not
+   lost). (e) Send, then close the keyboard with nav, then tap a field: a fresh
+   take starts instead of the parked bar. Evidence: `ime-lifecycle.log` lines
+   `pause cause=… pkg=…` and `onStartInputView action=… sameTarget=…`.
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the
-   bar stays visible and parked (▶ enabled, Send and Flush greyed out, Gear/X
-   live, timer hidden) → no recording starts by itself. Tapping ▶ starts a fresh
-   take. Focusing a different text field resumes the normal auto-start (#177).
+   bar stays visible and parked (↺ enabled under "New take", Send and Flush
+   greyed out, Gear/X live, timer hidden, stage line "Sent — ↺ starts a new
+   take") → no recording starts by itself. Tapping ↺ starts a fresh take.
+   Focusing a different text field resumes the normal auto-start (#177); since
+   #192 closing the keyboard with nav also ends the park (the next entry starts
+   a fresh take instead).
 2. [ ] **Owner: judge the icon-only actions on the device.** `ic_promote`
    (Material `publish`) and `ic_delete_outline` for "clear polished" carry no
    text label, and `ic_polish` (Material `auto_awesome`) sits next to the
