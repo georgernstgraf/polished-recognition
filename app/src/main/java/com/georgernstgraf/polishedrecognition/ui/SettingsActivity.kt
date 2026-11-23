@@ -223,9 +223,15 @@ class SettingsActivity : Activity() {
         // is switched on this very screen, so re-resolve when it flips.
         compressAudioCheckbox.setOnCheckedChangeListener { _, _ -> refreshAutoValues() }
 
-        findViewById<Button>(R.id.wrap_80).setOnClickListener { wrapWidthField.setText("80") }
-        findViewById<Button>(R.id.wrap_120).setOnClickListener { wrapWidthField.setText("120") }
-        findViewById<Button>(R.id.wrap_200).setOnClickListener { wrapWidthField.setText("200") }
+        findViewById<Button>(R.id.wrap_80).setOnClickListener {
+            wrapWidthField.setText(getString(R.string.wrap_width_preset_80))
+        }
+        findViewById<Button>(R.id.wrap_120).setOnClickListener {
+            wrapWidthField.setText(getString(R.string.wrap_width_preset_120))
+        }
+        findViewById<Button>(R.id.wrap_200).setOnClickListener {
+            wrapWidthField.setText(getString(R.string.wrap_width_preset_200))
+        }
         findViewById<Button>(R.id.wrap_off).setOnClickListener { wrapWidthField.setText("0") }
 
         setupAppWrapSection()

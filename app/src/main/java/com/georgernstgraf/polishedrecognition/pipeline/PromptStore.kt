@@ -1,6 +1,7 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
 import android.content.Context
+import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -17,15 +18,15 @@ class PromptStore(context: Context) {
     }
 
     fun set(key: String, value: String) {
-        prefs.edit().putString(key, value).apply()
+        prefs.edit { putString(key, value) }
     }
 
     fun restoreDefault(key: String) {
-        prefs.edit().remove(key).apply()
+        prefs.edit { remove(key) }
     }
 
     fun restoreAllDefaults() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     val systemPrompt: String get() = get(KEY_SYSTEM)

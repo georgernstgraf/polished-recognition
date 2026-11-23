@@ -115,11 +115,11 @@ class SettingsStore(
 
     var rawMode: Boolean
         get() = prefs.getBoolean(RAW_MODE_KEY, false)
-        set(value) = prefs.edit().putBoolean(RAW_MODE_KEY, value).apply()
+        set(value) = prefs.edit { putBoolean(RAW_MODE_KEY, value) }
 
     var compressAudio: Boolean
         get() = prefs.getBoolean(COMPRESS_AUDIO_KEY, false)
-        set(value) = prefs.edit().putBoolean(COMPRESS_AUDIO_KEY, value).apply()
+        set(value) = prefs.edit { putBoolean(COMPRESS_AUDIO_KEY, value) }
 
     /**
      * #166 D2: how many Workbench dictations the FIFO keeps (1..10, default 3).
@@ -130,12 +130,12 @@ class SettingsStore(
     var workbenchFifoSize: Int
         get() = prefs.getInt(WORKBENCH_FIFO_SIZE_KEY, DictationStore.DEFAULT_FIFO_SIZE)
             .coerceIn(DictationStore.MIN_FIFO_SIZE, DictationStore.MAX_FIFO_SIZE)
-        set(value) = prefs.edit()
-            .putInt(
+        set(value) = prefs.edit {
+            putInt(
                 WORKBENCH_FIFO_SIZE_KEY,
                 value.coerceIn(DictationStore.MIN_FIFO_SIZE, DictationStore.MAX_FIFO_SIZE)
             )
-            .apply()
+        }
 
     /**
      * #142: audio-evidence RETENTION HORIZON in seconds — how long a finished
@@ -160,12 +160,12 @@ class SettingsStore(
                 evidenceRetentionDefaultSeconds > 0L
             }
             val migrated = if (legacyOn) THIRTY_DAYS_SECONDS else 0L
-            prefs.edit().putLong(EVIDENCE_RETENTION_KEY, migrated).apply()
+            prefs.edit { putLong(EVIDENCE_RETENTION_KEY, migrated) }
             return migrated
         }
-        set(value) = prefs.edit()
-            .putLong(EVIDENCE_RETENTION_KEY, value.coerceAtLeast(0L))
-            .apply()
+        set(value) = prefs.edit {
+            putLong(EVIDENCE_RETENTION_KEY, value.coerceAtLeast(0L))
+        }
 
     /**
      * Derived master gate (the #127 contract, kept for the existing wiring —
@@ -177,7 +177,7 @@ class SettingsStore(
 
     var targetLanguage: String?
         get() = prefs.getString(TARGET_LANGUAGE_KEY, null)
-        set(value) = prefs.edit().putString(TARGET_LANGUAGE_KEY, value).apply()
+        set(value) = prefs.edit { putString(TARGET_LANGUAGE_KEY, value) }
 
     /**
      * Output line-wrap width in characters (#81). 0 (or negative) disables
@@ -186,13 +186,13 @@ class SettingsStore(
      */
     var wrapWidth: Int
         get() = prefs.getInt(WRAP_WIDTH_KEY, DEFAULT_WRAP_WIDTH)
-        set(value) = prefs.edit().putInt(WRAP_WIDTH_KEY, value).apply()
+        set(value) = prefs.edit { putInt(WRAP_WIDTH_KEY, value) }
 
     var customLanguages: List<String>
         get() = prefs.getString(CUSTOM_LANGUAGES_KEY, null)?.let {
             gson.fromJson(it, object : TypeToken<List<String>>() {}.type)
         } ?: emptyList()
-        set(value) = prefs.edit().putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)).apply()
+        set(value) = prefs.edit { putString(CUSTOM_LANGUAGES_KEY, gson.toJson(value)) }
 
     /**
      * Manual SLICE override in seconds (#124). `null` = auto (the
@@ -210,16 +210,16 @@ class SettingsStore(
             val legacy = prefs.getString(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY, null)
                 ?.toFloatOrNull() ?: return null
             val migrated = legacy * 2f
-            prefs.edit()
-                .putString(SLICE_SECONDS_OVERRIDE_KEY, migrated.toString())
-                .remove(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY)
-                .apply()
+            prefs.edit {
+                putString(SLICE_SECONDS_OVERRIDE_KEY, migrated.toString())
+                remove(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY)
+            }
             return migrated
         }
-        set(value) = prefs.edit()
-            .putString(SLICE_SECONDS_OVERRIDE_KEY, value?.toString())
-            .remove(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY)
-            .apply()
+        set(value) = prefs.edit {
+            putString(SLICE_SECONDS_OVERRIDE_KEY, value?.toString())
+            remove(LEGACY_FRAGMENT_SECONDS_OVERRIDE_KEY)
+        }
 
     /**
      * Manual search-window percentage override (#124): the last N % of the
@@ -228,7 +228,7 @@ class SettingsStore(
      */
     var searchPercentOverride: Float?
         get() = prefs.getString(SEARCH_PERCENT_OVERRIDE_KEY, null)?.toFloatOrNull()
-        set(value) = prefs.edit().putString(SEARCH_PERCENT_OVERRIDE_KEY, value?.toString()).apply()
+        set(value) = prefs.edit { putString(SEARCH_PERCENT_OVERRIDE_KEY, value?.toString()) }
 
     /**
      * Learned dictation targets (#100), most-recently-used first. Apps used in
@@ -283,7 +283,7 @@ class SettingsStore(
             runCatching {
                 val merged = loadKnownApps() - packageName
                 knownAppsCache = merged
-                knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
+                knownAppsPrefs.edit { putString(KNOWN_APPS_KEY, gson.toJson(merged)) }
             }.onFailure { Log.w(TAG, "forgetKnownApp failed for $packageName", it) }
         }
     }
@@ -299,7 +299,7 @@ class SettingsStore(
                     if (widths.containsKey(pkg)) app.copy(wrapWidth = widths[pkg]) else app
                 }
                 knownAppsCache = merged
-                knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
+                knownAppsPrefs.edit { putString(KNOWN_APPS_KEY, gson.toJson(merged)) }
             }.onFailure { Log.w(TAG, "saveKnownAppWidths failed", it) }
         }
     }
@@ -319,7 +319,7 @@ class SettingsStore(
                 wrapWidth = current[packageName]?.wrapWidth
             ))
             knownAppsCache = merged
-            knownAppsPrefs.edit().putString(KNOWN_APPS_KEY, gson.toJson(merged)).apply()
+            knownAppsPrefs.edit { putString(KNOWN_APPS_KEY, gson.toJson(merged)) }
         }.onFailure { Log.w(TAG, "recordKnownApp failed for $packageName", it) }
     }
 
@@ -358,7 +358,7 @@ class SettingsStore(
     private fun setCachedModels(mapKey: String, baseUrl: String, models: List<String>) {
         val cache = readModelCache(mapKey)
         cache[baseUrl] = CachedModels(System.currentTimeMillis(), models)
-        prefs.edit().putString(mapKey, gson.toJson(cache)).apply()
+        prefs.edit { putString(mapKey, gson.toJson(cache)) }
     }
 
     private fun getCachedModels(mapKey: String, baseUrl: String): List<String> {
@@ -367,7 +367,7 @@ class SettingsStore(
         val entry = cache[baseUrl] ?: return emptyList()
         if (System.currentTimeMillis() - entry.timestamp > MODEL_CACHE_TTL_MS) {
             cache.remove(baseUrl)
-            prefs.edit().putString(mapKey, gson.toJson(cache)).apply()
+            prefs.edit { putString(mapKey, gson.toJson(cache)) }
             return emptyList()
         }
         return entry.models
@@ -394,9 +394,9 @@ class SettingsStore(
         val cache = readModelCache(mapKey)
         if (baseUrl != null && legacyModels.isNotEmpty()) {
             cache[baseUrl] = CachedModels(System.currentTimeMillis(), legacyModels)
-            prefs.edit().putString(mapKey, gson.toJson(cache)).apply()
+            prefs.edit { putString(mapKey, gson.toJson(cache)) }
         }
-        prefs.edit().remove(legacyKey).apply()
+        prefs.edit { remove(legacyKey) }
     }
 
     /**
@@ -504,7 +504,7 @@ class SettingsStore(
     /** Wipes every learned profile (Settings "reset" path, #116 Phase 2). */
     @Synchronized
     fun clearSttProfiles() {
-        prefs.edit().remove(STT_PROFILES_KEY).apply()
+        prefs.edit { remove(STT_PROFILES_KEY) }
     }
 
     private fun readSttProfiles(): MutableMap<String, SttProviderProfile> {
@@ -512,10 +512,10 @@ class SettingsStore(
         // bogus ~1000 ms durations measured from the corrupt WAV pre-roll
         // header, which would otherwise poison the auto-sizer's fit (#119).
         if (prefs.getInt(STT_PROFILES_VERSION_KEY, 0) != STT_PROFILES_VERSION) {
-            prefs.edit()
-                .remove(STT_PROFILES_KEY)
-                .putInt(STT_PROFILES_VERSION_KEY, STT_PROFILES_VERSION)
-                .apply()
+            prefs.edit {
+                remove(STT_PROFILES_KEY)
+                putInt(STT_PROFILES_VERSION_KEY, STT_PROFILES_VERSION)
+            }
             return mutableMapOf()
         }
         val json = prefs.getString(STT_PROFILES_KEY, null) ?: return mutableMapOf()
@@ -524,10 +524,10 @@ class SettingsStore(
     }
 
     private fun writeSttProfiles(profiles: MutableMap<String, SttProviderProfile>) {
-        prefs.edit()
-            .putString(STT_PROFILES_KEY, gson.toJson(profiles))
-            .putInt(STT_PROFILES_VERSION_KEY, STT_PROFILES_VERSION)
-            .apply()
+        prefs.edit {
+            putString(STT_PROFILES_KEY, gson.toJson(profiles))
+            putInt(STT_PROFILES_VERSION_KEY, STT_PROFILES_VERSION)
+        }
     }
 
     private fun sttProfileKey(baseUrl: String, model: String, mediaType: String): String =
@@ -540,9 +540,9 @@ class SettingsStore(
 
     private fun setJson(key: String, value: Any?) {
         if (value == null) {
-            prefs.edit().remove(key).apply()
+            prefs.edit { remove(key) }
         } else {
-            prefs.edit().putString(key, gson.toJson(value)).apply()
+            prefs.edit { putString(key, gson.toJson(value)) }
         }
     }
 

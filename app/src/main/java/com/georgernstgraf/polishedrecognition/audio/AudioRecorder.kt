@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.audio
 
+import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -40,6 +41,11 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
     /** Valid PCM bytes in the spool — the authoritative [PcmSource.pcmSize]. */
     private var spooledBytes = 0L
 
+    // #194: this class holds no Context, so it cannot check RECORD_AUDIO
+    // itself — the callers gate on it first (PolishedVoiceInputIME
+    // .startIfPermitted / its AutoStartPolicy, PolishedRecognitionService
+    // .onStartListening) before the controller reaches here.
+    @SuppressLint("MissingPermission")
     fun start(resetBuffer: Boolean = true) {
         if (isRecording) return
 

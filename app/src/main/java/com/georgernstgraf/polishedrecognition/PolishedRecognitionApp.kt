@@ -72,24 +72,36 @@ class PolishedRecognitionApp : Application() {
                 android.os.Process.setThreadPriority(priority)
             }
         })
-        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
-            val type = throwable.javaClass.name
-            val message = throwable.message ?: ""
-            val stackTrace = StringWriter().let { sw ->
-                throwable.printStackTrace(PrintWriter(sw))
-                sw.toString()
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        val crashHandler = object : Thread.UncaughtExceptionHandler {
+            override fun uncaughtException(thread: Thread, throwable: Throwable) {
+                val type = throwable.javaClass.name
+                val message = throwable.message ?: ""
+                val stackTrace = StringWriter().let { sw ->
+                    throwable.printStackTrace(PrintWriter(sw))
+                    sw.toString()
+                }
+
+                Intent(this@PolishedRecognitionApp, CrashDialogActivity::class.java).apply {
+                    putExtra(CrashDialogActivity.EXTRA_EXCEPTION_TYPE, type)
+                    putExtra(CrashDialogActivity.EXTRA_EXCEPTION_MESSAGE, message)
+                    putExtra(CrashDialogActivity.EXTRA_STACK_TRACE, stackTrace)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }.also { startActivity(it) }
+
+                // #194: chain onto the handler that was installed before ours
+                // (the platform's own in a plain install) so a crash reporter
+                // registered earlier still sees the throwable — but never onto
+                // ourselves, should onCreate ever install this handler twice.
+                if (previousHandler != null && previousHandler !== this) {
+                    previousHandler.uncaughtException(thread, throwable)
+                }
+
+                Process.killProcess(Process.myPid())
+                System.exit(2)
             }
-
-            Intent(this, CrashDialogActivity::class.java).apply {
-                putExtra(CrashDialogActivity.EXTRA_EXCEPTION_TYPE, type)
-                putExtra(CrashDialogActivity.EXTRA_EXCEPTION_MESSAGE, message)
-                putExtra(CrashDialogActivity.EXTRA_STACK_TRACE, stackTrace)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }.also { startActivity(it) }
-
-            Process.killProcess(Process.myPid())
-            System.exit(2)
         }
+        Thread.setDefaultUncaughtExceptionHandler(crashHandler)
         // #142: time-based evidence eviction at startup — a retention-horizon
         // change takes effect even when no dictation follows. Best-effort and
         // off the main thread (deleteRecursively on old bundles may take a

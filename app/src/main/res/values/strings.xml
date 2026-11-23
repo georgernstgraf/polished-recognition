@@ -36,6 +36,10 @@
     <string name="wrap_width">Line wrap width (0 disables)</string>
     <string name="wrap_width_hint">Wrap output lines at this many characters. Suggestions: 80, 120, 200. Enter 0 to disable wrapping.</string>
     <string name="wrap_width_error">Enter 0 to disable, or a width of 20 or more</string>
+    <!-- #194: quick-pick wrap widths (Settings preset buttons); digits only. -->
+    <string name="wrap_width_preset_80" translatable="false">80</string>
+    <string name="wrap_width_preset_120" translatable="false">120</string>
+    <string name="wrap_width_preset_200" translatable="false">200</string>
     <string name="app_wrap_section">Line wrap per app</string>
     <string name="app_wrap_pick">App</string>
     <string name="app_wrap_global_hint">global (%1$d)</string>

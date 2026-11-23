@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.res.Configuration
 import android.os.Bundle
@@ -27,6 +28,9 @@ class HelpActivity : Activity() {
 
     private var webView: WebView? = null
 
+    // #194: the only document ever loaded is the bundled local asset
+    // `help.html` — no network navigation and no user-supplied content.
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_help)

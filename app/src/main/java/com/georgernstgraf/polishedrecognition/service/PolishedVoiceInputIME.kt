@@ -2,6 +2,7 @@ package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.app.AppOpsManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -219,6 +220,9 @@ open class PolishedVoiceInputIME : InputMethodService() {
         )
     }
 
+    // #194: an IME input view has no parent at inflate time — the system
+    // attaches it to the input-method window afterwards.
+    @SuppressLint("InflateParams")
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
         rootView = view.findViewById(R.id.ime_root)
@@ -1276,6 +1280,10 @@ open class PolishedVoiceInputIME : InputMethodService() {
         }
     }
 
+    // #194: this touch listener always returns false and only cancels the
+    // hint Toast — the click itself is an OnClickListener on the button, so
+    // performClick accessibility is untouched.
+    @SuppressLint("ClickableViewAccessibility")
     private fun attachPressHint(button: ImageButton?, hintRes: Int) {
         button?.setOnLongClickListener {
             showHintToast(getString(hintRes))
