@@ -131,6 +131,39 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * PAUSED).
      */
     private var postSendParked = false
+    /**
+     * #118 Phase C: the signature of the last painted bar. [applyUiState] is
+     * the single writer of that state, so an equal signature means an
+     * identical paint and the rebind storm skips it. [invalidateUiRender]
+     * clears it for fresh views — a new view always paints once.
+     */
+    private var uiSignature: RebindChurn.UiSignature? = null
+    /**
+     * #118 Phase C: the last [setFlashing] value. An unchanged one leaves the
+     * breathing animator completely untouched — recreating it resets the
+     * visible phase, the storm's most obvious churn.
+     */
+    private var flashing = false
+    /** #118 Phase C: the text of the currently posted microphone notification. */
+    private var lastNotificationText: String? = null
+    /**
+     * #118 Phase C: this instance already asserted the microphone foreground
+     * service. Per-instance on purpose: a NEW instance starts `false`, which
+     * covers "the previous instance may have died" exactly once.
+     */
+    private var foregroundAsserted = false
+    /**
+     * #118 Phase C measurement: work that really happened since the previous
+     * `onStartInputView` trace line, reported there as `churn=…` and reset
+     * right after — so every line describes the interval that just ended.
+     * Module-visible so the tests can read them. A foreground assert carries
+     * its own notification and therefore counts as `fgs`, never as `notify`
+     * as well.
+     */
+    internal var renders = 0
+    internal var foregroundAssertions = 0
+    internal var notificationPosts = 0
+    internal var breathStarts = 0
     private val windowDrawTimeout = Runnable {
         val pending = pendingAutoStart ?: return@Runnable
         when (AutoStartTiming.onTimeout(windowDrawn, isInputViewShown())) {
@@ -329,6 +362,9 @@ open class PolishedVoiceInputIME : InputMethodService() {
             updateLanguageEnabled()
         }
         setupLanguageSpinner()
+        // #118 Phase C: the views below are new, so whatever the previous
+        // instance painted says nothing about them — this view paints once.
+        invalidateUiRender()
         applyUiState()
         return view
     }
@@ -435,8 +471,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
         ImeLifecycleTrace.log(
             this, "onStartInputView",
             "restarting=$restarting state=${controller.state} outcome=$outcome " +
-                "restored=$restoredSnapshot sameField=$sameField gateFresh=$gateFresh"
+                "restored=$restoredSnapshot sameField=$sameField gateFresh=$gateFresh " +
+                RebindChurn.churnLine(
+                    renders, foregroundAssertions, notificationPosts, breathStarts
+                )
         )
+        resetChurnCounters()
         restoredSnapshot = false
         // #177: a genuine field change ends the post-send park — the parked
         // bar belongs to the field the dictation was sent into. Same-field
@@ -455,7 +495,10 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 // Re-assert foreground for a live session: the previous
                 // instance may have died or released FGS on teardown, and
                 // the session has no visible UI of its own yet — without FGS
-                // Oplus may kill the process mid-rotation.
+                // Oplus may kill the process mid-rotation. #118 Phase C: the
+                // assert is now per-instance (`foregroundAsserted`), so the
+                // repeated cycles of ONE storm no longer re-enter
+                // startForeground; a recreated instance still does.
                 if (controller.state != VoiceSessionController.State.IDLE) {
                     startMicForeground()
                 }
@@ -742,7 +785,8 @@ open class PolishedVoiceInputIME : InputMethodService() {
         Toast.makeText(this, getString(R.string.ime_mic_blocked), Toast.LENGTH_LONG).show()
     }
 
-    private fun handleEvent(event: VoiceSessionController.Event) {
+    /** Module-visible since #118 Phase C: the tests drive the coalescing through it. */
+    internal fun handleEvent(event: VoiceSessionController.Event) {
         when (event) {
             is VoiceSessionController.Event.StateChanged -> {
                 applyUiState()
@@ -985,6 +1029,22 @@ open class PolishedVoiceInputIME : InputMethodService() {
     private fun currentFieldId(): RotationGate.FieldId? =
         currentInputEditorInfo?.let { RotationGate.FieldId(it.packageName, it.fieldId) }
 
+    /**
+     * #118 Phase C: a recreated input view must paint once, whatever the last
+     * instance rendered — the equality check below is per view.
+     */
+    private fun invalidateUiRender() {
+        uiSignature = null
+    }
+
+    /** #118 Phase C: open a fresh measurement interval (see [RebindChurn.churnLine]). */
+    private fun resetChurnCounters() {
+        renders = 0
+        foregroundAssertions = 0
+        notificationPosts = 0
+        breathStarts = 0
+    }
+
     private fun applyUiState() {
         val ms = sendButton ?: return
         val pr = pauseResumeButton ?: return
@@ -993,6 +1053,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
         val fb = flushButton ?: return
         val gear = settingsGear ?: return
         val s = controller.state
+        // #118 Phase C: everything below is a pure function of these three
+        // inputs, so an identical signature would repaint identical pixels —
+        // which is exactly what the rebind storm used to do every cycle.
+        val signature = RebindChurn.UiSignature(s, postSendParked, llmForcedOff)
+        if (!RebindChurn.render(uiSignature, signature)) return
+        uiSignature = signature
+        renders++
         setFlashing(s == VoiceSessionController.State.RECORDING)
         // Delete-word edits the editor, not the session — always enabled (#90).
         dw.isEnabled = true
@@ -1133,6 +1200,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
         (120 * resources.displayMetrics.density).toInt()
 
     private fun setFlashing(active: Boolean) {
+        // #118 Phase C: an unchanged breath state must not touch the animator
+        // at all — `startBreathing()` cancel+recreates it, resetting the
+        // visible phase on every rebind cycle.
+        if (!RebindChurn.startBreath(flashing, active)) return
+        flashing = active
         if (active) {
             breathAlpha = BREATH_CEIL
             startBreathing()
@@ -1161,6 +1233,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
             }
             start()
         }
+        breathStarts++
     }
 
     private fun applyAlpha() {
@@ -1265,27 +1338,52 @@ open class PolishedVoiceInputIME : InputMethodService() {
         .build()
 
     private fun startMicForeground() {
+        val listening = getString(R.string.listening_notification)
+        if (!RebindChurn.assertForeground(foregroundAsserted)) {
+            // #118 Phase C: this instance already holds the microphone FGS, so
+            // re-entering startForeground would be pure churn. Only the
+            // visible text is repaired — after a failed session the
+            // notification still reads "processing" while recording again.
+            postNotification(listening)
+            return
+        }
         try {
             ServiceCompat.startForeground(
                 this,
                 NOTIFICATION_ID,
-                buildNotification(getString(R.string.listening_notification)),
+                buildNotification(listening),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             )
+            foregroundAsserted = true
+            lastNotificationText = listening
+            foregroundAssertions++
         } catch (_: Exception) {
+            foregroundAsserted = false
         }
     }
 
     private fun updateNotification(text: String) {
+        postNotification(text)
+    }
+
+    /** Posts [text] unless the identical text is already on screen (#118 Phase C). */
+    private fun postNotification(text: String) {
+        if (!RebindChurn.notify(lastNotificationText, text)) return
         try {
             getSystemService(NotificationManager::class.java)
                 .notify(NOTIFICATION_ID, buildNotification(text))
+            lastNotificationText = text
+            notificationPosts++
         } catch (_: Exception) {
         }
     }
 
     private fun stopMicForeground() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        // #118 Phase C: the next assert is a genuinely new one — the FGS and
+        // its notification are gone, so neither the flag nor the text survive.
+        foregroundAsserted = false
+        lastNotificationText = null
     }
 
     override fun onDestroy() {
