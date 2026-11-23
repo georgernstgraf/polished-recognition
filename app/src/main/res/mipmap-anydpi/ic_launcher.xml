@@ -2,4 +2,7 @@
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+    <!-- #196: the themed-icon layer (Android 13+). Mipmap layers expect a monochrome
+         drawable; the foreground is a single-colour vector and doubles as one. -->
+    <monochrome android:drawable="@drawable/ic_launcher_foreground"/>
 </adaptive-icon>

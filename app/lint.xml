@@ -42,4 +42,31 @@
     <issue id="NewerVersionAvailable" severity="ignore" />
     <issue id="GradleDependency" severity="ignore" />
     <issue id="AndroidGradlePluginVersion" severity="ignore" />
+
+    <!--
+      #196 — deliberate exceptions, documented instead of "fixed". Do not baseline
+      these and do not remove the reasons: both are design decisions, not defects.
+
+      `InsecureBaseConfiguration` — `res/xml/network_security_config.xml` keeps
+      `<base-config cleartextTrafficPermitted="true" />` ON PURPOSE. Users point the
+      app at arbitrary self-hosted endpoints (`http://10.8.0.16:11437/v1/`, Ollama or
+      LM Studio on localhost), so a domain whitelist would break the core use case.
+      This is the documented #114 decision — see `docs/ai/PITFALLS.md`, entry
+      "Android 9+ blocks cleartext HTTP by default (#114)": do not regress to
+      per-domain exceptions.
+
+      `Overdraw` — the flagged root of `res/layout/ime_voice_input.xml` paints
+      `@color/recording_overlay`, which is 90 % opaque BY DESIGN (`#E6FFFFFF` /
+      `#E6000000`). Lint infers the shared activity theme
+      `Theme.PolishedRecognition.Plain` (`res/values/themes.xml`), worn by the
+      Workbench, Settings and Help activities; nulling its `windowBackground` would
+      change or blank three activities, and giving the IME its own theme is a visual
+      decision for the owner, not a lint tidy.
+    -->
+    <issue id="InsecureBaseConfiguration">
+        <ignore path="src/main/res/xml/network_security_config.xml" />
+    </issue>
+    <issue id="Overdraw">
+        <ignore path="src/main/res/layout/ime_voice_input.xml" />
+    </issue>
 </lint>
