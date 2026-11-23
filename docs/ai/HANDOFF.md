@@ -9,6 +9,30 @@ status: stable
 
 # Hand Off
 
+**#193 (2026-11-24, shipped, decomposed):** the lint baseline is gone — 77 entries
+worked off, 71 real fixes and 6 documented exceptions (four inline `@Suppress`,
+two commented `lint.xml` ignores: the permissive cleartext, which stays, and the
+IME overdraw, because the overlay is 90 % opaque by design under a theme three
+activities share). `warningsAsErrors = true`, `lintDebug` reports zero findings,
+and `XmlColorPolicyTest` rule 6 now fails the suite if `app/lint-baseline.xml`
+ever reappears. Children #194–#197 all closed; note for the owner: the only
+visually observable changes are the settings wrap-preset row / crash dialog (should
+look identical) and the launcher icon (now adaptive-only, with a monochrome layer
+for Android 13+ themed icons) — a glance is enough.
+
+**#198 / #199 (2026-11-24, shipped — two real test-suite defects found by the
+gates):** `exit value 2` was never a heap wall. The app's JVM-global crash handler
+ends in `System.exit(2)`, and a genuine throwable — `PCM range […] beyond buffer
+(0B)` from the fragment worker while `flush()` truncated the spool under it — was
+reaching it. Now: worker stopped+joined before truncation, no throwable escapes
+worker or capture thread, a capture failure parks the take PAUSED (with its audio)
+instead of crashing, the handler logs before exiting, and `CaptureThreadGuard`
+turns a captured throwable into a readable test failure in the live-take classes.
+Plus one racy controller test made deterministic (**#199**).
+**#200 is open**: `SettingsStoreTest` flaked 2× in ~21 runs (a deferred
+`SharedPreferences.apply()` landing after the next test's `clear()`); that is the
+one known red-spot left in the push gate.
+
 **#192 (2026-11-23, shipped + amended):** a pause belongs to ONE app — the same app always
 continues it („always continue, no exceptions": pause button, X, nav-bar close,
 restored snapshot; no time window, no ↺ requirement), another app ends it
@@ -52,7 +76,7 @@ closed 2026-11-22; #75 on 2026-11-22; #182–#184 on 2026-11-20; #185 on
 2026-11-21; **#187 was reopened and closed again on 2026-11-22**. #191 (leftover
 actions under the when-line, unmissable banner) is shipped and waits only for
 the owner's visual verdict. What remains are owner checks on the device, #191's
-verdict and #156.
+verdict, #156 (now with the Workbench shots) and the #200 test flake.
 
 ## #152 — complete: six children, all closed (the last one device-verified)
 
@@ -186,18 +210,22 @@ a device**, so neither #186 nor #152 may be closed yet.
    OnePlus. **The first run of this check (release `147d404`) found the
    raw-mode defect — fixed in the working tree; the re-run is what closes
    #186 and #152.**
-8. [ ] **#156 — the screenshots are stale after the Workbench redesign**
-   ([#156](https://github.com/georgernstgraf/polished-recognition/issues/156),
-   open). Re-capture from a current release build; the issue carries the
-   authoritative shot list (`docs/img/ime-recording.png` + `settings.png`), do
-   not duplicate it here.
+8. [ ] **#156 — the screenshots are stale after #154/#155 *and* the Workbench
+   redesign** ([#156](https://github.com/georgernstgraf/polished-recognition/issues/156),
+   open). **Amended 2026-11-23:** the issue now carries the authoritative shot
+   list — `docs/img/ime-recording.png` + `settings.png` **plus the two new
+   Workbench shots** `workbench.png` (a stored dictation) and
+   `workbench-recovery.png` (banner + leftover page), each with the framing rules
+   and the README row to add. **Sequencing: capture AFTER #189 lands** (RAW/Polished
+   collapse, arrow icon, trash position), otherwise the shots are stale on the day
+   they are committed. Also stale, same capture session, decided separately in the
+   issue: `fastlane/…/phoneScreenshots/{1-ime-recording,2-settings,3-settings-providers}.png`.
+   Do not duplicate the list here.
 
 ## Not scheduled (owner-gated, no issue yet)
 
-- **Burn down the lint baseline (77 entries).** It is warning-only backlog
-  (`UseKtx` 26, `UnusedResources` 15, `Autofill` 10, `IconLauncherShape` 5,
-  `HardcodedText` 4, …); the one error is `MissingPermission` on
-  `AudioRecorder.start()` (callers check `RECORD_AUDIO`, lint cannot see it).
-  Reaching zero would let the baseline file go away entirely and make
-  `warningsAsErrors = true` meaningful — which would finally turn "only new
-  findings fail the build" into the truth for warnings too (#163/#187).
+- **#200 (2026-11-24) — `SettingsStoreTest` flake in the push gate.** Not
+  owner-gated, but not urgent either: 2 failures in ~21 full-suite runs, a
+  deferred `SharedPreferences.apply()` landing after the next test's `clear()`.
+  The issue carries the hypothesis and three candidate fixes; do not paper over it
+  with `@Ignore` or a retry rule.

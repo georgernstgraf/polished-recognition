@@ -107,3 +107,10 @@
 * **Update**: [PITFALLS.md](PITFALLS.md) — three entries: a page without text must not be focusable; the coordinator's single `onFinished` slot; three `DictationStore` instances with a per-instance lock.
 * **Update**: `docs/help.html` — the "Pending transcriptions" section became "Unfinished dictations": the page, Retry STT, the banner jump, and the never-aged-away rule.
 * **No change**: [index.md](index.md) — no new or removed concept file.
+
+## 2026-11-24 (#193 — the lint baseline is gone; #198/#199 test defects)
+* **Update**: [STATE.md](STATE.md) — status line (1033 tests, no baseline, `warningsAsErrors`, #193/#198/#199 shipped, #200 open), a `#193` paragraph (71 fixes + 6 documented exceptions) and a `#198`/`#199` paragraph; the old "baseline accepted" notes marked obsolete/superseded.
+* **Update**: [HANDOFF.md](HANDOFF.md) — new top sections for #193 and #198/#199, #200 as the one known red-spot in the push gate, #156 amended with the two Workbench shots and the #189 sequencing, the lint burn-down bullet removed (done).
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-24 entries: the backlog at zero with six documented exceptions and the inverted `XmlColorPolicyTest` rule 6; a capture/worker throwable parks PAUSED instead of killing the process.
+* **Update**: [PITFALLS.md](PITFALLS.md) — four new entries: `exit value 2` is the app's crash handler (not the heap), `flush()` must not truncate the spool under the worker, a Robolectric test must not rely on the shadow `AudioRecord` having written, `SharedPreferences.apply()` is really deferred in Robolectric (#200); the baseline entries marked obsolete.
+* **No change**: [ARCHITECTURE.md](ARCHITECTURE.md) — resources and build config only, no new module or entry point. [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [index.md](index.md) — no new vocabulary or concept file.

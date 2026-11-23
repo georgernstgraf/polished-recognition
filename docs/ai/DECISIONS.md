@@ -13,6 +13,62 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-24: #193 — der Lint-Backlog ist bei null: keine Baseline mehr, `warningsAsErrors`, sechs dokumentierte Ausnahmen
+
+Die 77 Einträge der `app/lint-baseline.xml` (#163) sind abgearbeitet und die Datei
+ist gelöscht. Ab jetzt ist jeder Lint-Befund entweder an der Quelle behoben oder
+eine **sichtbare** Ausnahme mit Begründung an der Zeile.
+
+- **Entscheidung: 71 echte Fixes, 6 dokumentierte Ausnahmen.** Echte Fixes wo
+  möglich (`UseKtx` → `prefs.edit { }`, tote Ressourcen gelöscht, `autofillHints`
+  via `importantForAutofill="no"` auf den Endpoint/Token-Feldern, `<plurals>`,
+  Legacy-Launcher-PNGs gelöscht statt neu gepixelt, `mipmap-anydpi-v26` →
+  `mipmap-anydpi`, `<monochrome>`-Layer). Ausnahmen nur, wo der Fix eine bewusste
+  Owner-Entscheidung wäre: `ClickableViewAccessibility` (Observer-Listener, der
+  `false` gibt; der echte `OnClickListener` existiert), `MissingPermission`
+  (`AudioRecorder` hat keinen `Context`, der Guard sitzt bei den Aufrufern),
+  `InflateParams` (eine IME-InputView hat beim Inflate keinen Parent),
+  `SetJavaScriptEnabled` (gebündeltes `assets/help.html`, kein Netz, kein
+  Fremdinhalt), `InsecureBaseConfiguration` (permissives Cleartext ist
+  dokumentierte Absicht, siehe PITFALLS #114) und `Overdraw` (das Overlay ist zu
+  90 % deckend **per Design**, das abgeleitete Theme teilen drei Activities).
+- **Warum überhaupt.** Ein Baseline-Eintrag ist unsichtbar: er versteckt den
+  Befund, wächst still weiter und macht `warningsAsErrors` zu einer Lüge („nur
+  neue Findings failen"). Sechs Ausnahmen mit Begründung an der Zeile sind
+  billiger zu lesen als 827 Zeilen generiertes XML.
+- **Der Riegel gegen den Rückfall.** `warningsAsErrors = true` in `app/build.gradle.kts`,
+  und `XmlColorPolicyTest` Regel 6 ist invertiert: sie behauptet jetzt, dass
+  `app/lint-baseline.xml` **nicht existiert** (und dass `TextContrast` weiter als
+  ERROR deklariert bleibt). Eine wieder eingeführte Baseline lässt also die Suite
+  fallen, mit einer Meldung, die #193 nennt.
+- **Grenze der Aussage.** `lint.xml` bleibt für die deklarativen Ausnahmen
+  zuständig (`UnknownIssueId`, die drei Update-Notices, die zwei oben) — die
+  Wahrheit über die Lint-Lage steht damit an genau zwei Orten: den Suppressions im
+  Code und den kommentierten Ignores in `app/lint.xml`.
+
+## 2026-11-24: #198 — ein Throwable im Capture-/Worker-Thread parkt PAUSED, es killt den Prozess nicht
+
+Aufgefallen über die Test-Suite: ein Fork starb mit `exit value 2` und **ohne**
+Testfehler. Ursache war kein Heap-Problem (das behauptete der Kommentar in
+`build.gradle.kts` seit #86/#131), sondern der App-eigene, JVM-globale
+`Thread.setDefaultUncaughtExceptionHandler` in `PolishedRecognitionApp`, der mit
+`Process.killProcess(...)` + `System.exit(2)` endet — in Robolectric lebt die
+Application im Test-JVM, also tötet **ein** unbehandeltes Throwable auf einem
+Hintergrund-Thread den ganzen Fork, lautlos.
+
+Das Throwable war echt: `IllegalArgumentException: PCM range […] beyond buffer (0B)`,
+geworfen vom `FragmentPreparer`-Worker, während `VoiceSessionController.flush()`
+den Spool unter ihm truncatete.
+
+- **Reihenfolge:** `flush()` stoppt und joint den Worker **vor** dem Truncaten.
+- **Worker/AudioRecorder:** kein Throwable verlässt den Worker-Loop bzw. den
+  Capture-Thread; ein Fehler meldet `onCaptureFailure`, und der Controller parkt
+  die Aufnahme PAUSED mit ihrem Audio (#84-Park) statt Crash-Dialog + App-Kill.
+- **Handler:** loggt das Throwable vor dem Prozessende (`Log.e`) — ein
+  Exit-2-Fork ist ab jetzt diagnostizierbar statt stumm.
+- **Tests:** `CaptureThreadGuard` stellt in den Live-Take-Klassen den Handler um
+  und macht ein gefangenes Throwable zu einem lesbaren Testfehler.
+
 ## 2026-11-23: #192 (Nachtrag) — EINE Leiste ohne Aufnahme (geparkt bei 0:00), und ein Cancel zerstört nur, was er hergeben kann
 
 Zwei Owner-Entscheidungen nach dem ersten #192-Commit. Beide sind klein und
