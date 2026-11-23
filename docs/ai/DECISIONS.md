@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-23T06:20:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-23T20:41:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -12,6 +12,75 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-23: #192 (Nachtrag) — EINE Leiste ohne Aufnahme (geparkt bei 0:00), und ein Cancel zerstört nur, was er hergeben kann
+
+Zwei Owner-Entscheidungen nach dem ersten #192-Commit. Beide sind klein und
+ändern nur den „nichts gepuffert"-Zustand und den automatischen Cancel.
+
+### „fresh idle should advance to a parked at 00:00"
+
+Es gibt nur noch EINE Leiste ohne Aufnahme. `State.IDLE` rendert immer die
+geparkte Form: Ebene (Send) disabled — es gibt nichts zu senden —, ↺ live mit
+`ime_new_take_desc` („New take"), Timer sichtbar und auf `0:00` gepinnt,
+Stage-Zeile entweder `ime_post_send_parked` („Sent — ↺ starts a new take", der
+#177-Park) oder `ime_no_take` („↺ starts a new take").
+
+- **Warum.** Zwei Looks für denselben Zustand („nichts gepuffert") waren einer
+  zu viel, und der frische IDLE las sich als normaler, toter Leerlauf. Die Regel
+  dahinter ist die des Owners: **ein Control ist nur dann live, wenn das
+  Drücken etwas bewirkt.** Deshalb ist die Ebene in IDLE immer disabled
+  (drücken würde nichts senden) und ↺ immer live (drücken startet eine
+  Aufnahme). Der Unterschied zwischen „gerade gesendet" und „noch nie etwas
+  gesendet" ist nur der SATZ, nicht die Form — der Park-Flag steuert weiterhin
+  die Auto-Start-Unterdrückung nach einem Send (#177) und die Stage-Zeile.
+- **Der ↺-Tap musste mitziehen.** Der Klick-Handler startete bisher nur
+  `if (postSendParked)`; im frischen IDLE war ↺ damit live ohne Wirkung — genau
+  der Zustand, den die Regel verbietet. Jetzt räumt der Tap den Park-Flag (falls
+  gesetzt) und ruft immer `startIfPermitted()`.
+- **Kein zweiter Zustand, kein Controller-Wissen.** Der Park bleibt reine
+  IME-UI (`service/PostSendParkingPolicy`, Controller ist echt IDLE): PAUSED
+  heißt weiter „Audio gepuffert, Resume hängt an" (#67/#84/#134), und ein Park
+  dort würde eine bereits gelieferte Diktat-Aufnahme wiederauferstehen lassen.
+- **Sichtbare Folge für #192 (b) auf dem Gerät:** eine echte Pause zeigt
+  gepufferte Zeit und aktives Send, die No-Take-Leiste `0:00` und eine tote
+  Ebene — der Unterschied ist ohne Layout-Änderung lesbar.
+
+### Ein Cancel darf nur zerstören, was er hergibt
+
+Der Fremd-App-Pfad (`AutoStartPolicy.FRESH_START`) cancellte jede PAUSED-Aufnahme
+über den #113-Weg. Bei einer aus dem Snapshot wiederhergestellten Aufnahme ist
+der `FragmentTranscriber` aber noch gar nicht gelaufen: es gibt Audio, aber
+keine Transkripte — `cancel()` löscht dann die Journal-Session, ohne Clipboard
+und ohne Toast. Genau die stille Vernichtung, gegen die #152 existiert.
+
+- **Die Frage vor dem Cancel.** `FragmentTranscriber.peek()` ist ein
+  NICHT-destruktiver Blick auf das, was `cancel()` zurückgeben würde (`null`,
+  solange nichts transkribiert ist); `VoiceSessionController.salvageableText()`
+  ist derselbe Blick auf Controller-Ebene (plus `isNotBlank`). Ein zweiter
+  Aufruf liefert dasselbe, und der folgende `cancel()` liefert es weiterhin —
+  ein konsumierender Blick würde den Guard in genau den Verlust verwandeln, den
+  er verhindert (Tests auf beiden Ebenen).
+- **Die Regel.** Fremde App + PAUSED + gepuffertes Audio + keine Transkripte ⇒
+  **kein Cancel und kein frischer Start**: die Aufnahme bleibt PAUSED (in ihrer
+  App, gepufferte Zeit sichtbar, Papierkorb = ausdrückliches Verwerfen), die
+  Trace-Zeile lautet
+  `pause cause=foreign-app kept=audio-without-transcripts pausedMs=<n>`. Gibt es
+  Text zu retten, läuft der #113-Weg unverändert (Clipboard + Toast + frisch);
+  hält die Pause gar kein Audio, ist der Cancel ebenfalls erlaubt — er zerstört
+  dann nichts.
+- **Bewusste Konsequenz:** eine fremde App kann eine pausierte Aufnahme NICHT
+  mehr stillschweigend wegräumen. Der Preis ist ein bewusster Tap (Papierkorb)
+  oder ein Send in der eigenen App — der einzige Weg, den #152 zulässt.
+
+- **Tests:** `ImeNoTakeBarTest` (3: frischer IDLE = geparkt bei 0:00; ↺-Tap
+  startet; nach Send nur die Stage-Zeile anders), `ImePauseEntryTest` umgeschrieben
+  (Park vs. Pause mit `0:00`/gepufferter Zeit; fremde App mit Audio ohne
+  Transkripte bleibt PAUSED + Trace-Zeile; Pause ohne Audio wird beendet),
+  `FragmentTranscriberTest` +2 (`peek` nicht-destruktiv, `peek` null ohne
+  Transkripte), `VoiceSessionControllerTest` +2 (`salvageableText` = was der
+  Cancel hergibt und konsumiert nichts; null bei Audio ohne Transkripte).
+  **Kein Version bump** — die App bleibt 1.5.1 / 10501.
 
 ## 2026-11-23: #192 — Eine Pause gehört zu EINER App: dieselbe setzt immer fort, eine fremde rettet und ersetzt
 
