@@ -9,7 +9,7 @@ status: stable
 
 # Hand Off
 
-**#193 (2026-11-24, shipped, decomposed):** the lint baseline is gone — 77 entries
+**#193 (2026-11-24, shipped, decomposed, CLOSED with all four children):** the lint baseline is gone — 77 entries
 worked off, 71 real fixes and 6 documented exceptions (four inline `@Suppress`,
 two commented `lint.xml` ignores: the permissive cleartext, which stays, and the
 IME overdraw, because the overlay is 90 % opaque by design under a theme three
