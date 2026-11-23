@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-23T05:43:29Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-23T06:20:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -12,6 +12,67 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-23: #118 Phase C — ein Rebind überspringt identische Arbeit, statt sie zu wiederholen
+
+Eine Drehung liefert auf Oplus einen Rebind-**Sturm** (mehrere
+`onStartInputView → onConfigurationChanged → onFinishInputView`-Zyklen auf
+derselben Instanz; PITFALLS). Die Session übersteht ihn seit #113
+(`ImeStartDecision` FREEZE) — sichtbar unschön blieb die ARBEIT pro Zyklus:
+`applyUiState` malte jeden Knopf neu, `startMicForeground` betrat erneut
+`startForeground`, `updateNotification` schrieb die Notification neu, und
+`setFlashing` startete die Atem-Animation des Mic-Knopfs neu — `startBreathing()`
+cancelt den `ValueAnimator` und erzeugt ihn neu, die Phase sprang also auf
+jedem Zyklus zurück. Das war der auffälligste Koller („far from clean").
+Phase C ist reines Koaleszieren: identische Arbeit wird übersprungen. Am
+TEXT-Einfügen ändert sich nichts (`commitWithSpacing`, `pendingResult`, die
+#113-Salvage und die #186-Rescue-Pfade sind unberührt) und daran, WAS
+gerendert wird, ebenfalls nicht — nur ob eine identische Wiederholung läuft.
+
+- **Eine reine Policy, vier Fragen.** `service/RebindChurn` (Android-frei,
+  Tabellentest `RebindChurnTest`): `render(previous, next)` über eine
+  `UiSignature` (`state`, `postSendParked`, `llmForcedOff` — genau die Eingaben,
+  die `applyUiState` liest), `notify(previousText, nextText)`,
+  `assertForeground(alreadyAsserted)` und `startBreath(currentlyFlashing,
+  nextFlashing)`. Jede Funktion antwortet für eine UNVERÄNDERTE Eingabe `false`;
+  übersprungen werden kann also nur die identische Wiederholung, nie eine echte
+  Änderung.
+- **Der Render hängt an einer Signatur, eine neue View malt immer.** In
+  `onCreateInputView` läuft `invalidateUiRender()` vor dem terminalen
+  `applyUiState()`, deshalb malt jede neu erzeugte View genau einmal (auch nach
+  einer Rotation). Der Preis: beim Skip laufen `updateRecTimer` und
+  `updateLanguageEnabled` nicht mit — der Tick postet sich selbst weiter (er
+  kehrt nur bei nicht-RECORDING zurück), und `refreshQuickSettings` (jeder Bind)
+  ruft `updateLanguageEnabled` ohnehin auf.
+- **Der FREEZE-Re-Assert ist jetzt per-Instanz.** `startMicForeground`
+  überspringt `ServiceCompat.startForeground`, wenn DIESE Instanz den
+  Mikrofon-FGS schon hält (`foregroundAsserted`, gesetzt NACH dem erfolgreichen
+  Call, gelöscht im `catch` und in `stopMicForeground`). Die alte Begründung
+  („die vorige Instanz kann gestorben sein") gilt genau für eine NEUE Instanz —
+  deren Flag startet `false`. Weil ein Assert seine eigene Notification
+  mitbringt, zählt er als `fgs` und nie zusätzlich als `notify`.
+- **Die Notification folgt dem TEXT, nicht dem Ereignis.**
+  `lastNotificationText` (gelöscht in `stopMicForeground`) verhindert den
+  identischen Post; der Skip-Pfad des FGS repariert nur den Text — nach einer
+  gescheiterten Session stünde sonst „processing" über einer erneuten Aufnahme.
+- **Die Atem-Animation wird nur bei echter Zustandsänderung angefasst.**
+  `startBreathing()` erhöht `breathStarts`; der Zähler ist der Beweis, dass ein
+  Zyklus sie NICHT neu startet.
+- **Gemessen im BESTEHENDEN Strom — kein neuer Kanal.** Die
+  `onStartInputView`-Zeile in `ime-lifecycle.log` endet jetzt auf
+  `churn=render:<r> fgs:<f> notify:<n> breath:<b>`; die vier `internal var`-
+  Zähler werden direkt nach dem Log genullt, jede Zeile beschreibt also das
+  Intervall, das gerade endete. Eine identische Wiederholung schreibt
+  `churn=render:0 fgs:0 notify:0 breath:0`; die erste Zeile nach einer neuen
+  View trägt `render:1` (der Pflicht-Anstrich).
+- **Abgrenzung.** Eine IME kann die Drehung nicht verhindern (siehe „Rotation
+  cannot be blocked by an IME" unten) — Phase C macht den Sturm billig, nicht
+  unsichtbar. Phase B ist an #190 übergeben (Nachtrag im Phase-A-Eintrag).
+- **Tests:** +14 (`RebindChurnTest` ×11 Tabellenfälle; `ImeRebindChurnTest` ×3 —
+  die Trace-Zeile mit `churn=render:0 …` für die zweite Bindung, die
+  `fgs`/`notify`-Koaleszenz samt echter Textänderung, und ein ECHTER
+  RECORDING-Rebind, der die Atem-Animation nicht neu startet). Suite 1001 grün
+  (12 skipped), `lintDebug` sauber, `assembleRelease` grün, kein Versions-Bump.
 
 ## 2026-11-23: #191 — auf einer unfertigen Seite stehen Grund und Ausweg zusammen; der Banner ist der EINE Weg dorthin
 
@@ -958,7 +1019,7 @@ The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 ## 2026-10-10: #118 Phase A shipped — insertion breadcrumb + tagged deliveries (`99b2e46`)
 - **Choice**: The rotation partial-insertion investigation ships INSTRUMENTATION first (no behaviour change), because the owner's answer — "no send, text appeared on rotate" — has NO code path: `commitWithSpacing()` is the only editor-insertion site, and `Event.Completed` is emitted only from the live `deliver()` or the `pendingResult` re-emit in `attach()`. (a) `Event.Completed` gained `redelivered: Boolean` (came from the `pendingResult` hold after rotation, #83) and `partial: PartialInfo?` (`failedIndex`, `chunkCount` — a raw-mode rescue delivery whose joined text is incomplete by construction). (b) `pendingResult` now holds the whole `Event.Completed`, so `attach()` re-emits it with `redelivered = true`. (c) A new evidence stream `insertion.json` records every insertion: `surface` (`ime`|`service`), `reason` (`LIVE`|`REDELIVERED`|`RAW_RESCUE_PARTIAL` via the pure `service/InsertionTrace`), text `length`, origin-vs-current `FieldId` (captured at send in app-scoped `PolishedRecognitionApp.imeSessionField`) and `InputConnection` presence. The `RecognitionService` surface logs the same stream because the caller (Gboard etc.) inserts our returned result itself — the IME site cannot see that flow. (d) `rescuePartial` in the controller carries the rescue detail from `runTranscription` to `deliver`, reset per run so it cannot leak.
 - **Reason**: the owner's four answers (flow unsure; perceived no-send; raw mode varies; partial → clipboard + toast, retry = paste) leave the MECHANISM unpinned — both ranked causes (raw-rescue partial, `pendingResult` re-delivery) require a send, so shipping the Phase B delivery policy first would risk fixing the wrong thing. Phase A is cheap and makes the next repro conclusive.
-- **Planned next (Phase B)**: pure `InsertionDecision` at the insertion site — LIVE success → COMMIT; REDELIVERED + same field → COMMIT (preserve #83); REDELIVERED + changed field → clipboard + toast; RAW_RESCUE_PARTIAL → clipboard + toast; plus clearing `pendingResult` on a genuine field change to kill the stale-result path. Phase C (storm UX) and Phase D (on-device matrix) follow.
+- **~~Planned next (Phase B)~~ — SUPERSEDED 2026-11-23 by #190, do not build.** Der geplante reine `InsertionDecision` am Einfügepunkt (LIVE success → COMMIT; REDELIVERED + same field → COMMIT, um #83 zu erhalten; REDELIVERED + changed field → clipboard + Toast; RAW_RESCUE_PARTIAL → clipboard + Toast) IST #190s Endklassifikation `MISMATCH` (geändertes Feld ⇒ Zwischenablage, kein Auto-Commit) plus deren Before-Window-Guard — ihn hier zu bauen würde dieselbe Policy zweimal schreiben (siehe den #190-Eintrag). Die Raw-Rescue-Hälfte von Phase B ist mit **#186** ausgeliefert (ein leeres Rescue fügt nichts ein und erklärt sich immer; ein nicht-leeres fügt ein *mit* einem Toast, der den Grund nennt). Der damals vermutete Defekt war ohnehin keine Delivery-Policy-Frage: die Berichte „partieller Text / viel fehlt" waren die #119-WAV-Pre-Roll-Regression (`580cc38`), und Phase As Breadcrumb zeigte für jede Einfügung `reason: LIVE`. **Phase C (Storm-UX) ist am 2026-11-23 ausgeliefert — siehe den `#118 Phase C`-Eintrag oben**; Phase D (On-Device-Matrix) bleibt Owner-Arbeit.
 - **Tests**: +5 (`InsertionTraceTest` ×4; `VoiceSessionControllerTest` ×1 raw-mode rescue partial marker, plus the `redelivered` assertion in the existing stash test). Full suite green; `pre-push` hook passed.
 
 ## 2026-10-10: #116 Phase 2 core shipped — Theil–Sen per-provider profiles, auto fragment sizing, full-context-at-stop; concurrency stays C=1 (`f152cd9`, `9453658`)

@@ -3,7 +3,7 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-23T06:20:00Z }
 status: stable
 ---
 
@@ -17,7 +17,15 @@ tap jumps to the newest leftover). Owner: judge the accent bar on the device
 (`workbench_recovery_banner`); #189 (RAW/Polished collapse, arrow icon, trash
 position) stays a separate batch.
 
-Only open tasks. **#186 (offline sessions) is closed and device-verified
+Only open tasks. **#118 Phase C shipped 2026-11-23** (the rebind storm's UI
+churn): `service/RebindChurn` skips identical per-cycle render/FGS/notification/
+breath work, the FGS assert is per instance, and the existing `onStartInputView`
+trace line in `ime-lifecycle.log` now ends in
+`churn=render:<r> fgs:<f> notify:<n> breath:<b>`. **Phase B is NOT pending — it
+is superseded by #190** (`MISMATCH` + before-window guard; the raw-rescue half
+shipped in #186). The one owner check left for #118: **rotate while dictating
+and read one `churn=` line — the repeated rebind cycle must read all zeros.**
+**#186 (offline sessions) is closed and device-verified
 (2026-11-23) — epic #152 is complete, 6/6 children.** On the Samsung SM-A032F
 with airplane mode on, three takes logged `rawRescue` + `No usable network —
 saved for later` and made **zero** requests; after the network returned the
