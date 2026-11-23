@@ -1221,7 +1221,21 @@ class VoiceSessionControllerTest {
 
     @Test
     fun `flush in PROCESSING is a no-op`() {
+        clearSessionFiles()
         settings.compressAudio = false
+        // #199: restored snapshot, NOT a live take. The live-vs-batch surface
+        // is decided by whether the recording captured ANY PCM at stop (an
+        // empty spool falls through to the legacy batch path by design), and
+        // the Robolectric shadow AudioRecord yields its first byte on its own
+        // schedule — under a loaded fork it can still be zero when
+        // stopAndTranscribe() runs, which silently turned this test's
+        // finishTranscription expectation into a transcribe call. A restored
+        // spool is encoded synchronously in prepareTailSync(), so the live
+        // fragment path is the ONLY reachable one; the assertion below stays
+        // exactly as it was.
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"flushproc"}""")
         val gate = CountDownLatch(1)
         // Gate BOTH pipeline entries (see the detach/stash test above).
         coEvery { pipeline.transcribe(any(), any(), any()) } coAnswers {
@@ -1233,10 +1247,7 @@ class VoiceSessionControllerTest {
             Result.success("hi")
         }
         val controller = newController()
-        try {
-            controller.start { }
-        } catch (_: Throwable) {
-        }
+        assertThat(controller.restore()).isTrue()
         var stateAtFlush: VoiceSessionController.State? = null
         val releaser = thread {
             while (controller.state != VoiceSessionController.State.PROCESSING) {
@@ -1255,6 +1266,7 @@ class VoiceSessionControllerTest {
         // completion — the live path's finishTranscription, not the batch one
         coVerify(exactly = 1) { pipeline.finishTranscription(any(), any(), any()) }
         coVerify(exactly = 0) { pipeline.transcribe(any(), any(), any()) }
+        clearSessionFiles()
     }
 
     /**
