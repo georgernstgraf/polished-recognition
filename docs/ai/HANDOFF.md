@@ -17,23 +17,22 @@ tap jumps to the newest leftover). Owner: judge the accent bar on the device
 (`workbench_recovery_banner`); #189 (RAW/Polished collapse, arrow icon, trash
 position) stays a separate batch.
 
-Only open tasks. **#186 (offline sessions) is NOT shipped: the owner's device
-check found a defect and it is fixed in the working tree, but the flight must be
-repeated before the issue can close — so epic #152 stays open** (five of its six
-children shipped; #186 is the last one). A dictation recorded without a usable
-network makes no request, lands in the journal as `OFFLINE`, shows as an
-incomplete page with that reason and transcribes when the network is back
-(validated reconnect while the Workbench is visible, the next entry, or Retry
-STT). The defect: in **raw mode** a fully failed session was delivered as an
-empty "rescue success", the journal session was marked complete and deleted, and
-the user saw neither the page nor a Toast. Now a rescue keeps its journal, an
-empty rescue inserts nothing, and one Toast names the reason and the Workbench
-(see STATE.md and PITFALLS.md). #188 (incomplete dictations in the Workbench)
-closed 2026-11-22 as well; #182–#184 were closed on 2026-11-20; #185 (recovery
-UI) on 2026-11-21; **#187 was reopened and closed again on 2026-11-22**; #75 on
-2026-11-22. What remains are owner checks on the device and #156.
+Only open tasks. **#186 (offline sessions) is closed and device-verified
+(2026-11-23) — epic #152 is complete, 6/6 children.** On the Samsung SM-A032F
+with airplane mode on, three takes logged `rawRescue` + `No usable network —
+saved for later` and made **zero** requests; after the network returned the
+retry sent exactly the three fragments (`attempt 1`, `200`) and stored the text.
+Two defects the flight exposed were fixed before closure: a raw-mode rescue
+treated an all-failed session as a completed success (journal deleted, nothing
+shown), and `onDestroy` could then delete the journal the rescue had just saved
+(see STATE.md, PITFALLS.md). #188 (incomplete dictations in the Workbench)
+closed 2026-11-22; #75 on 2026-11-22; #182–#184 on 2026-11-20; #185 on
+2026-11-21; **#187 was reopened and closed again on 2026-11-22**. #191 (leftover
+actions under the when-line, unmissable banner) is shipped and waits only for
+the owner's visual verdict. What remains are owner checks on the device, #191's
+verdict and #156.
 
-## #186 — the last open child of #152 (the epic stays open until it is shipped)
+## #152 — complete: six children, all closed (the last one device-verified)
 
 Epic #152 ("never lose a dictation") is decomposed and formally linked.
 **#182, #183, #184, #185 and #188 are done**; **#186 is fixed but NOT verified on
@@ -64,7 +63,7 @@ a device**, so neither #186 nor #152 may be closed yet.
    (`recovery/RecoveryRestore` + `RecoveryShare`), the count+jump banner, and
    the #185 screen deleted with its 4 assertions moved to
    `WorkbenchActivityTest`.
-6. [x] **#186 — offline sessions** (fixed 2026-11-22, **NOT shipped**): the
+6. [x] **#186 — offline sessions** (closed 2026-11-23, device-verified): the
    `NetworkGate` (VALIDATED, `reconnectFires` edge rule), `SttFailure.OFFLINE` +
    `isOnline` in the runner and the pipeline, the OFFLINE latch in
    `FragmentTranscriber`, `network/AndroidNetworkStatus` +
