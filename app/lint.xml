@@ -3,14 +3,16 @@
   #163 — the static contrast gate.
 
   Location: AGP reads the MODULE-level `app/lint.xml` automatically (a file at the
-  repository root would be read by no module). Proven: the first `updateLintBaseline`
-  run reported its `UnknownIssueId` finding at `app/lint.xml:15`, so this file is
-  definitely the one being applied.
+  repository root would be read by no module). Proven back in #163, when the first
+  (and only) baseline-generation run reported its `UnknownIssueId` finding at
+  `app/lint.xml:15`: this file is definitely the one being applied. No baseline
+  exists today (#197).
 
   TextContrast (text/background pairs below the WCAG floor) is declared as an ERROR,
-  and it is deliberately absent from `lint-baseline.xml`: a baseline entry would
-  silence exactly the class of defect this gate exists for. `XmlColorPolicyTest`
-  asserts that invariant, so the baseline cannot grow a TextContrast entry unnoticed.
+  and there is deliberately NO lint baseline in this module (#163/#193/#197): a
+  baseline entry would silence exactly the class of defect this gate exists for.
+  `XmlColorPolicyTest` asserts both invariants — that this declaration stays an
+  error and that `app/lint-baseline.xml` stays deleted.
 
   KNOWN GAP — read this before trusting the line above: lint 32.1.1 (AGP 9.1.1)
   ships NO contrast detector (`lint-checks-32.1.1.jar` contains no `*Contrast*`

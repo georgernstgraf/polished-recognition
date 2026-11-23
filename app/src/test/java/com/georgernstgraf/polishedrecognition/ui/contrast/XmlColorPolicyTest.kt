@@ -32,8 +32,8 @@ import javax.xml.parsers.SAXParserFactory
  *     only one mode is invisible in the other).
  *  5. **The `recording_*` pair reaches 4.5:1 in both modes** — the IME overlay is translucent,
  *     so the text is measured against the COMPOSITED overlay, not against the raw colour.
- *  6. **The lint baseline never carries a `TextContrast` entry** — the contrast gate must stay
- *     a build failure, never a backlog item.
+ *  6. **There is no lint baseline, and `lint.xml` keeps `TextContrast` an ERROR** — the
+ *     contrast gate (and every other finding) must stay a build failure, never a backlog item.
  *
  * Scope notes:
  *  - Palette parity is checked for `values/colors.xml` ↔ `values-night/colors.xml` only.
@@ -219,7 +219,7 @@ class XmlColorPolicyTest {
     // ------------------------------------------------------------------ rule 6
 
     @Test
-    fun `the lint baseline never carries a contrast finding`() {
+    fun `the lint baseline is gone and TextContrast stays an error`() {
         val module = moduleDir()
         val lintConfig = File(module, "lint.xml")
         val baseline = File(module, "lint-baseline.xml")
@@ -230,14 +230,15 @@ class XmlColorPolicyTest {
                 "may never be downgraded to a backlog item"
         ).that(lintConfig.readText()).contains("id=\"TextContrast\" severity=\"error\"")
 
+        // #193/#197: the 77-entry baseline was burned down to zero and deleted; the gate is
+        // total now. Do not "regenerate" it — a re-appearing baseline silently re-legalises
+        // every finding it captures. Fix the finding at the source, or write an inline
+        // `@Suppress` / `lint.xml` ignore that names its reason at the line.
         assertWithMessage(
-            "app/lint-baseline.xml is missing — regenerate it with " +
-                "./gradlew :app:updateLintBaseline"
-        ).that(baseline.isFile).isTrue()
-        assertWithMessage(
-            "the lint baseline contains a TextContrast entry — contrast must fail the build, " +
-                "never be baselined"
-        ).that(baseline.readText().contains("TextContrast")).isFalse()
+            "app/lint-baseline.xml exists again — a baseline silently re-legalises every " +
+                "finding it captures, so it must never return (#193). Fix the finding or write " +
+                "an inline suppression with a reason; never re-baseline."
+        ).that(baseline.isFile).isFalse()
     }
 
     // ------------------------------------------------------------------ scanning

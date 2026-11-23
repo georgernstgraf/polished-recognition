@@ -171,13 +171,17 @@ android {
         buildConfig = true
     }
 
-    // #163: lint runs in CI from now on. The tree was never linted before, so it
-    // carries a backlog (2 errors, 88 warnings) that is captured ONCE in
-    // `lint-baseline.xml` — from then on only NEW findings fail the build.
-    // TextContrast is an ERROR in `lint.xml` and is never baselined: contrast
-    // regressions must break the build, not join the backlog.
+    // #163/#193/#197: there is NO lint baseline. The 77-entry backlog the tree
+    // carried when lint first ran (#163) was burned down to zero in #194–#197,
+    // and the gate is total from here on: every finding either fails the build
+    // or is an inline `@Suppress`/`lint.xml` ignore that names its reason at the
+    // line. `warningsAsErrors` makes a warning as fatal as an error — a baseline
+    // re-introduced to get a build green would silently re-legalise all of them,
+    // so `XmlColorPolicyTest` fails if the file ever comes back.
+    // TextContrast is an ERROR in `lint.xml` and is never suppressed: contrast
+    // regressions must break the build, not join a backlog.
     lint {
-        baseline = file("lint-baseline.xml")
+        warningsAsErrors = true
     }
 
     testOptions {
