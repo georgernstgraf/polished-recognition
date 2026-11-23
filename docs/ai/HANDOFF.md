@@ -17,11 +17,11 @@ tap jumps to the newest leftover). Owner: judge the accent bar on the device
 (`workbench_recovery_banner`); #189 (RAW/Polished collapse, arrow icon, trash
 position) stays a separate batch.
 
-Only open tasks. **#118 Phase C shipped 2026-11-23** (the rebind storm's UI
-churn): `service/RebindChurn` skips identical per-cycle render/FGS/notification/
-breath work, the FGS assert is per instance, and the existing `onStartInputView`
-trace line in `ime-lifecycle.log` now ends in
-`churn=render:<r> fgs:<f> notify:<n> breath:<b>`. **Phase B is NOT pending — it
+Only open tasks. **#118 is closed (2026-11-23)** — Phase C shipped (the rebind
+storm's UI churn): `service/RebindChurn` skips identical per-cycle render/FGS/
+notification/breath work, the FGS assert is per instance, and the existing
+`onStartInputView` trace line in `ime-lifecycle.log` now ends in
+`churn=render:<r> fgs:<f> notify:<n> breath:<b>`. **Phase B was NOT built — it
 is superseded by #190** (`MISMATCH` + before-window guard; the raw-rescue half
 shipped in #186). The one owner check left for #118: **rotate while dictating
 and read one `churn=` line — the repeated rebind cycle must read all zeros.**
