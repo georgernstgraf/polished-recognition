@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-22T19:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-23T05:43:29Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -84,41 +84,89 @@ Feature „nichts geht verloren" heißt. Vier Regeln, die daraus folgen.
   bleibt unverändert (Completed + Delete) — beide Hälften sind durch
   Controller-Tests gepinnt, nicht nur die neue.
 
-## 2026-11-22: #190 — die Zwischenanzeige läuft über die Composing-Region, der Endzustand bleibt #116 Option C
+## 2026-11-22/23: #190 — die Zwischenanzeige läuft über die Composing-Region, der Endzustand bleibt #116 Option C
 
 Das Diktat soll im Zielfeld wachsen, während transkribiert wird — und nach Send
 soll das Feld aussehen wie heute. Beides zusammen ist nur eine Anzeige-Frage:
 `setComposingText` (bisher an keiner Stelle im Repo) ist der einzige Kanal, den
 die IME besitzt und der kein Input des Clients ist. Der Richtungswechsel gegen
 #116 Option C ist gewollt — aber nur für die ANZEIGE; der Endzustand bleibt
-Option C.
+Option C. Sechs Punkte (Q1–Q6) hat der Owner am 2026-11-23 einzeln entschieden.
 
-- **Composing statt Commit — nie ein Rewrite.** Jedes fertige Fragment hängt sich
-  an eine Composing-Region. Die Texte liegen heute privat in
-  `FragmentTranscriber.transcripts` und werden erst in `snapshot()`/`drain()`
-  gejoint (core/…/FragmentTranscriber.kt:217, :799) — es braucht ein neues
-  Controller-Event (kein UI-Polling). Am Send wird die Region VERWORFEN
-  (`setComposingText("", 1)`), danach läuft der heutige Pfad unverändert:
-  `commitWithSpacing(polished)` → `InsertionSpacingPolicy` → `commitText`.
-  `deleteSurroundingText` auf committetem Text bleibt verboten — das war der
-  eigentliche #116-Felsen (Selection-State, Auto-Edits, fremde Compose-Regions),
-  und er wird nicht angefasst.
+- **Composing statt Commit — nie ein Rewrite, und immer EINE Region.**
+  `setComposingText` ERSETZT die Composing-Region; es gibt kein „append to
+  composition". Also trägt eine einzige Region den ganzen Zwischentext, und jeder
+  Fragment-Append sendet ihn komplett neu (ein paar KB IPC, irrelevant). Das
+  Event trägt deshalb den gejointen, echo-getrimmten Snapshot (`snapshot()`),
+  keinen Delta — sonst stünden Seam-Duplikate auf dem Schirm, die der Endtext
+  nicht hat. Am Send wird die Region VERWORFEN (`setComposingText("", 1)`),
+  danach läuft der heutige Pfad unverändert: `commitWithSpacing(polished)` →
+  `InsertionSpacingPolicy` → `commitText`. `deleteSurroundingText` auf
+  committetem Text bleibt verboten — das war der eigentliche #116-Felsen
+  (Selection-State, Auto-Edits, fremde Compose-Regions).
 - **Der Terminal-Pfad ist eingefroren.** Jedes Ergebnis, das heute nichts
-  einfügt, räumt die Composing-Region und fügt nichts ein: X/Cancel (#113
-  Salvage bleibt Clipboard), STT-Fehler, geparktes PAUSED, AUTH/BUDGET-Wall — und
-  **Flush (#86)**, dessen Audio bewusst verworfen wird, also muss seine
-  Zwischenanzeige mit ihm verschwinden. #118 Phase B bleibt dadurch unberührt:
+  einfügt, räumt die Composing-Region und fügt nichts ein: X/Cancel
+  (#113-Salvage bleibt Clipboard), **Flush (#86)** (dessen Audio bewusst
+  verworfen wird — die Zwischenanzeige muss mit ihm verschwinden), STT-Fehler,
+  geparktes PAUSED, AUTH/BUDGET/OFFLINE-Latch. #118 Phase B bleibt unberührt:
   Streaming kann nicht ändern, was landet.
-- **Guard vor jedem Append.** `getTextBeforeCursor(n)` muss noch mit unserem
-  Composing-Text enden. Sonst (App hat den Zwischentext gesendet, App hat die
-  Composition zurückgesetzt, Autocomplete hat umgeschrieben, Feld gewechselt)
-  wird für die Session nicht mehr gestreamt und der heutige Terminal-Pfad
-  entscheidet (Feldwechsel → Clipboard, #118). Zwei stale Readbacks nacheinander
-  = die App kämpft gegen die Composition.
-- **Rotation setzt keine Composition wieder auf.** Die Region stirbt mit dem
-  Input-View; nach dem Rebind bleibt das Feld leer, bis der Terminal-Commit
-  (`pendingResult`, #83) ganz landet. Ein Wiederaufbau wäre eine zweite Wahrheit
-  über Text, den niemand committet hat.
+- **Auswahl am Sessionstart (#190/Q1):** Snapshot via
+  `getSelectedText(GET_TEXT_WITH_STYLES)` + Range, VOR dem ersten Append.
+  Non-null ⇒ bei jedem nicht-liefernden Ausgang zurückschreiben
+  (`setComposingText(snapshot)` → `finishComposingText()` → `setSelection`) —
+  ein committeter Edit plus Re-Selektion (TextWatcher, Undo, Markor dirty;
+  Styles nur so weit, wie der Editor spanned commits annimmt). Restore nur, wenn
+  das Before-Window noch passt, sonst Snapshot in die Zwischenablage +
+  `ime_selection_restore_failed`. **`null` ⇒ trotzdem streamen**, ohne Snapshot,
+  ohne Restore, ohne Toast (`selectionUnreadable`): die API kann „keine Auswahl"
+  nicht von „sage ich nicht" unterscheiden, und der Owner will die Anzeige lieber
+  als die Daten. „Nichts wird committet und später ersetzt" gilt damit nur noch
+  für den SENDE-Pfad; ein Cancel ist in solchen Apps bewusst verlustbehaftet.
+- **Guard = Before-Window (#190/Q3).** `getTextBeforeCursor(n)` über den ganzen
+  Zwischentext ist nicht implementierbar (Kosten, Capps, `null`) — verglichen
+  wird ein ~64-Zeichen-Fenster gegen das beim ersten Append gemerkte
+  Before-Window plus Schwanz des Zwischentexts. Der ERSTE Fehlschlag stoppt nur
+  das Appenden (`streamAborted`), er entscheidet NICHT die Lieferung; Autorität
+  ist der Terminal-Check nach dem Verwerfen (Fenster muss wieder exakt das
+  Before-Window sein — der Vergleich gegen das Before-Window statt gegen
+  „unseren Text" verhindert den False Positive, wenn das Diktat mit denselben
+  Wörtern endet, die davor stehen). Ist das Feld von Anfang an nicht lesbar, wird
+  gar nicht gestreamt (heutiger Pfad, blinder Commit) — nie in ein Feld
+  schreiben, das man nicht lesen kann.
+- **Drei Terminal-Ausgänge (#190/Q4), nicht zwei.** (a) Fenster = Before-Window ⇒
+  polierten Text über den heutigen Pfad einfügen (`CLEARED`). (b) Das Feld endet
+  mit unserem Zwischentext ⇒ der Client hat ihn als committeten Text behalten —
+  Rotation/Rebind, Fokusverlust (das Committen einer Composition ist der
+  Plattform-Vertrag, kein App-Fehler) oder ein Editor, der `setComposingText` wie
+  `commitText` behandelt. Dann NICHTS einfügen, den polierten Text in die
+  Zwischenablage und Toast `ime_raw_kept` („Raw text kept — polished version
+  copied"): der Text ist da, nur roh — die Owner-Regel „roh oder poliert, egal"
+  ist erfüllt, kein Duplikat (`COMMITTED_BY_APP`). (c) Alles andere ⇒ nichts
+  einfügen, Zwischenablage + `ime_polished_copied` (`MISMATCH`). Die
+  #118-Taxonomie (`LIVE`/`REDELIVERED`/`RAW_RESCUE_PARTIAL`) bleibt unangetastet;
+  der Terminal-Record bekommt additiv `streamed`/`streamOutcome`.
+- **`<pending>` für ein endgültig gescheitertes Fragment (#190/Q5).** Ein
+  Fragment-Fehlschlag ist NICHT session-fatal (nur AUTH/BUDGET/OFFLINE latchen),
+  spätere Fragmente transkribieren weiter — das Loch entsteht also schon während
+  der Aufnahme, nicht erst beim Drain. Anzeige: ein `<pending>` pro
+  zusammenhängender Lücke, **nur im Anzeige-Join** (nie in `Drained.text`, nie im
+  gelieferten Text); bei `COMMITTED_BY_APP` bleibt es als ehrliche Spur im Feld.
+  Stirbt der IME-Prozess, bleibt der Zwischentext im Client stehen — akzeptiert,
+  kein Bug (besser als ein leeres Feld; das Audio liegt im #152-Journal).
+- **Rotation setzt keine Composition wieder auf — und der Client darf den Text
+  behalten.** Der Span stirbt mit dem Input-View; ein Wiederaufbau wäre eine
+  zweite Wahrheit über Text, den niemand committet hat. Der Client kann das Feld
+  inklusive unseres Zwischentexts sichern und wiederherstellen (Plattform, kein
+  Fehler) — dann landet er als committeter Rohtext im Feld, der Terminal-Check
+  erkennt (b) und legt die polierte Fassung in die Zwischenablage. Zugestanden:
+  ein Rotationsdiktat endet damit roh im Feld statt poliert wie heute; repariert
+  wird das NICHT durch Löschen des wiederhergestellten Texts.
+- **Kill-Switch (#190/Q6):** Settings-Toggle „Live preview in the text field"
+  (`SettingsStore.imeLivePreview`, Key `ime_live_preview`, Default AN), gelesen
+  am Sessionstart. AUS ⇒ null Composing-Schreibzugriffe, byte-identisch zu heute.
+  Das ist der einzige Ausweg für einen Client, der den Zwischentext sofort
+  committet (sonst landet der polierte Text nur in der Zwischenablage) — bewusst
+  KEINE Package-Blacklist, keine Heuristik, kein Kompatibilitätsmodus.
 - **Der Owner hat die Nebenwirkungen akzeptiert:** in einem plain `EditText`
   (Markor, Settings-Felder) ist der Zwischentext voraussichtlich unterstrichen,
   `TextWatcher` feuern pro Fragment (Drafts, Markor dirty), App-Autocomplete und
@@ -129,8 +177,10 @@ Option C.
   risikofreie Gegenmodell — der Wunsch ist, die App füllen zu sehen); jede
   satzweise oder pro-Fragment-Politur (#116-Entscheid: EIN Full-Context-Pass);
   Partial Results auf der `RecognitionService`-Fläche (Gboard-Mikro, API 31+ —
-  eigene Fläche, eigenes Issue; `partialResults` ist heute unbenutzt).
-- **Beschlossen, nicht gebaut:** die Umsetzung steht hinter #186, #188, #156 und
+  eigene Fläche, eigenes Issue; `partialResults` ist heute unbenutzt); jeder
+  Per-App-Workaround (Package-Blacklist über `EditorInfo.packageName` wäre
+  technisch möglich und ist abgelehnt).
+- **Beschlossen, nicht gebaut:** die Umsetzung steht hinter #188, #191, #156 und
   den offenen Owner-Gerätechecks. Ein Issue, kein Epic — der Scope, der es zum
   „big rock" machte, ist explizit weggefallen.
 
