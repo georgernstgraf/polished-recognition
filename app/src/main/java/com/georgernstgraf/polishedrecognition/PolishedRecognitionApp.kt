@@ -81,6 +81,12 @@ class PolishedRecognitionApp : Application() {
                     throwable.printStackTrace(PrintWriter(sw))
                     sw.toString()
                 }
+                // #198: report it in logcat before the process dies. The
+                // dialog activity told the USER, but nothing reached logcat —
+                // and in the unit-test JVM an uncaught background throwable
+                // killed the whole fork with exit value 2 leaving no trace at
+                // all, which is what made #198 unreadable for so long.
+                Log.e(TAG, "uncaught in ${thread.name}: $type — the app is ending", throwable)
 
                 Intent(this@PolishedRecognitionApp, CrashDialogActivity::class.java).apply {
                     putExtra(CrashDialogActivity.EXTRA_EXCEPTION_TYPE, type)
@@ -348,4 +354,9 @@ class PolishedRecognitionApp : Application() {
                 .build()
                 .create(OpenAiChatApiService::class.java)
         }
+
+    private companion object {
+        /** #198: logcat tag for the crash-handler line in [onCreate]. */
+        const val TAG = "PolishedRecognitionApp"
+    }
 }

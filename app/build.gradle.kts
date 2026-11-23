@@ -185,12 +185,17 @@ android {
         unitTests {
             isReturnDefaultValues = true
             isIncludeAndroidResources = true
-            // The suite (465 tests, Robolectric sandboxes + MockK) exceeds
-            // Gradle's 512m default Test-worker heap — the executor dies
-            // with exit value 2 once the run reaches the service package
-            // (#86; flake recurred at 462 tests on 1536m, third recorded
-            // occurrence — #131). Test-only setting, no effect on release
-            // artifacts.
+            // 2048m of headroom for the Robolectric sandboxes (the JVM default
+            // 512m is tight once a run carries hundreds of them). This is NOT
+            // the cause of the `exit value 2` fork deaths #86/#131 blamed on
+            // the heap: #198 found the real one — the app's JVM-global crash
+            // handler (`PolishedRecognitionApp.onCreate`) turns ONE uncaught
+            // background throwable into `Process.killProcess` +
+            // `System.exit(2)`, and a unit-test JVM hosts that Application.
+            // The audio pipeline no longer lets a throwable escape its
+            // capture/fragment threads, and the IME tests capture the
+            // default handler so a recurrence fails readably. Test-only
+            // setting, no effect on release artifacts.
             all {
                 it.jvmArgs("-Xshare:off")
                 it.maxHeapSize = "2048m"

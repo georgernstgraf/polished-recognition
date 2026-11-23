@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.audio
 
+import com.georgernstgraf.polishedrecognition.pipeline.CoreLog
 import com.georgernstgraf.polishedrecognition.pipeline.CoreOs
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SessionBundle
@@ -299,6 +300,9 @@ class FragmentPreparer(
 
     /** Fragment size in PCM bytes (21 s · 16 kHz · 16 bit · mono, #117 round 2). */
     companion object {
+        /** #198: logcat tag for the worker's failure line (see [startWorker]). */
+        private const val TAG = "FragmentPreparer"
+
         /** PCM byte rate: 16 kHz · 16 bit · mono. */
         const val PCM_BYTES_PER_SECOND = 32_000
         /** Default slice: 21 s — the fragment's MAXIMUM length (#124). */
@@ -420,7 +424,25 @@ class FragmentPreparer(
             }
             while (running) {
                 val before = nextFragment
-                encodeAvailableFragments()
+                // #198: this worker reads the spool WHILE the capture writes
+                // it and while the controller may truncate it (flush, a new
+                // take, cancel). A read that lands across the truncation
+                // throws — `PcmSource.copyPcmRange` rejects a range beyond the
+                // spool — and an escaped throwable here reached the app's
+                // JVM-global crash handler, which killed the process
+                // (`System.exit(2)`); in the Robolectric suite that was the
+                // unexplained dead test fork of #198. The worker logs it and
+                // stays alive: the next poll sees the current spool again.
+                try {
+                    encodeAvailableFragments()
+                } catch (t: Throwable) {
+                    CoreLog.e(
+                        TAG,
+                        "fragment preparation failed (spooled=${pcm.pcmSize()}B); " +
+                            "keeping the worker alive",
+                        t
+                    )
+                }
                 if (nextFragment == before) {
                     try {
                         Thread.sleep(pollIntervalMs)

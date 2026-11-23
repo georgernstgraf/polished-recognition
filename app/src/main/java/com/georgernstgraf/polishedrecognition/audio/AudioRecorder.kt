@@ -9,6 +9,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Captures 16-kHz mono PCM and spools it to DISK instead of accumulating it
@@ -35,6 +36,28 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
 
     private var audioRecord: AudioRecord? = null
     @Volatile private var isRecording = false
+
+    /**
+     * #198: identifies the ONE capture loop that may write. A stop bumps the
+     * generation, so a loop that is still spinning when the capture is
+     * stopped and immediately re-opened (the pause → resume path, where
+     * [isRecording] flips back to `true` within microseconds) cannot keep
+     * reading the NEW `AudioRecord` behind the new loop's back. Before this,
+     * pause+resume left the old loop alive forever (two loops, one record).
+     */
+    private val captureGeneration = AtomicLong(0L)
+
+    /**
+     * #198: a capture thread that fails must not die silently — its throwable
+     * would reach the app's JVM-global crash handler, which kills the process
+     * (#198: the unit-test fork died with exit value 2 and printed nothing).
+     * On a device that is a crash-dialog mid-dictation; the hook instead lets
+     * [com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController]
+     * park the take PAUSED and tell the user. Called ON the capture thread,
+     * at most once per capture.
+     */
+    @Volatile
+    var onCaptureFailure: ((Throwable) -> Unit)? = null
 
     private val lock = Any()
     private var raf: RandomAccessFile? = null
@@ -72,21 +95,71 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
 
         audioRecord?.startRecording()
 
-        Thread {
-            val buffer = ByteArray(bufferSize)
+        val generation = captureGeneration.incrementAndGet()
+        Thread({ captureLoop(generation, bufferSize) }, CAPTURE_THREAD_NAME).start()
+
+    }
+
+    /**
+     * #198: the capture loop is the app's most failure-prone background
+     * thread — the spool write hits a full disk (an `IOException` the robot
+     * shadow never produces, but a real device does), and `AudioRecord.read`
+     * can race a `release()` from the stop path. Neither may escape: an
+     * uncaught throwable on this thread reaches the JVM's default handler,
+     * and the app's handler there kills the process (`System.exit(2)`) —
+     * mid-dictation on a device, and as an unexplained dead fork in the
+     * Robolectric suite. The failure stops the capture and is reported
+     * through [onCaptureFailure].
+     */
+    private fun captureLoop(generation: Long, bufferSize: Int) {
+        val buffer = ByteArray(bufferSize)
+        try {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
-            while (isRecording && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+        } catch (_: Throwable) {
+            // priority is a nicety; the capture itself must not depend on it
+        }
+        try {
+            while (isRecording && captureGeneration.get() == generation &&
+                audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING
+            ) {
                 val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: -1
                 if (bytesRead > 0) {
                     synchronized(lock) { writeLocked(buffer, bytesRead) }
                 }
             }
-        }.start()
+        } catch (t: Throwable) {
+            stopAfterCaptureFailure()
+            runCatching { onCaptureFailure?.invoke(t) }
+        }
+    }
 
+    /**
+     * #198: ends capture from the failing capture thread itself — a state the
+     * stop path would otherwise have to reach through the main thread, which
+     * is exactly what is not happening when the take dies.
+     */
+    private fun stopAfterCaptureFailure() {
+        isRecording = false
+        captureGeneration.incrementAndGet()
+        runCatching {
+            audioRecord?.stop()
+            audioRecord?.release()
+        }
+        audioRecord = null
+    }
+
+    /**
+     * #198: invalidates the running capture loop. Called by every stop path so
+     * a `resume()` that re-opens the capture within microseconds cannot revive
+     * the previous loop (it re-reads [isRecording], which is `true` again).
+     */
+    private fun invalidateCapture() {
+        isRecording = false
+        captureGeneration.incrementAndGet()
     }
 
     fun pause() {
-        isRecording = false
+        invalidateCapture()
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -126,7 +199,7 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
      * upload. RAM peak is the copy buffer, not the session (#136).
      */
     fun stopSessionWavFile(): File {
-        isRecording = false
+        invalidateCapture()
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -157,7 +230,7 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
     }
 
     fun cancel() {
-        isRecording = false
+        invalidateCapture()
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -309,5 +382,11 @@ class AudioRecorder(private val spoolFile: File) : PcmSource {
 
         private const val WAV_HEADER_SIZE = 44
         private const val COPY_BUFFER_BYTES = 64 * 1024
+
+        /**
+         * #198: named so a device thread dump (and a test) can tell the
+         * capture loop from every other thread.
+         */
+        internal const val CAPTURE_THREAD_NAME = "AudioRecorder-capture"
     }
 }

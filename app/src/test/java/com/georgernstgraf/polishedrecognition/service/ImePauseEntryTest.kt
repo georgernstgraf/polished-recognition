@@ -11,6 +11,7 @@ import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.service.AutoStartPolicy.EntryAction
+import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -90,6 +91,11 @@ class ImePauseEntryTest {
         app.imeLastField = null
         sessionFile("session.pcm").delete()
         sessionFile("session.meta").delete()
+        // #198: the app's global crash handler turns one uncaught background
+        // throwable (here: the live capture thread and the fragment worker
+        // that read its spool) into `exit value 2` and no trace. The guard
+        // makes it a failing test with the throwable instead.
+        CaptureThreadGuard.install()
         service = Robolectric.buildService(RecordingIme::class.java).create().get()
     }
 
@@ -99,6 +105,8 @@ class ImePauseEntryTest {
         service.onDestroy()
         sessionFile("session.pcm").delete()
         sessionFile("session.meta").delete()
+        // #198: restore the app's handler; fails the test if it saw a throwable.
+        CaptureThreadGuard.restoreAndFail()
     }
 
     private fun sessionFile(name: String) = File(app.cacheDir, name)

@@ -1044,4 +1044,63 @@ class FragmentPreparerTest {
         assertThat(preparer.committedFragments().map { it.stitched })
             .containsExactly(false, true).inOrder()
     }
+
+    /**
+     * #198: the worker reads the spool while the capture appends to it and
+     * while the controller may truncate it (flush, cancel, a new take). A read
+     * that lands across the truncation throws (`copyPcmRange` rejects a range
+     * beyond the spool) — that throwable escaped the worker thread, reached
+     * the app's JVM-global crash handler and killed the process (on a device
+     * mid-dictation; in the suite the test fork died with `exit value 2`).
+     * The worker must log and carry on instead.
+     */
+    @Test
+    fun `the worker survives a throwing pcm source and keeps preparing (#198)`() {
+        val thrown = java.util.concurrent.atomic.AtomicInteger(0)
+        val committed = java.util.concurrent.CountDownLatch(1)
+        val flaky = object : PcmSource {
+            @Volatile var failNext = true
+            private var data = ByteArray(0)
+
+            override fun pcmSize(): Long = data.size.toLong()
+
+            override fun copyPcmRange(start: Long, end: Long): ByteArray {
+                if (failNext) {
+                    failNext = false
+                    thrown.incrementAndGet()
+                    require(end <= data.size) { "invalid PCM range [$start, $end) beyond ${data.size}B" }
+                }
+                return data.copyOfRange(start.toInt(), end.toInt())
+            }
+
+            fun append(bytes: Int) {
+                data = data + ByteArray(bytes) { i -> ((data.size + i) % 251).toByte() }
+            }
+        }
+        val preparer = FragmentPreparer(
+            pcm = flaky,
+            transcoder = transcoder,
+            sessionDir = sessionDir,
+            sliceBytes = 1000,
+            wavMode = true,
+            searchWindowBytes = 0,
+            preRollBytes = 0,
+            pollIntervalMs = 10
+        )
+        preparer.onFragmentCommitted = { _, _, _, _, _ -> committed.countDown() }
+
+        preparer.startWorker()
+        try {
+            flaky.append(2500)
+            assertThat(committed.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue()
+            assertThat(thrown.get()).isEqualTo(1)
+            // still alive and still encoding: one more slice is committed
+            val second = java.util.concurrent.CountDownLatch(1)
+            preparer.onFragmentCommitted = { _, _, _, _, _ -> second.countDown() }
+            flaky.append(1000)
+            assertThat(second.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue()
+        } finally {
+            preparer.stopWorker()
+        }
+    }
 }

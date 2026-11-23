@@ -9,6 +9,7 @@ import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -59,6 +60,8 @@ class ImeNoTakeBarTest {
         shadowOf(app as Application).grantPermissions(Manifest.permission.RECORD_AUDIO)
         app.imeConfigChangeMs = 0L
         app.imeLastField = null
+        // #198: the app's global crash handler kills the fork — capture instead.
+        CaptureThreadGuard.install()
         service = Robolectric.buildService(RecordingIme::class.java).create().get()
     }
 
@@ -66,6 +69,8 @@ class ImeNoTakeBarTest {
     fun tearDown() {
         if (controller.state != VoiceSessionController.State.IDLE) controller.cancel()
         service.onDestroy()
+        // #198: restore the app's handler; fails the test if it saw a throwable.
+        CaptureThreadGuard.restoreAndFail()
     }
 
     private fun field(fieldId: Int = 1) = EditorInfo().apply {

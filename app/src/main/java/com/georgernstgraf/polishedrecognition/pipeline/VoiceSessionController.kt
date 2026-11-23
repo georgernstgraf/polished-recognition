@@ -223,6 +223,15 @@ class VoiceSessionController(
     private val recorder = AudioRecorder(File(appContext.cacheDir, CAPTURE_SPOOL))
     private val gson = Gson()
 
+    init {
+        // #198: a capture failure (spool write, a lost device, a read that
+        // races the stop path) must never escape the capture thread — it would
+        // reach the app's JVM-global crash handler and kill the process
+        // mid-dictation. The take is parked PAUSED with its audio intact and
+        // the failure delivered, exactly like a failed pipeline run (#84).
+        recorder.onCaptureFailure = { t -> onCaptureFailure(t) }
+    }
+
     /** Session-scoped fragment preparation (#115), only with `compress_audio` on. */
     private var preparer: FragmentPreparer? = null
     private var sessionId: String? = null
@@ -637,6 +646,28 @@ class VoiceSessionController(
     }
 
     /**
+     * #198: the capture thread failed mid-take (a spool write on a full disk,
+     * a device that went away, a read racing the stop path). The throwable
+     * must not reach the app's JVM-global crash handler — that path kills the
+     * process, which on a device is a crash dialog mid-dictation and in the
+     * unit-test JVM was a silent `exit value 2` (#198). The audio captured so
+     * far stays in the spool: the take is parked PAUSED (exactly the failed
+     * pipeline parking of #84 — send and resume stay live) and the failure is
+     * delivered so the keyboard shows WHY.
+     *
+     * Called ON the capture thread; the state change is marshalled to the main
+     * thread, where every other transition runs.
+     */
+    private fun onCaptureFailure(t: Throwable) {
+        Log.w(TAG, "capture failed; parking the take PAUSED: ${t.message}", t)
+        mainHandler.post {
+            if (state != State.RECORDING) return@post
+            pause()
+            deliver(Result.failure(t))
+        }
+    }
+
+    /**
      * @param callerPackage package of the app being dictated into (#100), used
      *   to resolve the per-app line-wrap width. `null` for callers that cannot
      *   provide one (bound service) → global width.
@@ -830,9 +861,15 @@ class VoiceSessionController(
      */
     fun flush() {
         if (state != State.RECORDING && state != State.PAUSED) return
+        // #198: stop the fragment worker BEFORE the spool is truncated. The
+        // old order (truncate, then discard) let a worker read land across the
+        // truncation: `copyPcmRange` rejects a range that no longer exists
+        // ("PCM range [x, y) beyond buffer (0B)") and that throwable escaped
+        // the worker thread into the crash handler, killing the app — and the
+        // test fork — mid-take.
+        discardFragmentSession()
         recorder.flushBuffer()
         // The fragments encoded so far referenced the discarded audio (#115).
-        discardFragmentSession()
         preparer = null
         if (state == State.RECORDING) startFragmentPreparation(newSession = false)
         clearSnapshot()

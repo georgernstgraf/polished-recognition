@@ -202,4 +202,74 @@ class AudioRecorderTest {
         // the snapshot file is CONSUMED (renamed into place)
         assertThat(snapshot.exists()).isFalse()
     }
+
+    // ---- #198: the capture loop never lets a throwable escape --------------
+
+    /** Live capture loops named by [AudioRecorder.CAPTURE_THREAD_NAME]. */
+    private fun captureThreads(): List<Thread> =
+        Thread.getAllStackTraces().keys.filter {
+            it.name == AudioRecorder.CAPTURE_THREAD_NAME && it.isAlive
+        }
+
+    private fun awaitCaptureThreads(expected: Int, timeoutMs: Long = 5_000): List<Thread> {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val live = captureThreads()
+            if (live.size == expected) return live
+            Thread.sleep(10)
+        }
+        return captureThreads()
+    }
+
+    /**
+     * #198: a spool that cannot be written (a full disk on a device) throws
+     * `IOException` on the capture thread. Before the fix that throwable
+     * reached the app's JVM-global crash handler, which killed the whole
+     * process — the unit-test fork died with `exit value 2` and no trace.
+     * It must instead stop the capture and be reported.
+     */
+    @Test
+    fun `a spool write failure is reported and never escapes the capture thread (#198)`() {
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        // A FILE where the recorder expects a directory: every write fails.
+        val notADirectory = File(cacheDir, "not_a_dir_${System.nanoTime()}").apply {
+            writeText("x")
+        }
+        val recorder = AudioRecorder(File(notADirectory, "recording.pcm"))
+        val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        val reported = java.util.concurrent.CountDownLatch(1)
+        recorder.onCaptureFailure = { t ->
+            failure.set(t)
+            reported.countDown()
+        }
+
+        recorder.start()
+        assertThat(reported.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue()
+
+        assertThat(failure.get()).isInstanceOf(java.io.IOException::class.java)
+        assertThat(recorder.isCapturing()).isFalse()
+        // the loop ended on its own — nothing is left writing to the spool
+        assertThat(awaitCaptureThreads(0)).isEmpty()
+        recorder.cancel()
+    }
+
+    /**
+     * #198: a pause immediately followed by a resume flips the shared
+     * `isRecording` back to `true` before the old loop noticed it — the old
+     * loop then kept reading the NEW `AudioRecord` alongside the new one (two
+     * loops, one record, double writes). Each loop carries a generation, so
+     * only the current one survives.
+     */
+    @Test
+    fun `a pause followed by a resume leaves exactly one capture loop (#198)`() {
+        val recorder = newRecorder()
+        recorder.start()
+        Thread.sleep(50) // let the first loop reach its read
+        recorder.pause()
+        recorder.resume()
+
+        assertThat(awaitCaptureThreads(1)).hasSize(1)
+        recorder.cancel()
+        assertThat(awaitCaptureThreads(0)).isEmpty()
+    }
 }

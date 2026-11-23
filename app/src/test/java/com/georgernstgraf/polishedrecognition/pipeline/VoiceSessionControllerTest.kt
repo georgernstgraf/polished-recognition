@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.pipeline
 
+import android.os.Looper
 import com.georgernstgraf.polishedrecognition.api.OpenAiSttApiService
 import com.georgernstgraf.polishedrecognition.api.dto.SttResponse
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
@@ -10,6 +11,7 @@ import com.georgernstgraf.polishedrecognition.audio.WavChunker
 import com.georgernstgraf.polishedrecognition.audio.WavReader
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
 import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
+import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -23,11 +25,13 @@ import kotlinx.coroutines.SupervisorJob
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import okhttp3.RequestBody
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import retrofit2.Call
 import retrofit2.Response
 import java.io.File
@@ -69,6 +73,16 @@ class VoiceSessionControllerTest {
         coEvery { pipeline.finishTranscription(any(), any(), any()) } returns Result.success("hi")
         coEvery { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns
             mockSttCall(Response.success(SttResponse(text = "hi", language = null)))
+        // #198: the app's JVM-global crash handler turns one uncaught
+        // background throwable into `exit value 2` and no trace; capture it so
+        // a recurrence is a failing test instead of a dead fork.
+        CaptureThreadGuard.install()
+    }
+
+    @After
+    fun tearDown() {
+        // #198: the app's handler back, and a captured throwable fails THIS test.
+        CaptureThreadGuard.restoreAndFail()
     }
 
     private fun mockSttCall(response: Response<SttResponse>): Call<SttResponse> {
@@ -156,7 +170,7 @@ class VoiceSessionControllerTest {
         // Events may have been posted from an IO thread (the live fragment
         // worker resumed there, #116) — pump the main looper so posted
         // runnables deliver before the caller reads its event list.
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        org.robolectric.Shadows.shadowOf(Looper.getMainLooper()).idle()
     }
 
     /**
@@ -2142,5 +2156,52 @@ class VoiceSessionControllerTest {
         assertThat(calls[0]).isEqualTo(48_800 to null as String?)
         assertThat(calls[1]).isEqualTo(23_200 to null as String?)
         assertThat(stt.text).isEqualTo("eins zwei drei")
+    }
+
+    /**
+     * #198: a capture thread that fails (here: the spool cannot be written —
+     * a full disk on a device) must NOT let its throwable reach the app's
+     * JVM-global crash handler: that path is `System.exit(2)`, a crash dialog
+     * mid-dictation on a device and a dead test fork here. The take is parked
+     * PAUSED with its audio, exactly like a failed pipeline run (#84), and
+     * the failure is delivered so the keyboard can say why.
+     */
+    @Test
+    fun `a capture failure parks the take PAUSED instead of killing the app (#198)`() {
+        val ctx = RuntimeEnvironment.getApplication()
+        // The recorder spools to `cacheDir/recording.pcm`. A NON-EMPTY
+        // directory there makes every spool write fail (resetLocked cannot
+        // delete it) — the device case is a full disk.
+        val spool = File(ctx.cacheDir, "recording.pcm")
+        spool.deleteRecursively()
+        spool.mkdirs()
+        File(spool, "keep").writeText("x")
+        try {
+            val controller = newController(mainDispatcher = true)
+            val events = mutableListOf<VoiceSessionController.Event>()
+
+            controller.start { events += it }
+            assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+
+            val deadline = System.currentTimeMillis() + 5_000
+            while (controller.state == VoiceSessionController.State.RECORDING &&
+                System.currentTimeMillis() < deadline
+            ) {
+                Thread.sleep(10)
+                shadowOf(Looper.getMainLooper()).idle()
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+
+            // parked, not dead — and the audio the capture did get is kept
+            assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+            assertThat(controller.isCaptureRunning()).isFalse()
+            val completed = events.filterIsInstance<VoiceSessionController.Event.Completed>()
+            assertThat(completed).hasSize(1)
+            assertThat(completed.single().result.exceptionOrNull())
+                .isInstanceOf(IOException::class.java)
+            controller.cancel()
+        } finally {
+            spool.deleteRecursively()
+        }
     }
 }

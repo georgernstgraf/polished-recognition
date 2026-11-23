@@ -10,6 +10,7 @@ import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.pipeline.SttFailure
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -79,6 +80,8 @@ class ImeCompletedHandoverTest {
         // #177: without the mic permission there is no auto-start at all, and
         // the park tests would pass for the wrong reason.
         shadowOf(app as Application).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        // #198: the app's global crash handler kills the fork — capture instead.
+        CaptureThreadGuard.install()
         service = Robolectric.buildService(RecordingIme::class.java).create().get()
     }
 
@@ -86,6 +89,8 @@ class ImeCompletedHandoverTest {
     fun tearDown() {
         if (controller.state != VoiceSessionController.State.IDLE) controller.cancel()
         service.onDestroy()
+        // #198: restore the app's handler; fails the test if it saw a throwable.
+        CaptureThreadGuard.restoreAndFail()
     }
 
     private fun completed(text: String) = VoiceSessionController.Event.Completed(

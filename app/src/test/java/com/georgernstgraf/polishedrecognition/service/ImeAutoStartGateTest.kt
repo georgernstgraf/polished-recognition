@@ -5,6 +5,7 @@ import android.app.Application
 import android.view.inputmethod.EditorInfo
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -38,6 +39,8 @@ class ImeAutoStartGateTest {
     fun setUp() {
         shadowOf(RuntimeEnvironment.getApplication() as Application)
             .grantPermissions(Manifest.permission.RECORD_AUDIO)
+        // #198: the app's global crash handler kills the fork — capture instead.
+        CaptureThreadGuard.install()
         service = Robolectric.buildService(PolishedVoiceInputIME::class.java).create().get()
     }
 
@@ -48,6 +51,8 @@ class ImeAutoStartGateTest {
         // post into another test's looper.
         if (controller.state != VoiceSessionController.State.IDLE) controller.cancel()
         service.onDestroy()
+        // #198: restore the app's handler; fails the test if it saw a throwable.
+        CaptureThreadGuard.restoreAndFail()
     }
 
     private fun field(fieldId: Int = 1) = EditorInfo().apply {

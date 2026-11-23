@@ -5,6 +5,7 @@ import android.app.Application
 import android.view.inputmethod.EditorInfo
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
+import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
@@ -42,6 +43,8 @@ class ImeRebindChurnTest {
         app = RuntimeEnvironment.getApplication() as PolishedRecognitionApp
         shadowOf(app as Application).grantPermissions(Manifest.permission.RECORD_AUDIO)
         logFile().delete()
+        // #198: the app's global crash handler kills the fork — capture instead.
+        CaptureThreadGuard.install()
         service = Robolectric.buildService(PolishedVoiceInputIME::class.java).create().get()
     }
 
@@ -51,6 +54,8 @@ class ImeRebindChurnTest {
         // Robolectric); tear it down so its threads cannot outlive the test.
         if (controller.state != VoiceSessionController.State.IDLE) controller.cancel()
         service.onDestroy()
+        // #198: restore the app's handler; fails the test if it saw a throwable.
+        CaptureThreadGuard.restoreAndFail()
     }
 
     private fun logFile(): File {
