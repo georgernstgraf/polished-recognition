@@ -174,6 +174,52 @@ class FragmentTranscriberTest {
         assertThat(drained.text).isEmpty()
     }
 
+    // ---- #192: the non-destructive peek the salvage guard reads -------------
+
+    /**
+     * #192: the IME decides whether it may cancel a take by asking what the
+     * cancel would hand over. `peek()` must be read-only — calling it twice
+     * yields the same text and the following `cancel()` still returns exactly
+     * that (a consuming peek would turn the guard into the silent loss it
+     * exists to prevent, #152).
+     */
+    @Test
+    fun `peek is non-destructive and cancel still returns the same text`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returnsMany
+            listOf(ok("eins"), ok("zwei"))
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.drain()
+
+        assertThat(transcriber.peek()?.text).isEqualTo("eins zwei")
+        assertThat(transcriber.peek()?.text).isEqualTo("eins zwei")
+
+        val drained = transcriber.cancel()
+        assertThat(drained?.text).isEqualTo("eins zwei")
+        // After the cancel nothing is left to look at.
+        assertThat(transcriber.peek()).isNull()
+    }
+
+    /**
+     * The guard's other input: a take whose fragments are still in flight (or
+     * all failed) has no transcripts, so `peek()` is null — the caller must not
+     * cancel it.
+     */
+    @Test
+    fun `peek is null while nothing was transcribed`() = runBlocking {
+        assertThat(transcriber.peek()).isNull()
+
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(SttRequestRunner.SttRequestException("HTTP 500", httpCode = 500))
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.drain()
+
+        assertThat(transcriber.peek()).isNull()
+    }
+
     // ---- #183: failure classes ---------------------------------------------
 
     private fun authFailure() = SttRequestRunner.SttRequestException(

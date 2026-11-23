@@ -354,6 +354,15 @@ class FragmentTranscriber(
     }
 
     /**
+     * #192: a non-destructive read of what a [cancel] would salvage right
+     * now (`null` when nothing was transcribed yet). Used BEFORE an automatic
+     * cancel to decide whether the audio may be discarded at all: a take whose
+     * fragments are still in flight has no transcripts, so cancelling it would
+     * destroy the only copy of the dictation.
+     */
+    fun peek(): Drained? = if (transcripts.isEmpty()) null else snapshot()
+
+    /**
      * Stops the worker and forgets everything — in-flight STT requests are
      * abandoned (they belong to a discarded session), transcripts dropped.
      *

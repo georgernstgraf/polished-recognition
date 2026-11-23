@@ -761,6 +761,14 @@ class VoiceSessionController(
         }
     }
 
+    /**
+     * #192: what a [cancel] would salvage right now, without consuming it.
+     * `null` when the fragments are still in flight (nothing transcribed yet) —
+     * an automatic cancel must not run then, because it would delete the only
+     * copy of the dictation (the durable journal goes with the session).
+     */
+    fun salvageableText(): String? = transcriber?.peek()?.text?.takeIf { it.isNotBlank() }
+
     fun cancel() {
         transcribeJob?.cancel()
         transcribeJob = null

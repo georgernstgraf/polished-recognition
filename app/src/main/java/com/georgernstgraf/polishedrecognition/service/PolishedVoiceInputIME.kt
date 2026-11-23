@@ -248,8 +248,8 @@ open class PolishedVoiceInputIME : InputMethodService() {
         sendButton?.setOnClickListener {
             when (controller.state) {
                 VoiceSessionController.State.IDLE -> {
-                    // #177: a send tap on the parked bar ends the park and
-                    // starts a fresh take (the parked bar renders send
+                    // #177/#192: a send tap on the no-take bar ends the park
+                    // and starts a fresh take (both no-take bars render send
                     // disabled, so this is the stale-callback path only).
                     if (postSendParked) {
                         applyParkingEvent(PostSendParkingPolicy.Event.USER_TAP_SEND)
@@ -273,13 +273,19 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 // return into this app, however long ago (↺ appends).
                 VoiceSessionController.State.RECORDING -> pauseTake("pause-button")
                 VoiceSessionController.State.PAUSED -> controller.resume()
-                // #177: ↺ on the parked bar ends the park and starts a fresh
-                // take — nothing is buffered, so there is nothing to resume.
-                VoiceSessionController.State.IDLE ->
+                // #177/#192: ↺ on the no-take bar starts a fresh take —
+                // nothing is buffered, so there is nothing to resume. The
+                // park flag only changes the stage line, but it is cleared
+                // here like the stale send tap does, so the bar cannot keep
+                // saying "Sent" over a take that was just started. This holds
+                // for BOTH no-take bars: fresh idle renders ↺ live, and a live
+                // control must have an effect (owner's rule).
+                VoiceSessionController.State.IDLE -> {
                     if (postSendParked) {
                         applyParkingEvent(PostSendParkingPolicy.Event.USER_TAP_RESUME)
-                        startIfPermitted()
-                    } else Unit
+                    }
+                    startIfPermitted()
+                }
                 else -> Unit
             }
         }
@@ -684,6 +690,21 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 // persisted, no Workbench entry is created. IDLE needs no
                 // cancel (the buffer is already empty).
                 if (controller.state == VoiceSessionController.State.PAUSED) {
+                    // #192/#152: a cancel that salvages NOTHING destroys the
+                    // audio (the journal session goes with it) and says nothing
+                    // — that is the one thing this app must never do. So the
+                    // take is only ended when there is text to hand over;
+                    // otherwise it stays paused in this app, with its buffered
+                    // time visible and the trash button as the explicit discard.
+                    val salvage = controller.salvageableText()
+                    if (salvage == null && controller.recordedDurationMs() > 0L) {
+                        ImeLifecycleTrace.log(
+                            this, "pause",
+                            "cause=foreign-app kept=audio-without-transcripts " +
+                                "pausedMs=${controller.recordedDurationMs()}"
+                        )
+                        return
+                    }
                     controller.cancel()
                 }
                 startIfPermitted()
@@ -1148,23 +1169,17 @@ open class PolishedVoiceInputIME : InputMethodService() {
             VoiceSessionController.State.IDLE -> {
                 ms.setImageResource(R.drawable.ic_send)
                 ms.contentDescription = getString(R.string.ime_send_desc)
-                // #177: the post-send park looks paused — ↺ starts a fresh
-                // take — but nothing is buffered, so send and flush have
-                // nothing to act on; gear/X still work like in IDLE.
-                // #192: and it must not be READ as a (deep) pause — ↺ says
-                // "new take", the stage line says "sent", and the buffered-time
-                // timer stays hidden (only PAUSED shows it).
-                val parked = PostSendParkingPolicy.renders(s, postSendParked)
-                ms.isEnabled = !parked
-                if (parked) {
-                    pr.setImageResource(R.drawable.ic_resume)
-                    pr.contentDescription = getString(R.string.ime_new_take_desc)
-                    pr.isEnabled = true
-                } else {
-                    pr.setImageResource(R.drawable.ic_pause)
-                    pr.contentDescription = getString(R.string.ime_pause_desc)
-                    pr.isEnabled = false
-                }
+                // #177/#192: with nothing buffered there is exactly ONE bar,
+                // whether the take was just sent (the #177 park) or never
+                // started. Owner's call: "fresh idle should advance to a
+                // parked at 00:00". So the plane is always disabled here
+                // (nothing to send), the ↺ always starts a take, and the
+                // timer always reads 0:00 — no state in which a control is
+                // live without an effect, and no second no-take look.
+                ms.isEnabled = false
+                pr.setImageResource(R.drawable.ic_resume)
+                pr.contentDescription = getString(R.string.ime_new_take_desc)
+                pr.isEnabled = true
                 sw.isEnabled = true
                 fb.isEnabled = false
                 gear.isEnabled = true
@@ -1211,13 +1226,19 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 setQuickSettingsVisible(false)
             }
         }
-        // #192: the stage line is the parked bar's distinguishing mark — a
-        // paused take shows the buffered TIME there (rec timer), a parked one
-        // says it is done. PROCESSING keeps the stage text its events write.
+        // #192: the stage line is the no-take bar's mark — a paused take shows
+        // the buffered TIME (rec timer), the no-take bar says either "sent"
+        // (the #177 park) or plainly what ↺ does. PROCESSING keeps the stage
+        // text its events write.
         val parked = PostSendParkingPolicy.renders(s, postSendParked)
+        val noTake = s == VoiceSessionController.State.IDLE
         stageText?.visibility =
-            if (s == VoiceSessionController.State.PROCESSING || parked) View.VISIBLE else View.GONE
-        if (parked) stageText?.text = getString(R.string.ime_post_send_parked)
+            if (s == VoiceSessionController.State.PROCESSING || noTake) View.VISIBLE else View.GONE
+        if (noTake) {
+            stageText?.text = getString(
+                if (parked) R.string.ime_post_send_parked else R.string.ime_no_take
+            )
+        }
         updateRecTimer(s)
         updateLanguageEnabled()
     }
@@ -1239,6 +1260,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
             VoiceSessionController.State.PAUSED -> {
                 recTickHandler.removeCallbacks(recTick)
                 recTimer?.text = RecTimeFormatter.paused(controller.recordedDurationMs())
+                recTimer?.visibility = View.VISIBLE
+            }
+            // #192: the no-take bar is "parked at 0:00" (owner's wording) —
+            // one look for "nothing buffered" instead of a hidden timer.
+            VoiceSessionController.State.IDLE -> {
+                recTickHandler.removeCallbacks(recTick)
+                recTimer?.text = RecTimeFormatter.paused(0L)
                 recTimer?.visibility = View.VISIBLE
             }
             else -> {

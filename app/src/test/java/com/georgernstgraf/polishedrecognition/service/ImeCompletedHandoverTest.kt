@@ -2,8 +2,10 @@ package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
 import android.app.Application
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
+import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.pipeline.SttFailure
@@ -162,8 +164,12 @@ class ImeCompletedHandoverTest {
     }
 
     /**
-     * #177: the parked bar shows ↺ (`ic_resume`) with send and flush inert —
-     * and a tap on ↺ requests a fresh take.
+     * #177/#192: the post-send bar is the no-take bar — ↺ (`ic_resume`, "New
+     * take") live, send and flush inert, the timer parked at `0:00`, the stage
+     * line saying the take was sent. A tap on ↺ requests a fresh take and the
+     * bar stays a no-take bar: with nothing buffered the plane is dead, so
+     * there is no "normal idle" form with a live send any more (owner: a
+     * control is live only when pressing it has an effect).
      */
     @Test
     fun `the parked bar shows resume and a tap on it asks for a fresh take`() {
@@ -174,15 +180,27 @@ class ImeCompletedHandoverTest {
         val resume = view.findViewById<ImageButton>(R.id.ime_pause_resume_button)
         val send = view.findViewById<ImageButton>(R.id.ime_send_button)
         val flush = view.findViewById<ImageButton>(R.id.ime_flush_button)
+        val timer = view.findViewById<TextView>(R.id.ime_rec_timer)
+        val stage = view.findViewById<TextView>(R.id.ime_stage_text)
         assertThat(resume.isEnabled).isTrue()
+        assertThat(resume.contentDescription)
+            .isEqualTo(service.getString(R.string.ime_new_take_desc))
         assertThat(send.isEnabled).isFalse()
         assertThat(flush.isEnabled).isFalse()
+        assertThat(timer.visibility).isEqualTo(View.VISIBLE)
+        assertThat(timer.text.toString()).isEqualTo("0:00")
+        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_post_send_parked))
 
         resume.performClick()
 
         assertThat(service.startCalls).isEqualTo(1)
-        // Unparked again: the bar is back to the normal idle form.
-        assertThat(send.isEnabled).isTrue()
+        // The park is over, but the fresh take is not RUNNING in this test
+        // (the start is counted, not executed) — so the bar is the OTHER
+        // no-take bar: still no plane, still ↺, only the stage line changed.
+        assertThat(send.isEnabled).isFalse()
+        assertThat(resume.contentDescription)
+            .isEqualTo(service.getString(R.string.ime_new_take_desc))
+        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_no_take))
     }
 
     /** #177: a genuine field change ends the park and the normal auto-start runs. */

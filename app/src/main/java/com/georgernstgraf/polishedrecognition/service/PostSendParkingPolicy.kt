@@ -7,13 +7,19 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  *
  * After a successful send the keyboard stays visible (#174) and must not start
  * another recording by itself — it presents the parked bar: ↺ (`ic_resume`,
- * enabled), send and flush disabled, gear/X enabled, timer hidden. The
- * controller is genuinely [VoiceSessionController.State.IDLE] (no session, no
- * audio). This state is deliberately NOT `PAUSED`: PAUSED means "audio is
- * buffered, resume appends" throughout the repo (#67/#84/#134), so parking the
- * controller there would make a resume resurrect a dictation that was already
- * delivered. The park therefore lives in the IME UI only — the controller
- * never learns about it.
+ * enabled), send and flush disabled, gear/X enabled. The controller is
+ * genuinely [VoiceSessionController.State.IDLE] (no session, no audio). This
+ * state is deliberately NOT `PAUSED`: PAUSED means "audio is buffered, resume
+ * appends" throughout the repo (#67/#84/#134), so parking the controller there
+ * would make a resume resurrect a dictation that was already delivered. The
+ * park therefore lives in the IME UI only — the controller never learns about
+ * it.
+ *
+ * #192 (owner): the parked bar is also what a **fresh** IDLE looks like — "fresh
+ * idle should advance to a parked at 00:00". So the rendered bar is identical in
+ * both cases (plane disabled, ↺ live, timer 0:00); the flag only changes the
+ * stage line ("Sent — ↺ starts a new take" vs "↺ starts a new take") and the
+ * auto-start suppression after a send.
  *
  * The decision is pure so the whole event/state matrix is unit-tested; the IME
  * only owns the flag and the rendering.

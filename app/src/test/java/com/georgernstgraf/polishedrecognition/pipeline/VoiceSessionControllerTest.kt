@@ -897,10 +897,93 @@ class VoiceSessionControllerTest {
     }
 
     /**
-     * #113 salvage counter-case: a cancel with NOTHING transcribed must not
-     * emit the salvage event — the IDLE tail is silence, not noise.
+     * #192/#152: the IME asks before an automatic cancel. `salvageableText()`
+     * must report exactly what `cancel()` would hand over, and reading it must
+     * consume nothing — a destructive read would make the guard discard the
+     * audio it has just proved salvageable.
      */
     @Test
+    fun `salvageableText reports the cancel salvage without consuming it`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+
+        var callIndex = 0
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } answers {
+            callIndex++
+            mockSttCall(Response.success(SttResponse(text = "part $callIndex", language = null)))
+        }
+        coEvery { pipeline.finishTranscription(any(), any(), any()) } returns
+            Result.failure(Exception("LLM post-processing failed: HTTP 500"))
+
+        val controller = newController(fragmentBytes = 10_000)
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        assertThat(callIndex).isEqualTo(4)
+
+        assertThat(controller.salvageableText()).isEqualTo("part 1 part 2 part 3 part 4")
+        // Read-only: the second look says the same.
+        assertThat(controller.salvageableText()).isEqualTo("part 1 part 2 part 3 part 4")
+
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        controller.cancel()
+
+        assertThat(events.filterIsInstance<VoiceSessionController.Event.CancelledWithTranscripts>())
+            .containsExactly(
+                VoiceSessionController.Event.CancelledWithTranscripts("part 1 part 2 part 3 part 4")
+            )
+        assertThat(controller.salvageableText()).isNull()
+        clearSessionFiles()
+    }
+
+    /**
+     * The other half of the #192 guard: a take with AUDIO but no transcript has
+     * nothing to hand over. `salvageableText()` is null while the buffered time
+     * is real, so the IME must keep it paused instead of cancelling it into
+     * silence.
+     */
+    @Test
+    fun `salvageableText is null for buffered audio without transcripts`() {
+        clearSessionFiles()
+        settings.compressAudio = true
+        every { transcoder.transcode(any(), any()) } answers {
+            secondArg<File>().apply { writeBytes(firstArg()) }
+        }
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(40_000) { i -> (i % 97).toByte() })
+        File(cacheDir, "session.meta").writeText("""{"durationMs":1250,"sessionId":"testsess"}""")
+        @Suppress("DEPRECATION")
+        val http500 = Response.error<SttResponse>(500, ResponseBody.create(null, "boom"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns
+            mockSttCall(http500)
+
+        val controller = newController(fragmentBytes = 10_000)
+        controller.restore()
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+
+        assertThat(controller.recordedDurationMs()).isGreaterThan(0L)
+        assertThat(controller.salvageableText()).isNull()
+
+        val events = mutableListOf<VoiceSessionController.Event>()
+        controller.attach { events.add(it) }
+        controller.cancel()
+        assertThat(events.filterIsInstance<VoiceSessionController.Event.CancelledWithTranscripts>())
+            .isEmpty()
+        clearSessionFiles()
+    }
+
+    /**
+     * #113 salvage counter-case: a cancel with NOTHING transcribed must not
+     * emit the salvage event — the IDLE tail is silence, not noise.
+     */    @Test
     fun `cancel without transcripts emits no salvage event`() {
         val controller = newController()
         val events = mutableListOf<VoiceSessionController.Event>()

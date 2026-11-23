@@ -33,7 +33,10 @@ import java.io.File
  *    button, the X, a nav-bar close, a hidden keyboard, and a take restored
  *    after a process death or a reboot behave identically;
  * 2. another app ends it through the existing #113 cancel (clipboard + Toast
- *    for fragments already transcribed) and starts a fresh empty take;
+ *    for fragments already transcribed) and starts a fresh empty take — but
+ *    only when the cancel can hand the audio over: a take with buffered audio
+ *    and nothing transcribed yet is KEPT (a cancel there would delete the only
+ *    copy and say nothing, #192 follow-up / #152);
  * 3. hiding the keyboard while RECORDING pauses the take; the post-send park
  *    ends with the keyboard; a rotation storm is neither a pause nor a
  *    dismissal; nothing is written for a paused take (no Workbench entry, no
@@ -100,6 +103,12 @@ class ImePauseEntryTest {
 
     private fun sessionFile(name: String) = File(app.cacheDir, name)
 
+    /** The IME's adb-readable lifecycle trace (same file [ImeLifecycleTrace] appends to). */
+    private fun traceFile(): File {
+        val dir = File(app.getExternalFilesDir(null) ?: app.filesDir, "logs")
+        return File(dir, "ime-lifecycle.log")
+    }
+
     private fun field(fieldId: Int = 1, pkg: String = "com.example.chat") = EditorInfo().apply {
         packageName = pkg
         this.fieldId = fieldId
@@ -110,11 +119,11 @@ class ImePauseEntryTest {
      * hand-crafted process-death snapshot restored through the production path
      * (the same one a killed IME uses on the device).
      */
-    private fun pauseViaSnapshot(pkg: String?) {
+    private fun pauseViaSnapshot(pkg: String?, durationMs: Long = 4200) {
         sessionFile("session.pcm").writeBytes(ByteArray(320))
         sessionFile("session.meta").writeText(
             buildString {
-                append("{\"durationMs\":4200,\"sessionId\":\"s1\"")
+                append("{\"durationMs\":$durationMs,\"sessionId\":\"s1\"")
                 pkg?.let { append(",\"pausePackage\":\"$it\"") }
                 append("}")
             }
@@ -176,19 +185,57 @@ class ImePauseEntryTest {
 
     // --- another app: salvage, then a fresh take ----------------------------
 
+    /**
+     * #192/#152: a foreign app ends the take — but ONLY when it can hand the
+     * audio over. A take restored from disk has buffered audio and nothing
+     * transcribed yet; the #113 cancel would delete the journal session with no
+     * clipboard and no Toast — a silent loss against #152. So it stays PAUSED
+     * in the app it belongs to (buffered time visible, trash = explicit
+     * discard), no fresh take starts, and the trace says why.
+     */
     @Test
-    fun `a take paused in one app is salvaged when another app opens`() {
+    fun `a take paused in one app keeps its audio when another app opens`() {
+        traceFile().delete()
         service.onCreateInputView()
         service.onStartInputView(field(), false)
         pauseViaSnapshot("com.example.chat")
 
         service.onStartInputView(field(pkg = "com.example.mail"), false)
         assertThat(service.lastEntryAction).isEqualTo(EntryAction.FRESH_START)
-
         service.onInputViewDrawn()
 
-        // The #113 salvage path ran (cancel) and a FRESH take was requested —
-        // nothing resumed into the foreign app, nothing was persisted.
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(controller.pausedPackage()).isEqualTo("com.example.chat")
+        assertThat(controller.recordedDurationMs()).isEqualTo(4200)
+        assertThat(service.startCalls).isEqualTo(0)
+
+        val kept = traceFile().readLines().filter { it.contains("kept=audio-without-transcripts") }
+        assertThat(kept).hasSize(1)
+        assertThat(kept.single()).contains(
+            "pause cause=foreign-app kept=audio-without-transcripts pausedMs=4200"
+        )
+    }
+
+    /**
+     * The other half of the guard: a paused take that holds no audio has
+     * nothing to lose, so the foreign app ends it and starts fresh, exactly as
+     * before the guard.
+     *
+     * (The third case — buffered audio WITH transcripts, so the cancel really
+     * salvages — cannot be built at IME level: the app's controller uses the
+     * real STT endpoint and the transcriber has no test seam. It is pinned at
+     * the controller level in `VoiceSessionControllerTest`
+     * `salvageableText reports the cancel salvage without consuming it`.)
+     */
+    @Test
+    fun `a paused take with no audio is ended when another app opens`() {
+        service.onCreateInputView()
+        service.onStartInputView(field(), false)
+        pauseViaSnapshot("com.example.chat", durationMs = 0)
+
+        service.onStartInputView(field(pkg = "com.example.mail"), false)
+        service.onInputViewDrawn()
+
         assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
         assertThat(controller.pausedPackage()).isNull()
         assertThat(service.startCalls).isEqualTo(1)
@@ -331,11 +378,12 @@ class ImePauseEntryTest {
     // --- the parked bar is not a pause --------------------------------------
 
     /**
-     * The parked bar must not read as "a pause that is too deep". It is
-     * distinguishable without a layout change — ↺ says "new take", the stage
-     * line says "sent", send is disabled, no buffered time — while a real
-     * pause shows the buffered time and an enabled send under the "Resume"
-     * wording.
+     * The no-take bar must not read as "a pause that is too deep". #192: it is
+     * the parked-0:00 shape — send disabled (nothing to send), ↺ live as "New
+     * take", the timer visible and pinned to `0:00`, the stage line saying the
+     * take was sent. A real pause is the opposite where it matters: send is
+     * LIVE, ↺ says "Resume", the timer shows the BUFFERED time, and there is no
+     * stage line.
      */
     @Test
     fun `the parked bar differs from a paused one in wording and state`() {
@@ -355,7 +403,8 @@ class ImePauseEntryTest {
         assertThat(resume.contentDescription)
             .isEqualTo(service.getString(R.string.ime_new_take_desc))
         assertThat(stage.text).isEqualTo(service.getString(R.string.ime_post_send_parked))
-        assertThat(timer.visibility).isEqualTo(View.GONE)
+        assertThat(timer.visibility).isEqualTo(View.VISIBLE)
+        assertThat(timer.text.toString()).isEqualTo("0:00")
 
         // A real pause: send enabled, buffered time visible, "Resume" wording.
         pauseViaSnapshot("com.example.chat")
@@ -364,6 +413,7 @@ class ImePauseEntryTest {
         assertThat(resume.contentDescription)
             .isEqualTo(service.getString(R.string.ime_resume_desc))
         assertThat(timer.visibility).isEqualTo(View.VISIBLE)
+        assertThat(timer.text.toString()).isEqualTo("0:04")
         assertThat(stage.visibility).isEqualTo(View.GONE)
     }
 }
