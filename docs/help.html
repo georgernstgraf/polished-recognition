@@ -369,6 +369,7 @@
         <tr><td>Model list is empty</td><td>Enter a valid API token and tap <em>Validate &amp; Fetch Models</em>. Some providers only allow free-text model entry.</td></tr>
         <tr><td>Gboard's mic doesn't start it</td><td>By design — Gboard hardcodes Google's own voice typing. Switch to the AOSP keyboard (LineageOS), HeliBoard, Fossify, or OpenBoard.</td></tr>
         <tr><td>Polished isn't listed under Voice input</td><td>Available on Android 12+. If the menu is hidden, set it via ADB — see below.</td></tr>
+        <tr><td>Text I deleted comes back after rotating the phone</td><td>The app did that, not the dictation. Some editors keep their own file and refuse to save a nearly empty document — Markor's <em>QuickNote</em> for instance saves nothing below 2 characters. Rotating recreates the screen and reloads the last saved version, so the deleted text returns and anything you dictated but never saved disappears with it. Leave the note (or add two characters) before rotating. The keyboard never re-inserts text: every insertion it makes is recorded in <code>logs/insertion.json</code>, and a reload leaves no trace there.</td></tr>
     </table>
 </section>
 
