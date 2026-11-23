@@ -9,6 +9,14 @@ status: stable
 
 # Hand Off
 
+**#191 (2026-11-23, shipped):** the owner's device check of #186 paged 1/3 ·
+2/3 · 3/3 before finding Retry STT, so the four leftover actions now sit
+directly under the when-line and the banner is an accent bar under the header
+(`<n> incomplete dictation(s) · <newest stamp> — tap to open`, GONE at zero,
+tap jumps to the newest leftover). Owner: judge the accent bar on the device
+(`workbench_recovery_banner`); #189 (RAW/Polished collapse, arrow icon, trash
+position) stays a separate batch.
+
 Only open tasks. **#186 (offline sessions) is NOT shipped: the owner's device
 check found a defect and it is fixed in the working tree, but the flight must be
 repeated before the issue can close — so epic #152 stays open** (five of its six

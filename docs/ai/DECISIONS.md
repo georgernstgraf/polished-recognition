@@ -13,6 +13,36 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-23: #191 — auf einer unfertigen Seite stehen Grund und Ausweg zusammen; der Banner ist der EINE Weg dorthin
+
+Der Gerätetest des #186-Fluges (Samsung, Flugmodus) hat die Anordnung aus #188
+widerlegt: auf einer unfertigen Seite standen die vier Aktionen (Retry STT,
+Restore, Share, Dismiss) ganz unten — der Owner blätterte erst 1/3 · 2/3 · 3/3,
+bevor er Retry STT fand. Der Banner nannte Zahl und Zeit, las sich aber nicht
+als etwas, das irgendwohin führt. Zwei Regeln, die daraus folgen; sonst ändert
+sich nichts (gleiche Aktionen, gleiche `RecoveryActions`-Regel, gleiche
+`pendingTarget`/Retry-Pfade, kein automatischer Seitenwechsel).
+
+- **Reihenfolge auf einer unfertigen Seite:** Header-Icons → Banner (falls
+  vorhanden) → When-line mit dem Grund → **Aktionen** → Sprach-/Polish-Zone →
+  Raw. Nichts steht zwischen dem Grund und dem Ausweg; die Aktionen sind
+  `0dp` + `layout_weight=1`, damit die langen Labels auf einem schmalen Schirm
+  im Button umbrechen statt aus der Seite zu laufen (kein eigener Scroller —
+  nur die äußere ScrollView scrollt, #173 Entscheidung 8).
+- **Der Banner ist die EINZIGE Affordanz, die zu einem Leftover führt.** Er
+  sitzt direkt unter dem Header, ist voll breit, trägt Zahl + neuesten Stamp +
+  „tap to open" und einen Ripple. Er ist **nicht** mit der Akzentfarbe gefüllt:
+  DeviceDefault-Akzent ist im hellen Theme dunkel (#475D92 in AOSP) und im
+  Nacht-Theme sehr hell (#D9E2FF) — weder `textColorPrimary` noch
+  `textColorPrimaryInverse` bleibt auf beiden lesbar. Deshalb Akzent-Text +
+  2-dp-Akzent-Rahmen auf `?android:attr/colorBackground`, Höhe aus
+  `?android:attr/listPreferredItemHeightSmall`, Innenabstand aus
+  `listPreferredItemPadding{Start,End}` — alles Theme-Attribute, kein
+  Farbliteral (`XmlColorPolicyTest`).
+- **Kein automatischer Seitenwechsel** (Owner-Entscheidung, bewusst): die
+  Compose-Seite bleibt die Landeseite; der Banner ist der erklärte Weg zum
+  Leftover, nicht ein Sprung beim Betreten.
+
 ## 2026-11-22: #186 — ein Raw-Rescue ist KEINE Fertigstellung; ein leeres Rescue wird nie eingefügt
 
 Der Gerätetest des #186-Fluges (Samsung SM-A032F, Flugmodus an, Raw-Modus an,
