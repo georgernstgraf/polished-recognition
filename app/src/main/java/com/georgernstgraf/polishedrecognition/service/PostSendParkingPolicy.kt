@@ -6,7 +6,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  * #177: the post-send **UI** park state of the voice keyboard.
  *
  * After a successful send the keyboard stays visible (#174) and must not start
- * another recording by itself — it presents the parked bar: ▶ (`ic_resume`,
+ * another recording by itself — it presents the parked bar: ↺ (`ic_resume`,
  * enabled), send and flush disabled, gear/X enabled, timer hidden. The
  * controller is genuinely [VoiceSessionController.State.IDLE] (no session, no
  * audio). This state is deliberately NOT `PAUSED`: PAUSED means "audio is
@@ -25,7 +25,7 @@ object PostSendParkingPolicy {
         /** A finished dictation was inserted — the bar parks. */
         COMPLETED_SUCCESS,
 
-        /** The user tapped ▶ on the parked bar — unpark, start a fresh take. */
+        /** The user tapped ↺ on the parked bar — unpark, start a fresh take. */
         USER_TAP_RESUME,
 
         /** The user tapped send on the parked bar — unpark, start a fresh take. */
@@ -35,9 +35,12 @@ object PostSendParkingPolicy {
         FIELD_CHANGED,
 
         /**
-         * The platform dismissed the keyboard. Deliberately keeps the park: a
-         * hide/show inside the same field is a return to the same place, and
-         * an auto-start on return would be exactly the #177 bug.
+         * The platform dismissed the keyboard (nav-bar down arrow, Back, the
+         * window hiding). #192, owner decision: "if after send I close the IME
+         * with nav, and then tap to edit text, it should just start a new
+         * dictation, no?" — the park ends with the keyboard. It survives only
+         * while the keyboard stays up (#177: a same-field hide/show without a
+         * dismissal, i.e. a rotation, keeps it).
          */
         DISMISSED
     }
@@ -59,8 +62,8 @@ object PostSendParkingPolicy {
      * - Any other event only matters while the bar actually is (or could be)
      *   parked, i.e. in [VoiceSessionController.State.IDLE]; a live session
      *   voids a stale flag defensively.
-     * - Taps and a field change unpark; everything else
-     *   ([Event.DISMISSED]) leaves the flag as it is.
+     * - Taps and a field change unpark; so does a dismissal (#192: the park
+     *   belongs to a keyboard that is still up).
      */
     fun decide(
         state: VoiceSessionController.State,
@@ -74,8 +77,9 @@ object PostSendParkingPolicy {
         return when (event) {
             Event.USER_TAP_RESUME,
             Event.USER_TAP_SEND,
-            Event.FIELD_CHANGED -> Parking(render = false, parked = false)
-            Event.DISMISSED, Event.COMPLETED_SUCCESS -> Parking(render = true, parked = true)
+            Event.FIELD_CHANGED,
+            Event.DISMISSED -> Parking(render = false, parked = false)
+            Event.COMPLETED_SUCCESS -> Parking(render = true, parked = true)
         }
     }
 

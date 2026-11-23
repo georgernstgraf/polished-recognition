@@ -162,8 +162,8 @@ class ImeCompletedHandoverTest {
     }
 
     /**
-     * #177: the parked bar shows ▶ (`ic_resume`) with send and flush inert —
-     * and a tap on ▶ requests a fresh take.
+     * #177: the parked bar shows ↺ (`ic_resume`) with send and flush inert —
+     * and a tap on ↺ requests a fresh take.
      */
     @Test
     fun `the parked bar shows resume and a tap on it asks for a fresh take`() {

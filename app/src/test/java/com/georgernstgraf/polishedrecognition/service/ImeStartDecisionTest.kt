@@ -19,28 +19,28 @@ class ImeStartDecisionTest {
     @Test
     fun `RECORDING same-field rebind with no signal freezes (mark-late rotation)`() {
         assertThat(
-            ImeStartDecision.decide(recording, true, false, false, false)
+            ImeStartDecision.decide(recording, true, false, false)
         ).isEqualTo(Outcome.FREEZE)
     }
 
     @Test
     fun `PROCESSING same-field rebind with no signal freezes`() {
         assertThat(
-            ImeStartDecision.decide(processing, true, false, false, false)
+            ImeStartDecision.decide(processing, true, false, false)
         ).isEqualTo(Outcome.FREEZE)
     }
 
     @Test
     fun `PAUSED same-field rebind with no signal is provisional (no instant resume)`() {
         assertThat(
-            ImeStartDecision.decide(paused, true, false, false, false)
+            ImeStartDecision.decide(paused, true, false, false)
         ).isEqualTo(Outcome.PROVISIONAL_FREEZE)
     }
 
     @Test
     fun `IDLE same-field rebind proceeds to auto-start`() {
         assertThat(
-            ImeStartDecision.decide(idle, true, false, false, false)
+            ImeStartDecision.decide(idle, true, false, false)
         ).isEqualTo(Outcome.PROCEED)
     }
 
@@ -48,28 +48,34 @@ class ImeStartDecisionTest {
 
     @Test
     fun `fresh gate on same field freezes every live state`() {
-        assertThat(ImeStartDecision.decide(recording, true, false, true, false))
+        assertThat(ImeStartDecision.decide(recording, true, false, true))
             .isEqualTo(Outcome.FREEZE)
-        assertThat(ImeStartDecision.decide(paused, true, false, true, false))
+        assertThat(ImeStartDecision.decide(paused, true, false, true))
             .isEqualTo(Outcome.FREEZE)
-        assertThat(ImeStartDecision.decide(processing, true, false, true, false))
+        assertThat(ImeStartDecision.decide(processing, true, false, true))
             .isEqualTo(Outcome.FREEZE)
     }
 
     @Test
     fun `instance rotation signal freezes regardless of field`() {
-        assertThat(ImeStartDecision.decide(recording, true, true, false, false))
+        assertThat(ImeStartDecision.decide(recording, true, true, false))
             .isEqualTo(Outcome.FREEZE)
-        assertThat(ImeStartDecision.decide(recording, false, true, false, false))
+        assertThat(ImeStartDecision.decide(recording, false, true, false))
             .isEqualTo(Outcome.FREEZE)
     }
 
+    /**
+     * #192 (owner: "always continue, no exceptions"): a snapshot restored after
+     * a process death or a reboot is NOT a freeze case any more — it proceeds
+     * to the entry decision, which continues it in its own app. Only rotation
+     * freezes.
+     */
     @Test
-    fun `restored snapshot freezes regardless of everything`() {
-        assertThat(ImeStartDecision.decide(paused, false, false, false, true))
-            .isEqualTo(Outcome.FREEZE)
-        assertThat(ImeStartDecision.decide(idle, false, false, false, true))
-            .isEqualTo(Outcome.FREEZE)
+    fun `a restored snapshot proceeds like any other paused take`() {
+        assertThat(ImeStartDecision.decide(paused, false, false, false))
+            .isEqualTo(Outcome.PROCEED)
+        assertThat(ImeStartDecision.decide(idle, false, false, false))
+            .isEqualTo(Outcome.PROCEED)
     }
 
     // Genuine field change: different identity, no signal.
@@ -77,28 +83,28 @@ class ImeStartDecisionTest {
     @Test
     fun `RECORDING on other field cancels`() {
         assertThat(
-            ImeStartDecision.decide(recording, false, false, false, false)
+            ImeStartDecision.decide(recording, false, false, false)
         ).isEqualTo(Outcome.CANCEL)
     }
 
     @Test
     fun `PROCESSING on other field cancels`() {
         assertThat(
-            ImeStartDecision.decide(processing, false, false, false, false)
+            ImeStartDecision.decide(processing, false, false, false)
         ).isEqualTo(Outcome.CANCEL)
     }
 
     @Test
     fun `PAUSED on other field proceeds to auto-resume`() {
         assertThat(
-            ImeStartDecision.decide(paused, false, false, false, false)
+            ImeStartDecision.decide(paused, false, false, false)
         ).isEqualTo(Outcome.PROCEED)
     }
 
     @Test
     fun `IDLE on other field proceeds to auto-start`() {
         assertThat(
-            ImeStartDecision.decide(idle, false, false, false, false)
+            ImeStartDecision.decide(idle, false, false, false)
         ).isEqualTo(Outcome.PROCEED)
     }
 
@@ -109,9 +115,9 @@ class ImeStartDecisionTest {
         // editor with a CHANGED field identity mid-cascade (observed
         // 2026-10-10, destroyed a 10.5-min dictation), so a bind-time
         // field comparison cannot be trusted while the gate is fresh.
-        assertThat(ImeStartDecision.decide(recording, false, false, true, false))
+        assertThat(ImeStartDecision.decide(recording, false, false, true))
             .isEqualTo(Outcome.FREEZE)
-        assertThat(ImeStartDecision.decide(processing, false, false, true, false))
+        assertThat(ImeStartDecision.decide(processing, false, false, true))
             .isEqualTo(Outcome.FREEZE)
     }
 }

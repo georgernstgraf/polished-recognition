@@ -19,8 +19,14 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  * correct, mark or no mark. The freshness gate then only governs *timing*:
  *
  * - [Outcome.FREEZE] — present the session untouched: no cancel, no
- *   auto-resume, no auto-start. Rotation (either signal path), restored
- *   post-death snapshots, and same-field RECORDING/PROCESSING rebinds.
+ *   auto-resume, no auto-start. Rotation (either signal path, proven) and
+ *   same-field RECORDING/PROCESSING rebinds.
+ *
+ *   #192: a snapshot restored after a process death no longer freezes — the
+ *   owner's "always continue, no exceptions" means a restored take continues
+ *   in its own app exactly like a freshly paused one (the entry decision then
+ *   compares the package). Only the ROTATION freeze remains, because there the
+ *   session is live and the bind is a re-creation, not a return.
  * - [Outcome.CANCEL] — different field with a live RECORDING/PROCESSING
  *   session: discard it as before, then run the normal tail (which re-reads
  *   the now-IDLE state and may auto-start on the new field).
@@ -39,12 +45,11 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  *   signal *yet*. The mark may simply be late, so the caller must NOT
  *   auto-resume now; instead it re-checks after a short delay (see
  *   `PROVISIONAL_RESUME_DELAY_MS` at the call site): gate still stale and
- *   still PAUSED → resume per #65 (hide/show, switch return); gate fresh →
- *   rotation confirmed, stay frozen.
+ *   still PAUSED → run the entry decision (continue in the same app); gate
+ *   fresh → rotation confirmed, stay frozen.
  * - [Outcome.PROCEED] — run the normal tail immediately (auto-start IDLE;
- *   PAUSED on a different field is FRESH-STARTED — #134: salvage via cancel
- *   + a fresh empty recording, superseding the old #65/#83 different-field
- *   auto-resume).
+ *   PAUSED on a different field is FRESH-STARTED — #134/#192: salvage via
+ *   cancel + a fresh empty recording).
  */
 object ImeStartDecision {
 
@@ -54,10 +59,9 @@ object ImeStartDecision {
         state: VoiceSessionController.State,
         sameField: Boolean,
         instRotation: Boolean,
-        gateFresh: Boolean,
-        restored: Boolean
+        gateFresh: Boolean
     ): Outcome {
-        if (restored || instRotation) return Outcome.FREEZE
+        if (instRotation) return Outcome.FREEZE
         if (gateFresh && sameField) return Outcome.FREEZE
         if (!sameField) {
             // #113: a live session survives the rotation window even when

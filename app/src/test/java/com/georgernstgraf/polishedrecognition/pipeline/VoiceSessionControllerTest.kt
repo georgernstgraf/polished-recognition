@@ -643,6 +643,120 @@ class VoiceSessionControllerTest {
         controller.cancel()
     }
 
+    // --- #192: a pause remembers where the take belongs --------------------
+
+    /** A RECORDING take; the Robolectric capture may throw, the state is what matters. */
+    private fun recording(controller: VoiceSessionController) {
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+    }
+
+    @Test
+    fun `a pause remembers the app the take belongs to`() {
+        val controller = newController()
+        recording(controller)
+
+        controller.pause("com.example.chat")
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(controller.pausedPackage()).isEqualTo("com.example.chat")
+        controller.cancel()
+    }
+
+    @Test
+    fun `a pause without a known caller records no target`() {
+        val controller = newController()
+        recording(controller)
+
+        controller.pause()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(controller.pausedPackage()).isNull()
+        controller.cancel()
+    }
+
+    @Test
+    fun `resume clears the target - the take is live again`() {
+        val controller = newController()
+        recording(controller)
+        controller.pause("com.example.chat")
+
+        controller.resume()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+        assertThat(controller.pausedPackage()).isNull()
+        controller.cancel()
+    }
+
+    @Test
+    fun `cancel clears the target - the take is gone`() {
+        val controller = newController()
+        recording(controller)
+        controller.pause("com.example.chat")
+
+        controller.cancel()
+
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        assertThat(controller.pausedPackage()).isNull()
+        clearSessionFiles()
+    }
+
+    /**
+     * #192, task 1: the target is session state, so the process-death snapshot
+     * must carry it — an IME that dies mid-pause must still know whether the
+     * next bind continues the take or ends it (#192's whole decision rests on
+     * this one value).
+     */
+    @Test
+    fun `the paused target survives process death`() {
+        clearSessionFiles()
+        val controller = newController()
+        recording(controller)
+        controller.pause("com.example.chat")
+
+        // The writer really persisted it (the file is the contract, not the
+        // field in RAM).
+        val meta = File(RuntimeEnvironment.getApplication().cacheDir, "session.meta").readText()
+        assertThat(meta).contains("com.example.chat")
+        controller.cancel() // stop the shadow recorder before a second instance
+
+        // Re-craft the meta: cancel() deleted it.
+        File(RuntimeEnvironment.getApplication().cacheDir, "session.pcm")
+            .writeBytes(ByteArray(320))
+        File(RuntimeEnvironment.getApplication().cacheDir, "session.meta").writeText(meta)
+
+        val reborn = newController()
+        assertThat(reborn.restore()).isTrue()
+        assertThat(reborn.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(reborn.pausedPackage()).isEqualTo("com.example.chat")
+
+        reborn.cancel()
+        clearSessionFiles()
+    }
+
+    /**
+     * A pre-#192 snapshot (bare duration, no target) still restores — and
+     * reports no target, which the entry decision resolves through the last
+     * served field.
+     */
+    @Test
+    fun `a restored pre-192 snapshot has no target`() {
+        clearSessionFiles()
+        val cacheDir = RuntimeEnvironment.getApplication().cacheDir
+        File(cacheDir, "session.pcm").writeBytes(ByteArray(320))
+        File(cacheDir, "session.meta").writeText("1234")
+
+        val reborn = newController()
+        assertThat(reborn.restore()).isTrue()
+
+        assertThat(reborn.pausedPackage()).isNull()
+        reborn.cancel()
+        clearSessionFiles()
+    }
+
     /**
      * Rotation during PROCESSING (#83): the UI detaches mid-transcription,
      * the result is stashed and delivered to the next attach() instead of

@@ -7,10 +7,11 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 /**
- * #177: after a successful send the bar parks — ▶ enabled, everything with
- * nothing to act on disabled — and stays parked until the user acts or the
- * field changes. The controller itself stays IDLE: parking is a UI state, not
- * a session state (PAUSED means "audio is buffered, resume appends").
+ * #177: after a successful send the bar parks — ↺ enabled, everything with
+ * nothing to act on disabled — and stays parked until the user acts, the
+ * field changes or the keyboard is dismissed (#192). The controller itself
+ * stays IDLE: parking is a UI state, not a session state (PAUSED means "audio
+ * is buffered, resume appends").
  */
 class PostSendParkingPolicyTest {
 
@@ -84,9 +85,9 @@ class PostSendParkingPolicyTest {
     }
 
     @Test
-    fun `dismissing the keyboard keeps the park`() {
+    fun `dismissing the keyboard ends the park - the park belongs to a keyboard that is still up`() {
         assertThat(PostSendParkingPolicy.decide(idle, parked = true, Event.DISMISSED))
-            .isEqualTo(Parking(render = true, parked = true))
+            .isEqualTo(Parking(render = false, parked = false))
         assertThat(PostSendParkingPolicy.decide(idle, parked = false, Event.DISMISSED))
             .isEqualTo(Parking(render = false, parked = false))
     }

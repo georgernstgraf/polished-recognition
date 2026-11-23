@@ -88,9 +88,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
     private var configChangeInProgress = false
     /**
      * True when [onCreate] consumed a process-death snapshot via
-     * [VoiceSessionController.restore]. Freezes the first [onStartInputView]
-     * like a rotation (no cancel, no auto-resume) so the restored PAUSED
-     * dictation is presented, not resumed or discarded; consumed there.
+     * [VoiceSessionController.restore]. Trace evidence only since #192: the
+     * restored take is NOT frozen any more (owner: "always continue, no
+     * exceptions") — the first bind decides it like any other pause; the field
+     * exists so a device log can tell a restore from a fresh start. Consumed
+     * by the first [onStartInputView].
      */
     private var restoredSnapshot = false
     /**
@@ -124,9 +126,9 @@ open class PolishedVoiceInputIME : InputMethodService() {
     /** #165: a mic verification is already scheduled for this take. */
     private var micGuardPending = false
     /**
-     * #177: the bar is parked after a successful send — ▶ enabled, send and
+     * #177: the bar is parked after a successful send — ↺ enabled, send and
      * flush disabled, timer hidden — and no automatic start may fire until
-     * the user taps ▶/send or the field changes. Pure UI state: the controller
+     * the user taps ↺/send or the field changes. Pure UI state: the controller
      * is genuinely IDLE (see [PostSendParkingPolicy] for why it must not be
      * PAUSED).
      */
@@ -164,6 +166,14 @@ open class PolishedVoiceInputIME : InputMethodService() {
     internal var foregroundAssertions = 0
     internal var notificationPosts = 0
     internal var breathStarts = 0
+    /**
+     * #192: the entry action the last bind decided (logged in the same trace
+     * line). Module-visible so the tests can pin the decision itself — the
+     * execution of `RESUME` starts a real capture, which Robolectric's
+     * CPU-speed `AudioRecord` shadow makes unusable for anything but a
+     * momentary check.
+     */
+    internal var lastEntryAction: AutoStartPolicy.EntryAction? = null
     private val windowDrawTimeout = Runnable {
         val pending = pendingAutoStart ?: return@Runnable
         when (AutoStartTiming.onTimeout(windowDrawn, isInputViewShown())) {
@@ -259,9 +269,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
         }
         pauseResumeButton?.setOnClickListener {
             when (controller.state) {
-                VoiceSessionController.State.RECORDING -> controller.pause()
+                // #192: the owner's own pause — the take continues on a
+                // return into this app, however long ago (↺ appends).
+                VoiceSessionController.State.RECORDING -> pauseTake("pause-button")
                 VoiceSessionController.State.PAUSED -> controller.resume()
-                // #177: ▶ on the parked bar ends the park and starts a fresh
+                // #177: ↺ on the parked bar ends the park and starts a fresh
                 // take — nothing is buffered, so there is nothing to resume.
                 VoiceSessionController.State.IDLE ->
                     if (postSendParked) {
@@ -276,9 +288,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // resumes it on return) and never discards — that is the trash
         // button's job. Deliberately NOT gated by the "switch back after
         // send" setting: it is the only manual way out of the voice keyboard.
+        // #192: the pause remembers its target app — a return into the same
+        // app continues (no time limit), another app salvages and starts fresh.
         switchButton?.setOnClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {
-                controller.pause()
+                pauseTake("keyboard-switch")
             }
             val selfId = currentDefaultImeId() ?: return@setOnClickListener
             val target = resolveKeyKeyboardTarget(selfId)
@@ -325,7 +339,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // above. A tap still opens Settings (#72/#51).
         settingsGear?.setOnLongClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {
-                controller.pause()
+                pauseTake("gear-help")
             }
             startActivity(
                 Intent(this, HelpActivity::class.java)
@@ -335,7 +349,9 @@ open class PolishedVoiceInputIME : InputMethodService() {
         }
         settingsGear?.setOnClickListener {
             if (controller.state == VoiceSessionController.State.RECORDING) {
-                controller.pause()
+                // #192: an in-app detour to Settings pauses the take; it
+                // continues on the return into this app.
+                pauseTake("gear-settings")
             }
             val selfId = currentDefaultImeId() ?: return@setOnClickListener
             val target = resolveKeyKeyboardTarget(selfId)
@@ -421,16 +437,59 @@ open class PolishedVoiceInputIME : InputMethodService() {
         super.onWindowHidden()
         windowDrawn = false
         val pending = pendingAutoStart
+        val app = application as PolishedRecognitionApp
+        val gateFresh = RotationGate.isFresh(app.imeConfigChangeMs, SystemClock.uptimeMillis())
+        // #192: the window going away ends the #177 post-send park — "close
+        // the IME with nav, then tap to edit text" starts a new dictation
+        // instead of showing a parked bar. The same dismissal stops a live
+        // capture (owner decision: hiding the keyboard while RECORDING pauses
+        // the take, exactly like a nav-bar close).
+        val dismisses = !configChangeInProgress && !gateFresh
         if (pending != null) {
             pendingAutoStart = null
             recTickHandler.removeCallbacks(windowDrawTimeout)
             ImeLifecycleTrace.log(
                 this, "onWindowHidden",
-                "state=${controller.state} dropped=$pending"
+                "state=${controller.state} dropped=$pending dismiss=$dismisses"
             )
         } else {
-            ImeLifecycleTrace.log(this, "onWindowHidden", "state=${controller.state}")
+            ImeLifecycleTrace.log(
+                this, "onWindowHidden",
+                "state=${controller.state} dismiss=$dismisses"
+            )
         }
+        if (dismisses) onKeyboardDismissed()
+    }
+
+    /**
+     * #192: the keyboard was dismissed (nav-bar down arrow, Back, the window
+     * hiding, `onFinishInputView` without a rotation signal). One entry point
+     * for both effects, because they must agree: the post-send park ends
+     * (#177 park belongs to a keyboard that is still up) and a live take is
+     * paused — not killed, so a return into the same app continues it and
+     * another app salvages it ([AutoStartPolicy]).
+     */
+    private fun onKeyboardDismissed() {
+        if (postSendParked) applyParkingEvent(PostSendParkingPolicy.Event.DISMISSED)
+        if (controller.state == VoiceSessionController.State.RECORDING) {
+            pauseTake("keyboard-dismissed")
+        }
+    }
+
+    /**
+     * #192: pauses a live take and records its target package plus the CAUSE in
+     * the existing lifecycle stream — one line per pause, so a device log can
+     * tell a user pause from a keyboard that went away. The cause is a plain
+     * label for the log: no code path branches on it (every pause continues in
+     * its own app), so it is not a type.
+     */
+    private fun pauseTake(cause: String) {
+        val pkg = currentCallerPackage()
+        controller.pause(pkg)
+        ImeLifecycleTrace.log(
+            this, "pause",
+            "cause=$cause pkg=$pkg state=${controller.state}"
+        )
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -461,17 +520,35 @@ open class PolishedVoiceInputIME : InputMethodService() {
         val currentField = RotationGate.FieldId(info.packageName, info.fieldId)
         val previousField = app.imeLastField
         val sameField = RotationGate.isSameField(previousField, currentField)
+        // #192: does the paused take belong to the app bound now? The
+        // controller's recorded package survives process death, so it is
+        // preferred; a pause without one (a pre-#192 snapshot, an unreadable
+        // caller) falls back to the last served field.
+        val sameTarget = controller.pausedPackage()?.let { it == currentField.packageName }
+            ?: (previousField?.packageName == currentField.packageName)
         val gateFresh = RotationGate.isFresh(app.imeConfigChangeMs, now)
         val outcome = ImeStartDecision.decide(
             controller.state, sameField, restarting && configChangeInProgress,
-            gateFresh, restoredSnapshot
+            gateFresh
         )
+        // #192: the entry decision is a pure function of the state and the
+        // TARGET app. Computed here (before the outcome switch) so the trace,
+        // the tests and the provisional (rotation-deferred) resume all read
+        // the SAME value.
+        val action = AutoStartPolicy.entryAction(
+            state = controller.state,
+            sameTarget = sameTarget,
+            hasMicPermission = hasMicPermission()
+        )
+        lastEntryAction = action
         configChangeInProgress = false
         app.imeLastField = currentField
         ImeLifecycleTrace.log(
             this, "onStartInputView",
             "restarting=$restarting state=${controller.state} outcome=$outcome " +
-                "restored=$restoredSnapshot sameField=$sameField gateFresh=$gateFresh " +
+                "action=$action pausedPkg=${controller.pausedPackage()} " +
+                "sameTarget=$sameTarget restored=$restoredSnapshot " +
+                "sameField=$sameField gateFresh=$gateFresh " +
                 RebindChurn.churnLine(
                     renders, foregroundAssertions, notificationPosts, breathStarts
                 )
@@ -505,13 +582,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 return
             }
             ImeStartDecision.Outcome.PROVISIONAL_FREEZE -> {
-                scheduleProvisionalResume()
+                scheduleProvisionalResume(action)
                 return
             }
             ImeStartDecision.Outcome.CANCEL,
             ImeStartDecision.Outcome.PROCEED -> Unit
         }
-        val action = AutoStartPolicy.entryAction(controller.state, sameField, hasMicPermission())
         if (action != AutoStartPolicy.EntryAction.NONE) requestAutoStart(action)
     }
 
@@ -601,10 +677,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 scheduleMicGuard()
             }
             AutoStartPolicy.EntryAction.FRESH_START -> {
-                // #134: a PAUSED leftover entered on a DIFFERENT field is not
-                // auto-resumed — discard it through the normal cancel path
+                // #134/#192: a PAUSED leftover entered in a DIFFERENT app is
+                // not auto-resumed — discard it through the normal cancel path
                 // (#113 salvage keeps already-transcribed fragments in the
-                // clipboard) and start a fresh empty recording. IDLE needs no
+                // clipboard) and start a fresh empty recording. Nothing is
+                // persisted, no Workbench entry is created. IDLE needs no
                 // cancel (the buffer is already empty).
                 if (controller.state == VoiceSessionController.State.PAUSED) {
                     controller.cancel()
@@ -620,12 +697,16 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * PAUSED on the same field with no rotation signal yet, but the mark may
      * simply be late (Oplus delivers the rebind ~150 ms before
      * `onConfigurationChanged`). After [PROVISIONAL_RESUME_DELAY_MS] a still
-     * stale gate means a genuine return (hide/show, switch back — resume per
-     * #65); a fresh gate confirms rotation (stay frozen). No-ops unless still
-     * PAUSED, so user taps in the window (send/cancel/resume) always win;
-     * sequential main-thread execution makes double-resume impossible.
+     * stale gate means a genuine return (hide/show, switch back); a fresh
+     * gate confirms rotation (stay frozen). No-ops unless still PAUSED, so
+     * user taps in the window (send/cancel/resume) always win; sequential
+     * main-thread execution makes double-resume impossible.
+     *
+     * #192: the held action comes from [AutoStartPolicy] — the reason still
+     * decides, so this delayed path can never become the "a pause resumes by
+     * itself" leak it used to be.
      */
-    private fun scheduleProvisionalResume() {
+    private fun scheduleProvisionalResume(action: AutoStartPolicy.EntryAction) {
         pendingProvisional?.let { recTickHandler.removeCallbacks(it) }
         startGen++
         val gen = startGen
@@ -636,13 +717,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
             val fresh = RotationGate.isFresh(app.imeConfigChangeMs, SystemClock.uptimeMillis())
             ImeLifecycleTrace.log(
                 this, "resumeDecision",
-                "state=${controller.state} gateFresh=$fresh"
+                "state=${controller.state} gateFresh=$fresh action=$action"
             )
             if (fresh) return@Runnable
             if (controller.state != VoiceSessionController.State.PAUSED) return@Runnable
             if (!hasMicPermission()) return@Runnable
-            startMicForeground()
-            controller.resume()
+            if (action == AutoStartPolicy.EntryAction.NONE) return@Runnable
+            runAutoStart(action)
         }
         pendingProvisional = check
         recTickHandler.postDelayed(check, PROVISIONAL_RESUME_DELAY_MS)
@@ -662,9 +743,9 @@ open class PolishedVoiceInputIME : InputMethodService() {
         )
         if (configChangeInProgress) return
         if (gateFresh) return
-        if (controller.state == VoiceSessionController.State.RECORDING) {
-            controller.pause()
-        }
+        // #192: a genuine dismissal — it ends the post-send park and pauses a
+        // live take with its reason (see onKeyboardDismissed).
+        onKeyboardDismissed()
     }
 
     private fun setupLanguageSpinner() {
@@ -1067,14 +1148,17 @@ open class PolishedVoiceInputIME : InputMethodService() {
             VoiceSessionController.State.IDLE -> {
                 ms.setImageResource(R.drawable.ic_send)
                 ms.contentDescription = getString(R.string.ime_send_desc)
-                // #177: the post-send park looks paused — ▶ starts a fresh
+                // #177: the post-send park looks paused — ↺ starts a fresh
                 // take — but nothing is buffered, so send and flush have
                 // nothing to act on; gear/X still work like in IDLE.
+                // #192: and it must not be READ as a (deep) pause — ↺ says
+                // "new take", the stage line says "sent", and the buffered-time
+                // timer stays hidden (only PAUSED shows it).
                 val parked = PostSendParkingPolicy.renders(s, postSendParked)
                 ms.isEnabled = !parked
                 if (parked) {
                     pr.setImageResource(R.drawable.ic_resume)
-                    pr.contentDescription = getString(R.string.ime_resume_desc)
+                    pr.contentDescription = getString(R.string.ime_new_take_desc)
                     pr.isEnabled = true
                 } else {
                     pr.setImageResource(R.drawable.ic_pause)
@@ -1127,8 +1211,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 setQuickSettingsVisible(false)
             }
         }
+        // #192: the stage line is the parked bar's distinguishing mark — a
+        // paused take shows the buffered TIME there (rec timer), a parked one
+        // says it is done. PROCESSING keeps the stage text its events write.
+        val parked = PostSendParkingPolicy.renders(s, postSendParked)
         stageText?.visibility =
-            if (s == VoiceSessionController.State.PROCESSING) View.VISIBLE else View.GONE
+            if (s == VoiceSessionController.State.PROCESSING || parked) View.VISIBLE else View.GONE
+        if (parked) stageText?.text = getString(R.string.ime_post_send_parked)
         updateRecTimer(s)
         updateLanguageEnabled()
     }

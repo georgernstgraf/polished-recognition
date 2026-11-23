@@ -99,6 +99,9 @@
     <string name="ime_switch_keyboard_desc">Switch keyboard</string>
     <string name="ime_pause_desc">Pause</string>
     <string name="ime_resume_desc">Resume</string>
+    <!-- #192: the post-send park is not a pause — the resume button (a circular arrow) starts a NEW take and the stage line says so. -->
+    <string name="ime_new_take_desc">New take</string>
+    <string name="ime_post_send_parked">Sent \u2014 \u21ba starts a new take</string>
     <string name="ime_send_desc">Send</string>
     <string name="ime_send_hint">Send — transcribe, polish and insert the text</string>
     <string name="ime_switch_hint">Keyboard — back to your text keyboard</string>

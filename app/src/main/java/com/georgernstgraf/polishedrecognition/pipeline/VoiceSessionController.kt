@@ -266,6 +266,15 @@ class VoiceSessionController(
     private var pendingResult: Event.Completed? = null
     private var accumulatedMs = 0L
     private var segStartMs = 0L
+    /**
+     * #192: which package the paused take was dictated into. Cleared by
+     * [resume] and [cancel], persisted in the process-death snapshot — the
+     * entry decision compares it with the package bound next: the SAME app
+     * continues the dictation, another app ends it through the #113 salvage.
+     * No reason, no timestamp: every pause continues on a return into its own
+     * app, however long ago it was (owner: "always continue, no exceptions").
+     */
+    private var pausePackage: String? = null
     private var transcribeJob: Job? = null
     /**
      * #118 Phase A: the raw-mode rescue detail for the run currently
@@ -578,10 +587,21 @@ class VoiceSessionController(
         callback = null
     }
 
-    fun pause() {
+    /**
+     * #192: pauses a RECORDING take and remembers WHERE it was dictated into —
+     * the bind decision must be able to tell "my own dictation" from a leftover
+     * that has no business in the app bound next, or it resumes a stale take
+     * into the wrong app.
+     *
+     * @param callerPackage package of the app being dictated into, recorded so
+     *   a later bind can tell "same app → continue" from "another app →
+     *   salvage".
+     */
+    fun pause(callerPackage: String? = null) {
         if (state != State.RECORDING) return
         accumulatedMs += System.currentTimeMillis() - segStartMs
         state = State.PAUSED
+        pausePackage = callerPackage
         recorder.pause()
         // Persist the session while it is safely stopped: if the process dies
         // (observed on Oplus across rotation), the next bind restores it via
@@ -590,16 +610,30 @@ class VoiceSessionController(
         emit(Event.StateChanged(state))
     }
 
+    /**
+     * #192: the package the paused take was dictated into, or `null` when it is
+     * not paused / unknown (cleared by [resume]/[cancel]). A restored
+     * pre-#192 snapshot and a session with an unreadable caller fall back to
+     * `null`, which the entry decision reads as "not this app".
+     */
+    fun pausedPackage(): String? = pausePackage
+
     fun resume() {
         if (state != State.PAUSED) return
         segStartMs = System.currentTimeMillis()
         state = State.RECORDING
+        clearPauseTarget()
         recorder.resume()
         // Fragment encoding resumes with the capture (#115); on a restored
         // session there is no preparer yet — it is created here, recovering
         // whatever the manifest already committed before the process died.
         startFragmentPreparation(newSession = false)
         emit(Event.StateChanged(state))
+    }
+
+    /** #192: the target belongs to the take — it dies with it. */
+    private fun clearPauseTarget() {
+        pausePackage = null
     }
 
     /**
@@ -609,6 +643,9 @@ class VoiceSessionController(
      */
     fun stopAndTranscribe(callerPackage: String? = null) {
         if (state != State.RECORDING && state != State.PAUSED) return
+        // #192: the take is being delivered; the failure park below (#84) is a
+        // park of the CURRENT app, so the old target must not survive it.
+        clearPauseTarget()
         // #168 (epic #166 D7): dictating into our own Workbench is always raw.
         sessionForcedRaw = LlmTargetPolicy.forcesRaw(callerPackage, appContext.packageName)
         if (state == State.RECORDING) {
@@ -768,6 +805,8 @@ class VoiceSessionController(
         accumulatedMs = 0L
         segStartMs = 0L
         pendingResult = null
+        // #192: the take is gone — so is the app it belonged to.
+        clearPauseTarget()
         state = State.IDLE
         emit(Event.StateChanged(state))
         callback = null
@@ -833,8 +872,16 @@ class VoiceSessionController(
             // The session id ties the snapshot to its committed fragment dir
             // (#115): after process death the restored session reuses the
             // already-encoded fragments instead of re-encoding everything.
+            // #192: the pause target rides along, so an IME that dies
+            // mid-pause still knows which app an automatic return continues.
             File(appContext.cacheDir, SNAP_META).writeText(
-                gson.toJson(SessionMeta(total, sessionId))
+                gson.toJson(
+                    SessionMeta(
+                        durationMs = total,
+                        sessionId = sessionId,
+                        pausePackage = pausePackage
+                    )
+                )
             )
             lastSnapshotError = null
         } catch (e: Throwable) {
@@ -852,8 +899,16 @@ class VoiceSessionController(
     @Volatile var lastSnapshotError: String? = null
         private set
 
-    /** Persisted session snapshot metadata (JSON since #115; was a bare duration). */
-    private data class SessionMeta(val durationMs: Long, val sessionId: String?)
+    /**
+     * Persisted session snapshot metadata (JSON since #115; was a bare
+     * duration). #192 adds the pause target package — nullable, so a pre-#192
+     * snapshot still parses (and behaves as before).
+     */
+    private data class SessionMeta(
+        val durationMs: Long,
+        val sessionId: String?,
+        val pausePackage: String? = null
+    )
 
     private fun parseSnapshotMeta(raw: String): SessionMeta? {
         val text = raw.trim()
@@ -864,7 +919,8 @@ class VoiceSessionController(
             if (map != null && map.containsKey("durationMs")) {
                 SessionMeta(
                     durationMs = (map["durationMs"] as Double).toLong(),
-                    sessionId = map["sessionId"] as String?
+                    sessionId = map["sessionId"] as String?,
+                    pausePackage = map["pausePackage"] as String?
                 )
             } else {
                 // legacy format: bare duration
@@ -897,6 +953,10 @@ class VoiceSessionController(
             accumulatedMs = parsed.durationMs.coerceAtLeast(0L)
             segStartMs = 0L
             sessionId = parsed.sessionId
+            // #192: the restored pause keeps its target — a take from a dead
+            // process still continues in its own app (absent in a pre-#192
+            // snapshot: the entry decision then falls back to the last field).
+            pausePackage = parsed.pausePackage
             // #142: the restored session gets its manifest — the original
             // bundle died with the process; `startedAt` becomes the restore
             // moment (the original Wall-Clock start is unrecoverable).
