@@ -146,20 +146,33 @@ class SettingsStore(
      * pref migrates: `true` → 30 days (the wide-diagnostic intent), `false`
      * → 0. Default OFF in release (privacy — dictated audio on disk); the
      * owner's test builds default ON (30 days).
+     *
+     * **#200: this getter is a PURE READ unless a legacy key is migrated.**
+     * Merely resolving the default must not materialise
+     * [EVIDENCE_RETENTION_KEY], because the getter is read from threads that
+     * do not own the setting (`AudioEvidenceStore.evict()` on the app's
+     * startup maintenance thread). A write there raced the unit tests'
+     * `clear()` and resurrected the debug default — `SettingsStoreTest`
+     * flaked with `expected: 0 but was : 2592000`.
      */
     var evidenceRetentionSeconds: Long
         get() {
             if (prefs.contains(EVIDENCE_RETENTION_KEY)) {
                 return prefs.getLong(EVIDENCE_RETENTION_KEY, 0L).coerceAtLeast(0L)
             }
+            // No legacy toggle either: honour the build-type default WITHOUT
+            // persisting it — the default stays live until the user chooses
+            // (#200).
+            if (!prefs.contains(AUDIO_EVIDENCE_KEY)) {
+                return evidenceRetentionDefaultSeconds.coerceAtLeast(0L)
+            }
             // One-time legacy migration (#127 → #142): the old boolean toggle
             // maps ON → 30 days, OFF → 0; persisted so the migration is done.
-            val legacyOn = if (prefs.contains(AUDIO_EVIDENCE_KEY)) {
-                prefs.getBoolean(AUDIO_EVIDENCE_KEY, false)
+            val migrated = if (prefs.getBoolean(AUDIO_EVIDENCE_KEY, false)) {
+                THIRTY_DAYS_SECONDS
             } else {
-                evidenceRetentionDefaultSeconds > 0L
+                0L
             }
-            val migrated = if (legacyOn) THIRTY_DAYS_SECONDS else 0L
             prefs.edit { putLong(EVIDENCE_RETENTION_KEY, migrated) }
             return migrated
         }

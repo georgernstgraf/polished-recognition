@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.config
 
+import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -31,6 +32,26 @@ class SettingsStoreTest {
     private fun knownAppsPrefs() =
         RuntimeEnvironment.getApplication().getSharedPreferences("known_apps", 0)
 
+    private fun settingsPrefs() =
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences("polished_recognition_settings", 0)
+
+    /**
+     * #200: the real Application's startup maintenance thread (evict/prune)
+     * reads `evidenceRetentionSeconds`. Before the getter became a pure read,
+     * that read migrated the default into the prefs file and could land
+     * between `setUp`'s `clear()` and an assertion — the observed flake
+     * (`expected: 0 but was : 2592000`). Joining the thread keeps the whole
+     * class deterministic even if a stray migration path ever returns.
+     */
+    private fun awaitStartupMaintenance() {
+        runCatching {
+            Thread.getAllStackTraces().keys
+                .filter { it.name == PolishedRecognitionApp.STARTUP_MAINTENANCE_THREAD_NAME }
+                .forEach { it.join(5_000) }
+        }
+    }
+
     private fun seedKnownApp(pkg: String, lastSeenMs: Long, wrapWidth: Int? = null) {
         val type = object : TypeToken<MutableMap<String, KnownApp>>() {}.type
         val current: MutableMap<String, KnownApp> =
@@ -43,6 +64,7 @@ class SettingsStoreTest {
 
     @Before
     fun setUp() {
+        awaitStartupMaintenance()
         RuntimeEnvironment.getApplication()
             .getSharedPreferences("polished_recognition_settings", 0)
             .edit().clear().commit()
@@ -102,6 +124,27 @@ class SettingsStoreTest {
         clearPrefs() // the migration tests persist 30 days — leak-safe reset
         assertThat(freshStore().evidenceRetentionSeconds).isEqualTo(0L)
         assertThat(freshStore().audioEvidence).isFalse()
+    }
+
+    @Test
+    fun `reading the default does not persist it (#200)`() {
+        clearPrefs()
+        assertThat(freshStore().evidenceRetentionSeconds).isEqualTo(0L)
+        assertThat(freshStore().audioEvidence).isFalse()
+        // #200: a mere default is a pure read — no key may be materialised.
+        assertThat(settingsPrefs().contains("evidence_retention_seconds")).isFalse()
+    }
+
+    @Test
+    fun `reading an injected default does not persist it (#200)`() {
+        clearPrefs()
+        val store = SettingsStore(
+            RuntimeEnvironment.getApplication(), directExecutor,
+            evidenceRetentionDefaultSeconds = SettingsStore.THIRTY_DAYS_SECONDS
+        )
+        assertThat(store.evidenceRetentionSeconds).isEqualTo(SettingsStore.THIRTY_DAYS_SECONDS)
+        assertThat(store.audioEvidence).isTrue()
+        assertThat(settingsPrefs().contains("evidence_retention_seconds")).isFalse()
     }
 
     @Test

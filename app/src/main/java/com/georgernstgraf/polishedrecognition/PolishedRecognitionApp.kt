@@ -124,6 +124,7 @@ class PolishedRecognitionApp : Application() {
             } catch (_: Throwable) {
             }
         }.apply {
+            name = STARTUP_MAINTENANCE_THREAD_NAME
             priority = Thread.MIN_PRIORITY
             start()
         }
@@ -355,8 +356,15 @@ class PolishedRecognitionApp : Application() {
                 .create(OpenAiChatApiService::class.java)
         }
 
-    private companion object {
+    internal companion object {
         /** #198: logcat tag for the crash-handler line in [onCreate]. */
-        const val TAG = "PolishedRecognitionApp"
+        private const val TAG = "PolishedRecognitionApp"
+
+        /**
+         * #200: name of the startup maintenance thread (evidence eviction +
+         * journal prune). Named so a test can JOIN it instead of racing a
+         * background prefs read — it used to be an anonymous `Thread{}`.
+         */
+        const val STARTUP_MAINTENANCE_THREAD_NAME = "app-startup-maintenance"
     }
 }
