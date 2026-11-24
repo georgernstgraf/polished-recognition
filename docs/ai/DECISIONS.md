@@ -13,6 +13,29 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-24: #201/#204 — die Leiste ohne Aufnahme ist ein ganz normaler Pausezustand bei 0:00
+
+Owner-Report: nach dem Senden stand rechts neben der Checkbox „Sent — ↺ starts a
+new take" (bzw. „↺ starts a new take" im frischen IDLE). „Das brauche ich
+überhaupt nicht. Es soll ein ganz normaler Pausezustand bei 00:00 Minuten sein."
+
+- **Entscheidung: keine Stage-Zeile ohne Aufnahme.** `applyUiState` zeigt die
+  Stage-Zeile nur noch in `PROCESSING` (dort schreiben die Events sie). In `IDLE`
+  ist sie GONE — der Timer (`0:00`) ist der einzige Text. Die Strings
+  `ime_no_take`/`ime_post_send_parked` sind gelöscht (lint hätte sie als
+  unbenutzt gemeldet).
+- **Unverändert:** die Form der Leiste (Send disabled, ↺ live mit
+  `ime_new_take_desc`, Gear/X live, Timer sichtbar auf `0:00`) und die Wirkung des
+  Parks (#177: unterdrückt den Auto-Start nach einem Send). Der Unterschied
+  zwischen „gerade gesendet" und „noch nie gesendet" ist damit ausschließlich
+  unsichtbar — er lebt nur noch im Flag.
+- **Warum kein Ersatztext.** Eine Erklärung, was ↺ tut, ist eine dritte Aussage
+  über einen Zustand, den der Nutzer als Pause liest. Die Bedeutung trägt der
+  Content-Description („New take") für Screenreader; auf dem Schirm bleibt die
+  Pause eine Pause. Bewusst in Kauf genommen: ein frischer IDLE und ein frisch
+  geparkter IDLE sind pixelgleich — unterscheidbar nur durch das Verhalten
+  (kein Auto-Start nach dem Send, Feldwechsel beendet den Park).
+
 ## 2026-11-24: #200 — der Retention-Default wird nicht mehr beim Lesen persistiert
 
 `SettingsStore.evidenceRetentionSeconds` schrieb bisher auch dann einen Wert in die
@@ -111,18 +134,21 @@ Zwei Owner-Entscheidungen nach dem ersten #192-Commit. Beide sind klein und
 
 Es gibt nur noch EINE Leiste ohne Aufnahme. `State.IDLE` rendert immer die
 geparkte Form: Ebene (Send) disabled — es gibt nichts zu senden —, ↺ live mit
-`ime_new_take_desc` („New take"), Timer sichtbar und auf `0:00` gepinnt,
-Stage-Zeile entweder `ime_post_send_parked` („Sent — ↺ starts a new take", der
-#177-Park) oder `ime_no_take` („↺ starts a new take").
+`ime_new_take_desc` („New take"), Timer sichtbar und auf `0:00` gepinnt.
+~~Stage-Zeile entweder `ime_post_send_parked` oder `ime_no_take`~~ — **die
+Stage-Zeile ist seit #201/#204 in IDLE weg** (siehe den neueren Eintrag oben).
 
 - **Warum.** Zwei Looks für denselben Zustand („nichts gepuffert") waren einer
   zu viel, und der frische IDLE las sich als normaler, toter Leerlauf. Die Regel
   dahinter ist die des Owners: **ein Control ist nur dann live, wenn das
   Drücken etwas bewirkt.** Deshalb ist die Ebene in IDLE immer disabled
   (drücken würde nichts senden) und ↺ immer live (drücken startet eine
-  Aufnahme). Der Unterschied zwischen „gerade gesendet" und „noch nie etwas
+  Aufnahme). ~~Der Unterschied zwischen „gerade gesendet" und „noch nie etwas
   gesendet" ist nur der SATZ, nicht die Form — der Park-Flag steuert weiterhin
-  die Auto-Start-Unterdrückung nach einem Send (#177) und die Stage-Zeile.
+  die Auto-Start-Unterdrückung nach einem Send (#177) und die Stage-Zeile.~~
+  **Seit #201/#204 gibt es auch keinen Satz mehr** (Owner: „ein ganz normaler
+  Pausezustand bei 00:00"); der Park-Flag steuert nur noch die
+  Auto-Start-Unterdrückung nach einem Send (#177).
 - **Der ↺-Tap musste mitziehen.** Der Klick-Handler startete bisher nur
   `if (postSendParked)`; im frischen IDLE war ↺ damit live ohne Wirkung — genau
   der Zustand, den die Regel verbietet. Jetzt räumt der Tap den Park-Flag (falls
@@ -227,9 +253,11 @@ diese Aufnahme in die App, die jetzt die Tastatur bindet?".
   `PostSendParkingPolicy.Event.DISMISSED` hebt den Park auf (vorher hielt er
   ihn); für die stehende Tastatur bleibt #177 unverändert.
 - **Der Park sieht nicht mehr wie eine tiefe Pause aus.** ↺ trägt
-  `ime_new_take_desc` („New take"), die Stage-Zeile sagt `ime_post_send_parked`,
-  Send bleibt disabled, der Timer bleibt versteckt; eine echte Pause zeigt
-  gepufferte Zeit und aktives Send. Keine Layout-Änderung, keine Farbe.
+  `ime_new_take_desc` („New take"), Send bleibt disabled, der Timer bleibt
+  versteckt; eine echte Pause zeigt gepufferte Zeit und aktives Send. Keine
+  Layout-Änderung, keine Farbe. (**Am 2026-11-24 durch #201/#204 überholt:** der
+  Timer ist seit dem #192-Nachtrag sichtbar auf `0:00`, und eine Stage-Zeile gibt
+  es nicht mehr.)
 - **Bewusste Konsequenz (Owner-Entscheid, kein Versehen):** eine am Vortag
   pausierte Aufnahme kann an eine viel spätere Diktat-Session in derselben App
   anschließen. Das ist der Preis von „always continue, no exceptions".

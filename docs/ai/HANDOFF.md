@@ -38,8 +38,8 @@ through the #113 cancel and starts fresh. Nothing is written for a paused take.
 The parked post-send bar now ends with the keyboard and no longer reads as a
 pause. **Two owner follow-ups, shipped in the same issue (2026-11-23):** (1)
 there is only ONE no-take bar — a fresh idle is parked at `0:00` (Send disabled,
-↺ live as "New take", timer visible, stage line `ime_no_take`; after a send the
-same bar reads `ime_post_send_parked`), and ↺ really starts a take there; (2) an
+↺ live as "New take", timer visible, **no stage line since #201/#204**), and ↺
+really starts a take there; (2) an
 automatic cancel may only destroy audio it can hand over — a PAUSED take with
 buffered audio but nothing transcribed stays PAUSED instead of being cancelled
 into silence (`salvageableText()`, trace `kept=audio-without-transcripts`).
@@ -138,15 +138,15 @@ a device**, so neither #186 nor #152 may be closed yet.
    take is paused, not lost). (e) Send, then close the keyboard with nav, then
    tap a field: a fresh take starts instead of the parked bar. (f) A FRESH
    keyboard (nothing dictated, nothing sent) already shows the parked bar at
-   `0:00` — Send dead, ↺ live, stage line "↺ starts a new take" — and a tap on
+   `0:00` — Send dead, ↺ live, no stage line since #201/#204 — and a tap on
    ↺ starts a take. Evidence: `ime-lifecycle.log` lines
    `pause cause=… pkg=…`, `kept=audio-without-transcripts` and
    `onStartInputView action=… sameTarget=…`.
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the
    bar stays visible and parked (↺ enabled under "New take", Send and Flush
-   greyed out, Gear/X live, **timer visible at `0:00`** — since the #192
-   follow-up it is no longer hidden —, stage line "Sent — ↺ starts a new
-   take") → no recording starts by itself. Tapping ↺ starts a fresh take.
+   greyed out, Gear/X live, **timer visible at `0:00`**, no stage line — since
+   #201/#204 it is a plain pause look) → no recording starts by itself. Tapping
+   ↺ starts a fresh take.
    Focusing a different text field resumes the normal auto-start (#177); since
    #192 closing the keyboard with nav also ends the park (the next entry starts
    a fresh take instead).
