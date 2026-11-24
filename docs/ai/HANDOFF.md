@@ -29,9 +29,7 @@ worker or capture thread, a capture failure parks the take PAUSED (with its audi
 instead of crashing, the handler logs before exiting, and `CaptureThreadGuard`
 turns a captured throwable into a readable test failure in the live-take classes.
 Plus one racy controller test made deterministic (**#199**).
-**#200 is open**: `SettingsStoreTest` flaked 2× in ~21 runs (a deferred
-`SharedPreferences.apply()` landing after the next test's `clear()`); that is the
-one known red-spot left in the push gate.
+**#200 (2026-11-24, closed — the flake had a thread):** the hypothesis in the issue (a deferred `SharedPreferences.apply()`) was wrong. `PolishedRecognitionApp.onCreate` starts a MIN_PRIORITY thread whose `audioEvidenceStore.evict()` reads `settingsStore.evidenceRetentionSeconds` — and that getter **wrote while reading**, materialising the debug default `2592000` between the test's `clear()` and its assertion. The getter is now a pure read (only the one-shot legacy migration persists), two regression tests pin it, the startup thread is named `app-startup-maintenance` and joined by `SettingsStoreTest`. `SettingsStoreTest` 30× green. See STATE.md.
 
 **#192 (2026-11-23, shipped + amended):** a pause belongs to ONE app — the same app always
 continues it („always continue, no exceptions": pause button, X, nav-bar close,
@@ -223,9 +221,3 @@ a device**, so neither #186 nor #152 may be closed yet.
    Do not duplicate the list here.
 
 ## Not scheduled (owner-gated, no issue yet)
-
-- **#200 (2026-11-24) — `SettingsStoreTest` flake in the push gate.** Not
-  owner-gated, but not urgent either: 2 failures in ~21 full-suite runs, a
-  deferred `SharedPreferences.apply()` landing after the next test's `clear()`.
-  The issue carries the hypothesis and three candidate fixes; do not paper over it
-  with `@Ignore` or a retry rule.

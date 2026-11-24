@@ -13,6 +13,39 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-24: #200 — der Retention-Default wird nicht mehr beim Lesen persistiert
+
+`SettingsStore.evidenceRetentionSeconds` schrieb bisher auch dann einen Wert in die
+Prefs, wenn **nur der Default aufgelöst** wurde (kein Key, kein Legacy-Toggle):
+`prefs.edit { putLong(…, 2592000) }`. Dieses Write-on-Read war die Ursache des
+`SettingsStoreTest`-Flakes (`expected: 0 but was : 2592000`, 2× in ~21 Läufen).
+
+- **Entscheidung: Default auflösen = reiner Lesevorgang.** Fehlt der Key und fehlt
+  der Legacy-Toggle, gibt der Getter `evidenceRetentionDefaultSeconds` zurück,
+  ohne zu schreiben. Nur die einmalige Legacy-Migration (`audio_evidence` →
+  30 Tage / 0) persistiert weiterhin — sie ist ein expliziter, einmaliger Vorgang.
+- **Warum.** Der Getter wird von Threads gelesen, die die Einstellung nicht
+  besitzen: `AudioEvidenceStore.evict()` läuft im MIN_PRIORITY-Startup-Thread von
+  `PolishedRecognitionApp` und liest die Retention als Erstes. Ein Schreibvorgang
+  dort ist eine versteckte Nebenwirkung an einer Stelle, an der niemand eine
+  Änderung erwartet — und in Tests eine Rennstrecke gegen `clear()`.
+- **Nebenwirkung, gewollt.** Ein injizierter Default ≠ 30 Tage wird jetzt
+  tatsächlich geehrt (vorher wurde er auf 30 Tage normalisiert und festgeschrieben).
+  Für den Nutzer sichtbar ändert sich nichts: die Settings-Seite schreibt den Wert
+  beim Speichern weiterhin explizit (`SettingsActivity`), und alle Leser sehen
+  dieselbe Zahl wie vorher.
+- **Diagnose-Korrektur.** Die #200-Hypothese „ein verspäteter `apply()` landet im
+  nächsten Test" war falsch: Robolectric 4.14.1 legt je Testmethode ein eigenes
+  `TempDirectory` an und benutzt die echte `SharedPreferencesImpl` (der Shadow ist
+  leer). Sichtbar wird nur ein **gleichzeitiger** Schreiber in dieselbe
+  In-Memory-Map. Der Startup-Thread heißt jetzt `app-startup-maintenance`
+  (`STARTUP_MAINTENANCE_THREAD_NAME`) und wird vom Test gejoint, damit die Ursache
+  künftig in einem `jstack`/Test benannt werden kann statt geraten zu werden.
+- **Verification:** zwei neue Regressionstests (`reading the default does not
+  persist it (#200)` in beiden Default-Varianten) waren vor dem Fix rot und sind
+  danach grün; `SettingsStoreTest` 30× hintereinander, volles `:app:test`,
+  `lintDebug`, `assembleRelease`, pre-push. Kein Versions-Bump.
+
 ## 2026-11-24: #193 — der Lint-Backlog ist bei null: keine Baseline mehr, `warningsAsErrors`, sechs dokumentierte Ausnahmen
 
 Die 77 Einträge der `app/lint-baseline.xml` (#163) sind abgearbeitet und die Datei

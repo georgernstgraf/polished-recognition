@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-24 (#200 — der Settings-Getter schreibt nicht mehr beim Lesen)
+* **Update**: [STATE.md](STATE.md) — Statuszeile (Tests, #200 zu) + Abschnitt `#200 — ein Settings-Getter darf nicht schreiben: der Flake hatte einen Thread`: falsche QueuedWork-Hypothese, die Messung (TempDirectory pro Testmethode, leerer Shadow, echte `SharedPreferencesImpl`), der Startup-Thread als Schreiber, der reine Lese-Getter, die zwei Regressionstests, die Doku-Korrekturen.
+* **Update**: [PITFALLS.md](PITFALLS.md) — der #200-Eintrag ersetzt die falsche `apply()`-Hypothese; der „known flake"-Eintrag aus #178 ist als aufgelöst markiert; die #142-Lehre „Prefs leaken zwischen Testmethoden" ist korrigiert (kein Platten-Leak, sondern ein gleichzeitiger Schreiber); der #150-Eintrag verweist nicht mehr auf materialisierende Getter.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — neue Regel: ein `SettingsStore`-Getter ist ein reiner Lesevorgang, nur einmalige Legacy-Migrationen persistieren.
+* **Update**: [DECISIONS.md](DECISIONS.md) — Eintrag `#200 — der Retention-Default wird nicht mehr beim Lesen persistiert`: Entscheidung, Begründung (Fremd-Thread liest), gewollte Nebenwirkung (injizierter Default ≠ 30 Tage), Diagnose-Korrektur, Verification.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #200 als geschlossen vermerkt, der „Not scheduled"-Eintrag entfernt.
+* **No change**: [ARCHITECTURE.md](ARCHITECTURE.md), [DOMAIN.md](DOMAIN.md), [index.md](index.md) — keine neue/entfernte Komponente, kein neuer Begriff, kein neues Konzeptfile.
+
 ## 2026-11-20 (#184 — idempotent fragment uploads)
 * **Update**: [STATE.md](STATE.md) — status line (806 tests, 2/5 #152 children) + a `#184 — idempotent fragment uploads` section: the one-`@PartMap` shape, empty map = unchanged wire, retry identity, the client-side `putIfAbsent` second line, the Retrofit wildcard pitfall, the `session.json` deviation.
 * **Update**: [DECISIONS.md](DECISIONS.md) — entry `#184 — Identität als EIN @PartMap, leerer Map = unverändertes Wire-Format`: one map instead of three parts (future fields cost no signature churn), all-or-nothing identity, 0-based `fragment_index` vs 1-based log `chunk`, client-side guarantee, no duplicated bundle fields.
