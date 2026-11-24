@@ -13,6 +13,37 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-24: #202/#203 — ein RAW-Edit wird beim Tippen gespeichert, und Polish committet zuerst
+
+Owner-Report: „In der Workbench wirkt es, als ob das Editieren des RAW-Textes
+nicht funktioniert … wenn ich im Textfeld editiere und dann sofort auf Polish
+gehe, nicht der aktuellste Text aus dem Eingabe-RAW-Feld verwendet wird."
+
+- **Befund (kein Feld-, sondern ein Commit-Fehler).** `polishCurrent()` las den
+  Feldtext korrekt, aber `commitEdits()` lief nur beim Feldverlust (und bei
+  Pause/Navigation). Ein Klick auf einen Button verschiebt den Fokus im
+  Touch-Modus nicht, also stand im Store noch der ALTE raw: das Polish-Ergebnis
+  hing per `updatePolished(id, …)` am alten Text, und das `reload` nach der
+  Antwort setzte den alten Text zurück. Genau das liest sich als „mein Edit ist
+  weg".
+- **Entscheidung: implizites Speichern heißt Speichern beim Tippen.** Der
+  TextWatcher startet eine 500-ms-Debounce (`persistRawDraft`), die den Draft
+  über `DictationStore.updateRaw` schreibt — und damit wie jeder Raw-Edit den
+  Polished-Slot verwirft. Bewusst NICHT Teil davon: `shownRaw` (der D11b-Marker
+  „schon an die Zwischenablage geliefert") und das Re-Mergen des Rings; sonst
+  würde die Seite unter dem Nutzer springen bzw. die Lieferung beim
+  Fokusverlust verschluckt.
+- **Zusätzlich: jeder Leser committet zuerst.** `polishCurrent()` beginnt jetzt
+  mit `commitEdits()`; damit hängt das Ergebnis am editierten Text und das
+  Reload zeigt ihn. Ein danach folgender Fokusverlust liefert den Text nicht
+  doppelt (der Marker ist gesetzt).
+- **Verworfen (Owner-Vorschlag aus dem Issue, nicht bestätigt):** ein
+  Disk-Button über/unter RAW. Die bestehende Policy ist implizites Speichern;
+  ein Button wäre ein zweiter Speicherweg und eine zusätzliche Erklärung im UI
+  — #201/#204 gingen gerade in die Gegenrichtung.
+- **Tests:** 1035 → 1037 (`:app`); beide neuen Tests waren gegen die alte
+  Produktionsdatei rot (verifiziert per `git stash`).
+
 ## 2026-11-24: #201/#204 — die Leiste ohne Aufnahme ist ein ganz normaler Pausezustand bei 0:00
 
 Owner-Report: nach dem Senden stand rechts neben der Checkbox „Sent — ↺ starts a

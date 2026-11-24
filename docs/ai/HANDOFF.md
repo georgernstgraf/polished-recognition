@@ -9,6 +9,12 @@ status: stable
 
 # Hand Off
 
+**#201/#204 and #202/#203 (2026-11-24, shipped — both pairs were duplicates):** the parked IME bar lost
+its explaining sentence: a bar with nothing buffered is a plain pause at `0:00` (#201 = #204). And a RAW
+edit is now saved while it is typed (500 ms debounce) and committed before Polish reads anything, so the
+result attaches to the edited text and survives the reload (#202 = #203). The owner's Disk-button idea was
+not built — the implicit-save policy stays. Owner checks: items 1 and 9.
+
 **#193 (2026-11-24, shipped, decomposed, CLOSED with all four children):** the lint baseline is gone — 77 entries
 worked off, 71 real fixes and 6 documented exceptions (four inline `@Suppress`,
 two commented `lint.xml` ignores: the permissive cleartext, which stays, and the
@@ -219,5 +225,12 @@ a device**, so neither #186 nor #152 may be closed yet.
    they are committed. Also stale, same capture session, decided separately in the
    issue: `fastlane/…/phoneScreenshots/{1-ime-recording,2-settings,3-settings-providers}.png`.
    Do not duplicate the list here.
+9. [ ] **#202/#203 device check (owner): the edit survives the immediate Polish.**
+   Open a stored dictation in the Workbench → edit RAW → tap Polish **without
+   leaving the field** → the request must carry the edited text, the page must
+   still show it, and the polished result must be the polish of the edited
+   text, not of the old one. Then: edit RAW, wait ~½ s, kill the app from the
+   recents/`am force-stop` → reopen: the edit is still there (the debounced
+   draft save). The clipboard-on-field-leave behaviour is unchanged.
 
 ## Not scheduled (owner-gated, no issue yet)
