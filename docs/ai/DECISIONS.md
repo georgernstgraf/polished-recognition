@@ -220,13 +220,32 @@ und ohne Toast. Genau die stille Vernichtung, gegen die #152 existiert.
   oder ein Send in der eigenen App — der einzige Weg, den #152 zulässt.
 
 - **Tests:** `ImeNoTakeBarTest` (3: frischer IDLE = geparkt bei 0:00; ↺-Tap
-  startet; nach Send nur die Stage-Zeile anders), `ImePauseEntryTest` umgeschrieben
+  startet; ~~nach Send nur die Stage-Zeile anders~~ — seit #201/#204 gibt es
+  auch den Satz nicht mehr, Park und frischer IDLE sind pixelgleich),
+  `ImePauseEntryTest` umgeschrieben
   (Park vs. Pause mit `0:00`/gepufferter Zeit; fremde App mit Audio ohne
   Transkripte bleibt PAUSED + Trace-Zeile; Pause ohne Audio wird beendet),
   `FragmentTranscriberTest` +2 (`peek` nicht-destruktiv, `peek` null ohne
   Transkripte), `VoiceSessionControllerTest` +2 (`salvageableText` = was der
   Cancel hergibt und konsumiert nichts; null bei Audio ohne Transkripte).
   **Kein Version bump** — die App bleibt 1.5.1 / 10501.
+
+### Owner-Antwort 2026-11-24 — der Post-Send-Look war nie gewollt (Variante „A")
+
+Zur letzten offenen Frage des Issues (muss die Post-Send-Leiste von einer Pause
+*unterscheidbar* sein?) kam die Antwort in zwei Schritten. Der Owner wollte
+diesen Zustand überhaupt nicht: „ein ganz normaler Pausezustand bei 00:00"
+(#201/#204, kein Satz mehr). Und auf die Nachfrage, ob damit nur die **Optik**
+gemeint war (A) oder auch das **Verhalten** — also der Auto-Start nach einem
+Send nicht mehr unterdrückt werden soll (B) — kam **A**.
+
+- **Konsequenz:** `postSendParked` bleibt unverändert (reine IME-UI, unterdrückt
+  nur den Auto-Start; Feldwechsel und Keyboard-Dismiss räumen ihn). Kein Ticket
+  für B, keine Code-Änderung.
+- **Konsequenz für das Issue:** der Acceptance-Punkt „visuell unterscheidbar" ist
+  **ersetzt, nicht umgesetzt** — es gibt nichts zu unterscheiden, weil es die
+  „zu tiefe Pause" nicht mehr gibt. #192 ist damit device-verifiziert
+  (`f6de166c`, 2026-11-24) und geschlossen.
 
 ## 2026-11-23: #192 — Eine Pause gehört zu EINER App: dieselbe setzt immer fort, eine fremde rettet und ersetzt
 

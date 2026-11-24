@@ -128,26 +128,15 @@ a device**, so neither #186 nor #152 may be closed yet.
    Toast names the reason and the Workbench. The airplane-mode flight has to be
    repeated on the device before #186 (and #152) can close — item 7 below.
 
-0. [ ] **#192 device check (owner, OnePlus `f6de166c`): the pause has a home now.**
-   (a) Dictate → close the keyboard with the nav-bar down arrow → reopen the
-   same app and tap the field: the SAME dictation continues (the audio from
-   before the close is still in it — that is the rule, listen for it). (b) Same
-   start, but switch to ANOTHER app and dictate: the old audio is NOT sent; a
-   Toast/clipboard keeps whatever was already transcribed and a fresh take
-   starts — **unless nothing was transcribed yet: then the take stays PAUSED
-   (its buffered time visible, trash = discard) and nothing starts**, because a
-   cancel there would destroy the only copy (`kept=audio-without-transcripts`
-   in the trace). (c) X (keyboard switch) → back into the same app →
-   continues; press it, type elsewhere for two minutes, come back → still
-   continues (no ↺ is required, by design). (d) Start a take and close the
-   keyboard while the bar says it is RECORDING: the microphone must stop (the
-   take is paused, not lost). (e) Send, then close the keyboard with nav, then
-   tap a field: a fresh take starts instead of the parked bar. (f) A FRESH
-   keyboard (nothing dictated, nothing sent) already shows the parked bar at
-   `0:00` — Send dead, ↺ live, no stage line since #201/#204 — and a tap on
-   ↺ starts a take. Evidence: `ime-lifecycle.log` lines
-   `pause cause=… pkg=…`, `kept=audio-without-transcripts` and
-   `onStartInputView action=… sameTarget=…`.
+0. [x] **#192 device check (owner, OnePlus `f6de166c`) — PASSED 2026-11-24; issue closed.**
+   The pause has a home: a nav-bar close into the SAME app continues the take
+   (old audio included), another app salvages it — or keeps it PAUSED with
+   `kept=audio-without-transcripts` when nothing was transcribed yet; X
+   continues after any length of time; hiding the keyboard while RECORDING
+   stops the microphone; a fresh keyboard shows the plain `0:00` bar whose ↺
+   starts a take. No stage line (#201/#204), and no post-send "deep pause" left
+   to distinguish — owner answer 2026-11-24: that state was never wanted, a
+   plain `0:00` pause is the whole target.
 1. [ ] **Owner: check the parked IME bar on the device.** Send a dictation → the
    bar stays visible and parked (↺ enabled under "New take", Send and Flush
    greyed out, Gear/X live, **timer visible at `0:00`**, no stage line — since
