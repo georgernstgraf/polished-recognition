@@ -9,6 +9,18 @@ status: stable
 
 # Hand Off
 
+**#189 (2026-11-24, shipped): the Workbench sections collapse again.** Both label rows are
+`<summary>`-style toggles (chevron · label · copy) with a one-line, ellipsised preview while the
+field is hidden — the #173 shape #178 had dropped, now for **Raw and Polished**. The state lives
+for one visit (never persisted) and a take always opens Raw, because a collapsed field has no
+input connection for the IME. The promote icon is an **up** arrow (it was Material's `publish`, a
+line with a down arrow, which read as the wrong direction on the device), and the two action rows
+below are identical: promote + trash can under Raw **and** in the bottom bar under Polished.
+`WorkbenchLayoutPolicyTest` now pins the accordion instead of its removal, and
+`WorkbenchActivityTest` covers both toggles, the empty preview and the auto-open on a take.
+Owner check: item 10 (a glance on the device — nothing else). **#156's screenshot capture is
+unblocked by this.**
+
 **#201/#204 and #202/#203 (2026-11-24, shipped — both pairs were duplicates):** the parked IME bar lost
 its explaining sentence: a bar with nothing buffered is a plain pause at `0:00` (#201 = #204). And a RAW
 edit is now saved while it is typed (500 ms debounce) and committed before Polish reads anything, so the
@@ -57,7 +69,7 @@ directly under the when-line and the banner is an accent bar under the header
 (`<n> incomplete dictation(s) · <newest stamp> — tap to open`, GONE at zero,
 tap jumps to the newest leftover). Owner: judge the accent bar on the device
 (`workbench_recovery_banner`); #189 (RAW/Polished collapse, arrow icon, trash
-position) stays a separate batch.
+position) shipped on 2026-11-24 — see the top entry.
 
 Only open tasks. **#118 is closed (2026-11-23)** — Phase C shipped (the rebind
 storm's UI churn): `service/RebindChurn` skips identical per-cycle render/FGS/
@@ -209,9 +221,10 @@ a device**, so neither #186 nor #152 may be closed yet.
    list — `docs/img/ime-recording.png` + `settings.png` **plus the two new
    Workbench shots** `workbench.png` (a stored dictation) and
    `workbench-recovery.png` (banner + leftover page), each with the framing rules
-   and the README row to add. **Sequencing: capture AFTER #189 lands** (RAW/Polished
-   collapse, arrow icon, trash position), otherwise the shots are stale on the day
-   they are committed. Also stale, same capture session, decided separately in the
+   and the README row to add. **Sequencing: #189 has LANDED (2026-11-24)** —
+   capture now, so the Workbench shots show the restored RAW/Polished collapse,
+   the up-arrow promote icon and the trash can in the bottom bar. Also stale,
+   same capture session, decided separately in the
    issue: `fastlane/…/phoneScreenshots/{1-ime-recording,2-settings,3-settings-providers}.png`.
    Do not duplicate the list here.
 9. [ ] **#202/#203 device check (owner): the edit survives the immediate Polish.**
@@ -221,5 +234,14 @@ a device**, so neither #186 nor #152 may be closed yet.
    text, not of the old one. Then: edit RAW, wait ~½ s, kill the app from the
    recents/`am force-stop` → reopen: the edit is still there (the debounced
    draft save). The clipboard-on-field-leave behaviour is unchanged.
+10. [ ] **#189 device check (owner): the two summary rows on a real screen.**
+   (a) Tap the Raw row → the field folds away and a one-line preview with the
+   text takes its place; the chevron points right (`▸`), a second tap opens it
+   again (`▾`). (b) The same on the Polished row — and both rows are
+   independent. (c) Collapse Raw, then dictate: Raw must open by itself so the
+   text can be inserted. (d) The promote icon must read as an **up** arrow at
+   both sites (under Raw and under Polished); the trash can sits next to it in
+   the bottom bar too. (e) Leaving and re-entering the Workbench starts with
+   both sections open (the state is per visit, not persisted).
 
 ## Not scheduled (owner-gated, no issue yet)

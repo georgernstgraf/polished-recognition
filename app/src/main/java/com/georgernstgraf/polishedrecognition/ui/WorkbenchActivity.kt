@@ -21,6 +21,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.LanguageOptions
@@ -92,6 +93,12 @@ import java.util.Locale
  * together at the top, found by paging 1/3 · 2/3 · 3/3 on a device otherwise)
  * and makes the banner the one affordance that leads there: accent bar under
  * the header, count + newest stamp + "tap to open", GONE at zero.
+ *
+ * #189 brings the `<summary>`-style accordion back for BOTH sections (Raw and
+ * Polished): the label row collapses its field and shows a one-line preview,
+ * the state lives for one visit, and a take always opens Raw (a collapsed
+ * field has no input connection). The two action rows below are identical —
+ * promote + empty Polished at both Polish sites, with promote as an up arrow.
  */
 class WorkbenchActivity : Activity() {
 
@@ -129,11 +136,26 @@ class WorkbenchActivity : Activity() {
     private lateinit var copyPolishedButton: ImageButton
     private lateinit var promoteBButton: ImageButton
     private lateinit var promoteCButton: ImageButton
-    private lateinit var clearPolishedButton: ImageButton
+    private lateinit var clearPolishedBButton: ImageButton
+    private lateinit var clearPolishedCButton: ImageButton
     private lateinit var languageA: AutoCompleteTextView
     private lateinit var languageB: AutoCompleteTextView
     private lateinit var polishA: Button
     private lateinit var polishB: Button
+
+    /**
+     * #189: the two summary rows — a tap collapses or expands the section
+     * underneath, the chevron says which state it is in, and the preview line
+     * stands in for the text while the field is collapsed. The state lives for
+     * ONE visit (never persisted, never restored), exactly like #173's
+     * accordion before #178 dropped it.
+     */
+    private lateinit var rawToggle: LinearLayout
+    private lateinit var rawChevron: TextView
+    private lateinit var rawPreview: TextView
+    private lateinit var polishedToggle: LinearLayout
+    private lateinit var polishedChevron: TextView
+    private lateinit var polishedPreview: TextView
 
     /**
      * #188: the ring — stored dictations AND the journal's leftovers as pages
@@ -268,11 +290,18 @@ class WorkbenchActivity : Activity() {
         copyPolishedButton = findViewById(R.id.workbench_copy_polished)
         promoteBButton = findViewById(R.id.workbench_promote_b)
         promoteCButton = findViewById(R.id.workbench_promote_c)
-        clearPolishedButton = findViewById(R.id.workbench_clear_polished)
+        clearPolishedBButton = findViewById(R.id.workbench_clear_polished_b)
+        clearPolishedCButton = findViewById(R.id.workbench_clear_polished_c)
         languageA = findViewById(R.id.workbench_language_a)
         languageB = findViewById(R.id.workbench_language_b)
         polishA = findViewById(R.id.workbench_polish_a)
         polishB = findViewById(R.id.workbench_polish_b)
+        rawToggle = findViewById(R.id.workbench_raw_toggle)
+        rawChevron = findViewById(R.id.workbench_raw_chevron)
+        rawPreview = findViewById(R.id.workbench_raw_preview)
+        polishedToggle = findViewById(R.id.workbench_polished_toggle)
+        polishedChevron = findViewById(R.id.workbench_polished_chevron)
+        polishedPreview = findViewById(R.id.workbench_polished_preview)
 
         applyEdgeToEdgeInsets()
         wireActions()
@@ -296,6 +325,10 @@ class WorkbenchActivity : Activity() {
         monitor.start { onReconnected() }
         // D15: entering the Workbench starts the IME immediately. The IME's
         // own auto-start path does the rest — a foreign keyboard simply opens.
+        // #189: the entry contract needs an open Raw field to type into, so the
+        // visit starts with it expanded even if it was collapsed before the
+        // screen was left (the state belongs to one visit, not to the page).
+        setSectionExpanded(isRaw = true, expanded = true)
         rawField.requestFocus()
         revealSoftKeyboard()
     }
@@ -546,7 +579,14 @@ class WorkbenchActivity : Activity() {
         polishB.setOnClickListener { polishCurrent() }
         promoteBButton.setOnClickListener { promotePolished() }
         promoteCButton.setOnClickListener { promotePolished() }
-        clearPolishedButton.setOnClickListener { emptyPolished() }
+        clearPolishedBButton.setOnClickListener { emptyPolished() }
+        clearPolishedCButton.setOnClickListener { emptyPolished() }
+        // #189: the label row is a summary — a tap collapses or expands its
+        // field; both sections start open on every visit.
+        rawToggle.setOnClickListener { toggleSection(isRaw = true) }
+        polishedToggle.setOnClickListener { toggleSection(isRaw = false) }
+        setSectionExpanded(isRaw = true, expanded = true)
+        setSectionExpanded(isRaw = false, expanded = true)
         // D11b: a CHANGED raw field losing focus delivers itself; an unchanged
         // field left delivers nothing (the content is already the visible
         // dictation, not news for the clipboard).
@@ -585,6 +625,36 @@ class WorkbenchActivity : Activity() {
         commitEdits()
         if (changed && text.isNotEmpty()) deliver(text, notify = false)
         syncPositions()
+    }
+
+    // ------------------------------------------------------------- accordion
+
+    /** #189: one tap on the label row flips its section. */
+    private fun toggleSection(isRaw: Boolean) {
+        val field = if (isRaw) rawField else polishedField
+        setSectionExpanded(isRaw, expanded = !field.isVisible)
+    }
+
+    /**
+     * #189: one open/closed state per section, never persisted (it lives for
+     * one visit — [setSectionExpanded] is only ever *changed* by a tap).
+     *
+     * While collapsed the section keeps a one-line, ellipsised **preview**, so
+     * the row still says what is hidden; an empty section shows no preview line
+     * at all (no dead row on the page).
+     */
+    private fun setSectionExpanded(isRaw: Boolean, expanded: Boolean) {
+        val field = if (isRaw) rawField else polishedField
+        val chevron = if (isRaw) rawChevron else polishedChevron
+        val preview = if (isRaw) rawPreview else polishedPreview
+        field.visibility = if (expanded) View.VISIBLE else View.GONE
+        chevron.text = if (expanded) CHEVRON_OPEN else CHEVRON_CLOSED
+        bindPreview(preview, if (expanded) "" else field.text.toString())
+    }
+
+    private fun bindPreview(preview: TextView, text: String) {
+        preview.text = text
+        preview.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
     }
 
     // ------------------------------------------------------------------ state
@@ -814,7 +884,8 @@ class WorkbenchActivity : Activity() {
         copyPolishedButton.isEnabled = actions.copyPolished
         promoteBButton.isEnabled = actions.promote
         promoteCButton.isEnabled = actions.promote
-        clearPolishedButton.isEnabled = actions.clearPolished
+        clearPolishedBButton.isEnabled = actions.clearPolished
+        clearPolishedCButton.isEnabled = actions.clearPolished
         polishA.isEnabled = actions.polish
         polishB.isEnabled = actions.polish
         languageA.isEnabled = actions.polish
@@ -824,6 +895,11 @@ class WorkbenchActivity : Activity() {
         )
         polishA.text = polishLabel
         polishB.text = polishLabel
+        // #189: chevron and collapsed preview follow the CONTENT, never the
+        // open/closed state — a polish result or a freshly loaded page shows up
+        // in the preview line while the user keeps the section collapsed.
+        setSectionExpanded(isRaw = true, expanded = rawField.isVisible)
+        setSectionExpanded(isRaw = false, expanded = polishedField.isVisible)
         bindLeftoverActions(leftover)
     }
 
@@ -881,6 +957,8 @@ class WorkbenchActivity : Activity() {
             composePolished = ""
             render()
         }
+        // #189: a new dictation is typed into Raw, so ＋ opens the section.
+        setSectionExpanded(isRaw = true, expanded = true)
         rawField.requestFocus()
         revealSoftKeyboard()
     }
@@ -1265,6 +1343,10 @@ class WorkbenchActivity : Activity() {
      * would throw the text at a page that cannot hold it.
      */
     internal fun onRecordingStarted() {
+        // #189: a collapsed Raw field has no input connection — the IME could
+        // not insert a single character of the transcript. A take always opens
+        // the field it is going to type into.
+        setSectionExpanded(isRaw = true, expanded = true)
         val leftover = pages.getOrNull(index) is WorkbenchPage.Leftover
         pendingTarget = if (index == FifoNavigation.COMPOSE_INDEX || leftover) {
             DictationTarget.NEW
@@ -1322,5 +1404,9 @@ class WorkbenchActivity : Activity() {
          * — short enough to feel saved, long enough not to write per keystroke.
          */
         const val RAW_DRAFT_SAVE_MS = 500L
+
+        /** #189: the summary chevrons (text, so no extra drawables are needed). */
+        const val CHEVRON_OPEN = "▾"
+        const val CHEVRON_CLOSED = "▸"
     }
 }

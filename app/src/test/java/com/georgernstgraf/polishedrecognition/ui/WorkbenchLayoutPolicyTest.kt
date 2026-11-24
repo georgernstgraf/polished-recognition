@@ -22,6 +22,10 @@ import javax.xml.parsers.SAXParserFactory
  * above Raw, B below Raw, C below Polished), Polished is a **read-only
  * TextView**, and every icon button carries a content description and no
  * own background.
+ *
+ * #189 brings the `<summary>` accordion back for BOTH sections and makes the
+ * zone-B and zone-C action rows identical (promote + trash), so the old
+ * "the accordion is gone" rule is inverted here.
  */
 class WorkbenchLayoutPolicyTest {
 
@@ -29,6 +33,7 @@ class WorkbenchLayoutPolicyTest {
         val line: Int,
         val name: String,
         val attributes: Map<String, String>,
+        val parent: Int,
     )
 
     private val layout: File = File(moduleDir(), "src/main/res/layout/activity_workbench.xml")
@@ -58,6 +63,7 @@ class WorkbenchLayoutPolicyTest {
     private class Collector : DefaultHandler() {
         val elements = mutableListOf<Element>()
         private var locator: Locator? = null
+        private val open = ArrayDeque<Int>()
 
         override fun setDocumentLocator(locator: Locator) {
             this.locator = locator
@@ -66,7 +72,12 @@ class WorkbenchLayoutPolicyTest {
         override fun startElement(uri: String?, localName: String?, qName: String, atts: Attributes) {
             val attributes = LinkedHashMap<String, String>(atts.length)
             for (i in 0 until atts.length) attributes[atts.getQName(i)] = atts.getValue(i)
-            elements += Element(locator?.lineNumber ?: -1, qName, attributes)
+            elements += Element(locator?.lineNumber ?: -1, qName, attributes, open.lastOrNull() ?: -1)
+            open.addLast(elements.lastIndex)
+        }
+
+        override fun endElement(uri: String?, localName: String?, qName: String?) {
+            open.removeLast()
         }
     }
 
@@ -133,9 +144,11 @@ class WorkbenchLayoutPolicyTest {
     }
 
     /**
-     * #178: the three action zones. Zone A sits above Raw, zone B between Raw
-     * and Polished, zone C below Polished — the order in the file is the order
-     * on the screen, so it is the assertion.
+     * #178/#189: the three action zones. Zone A sits above Raw, zone B between
+     * Raw and Polished, zone C below Polished — the order in the file is the
+     * order on the screen, so it is the assertion. Since #189 both action rows
+     * carry the same promote + empty pair, so the trash can sits in the bottom
+     * bar under Polished too, not only under Raw.
      */
     @Test
     fun `the three action zones exist above, below and beneath the polished field`() {
@@ -146,9 +159,10 @@ class WorkbenchLayoutPolicyTest {
             "workbench_language_b",
             "workbench_polish_b",
             "workbench_promote_b",
-            "workbench_clear_polished",
+            "workbench_clear_polished_b",
             "workbench_polished",
             "workbench_promote_c",
+            "workbench_clear_polished_c",
         )
         fun at(id: String) = order.getValue(id)
 
@@ -164,7 +178,7 @@ class WorkbenchLayoutPolicyTest {
             "workbench_language_b",
             "workbench_polish_b",
             "workbench_promote_b",
-            "workbench_clear_polished",
+            "workbench_clear_polished_b",
         )) {
             if (at(id) < at("workbench_raw")) {
                 violations += "$id must follow workbench_raw (zone B)"
@@ -174,12 +188,52 @@ class WorkbenchLayoutPolicyTest {
             }
         }
         // Zone C — below Polished.
-        if (at("workbench_promote_c") < at("workbench_polished")) {
-            violations += "workbench_promote_c must follow workbench_polished (zone C)"
+        for (id in listOf("workbench_promote_c", "workbench_clear_polished_c")) {
+            if (at(id) < at("workbench_polished")) {
+                violations += "$id must follow workbench_polished (zone C)"
+            }
         }
 
         assertWithMessage("the #178 action zones are out of order:\n" + violations.joinToString("\n"))
             .that(violations).isEmpty()
+    }
+
+    /** The ids of the views directly inside the element with [id]. */
+    private fun childrenOf(id: String): List<String> {
+        val elements = parse(layout)
+        val index = elements.indexOfFirst { it.attributes["android:id"] == "@+id/$id" }
+            .also { if (it < 0) throw AssertionError("activity_workbench.xml declares no element with id $id") }
+        return elements
+            .filter { it.parent == index }
+            .map { it.attributes["android:id"]?.removePrefix("@+id/") ?: "<${it.name}>" }
+    }
+
+    /**
+     * #189: the two action rows are IDENTICAL — same buttons, same order, same
+     * alignment. A layout where one site grows an extra control is exactly the
+     * drift this pins.
+     */
+    @Test
+    fun `the action rows in zones B and C are identical`() {
+        val zoneB = childrenOf("workbench_actions_b")
+        val zoneC = childrenOf("workbench_actions_c")
+
+        assertWithMessage("zone B must hold promote + the trash can in that order:\n$zoneB")
+            .that(zoneB)
+            .containsExactly("workbench_promote_b", "workbench_clear_polished_b")
+            .inOrder()
+        assertWithMessage("zone C must mirror zone B:\n$zoneC")
+            .that(zoneC)
+            .containsExactly("workbench_promote_c", "workbench_clear_polished_c")
+            .inOrder()
+
+        for (id in listOf("workbench_actions_b", "workbench_actions_c")) {
+            val row = elementById(id)
+            assertWithMessage("line ${row.line} $id: the action row must stay horizontal")
+                .that(row.attributes["android:orientation"]).isEqualTo("horizontal")
+            assertWithMessage("line ${row.line} $id: the action row must align its icons the same way")
+                .that(row.attributes["android:gravity"]).isEqualTo("center_vertical|end")
+        }
     }
 
     /**
@@ -262,23 +316,86 @@ class WorkbenchLayoutPolicyTest {
             .that(raw.name).isEqualTo("EditText")
     }
 
-    /** #178: the #173 accordion and the single spinner/repolish row are gone. */
+    /**
+     * #189: both sections are `<summary>`-style accordions again — the #173
+     * shape #178 had dropped. The label row is the toggle, the chevron states
+     * which way a tap goes, and a collapsed section keeps a one-line,
+     * ellipsised preview between the row and its field. Only the old single
+     * Polish row and its language field stay gone.
+     */
     @Test
-    fun `the accordion views and the old polish row are gone`() {
-        val declared = parse(layout).mapNotNull { it.attributes["android:id"] }.toSet()
-        val removed = listOf(
+    fun `both sections are summary-style accordions above their fields`() {
+        val order = orderOf(
             "workbench_raw_toggle",
             "workbench_raw_chevron",
+            "workbench_copy_raw",
             "workbench_raw_preview",
+            "workbench_raw",
             "workbench_polished_toggle",
             "workbench_polished_chevron",
+            "workbench_copy_polished",
             "workbench_polished_preview",
-            "workbench_repolish",
-            "workbench_language",
+            "workbench_polished",
         )
+        fun at(id: String) = order.getValue(id)
 
+        val violations = mutableListOf<String>()
+        val sections = mapOf(
+            "raw" to "workbench_raw",
+            "polished" to "workbench_polished",
+        )
+        for ((section, field) in sections) {
+            val walk = listOf(
+                "workbench_${section}_toggle",
+                "workbench_${section}_chevron",
+                "workbench_copy_$section",
+                "workbench_${section}_preview",
+            )
+            if (walk.map { at(it) } != walk.map { at(it) }.sorted()) {
+                violations += "$section: the row must read toggle → chevron → copy → preview"
+            }
+            if (at("workbench_${section}_preview") > at(field)) {
+                violations += "$section: preview must precede its field"
+            }
+        }
+
+        for ((section, field) in sections) {
+            val toggle = elementById("workbench_${section}_toggle")
+            if (toggle.attributes["android:clickable"] != "true") {
+                violations += "line ${toggle.line} ${section}: the label row must be clickable"
+            }
+            if (toggle.attributes["android:focusable"] != "true") {
+                violations += "line ${toggle.line} ${section}: the label row must be focusable (TalkBack)"
+            }
+            if (toggle.attributes["android:contentDescription"].isNullOrBlank()) {
+                violations += "line ${toggle.line} ${section}: the toggle needs a content description"
+            }
+            val chevron = elementById("workbench_${section}_chevron")
+            if (chevron.attributes["android:importantForAccessibility"] != "no") {
+                violations += "line ${chevron.line} ${section}: the chevron must not be announced"
+            }
+            val preview = elementById("workbench_${section}_preview")
+            if (preview.attributes["android:maxLines"] != "1" ||
+                preview.attributes["android:ellipsize"] != "end"
+            ) {
+                violations += "line ${preview.line} ${section}: the collapsed preview must stay one " +
+                    "ellipsised line"
+            }
+            if (preview.attributes["android:visibility"] != "gone") {
+                violations += "line ${preview.line} ${section}: the preview only exists while collapsed"
+            }
+            if (elementById(field).attributes["android:layout_width"] != "match_parent") {
+                violations += "$section: the field must span the page"
+            }
+        }
+
+        assertWithMessage("the #189 accordions are not a summary/details pair:\n" +
+            violations.joinToString("\n")).that(violations).isEmpty()
+
+        val declared = parse(layout).mapNotNull { it.attributes["android:id"] }.toSet()
+        val removed = listOf("workbench_repolish", "workbench_language")
         val stillThere = removed.filter { "@+id/$it" in declared }
-        assertWithMessage("#173 units that #178 replaced are still declared:\n" +
+        assertWithMessage("the single #171 polish row must stay gone:\n" +
             stillThere.joinToString("\n")).that(stillThere).isEmpty()
 
         assertWithMessage("the Workbench title must not be a header text any more (#178)")

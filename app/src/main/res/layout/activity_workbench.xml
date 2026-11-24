@@ -12,9 +12,15 @@
   four leftover actions → zones → Raw. The reason and the actions it leads to
   stay together at the top; the banner is the one affordance that gets there.
 
+  #189: both sections are `<summary>`-style accordions again (the #173 shape
+  #178 dropped): the label row toggles its field and a one-line ellipsised
+  preview stands in for the text while it is collapsed. The two action rows
+  below are identical — the same promote + empty-polished pair at both Polish
+  sites:
+
     A — above Raw:        target language + Polish
-    B — below Raw:        target language + Polish, promote + empty Polished
-    C — below Polished:   promote
+    B — below Raw:        target language + Polish, then promote + empty Polished
+    C — below Polished:   promote + empty Polished
 
   Polished is a READ-ONLY TextView: it is produced by the pipeline and can only
   be promoted or emptied, never edited. No row and no icon button carries an
@@ -221,13 +227,32 @@
                 android:textColor="?android:attr/textColorPrimary" />
         </LinearLayout>
 
-        <!-- Raw: label row (label + copy) then the editable field. -->
+        <!--
+          Raw: the summary row (chevron · label · copy) then the editable field.
+          #189: a tap on the row collapses or expands the field — the whole row
+          is the tap target, the chevron says which state it is in, and a
+          one-line ellipsised preview stands in for the text while collapsed.
+        -->
         <LinearLayout
+            android:id="@+id/workbench_raw_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:contentDescription="@string/workbench_raw_toggle_desc"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/workbench_raw_chevron"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="no"
+                android:paddingStart="0dp"
+                android:paddingEnd="6dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp" />
 
             <TextView
                 android:layout_width="0dp"
@@ -247,6 +272,16 @@
                 android:src="@drawable/ic_copy"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/workbench_raw_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
         <EditText
             android:id="@+id/workbench_raw"
@@ -292,7 +327,14 @@
                 android:textColor="?android:attr/textColorPrimary" />
         </LinearLayout>
 
+        <!--
+          #189: the two action rows are IDENTICAL — promote (an up arrow: the
+          polished text moves up into Raw) and the trash can (empty the polished
+          slot) at both Polish sites. The trash sits in the bottom bar under
+          Polished as well as under Raw, so neither action needs a scroll.
+        -->
         <LinearLayout
+            android:id="@+id/workbench_actions_b"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical|end"
@@ -308,7 +350,7 @@
                 android:tint="?android:attr/textColorSecondary" />
 
             <ImageButton
-                android:id="@+id/workbench_clear_polished"
+                android:id="@+id/workbench_clear_polished_b"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:contentDescription="@string/workbench_clear_polished"
@@ -317,13 +359,30 @@
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
 
-        <!-- Polished: label row (label + copy) then the READ-ONLY text. -->
+        <!--
+          Polished: the same accordion shape as Raw (#189) — summary row
+          (chevron · label · copy), collapsed preview, then the READ-ONLY text.
+        -->
         <LinearLayout
+            android:id="@+id/workbench_polished_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:contentDescription="@string/workbench_polished_toggle_desc"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/workbench_polished_chevron"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="no"
+                android:paddingStart="0dp"
+                android:paddingEnd="6dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp" />
 
             <TextView
                 android:layout_width="0dp"
@@ -345,6 +404,16 @@
         </LinearLayout>
 
         <TextView
+            android:id="@+id/workbench_polished_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/workbench_polished"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -355,8 +424,9 @@
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp" />
 
-        <!-- Zone C: promote, below Polished. -->
+        <!-- Zone C: the same promote + empty pair as zone B, in the bottom bar. -->
         <LinearLayout
+            android:id="@+id/workbench_actions_c"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical|end"
@@ -369,6 +439,15 @@
                 android:contentDescription="@string/workbench_promote"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_promote"
+                android:tint="?android:attr/textColorSecondary" />
+
+            <ImageButton
+                android:id="@+id/workbench_clear_polished_c"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workbench_clear_polished"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_delete_outline"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
     </LinearLayout>

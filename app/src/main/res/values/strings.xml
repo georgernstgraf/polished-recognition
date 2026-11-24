@@ -137,10 +137,14 @@
       #178: icon-only header, two Polish sites, promote/empty actions; every icon
       button carries its own contentDescription, the action labels are the
       contentDescriptions here (the visible buttons carry `workbench_polish`).
+      #189: the two label rows are summary toggles again — their content
+      descriptions say what a tap does, since the chevron carries no text.
     -->
     <string name="workbench_title">Workbench</string>
     <string name="workbench_raw">Raw</string>
     <string name="workbench_polished">Polished</string>
+    <string name="workbench_raw_toggle_desc">Collapse or expand the raw text</string>
+    <string name="workbench_polished_toggle_desc">Collapse or expand the polished text</string>
     <string name="workbench_copy_raw_desc">Copy the raw text to the clipboard</string>
     <string name="workbench_copy_polished_desc">Copy the polished text to the clipboard</string>
     <string name="workbench_settings">Settings</string>

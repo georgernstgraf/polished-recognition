@@ -13,6 +13,46 @@ status: stable
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
 
+## 2026-11-24: #189 — Sektionen klappen wieder zu, Promote zeigt nach oben, die Zonen B und C sind identisch
+
+Owner-Report: „Wenn ich in der Workbench auf **RAW** klicke, hatte ich den
+Rohtext bisher zugeklappt wie bei HTML summary/details. Das ist verloren
+gegangen … Das Icon (eine Linie mit einem Pfeil nach unten) ist irreführend;
+ein Pfeil nach oben wäre besser. Zusätzlich soll das Mülleimer-Icon in der
+untersten Leiste unter der Polished-Sektion stehen. Ebenso soll ein Tab für
+Polished das Polished-Feld zuklappen können."
+
+- **Entscheidung: das #173-Accordion kommt zurück, für BEIDE Sektionen.** Die
+  Label-Zeile ist wieder der Toggle (Chevron `▾`/`▸` · Label · Copy-Button),
+  zugeklappt steht darunter eine **einzeilige, ellipsierte Vorschau** des
+  Inhalts (leer = keine Zeile, damit kein toter Platz entsteht). Damit ist die
+  #178-Regel „the accordion is gone" (samt Test) ersetzt, nicht ergänzt.
+- **Entscheidung: der Zustand lebt EINEN Besuch lang** (nicht persistiert,
+  nicht in `savedInstanceState`; beide Sektionen starten offen). Das ist die
+  #173-Regel „state is not persisted" — ein Zuklappen ist eine Leseposition,
+  keine Einstellung.
+- **Entscheidung: eine Aufnahme öffnet RAW selbst.** Ein `GONE`-Feld hat keinen
+  Input-Connection, der IME-Insert ginge verloren (D10 ist der Lieferweg).
+  `onRecordingStarted()` (und `newEntry()`, und der Eintritt) klappt RAW auf;
+  Polished bleibt unberührt, weil dort nie hineingeschrieben wird.
+- **Entscheidung: Promote zeigt nach oben.** `ic_promote` war Material
+  `publish` (Linie oben, Pfeil **nach unten**) — gelesen als „Text nach unten
+  schieben", obwohl die Aktion Polished **nach oben** in RAW hebt. Jetzt
+  `vertical_align_top`, das exakte Spiegelbild.
+- **Entscheidung (Owner, im Plan-Dialog): die beiden Aktionszeilen sind
+  identisch** — `promote` + Mülleimer unter RAW **und** im Bottom-Bar unter
+  Polished. Der Mülleimer ist damit dort, wo der Owner ihn haben wollte, ohne
+  den oberen Zugriff zu entfernen; zwei IDs (`_b`, `_c`), eine Aktion.
+- **Tests:** `WorkbenchLayoutPolicyTest`: der „Accordion ist weg"-Test ist
+  invertiert (Reihenfolge Toggle → Chevron → Copy → Vorschau → Feld, Chevron
+  ohne Accessibility, Vorschau einzeilig + `gone`), der Zonentest kennt die
+  neuen IDs, und ein neuer Test vergleicht die **Kinder** der beiden
+  Aktionszeilen über einen Eltern-Index im SAX-Collector (`childrenOf`).
+  `WorkbenchActivityTest` +5 (zugeklappt/aufgeklappt + Vorschau für Raw und
+  Polished, leere Sektion ohne Vorschau, Aufnahmestart öffnet RAW, Mülleimer in
+  Zone C).
+- **Kein Versions-Bump** — die App bleibt 1.5.1 / 10501.
+
 ## 2026-11-24: #202/#203 — ein RAW-Edit wird beim Tippen gespeichert, und Polish committet zuerst
 
 Owner-Report: „In der Workbench wirkt es, als ob das Editieren des RAW-Textes

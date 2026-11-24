@@ -116,6 +116,9 @@ class WorkbenchActivityTest {
     private fun WorkbenchActivity.visible(id: Int) =
         findViewById<View>(id).visibility == View.VISIBLE
 
+    private fun WorkbenchActivity.previewText(id: Int) =
+        findViewById<TextView>(id).text.toString()
+
     /**
      * ◀ and ▶ enter the ring at the newest dictation. On the compose slot one
      * stored entry is enough, inside the ring two are needed (#173/#178). Tests
@@ -144,7 +147,7 @@ class WorkbenchActivityTest {
         assertThat(activity.enabled(R.id.workbench_copy_polished)).isFalse()
         assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
         assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
-        assertThat(activity.enabled(R.id.workbench_clear_polished)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_clear_polished_b)).isFalse()
         assertThat(activity.findViewById<TextView>(R.id.workbench_empty_hint).visibility)
             .isEqualTo(View.VISIBLE)
         assertThat(activity.raw().text()).isEmpty()
@@ -386,19 +389,101 @@ class WorkbenchActivityTest {
         store.updatePolished(id, "polished text")
         val activity = launch()
         activity.showNewest()
-        assertThat(activity.enabled(R.id.workbench_clear_polished)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_clear_polished_b)).isTrue()
 
-        activity.click(R.id.workbench_clear_polished)
+        activity.click(R.id.workbench_clear_polished_b)
 
         assertThat(DictationStore(context).loadAll().last().polished).isNull()
         assertThat(activity.polished().text.toString()).isEmpty()
         assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
         assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
         assertThat(activity.enabled(R.id.workbench_copy_polished)).isFalse()
-        assertThat(activity.enabled(R.id.workbench_clear_polished)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_clear_polished_b)).isFalse()
         // Raw and its actions are untouched by emptying Polished.
         assertThat(activity.raw().text()).isEqualTo("raw text")
         assertThat(activity.enabled(R.id.workbench_copy_raw)).isTrue()
+    }
+
+    @Test
+    fun `the raw section collapses to a one-line preview and expands again`() {
+        seed("filler", "raw text")
+        val activity = launch()
+        activity.showNewest()
+        assertThat(activity.visible(R.id.workbench_raw)).isTrue()
+
+        activity.click(R.id.workbench_raw_toggle)
+
+        assertThat(activity.visible(R.id.workbench_raw)).isFalse()
+        assertThat(activity.visible(R.id.workbench_raw_preview)).isTrue()
+        assertThat(activity.previewText(R.id.workbench_raw_preview)).isEqualTo("raw text")
+        // Collapsing is a reading state, never a data change.
+        assertThat(activity.raw().text()).isEqualTo("raw text")
+
+        activity.click(R.id.workbench_raw_toggle)
+
+        assertThat(activity.visible(R.id.workbench_raw)).isTrue()
+        assertThat(activity.visible(R.id.workbench_raw_preview)).isFalse()
+    }
+
+    @Test
+    fun `the polished tab collapses the polished field while raw stays open`() {
+        val store = seed("filler", "raw text")
+        store.updatePolished(store.loadAll().last().id, "polished text")
+        val activity = launch()
+        activity.showNewest()
+
+        activity.click(R.id.workbench_polished_toggle)
+
+        assertThat(activity.visible(R.id.workbench_polished)).isFalse()
+        assertThat(activity.visible(R.id.workbench_polished_preview)).isTrue()
+        assertThat(activity.previewText(R.id.workbench_polished_preview)).isEqualTo("polished text")
+        // The two sections are independent.
+        assertThat(activity.visible(R.id.workbench_raw)).isTrue()
+
+        activity.click(R.id.workbench_polished_toggle)
+
+        assertThat(activity.visible(R.id.workbench_polished)).isTrue()
+        assertThat(activity.visible(R.id.workbench_polished_preview)).isFalse()
+    }
+
+    @Test
+    fun `a collapsed empty section shows no preview line`() {
+        seed("filler", "raw only")
+        val activity = launch()
+        activity.showNewest()
+
+        activity.click(R.id.workbench_polished_toggle)
+
+        assertThat(activity.visible(R.id.workbench_polished)).isFalse()
+        assertThat(activity.visible(R.id.workbench_polished_preview)).isFalse()
+    }
+
+    @Test
+    fun `a recording start opens a collapsed raw field - the IME needs a target`() {
+        seed("filler", "raw text")
+        val activity = launch()
+        activity.showNewest()
+        activity.click(R.id.workbench_raw_toggle)
+        assertThat(activity.visible(R.id.workbench_raw)).isFalse()
+
+        activity.onRecordingStarted()
+
+        assertThat(activity.visible(R.id.workbench_raw)).isTrue()
+        assertThat(activity.visible(R.id.workbench_raw_preview)).isFalse()
+    }
+
+    @Test
+    fun `the trash can in the bottom bar empties the polished field too`() {
+        val store = seed("filler", "raw text")
+        store.updatePolished(store.loadAll().last().id, "polished text")
+        val activity = launch()
+        activity.showNewest()
+
+        activity.click(R.id.workbench_clear_polished_c)
+
+        assertThat(DictationStore(context).loadAll().last().polished).isNull()
+        assertThat(activity.polished().text.toString()).isEmpty()
+        assertThat(activity.enabled(R.id.workbench_clear_polished_c)).isFalse()
     }
 
     @Test
