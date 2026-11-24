@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -218,6 +220,14 @@ class WorkbenchActivity : Activity() {
      */
     private var shownRaw = ""
 
+    /**
+     * #202/#203: the debounced implicit save of a raw edit. [commitEdits] alone
+     * only ran on field-leave (or pause/navigation), so an edit followed
+     * directly by "Polish" never reached the store.
+     */
+    private val draftHandler = Handler(Looper.getMainLooper())
+    private val draftSave = Runnable { persistRawDraft() }
+
     private val sessionListener: (VoiceSessionController.Event) -> Unit = { event ->
         when (event) {
             is VoiceSessionController.Event.Completed -> {
@@ -316,6 +326,7 @@ class WorkbenchActivity : Activity() {
     }
 
     override fun onDestroy() {
+        draftHandler.removeCallbacks(draftSave)
         polishJob?.cancel()
         scope.cancel()
         super.onDestroy()
@@ -551,7 +562,10 @@ class WorkbenchActivity : Activity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
 
             override fun afterTextChanged(s: Editable?) {
-                if (!rendering) updateChrome()
+                if (rendering) return
+                updateChrome()
+                // #202/#203: persist the draft while typing (implicit save).
+                scheduleRawDraftSave()
             }
         })
     }
@@ -1068,6 +1082,10 @@ class WorkbenchActivity : Activity() {
     /** D9: the visible raw text through the LLM with the chosen language. */
     private fun polishCurrent() {
         if (polishing) return
+        // #202/#203: the visible text is the truth and must reach the store
+        // BEFORE the id/raw below are read — otherwise the polished result
+        // attaches to the previous raw and the reload puts that text back.
+        commitEdits()
         // A compose slot with content becomes a real dictation before it is
         // polished — polishing must never work on an entry that cannot be saved.
         materialiseCompose()
@@ -1154,6 +1172,7 @@ class WorkbenchActivity : Activity() {
      * is also why its field never reaches this code with content.
      */
     private fun commitEdits() {
+        draftHandler.removeCallbacks(draftSave)
         val raw = rawField.text.toString()
         if (index == FifoNavigation.COMPOSE_INDEX) {
             composeRaw = raw
@@ -1168,6 +1187,53 @@ class WorkbenchActivity : Activity() {
             showPolished(updated?.polished.orEmpty())
         }
         shownRaw = raw
+    }
+
+    /** #202/#203: restart the debounce; every keystroke pushes the write out. */
+    private fun scheduleRawDraftSave() {
+        draftHandler.removeCallbacks(draftSave)
+        draftHandler.postDelayed(draftSave, RAW_DRAFT_SAVE_MS)
+    }
+
+    /**
+     * #202/#203 — the implicit save, made real **while typing**.
+     *
+     * [commitEdits] only ran when the field was left (or on pause/navigation),
+     * so an edit followed directly by "Polish" never reached the store: the
+     * polish ran on the visible text but [DictationStore.updatePolished]
+     * attached its result to the OLD raw, and the reload after the response put
+     * the old text back — the owner read that as "editing does not work".
+     *
+     * This is the store half of [commitEdits] and nothing else: it does NOT
+     * touch [shownRaw] (which marks the text already delivered on field-leave,
+     * D11b) and it does not re-merge the ring, so the page under the user
+     * cannot jump while typing.
+     */
+    private fun persistRawDraft() {
+        if (rendering) return
+        val raw = rawField.text.toString()
+        if (index == FifoNavigation.COMPOSE_INDEX) {
+            composeRaw = raw
+            composePolished = polishedField.text.toString()
+            return
+        }
+        val id = currentId ?: return
+        val current = storedById(id) ?: return
+        if (raw == current.raw) return
+        val updated = store.updateRaw(id, raw) ?: return
+        // A raw edit discards the polished slot — show that immediately instead
+        // of on the next focus change. The page object is swapped in place so a
+        // second keystroke compares against the stored text (no redundant write)
+        // without reordering the ring.
+        showPolished(updated.polished.orEmpty())
+        pages = pages.map { page ->
+            if (page is WorkbenchPage.Stored && page.dictation.id == id) {
+                WorkbenchPage.Stored(updated)
+            } else {
+                page
+            }
+        }
+        updateChrome()
     }
 
     /** The stored dictation [id] from the shown ring, or `null` (it may be gone). */
@@ -1248,5 +1314,13 @@ class WorkbenchActivity : Activity() {
             }
         }
         deliver(text, notify = false)
+    }
+
+    private companion object {
+        /**
+         * #202/#203: how long the typing pause must last before the draft write
+         * — short enough to feel saved, long enough not to write per keystroke.
+         */
+        const val RAW_DRAFT_SAVE_MS = 500L
     }
 }

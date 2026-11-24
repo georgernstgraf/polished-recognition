@@ -485,6 +485,65 @@ class WorkbenchActivityTest {
         assertThat(activity.enabled(R.id.workbench_copy_polished)).isTrue()
     }
 
+    /**
+     * #202/#203 (owner): "wenn ich im Textfeld editiere und dann sofort auf
+     * Polish gehe, wird nicht der aktuellste Text verwendet." The polish call
+     * always read the field — the defect was that the store still held the old
+     * raw, so the result was attached to the previous text and the reload put
+     * it back. The edit must be committed before Polish reads anything.
+     */
+    @Test
+    fun `a raw edit is stored before polish so the result attaches to it`() {
+        val store = seed("filler", "raw text")
+        val activity = launch()
+        activity.showNewest()
+        var seenText: String? = null
+        activity.polishRunner = { text, _ ->
+            seenText = text
+            Result.success("polished text")
+        }
+
+        activity.raw().setText("raw text, edited")
+        activity.click(R.id.workbench_polish_a)
+        idle()
+
+        assertThat(seenText).isEqualTo("raw text, edited")
+        val saved = store.loadAll().last()
+        assertThat(saved.raw).isEqualTo("raw text, edited")
+        assertThat(saved.polished).isEqualTo("polished text")
+        // The reload after the response must show the edit, not the old text.
+        assertThat(activity.raw().text()).isEqualTo("raw text, edited")
+    }
+
+    /**
+     * #202/#203: the implicit save no longer waits for a field-leave — a short
+     * typing pause writes the draft, so the edit "feels saved" without leaving
+     * the screen. Nothing about the delivery trigger changes: [shownRaw] is
+     * untouched, so a changed field still delivers on focus loss (D11b).
+     */
+    @Test
+    fun `a typing pause writes the raw draft without leaving the field`() {
+        val store = seed("filler", "raw text")
+        val activity = launch()
+        activity.showNewest()
+        val raw = activity.raw()
+
+        raw.setText("typed while looking at it")
+        // Not yet: the debounce is still running.
+        assertThat(store.loadAll().last().raw).isEqualTo("raw text")
+
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
+            .idleFor(java.time.Duration.ofMillis(600))
+
+        assertThat(store.loadAll().last().raw).isEqualTo("typed while looking at it")
+        // …and the field was not rewritten underneath the caret.
+        assertThat(raw.text()).isEqualTo("typed while looking at it")
+        // The focus-leave delivery trigger still sees a change (D11b).
+        raw.onFocusChangeListener.onFocusChange(raw, false)
+        idle()
+        assertThat(clipboardText()).isEqualTo("typed while looking at it")
+    }
+
     @Test
     fun `the language spinner is seeded from the global setting on both sites`() {
         SettingsStore(context).targetLanguage = "English"
