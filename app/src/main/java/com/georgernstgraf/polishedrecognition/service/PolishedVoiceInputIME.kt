@@ -1238,19 +1238,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 setQuickSettingsVisible(false)
             }
         }
-        // #192: the stage line is the no-take bar's mark — a paused take shows
-        // the buffered TIME (rec timer), the no-take bar says either "sent"
-        // (the #177 park) or plainly what ↺ does. PROCESSING keeps the stage
-        // text its events write.
-        val parked = PostSendParkingPolicy.renders(s, postSendParked)
-        val noTake = s == VoiceSessionController.State.IDLE
+        // #201/#204 (owner): a bar with nothing buffered looks like a plain
+        // PAUSE at 0:00 — the timer is the only text. The stage line belongs
+        // to PROCESSING alone (its events write it); no sentence explains the
+        // ↺, whose content description already says "New take".
         stageText?.visibility =
-            if (s == VoiceSessionController.State.PROCESSING || noTake) View.VISIBLE else View.GONE
-        if (noTake) {
-            stageText?.text = getString(
-                if (parked) R.string.ime_post_send_parked else R.string.ime_no_take
-            )
-        }
+            if (s == VoiceSessionController.State.PROCESSING) View.VISIBLE else View.GONE
         updateRecTimer(s)
         updateLanguageEnabled()
     }

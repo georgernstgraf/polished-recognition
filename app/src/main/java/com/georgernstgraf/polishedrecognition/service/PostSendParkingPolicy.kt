@@ -17,9 +17,9 @@ import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
  *
  * #192 (owner): the parked bar is also what a **fresh** IDLE looks like — "fresh
  * idle should advance to a parked at 00:00". So the rendered bar is identical in
- * both cases (plane disabled, ↺ live, timer 0:00); the flag only changes the
- * stage line ("Sent — ↺ starts a new take" vs "↺ starts a new take") and the
- * auto-start suppression after a send.
+ * both cases (plane disabled, ↺ live, timer 0:00) — and since #201/#204 that is
+ * literally all: no stage line in either, the flag only suppresses the
+ * auto-start after a send.
  *
  * The decision is pure so the whole event/state matrix is unit-tested; the IME
  * only owns the flag and the rendering.

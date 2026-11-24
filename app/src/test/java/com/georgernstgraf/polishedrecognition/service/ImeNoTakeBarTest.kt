@@ -22,14 +22,16 @@ import org.robolectric.Shadows.shadowOf
 
 /**
  * #192 (owner): "fresh idle should advance to a parked at 00:00."
+ * #201/#204 (owner): the bar must look like a plain PAUSE at 0:00 — the timer
+ * is its only text, no sentence explains the ↺.
  *
  * There is exactly ONE no-take bar: with nothing buffered there is nothing to
- * send, a live ↺ that starts a take, the timer parked at `0:00`, and a stage
- * line that says what ↺ does. The post-send park (#177) is the same bar with a
- * different sentence — that difference is the whole park.
+ * send, a live ↺ that starts a take, and the timer at `0:00`. The post-send
+ * park (#177) is the same bar, identically drawn — the flag now only
+ * suppresses the auto-start, it changes no visible pixel.
  *
  * Why one bar and not two: a control may only be live when pressing it has an
- * effect. Before this, fresh idle had a live-looking plane (disabled) and a
+ * effect. Before #192, fresh idle had a live-looking plane (disabled) and a
  * pause glyph that did nothing, while the park had ↺ — two looks for the same
  * "nothing buffered" state, one of which read as a deep pause.
  */
@@ -79,11 +81,11 @@ class ImeNoTakeBarTest {
     }
 
     /**
-     * A fresh keyboard: nothing was dictated, nothing was sent — and the bar is
-     * already the parked-0:00 shape, not a third "empty" look.
+     * A fresh keyboard: nothing was dictated, nothing was sent — and the bar
+     * is already the parked-0:00 shape, not a third "empty" look.
      */
     @Test
-    fun `a fresh idle bar is the parked bar at 0 00`() {
+    fun `a fresh idle bar looks like a plain pause at 0 00`() {
         val view = service.onCreateInputView()
 
         val resume = view.findViewById<ImageButton>(R.id.ime_pause_resume_button)
@@ -96,16 +98,16 @@ class ImeNoTakeBarTest {
         // Nothing to send: the plane is disabled, not merely inert-looking.
         assertThat(send.isEnabled).isFalse()
         assertThat(flush.isEnabled).isFalse()
-        // ↺ is live and says what it does.
+        // ↺ is live and says what it does (a content description, not a line).
         assertThat(resume.isEnabled).isTrue()
         assertThat(resume.contentDescription)
             .isEqualTo(service.getString(R.string.ime_new_take_desc))
         // The buffered time reads 0:00 instead of being hidden.
         assertThat(timer.visibility).isEqualTo(View.VISIBLE)
         assertThat(timer.text.toString()).isEqualTo("0:00")
-        // …and the stage line explains the arrow.
-        assertThat(stage.visibility).isEqualTo(View.VISIBLE)
-        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_no_take))
+        // #201/#204: no explaining sentence — a paused take shows no stage
+        // line either, and this bar must not look different from one.
+        assertThat(stage.visibility).isEqualTo(View.GONE)
     }
 
     /**
@@ -124,13 +126,13 @@ class ImeNoTakeBarTest {
     }
 
     /**
-     * After a send the SAME bar comes back, differing only in the stage line:
-     * "Sent — ↺ starts a new take" instead of "↺ starts a new take". Same
-     * enabled/disabled set, same `0:00`, so "nothing buffered" has exactly one
-     * look (only its history differs).
+     * After a send the SAME bar comes back, identically drawn (#201/#204): same
+     * enabled/disabled set, same `0:00`, no stage line. The park keeps its
+     * effect — it suppresses the auto-start (#177) — but has no look of its
+     * own any more.
      */
     @Test
-    fun `after a send the same bar only changes its stage line`() {
+    fun `after a send the same bar comes back unchanged`() {
         val view = service.onCreateInputView()
         service.onStartInputView(field(), false)
         val resume = view.findViewById<ImageButton>(R.id.ime_pause_resume_button)
@@ -139,7 +141,7 @@ class ImeNoTakeBarTest {
         val timer = view.findViewById<TextView>(R.id.ime_rec_timer)
         val stage = view.findViewById<TextView>(R.id.ime_stage_text)
 
-        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_no_take))
+        assertThat(stage.visibility).isEqualTo(View.GONE)
 
         service.handleCompletedSuccess(
             "Hallo Welt",
@@ -153,6 +155,6 @@ class ImeNoTakeBarTest {
             .isEqualTo(service.getString(R.string.ime_new_take_desc))
         assertThat(timer.visibility).isEqualTo(View.VISIBLE)
         assertThat(timer.text.toString()).isEqualTo("0:00")
-        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_post_send_parked))
+        assertThat(stage.visibility).isEqualTo(View.GONE)
     }
 }

@@ -388,13 +388,13 @@ class ImePauseEntryTest {
     /**
      * The no-take bar must not read as "a pause that is too deep". #192: it is
      * the parked-0:00 shape — send disabled (nothing to send), ↺ live as "New
-     * take", the timer visible and pinned to `0:00`, the stage line saying the
-     * take was sent. A real pause is the opposite where it matters: send is
-     * LIVE, ↺ says "Resume", the timer shows the BUFFERED time, and there is no
-     * stage line.
+     * take", the timer visible and pinned to `0:00`. #201/#204 (owner): the bar
+     * carries no stage line, exactly like a real pause. A real pause therefore
+     * differs only where it matters: send is LIVE, ↺ says "Resume", and the
+     * timer shows the BUFFERED time.
      */
     @Test
-    fun `the parked bar differs from a paused one in wording and state`() {
+    fun `the parked bar differs from a paused one in state only`() {
         val view = service.onCreateInputView()
         val resume = view.findViewById<ImageButton>(R.id.ime_pause_resume_button)
         val send = view.findViewById<ImageButton>(R.id.ime_send_button)
@@ -410,9 +410,9 @@ class ImePauseEntryTest {
         assertThat(send.isEnabled).isFalse()
         assertThat(resume.contentDescription)
             .isEqualTo(service.getString(R.string.ime_new_take_desc))
-        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_post_send_parked))
         assertThat(timer.visibility).isEqualTo(View.VISIBLE)
         assertThat(timer.text.toString()).isEqualTo("0:00")
+        assertThat(stage.visibility).isEqualTo(View.GONE)
 
         // A real pause: send enabled, buffered time visible, "Resume" wording.
         pauseViaSnapshot("com.example.chat")

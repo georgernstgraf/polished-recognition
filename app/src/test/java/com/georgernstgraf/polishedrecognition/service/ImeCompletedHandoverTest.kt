@@ -169,12 +169,12 @@ class ImeCompletedHandoverTest {
     }
 
     /**
-     * #177/#192: the post-send bar is the no-take bar — ↺ (`ic_resume`, "New
-     * take") live, send and flush inert, the timer parked at `0:00`, the stage
-     * line saying the take was sent. A tap on ↺ requests a fresh take and the
-     * bar stays a no-take bar: with nothing buffered the plane is dead, so
-     * there is no "normal idle" form with a live send any more (owner: a
-     * control is live only when pressing it has an effect).
+     * #177/#192/#201: the post-send bar is the no-take bar — ↺ (`ic_resume`,
+     * "New take") live, send and flush inert, the timer parked at `0:00`, no
+     * stage line (a plain pause look). A tap on ↺ requests a fresh take and the
+     * bar stays identical: with nothing buffered the plane is dead, so there
+     * is no "normal idle" form with a live send any more (owner: a control is
+     * live only when pressing it has an effect).
      */
     @Test
     fun `the parked bar shows resume and a tap on it asks for a fresh take`() {
@@ -194,18 +194,18 @@ class ImeCompletedHandoverTest {
         assertThat(flush.isEnabled).isFalse()
         assertThat(timer.visibility).isEqualTo(View.VISIBLE)
         assertThat(timer.text.toString()).isEqualTo("0:00")
-        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_post_send_parked))
+        assertThat(stage.visibility).isEqualTo(View.GONE)
 
         resume.performClick()
 
         assertThat(service.startCalls).isEqualTo(1)
         // The park is over, but the fresh take is not RUNNING in this test
-        // (the start is counted, not executed) — so the bar is the OTHER
-        // no-take bar: still no plane, still ↺, only the stage line changed.
+        // (the start is counted, not executed) — so the bar is the same
+        // no-take bar: still no plane, still ↺, still no stage line.
         assertThat(send.isEnabled).isFalse()
         assertThat(resume.contentDescription)
             .isEqualTo(service.getString(R.string.ime_new_take_desc))
-        assertThat(stage.text).isEqualTo(service.getString(R.string.ime_no_take))
+        assertThat(stage.visibility).isEqualTo(View.GONE)
     }
 
     /** #177: a genuine field change ends the park and the normal auto-start runs. */
