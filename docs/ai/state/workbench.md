@@ -11,30 +11,34 @@ status: stable
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
 
-## #208 — Promote leert Polished, der Ring ist Creation-Order (2026-11-25, shipped — offen bis der Owner prüft)
+## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, shipped — offen bis der Owner prüft)
 
 - **Was:** Zwei Owner-Gerätebefunde: (1) nach dem Promoten hielt RAW **und**
   Polished denselben Text („same topic in one translation or the other" beim
-  ◀-Blättern), (2) Edits/Polish/Promote ließen das Diktat ans neueste Ringende
-  springen — gelesen als „ein neues Diktat im Ring".
-- **Promote ist ein Zug:** `replaceRawWithPolished` leert den Polished-Slot
-  (`copy(raw = polished, polished = null)`), strikter No-op bei
+  ◀-Blättern), (2) „promote/edit/polish cause a new dictation in the mru ring".
+- **Promote ist ein Zug (bleibt):** `replaceRawWithPolished` leert den
+  Polished-Slot (`copy(raw = polished, polished = null)`), strikter No-op bei
   `raw == polished`; Compose-Pfad leert `composePolished`; der Stored-Pfad
   zeigt das geleerte Feld sofort (`showPolished("")` — der Fehler in der
   ersten Welle war genau das fehlende Show, `syncPositions` schreibt Felder
   nie um). Nach dem Promoten sind beide Promote-Buttons disabled.
-- **Ring = Creation-Order:** `DictationStore.update` bumppt keinen Stamp mehr,
-  `loadAll`/`pruneToSize`/`WorkbenchPages.ORDER` sortieren nach
-  `createdAtMs`; `updatedAtMs` ist entfernt (Legacy-Dateien lesen sauber,
-  Gson ignoriert die Property — eigener Test). Konsequenz: Edits schützen
-  nicht mehr vor der FIFO-Eviction, das ältest erstellte Diktat geht zuerst.
-- **Tests:** `DictationStoreTest` umgeschrieben, `WorkbenchActivityTest`
-  („edits it and keeps its ring page", Zonen-Promote mit leerem Polished).
-  766 `:app`-Tests grün, `lintDebug` 0, Release auf dem OnePlus installiert.
-  Kein Versions-Bump.
+- **Zwischenstand, wieder zurückgenommen:** `a7c7d89` stellte den Ring auf
+  Creation-Order (`createdAtMs`, kein Touch-Bump, `updatedAtMs` gelöscht).
+  Owner-Korrektur: „the ring order should not have been changed … edit SHALL
+  promote to youngest" — der MRU-Sprung war gewollt. `11e5b56` restauriert
+  `updatedAtMs` als MRU-Schlüssel (Bump bei Änderung, Anzeige + Eviction,
+  Edits schützen wieder vor Eviction); die Legacy-Aufforderung
+  (Datei ohne Stamp → `createdAtMs`) deckt auch die Dateien des
+  Zwischenstands ab.
+- **Die geklärte Invariante:** nur das ＋-Icon (bzw. die Compose-Materiali-
+  sierung) erzeugt ein Diktat — Promote/Edit/Polish/◀/▶/⚙ nie. Alle
+  `append`-Stellen geprüft; gepinnt durch einen neuen Store-Test
+  (Ring-Größe + Ids unverändert).
+- **Tests:** 766 `:app`-Tests grün, `lintDebug` 0, Release auf dem OnePlus
+  installiert. Kein Versions-Bump.
 - **Owner-Check:** Promoten → Polished-Feld leer, beide Promote-Buttons
-  disabled; ein altes Diktat editieren/polieren → die Seite bleibt an ihrer
-  Position (`n / m` ändert sich nicht).
+  disabled; ein altes Diktat editieren/polieren → es springt ans Ringende
+  (`n / m` wird zur jüngsten Position) OHNE dass ein neuer Eintrag entsteht.
 
 ## #202/#203 — ein RAW-Edit wird beim Tippen gespeichert, Polish committet zuerst (2026-11-24, shipped)
 

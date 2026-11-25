@@ -11,7 +11,7 @@ status: stable
 
 Moved out of `DECISIONS.md` in #206; entries are verbatim. New decisions in this area are appended here.
 
-## 2026-11-25: #208 — Promote ist ein Zug, kein Kopieren; der Ring ist Creation-Order
+## 2026-11-25: #208 — Promote ist ein Zug, kein Kopieren; der MRU-Ring bleibt; nur ＋ erzeugt ein Diktat
 
 Owner-Report (Workbench, zwei gestapelte Symptome): (1) „after promoting a
 polished text to be the new raw, it should be cleaned up instead of
@@ -19,7 +19,7 @@ duplicated"; beim Durchblättern mit ◀ „was it always the same topic in one
 translation or the other". (2) „at least one of the actions promote, edit,
 polish cause a new dictation in the mru ring also."
 
-- **Entscheidung: Promote ist ein Zug.**
+- **Entscheidung: Promote ist ein Zug. (BLEIBT)**
   `DictationStore.replaceRawWithPolished` setzt
   `copy(raw = polished, polished = null)` — der Polished-Slot wird GELEERT.
   Die alte Begründung („Polished ist die polierte Version des NEUEN Raw, also
@@ -29,23 +29,25 @@ polish cause a new dictation in the mru ring also."
   in `promotePolished()` leert `composePolished` mit; der Stored-Pfad zeigt
   das geleerte Feld SOFORT (`showPolished("")` — `syncPositions` schreibt
   Felder bewusst nie um).
-- **Entscheidung: der Ring ist Creation-Order, ein Touch reordert nie.**
-  `DictationStore.update` bumppt keinen Touch-Stamp mehr; `loadAll`,
-  `pruneToSize` (FIFO-Eviction) und `WorkbenchPages.ORDER` sortieren nach
-  `createdAtMs`. Editieren, Polieren und Promotieren lassen die Seite exakt
-  dort, wo sie ist; nur ein NEUES Diktat landet am neuesten Ende. Das war
-  vorher #173 Entscheidung 5 („a touched dictation moves to the top") — der
-  Owner las den Sprung als „ein neues Diktat im Ring".
-- **`updatedAtMs` ist weg.** Das Feld hatte nach der Creation-Order keinen
-  Zweck mehr; alte Dateien mit der Property lesen sauber (Gson ignoriert
-  Unbekanntes), gepinnt durch einen Legacy-Datei-Test.
-- **Bewusste Konsequenz:** ein Diktat ist durch Edits NICHT mehr vor der
-  Eviction geschützt — das ältest ERSTELLTE geht zuerst (vorher: das am
-  längsten nicht editierte). Im Issue-Text abgenickt.
-- **Tests:** `DictationStoreTest` umgeschrieben (Promote leert; Edits/Clear/
-  Promote reordern nicht; Eviction nach Creation; Legacy-Datei mit
-  `updatedAtMs`), `WorkbenchActivityTest` („edits it and keeps its ring
-  page", Zonen-B/C-Promote mit leerem Polished-Feld + disableden Buttons).
+- **RETRACTED gleicher Tag: Creation-Order.** `a7c7d89` hatte den Ring auf
+  `createdAtMs` umgestellt („ein Touch reordert nie") — der Owner korrigierte:
+  „the ring order should not have been changed … edit SHALL promote to
+  youngest". Der MRU-Sprung war das GEWOLLTE Verhalten, nicht der Befund.
+  `11e5b56` stellt `updatedAtMs` wieder her: Bump bei jeder echten Änderung,
+  `loadAll`/Eviction danach, Edits schützen wieder vor der Eviction.
+- **Die neue Invariante (Owner-Klärung): nur ＋ erzeugt ein Diktat.**
+  „In the top bar it should only be the ‚+‘ icon that creates a new
+  instance … leave all icons where they are." Gefundene `append`-Stellen:
+  Compose-Materialisierung (＋/Polish-auf-Compose/Navigation, #173 Modell 2),
+  Transkript-Ankunft, Restore-aus-Leftover — KEINE davon liegt an
+  Promote/Edit/Polish/◀/▶/⚙ auf einer gespeicherten Seite; der vermeintliche
+  „neue Eintrag" war der MRU-Sprung selbst. Gepinnt durch
+  `promote, edit and polish stay on their dictation without instantiating a
+  new one` (Ring-Größe und Ids unverändert).
+- **Tests:** `DictationStoreTest` (Promote leert; MRU-Bumps wie in #173;
+  No-Instantiation-Pin; Legacy-Datei ohne Stamp → `createdAtMs`),
+  `WorkbenchActivityTest` („edits it and bumps it to the top" zurück,
+  Zonen-B/C-Promote mit leerem Polished-Feld + disableden Buttons).
   766 `:app`-Tests grün, `lintDebug` 0, Release auf dem OnePlus
   (`f6de166c`) installiert. Kein Versions-Bump.
 
@@ -171,9 +173,7 @@ zwei Seitenarten. Vier Entscheidungen, alle vom Owner am 2026-11-22 bestätigt.
   eine Seite, die von heute sein könnte, darf nicht unter allem anderen
   begraben werden. Ein Sonderfall „Leftovers immer oben" wurde verworfen: er
   hätte zwei Ordnungen in einem Ring erzeugt, und der MRU-Begriff (#173) gilt
-  für Text, nicht für Seiten. (**Superseded by #208**: gespeicherte Seiten
-  sortieren nach `createdAtMs` — siehe den Top-Eintrag; die Leftover-Regel
-  bleibt.)
+  für Text, nicht für Seiten.
 - **Die Leftover-Seite ist read-only und nicht fokussierbar.** Raw ist leer,
   `isEnabled`/`isFocusable` false; `DictationTarget` ist dort `NEW`, also legt
   ein geliefertes Transkript ein NEUES Diktat an, statt eine Seite zu editieren,
@@ -283,7 +283,7 @@ the newest dictation and never creates")** — the page model below is binding.
 - **The visible page decides the target, never a text comparison.** Compose slot ⇒ NEW · stored dictation ⇒ RAW_EDIT (at the caret, whether or not the user typed first). The old rule compared the field text with the text shown at render time, so a caret move alone meant "new" and dictating into an old Raw silently created another entry. Consequence: on a stored page a dictation never creates an entry; the compose slot and ＋ are the only creators. **The third branch (focus in Polished ⇒ `POLISHED_EDIT`) was removed by #178** — two targets only, and the read-only polished field cannot hold focus; the superseded text is in HISTORY.md.
 - **The compose slot is transient.** It exists in memory only, is the page on entry, is never persisted while empty, never counts against the cap and is not part of the ring. Navigating away from a pristine slot discards it; any content materialises it first (`DictationStore.append`), also when ＋ is pressed. A dictation without raw text is rejected by `read()`, so polished-only slot content becomes the raw text when materialised.
 - **A fresh slot on every `onCreate`** — cold start, rotation, dark-mode change, process-death restore alike. No `savedInstanceState` plumbing: `onPause` materialises a typed-into slot, so nothing is lost; the user returns to a fresh entry page.
-- **Ordering is last-touched (MRU).** `Dictation.updatedAtMs` is the sort and eviction key (legacy files fall back to `createdAtMs`); `append` sets both stamps, `updateRaw`/`updatePolished` bump only on a real change. Display order and eviction order are the same list, so they cannot disagree. Mere browsing never bumps. **Superseded by #208** — creation order (`createdAtMs`) rules display and eviction, touches never reorder, `updatedAtMs` is removed; see the top entry.
+- **Ordering is last-touched (MRU).** `Dictation.updatedAtMs` is the sort and eviction key (legacy files fall back to `createdAtMs`); `append` sets both stamps, `updateRaw`/`updatePolished` bump only on a real change. Display order and eviction order are the same list, so they cannot disagree. Mere browsing never bumps. (Re-affirmed 2026-11-25 by #208 after a same-day excursion to creation order was retracted — see the top entry.)
 - **The ring wraps; the compose slot is outside it.** ◀/▶ cycle the stored dictations in both directions; both arrows leaving the compose slot land on the newest. The label is `n / m` in the ring and "new" on the compose slot. ＋ New sits centred in the header and is always enabled; on an already-pristine slot it only focuses Raw.
 - **The fields are permanently visible, stacked in one column.** `wrap_content` + `minLines=2`, no inner scrollbar, no cap — only the outer ScrollView scrolls. **#178 removed the accordion:** each label row carries only the label and the copy icon, the actions live in three zones around the fields, and there is no chevron and no one-line preview any more (superseded text in HISTORY.md). `WorkbenchLayoutPolicyTest` still pins the geometry statically.
 - **No automatic polish remains.** The Auto-LLM bullet of this entry (polish once on Raw field-leave while Polished is empty) is gone since #176 — see that entry; a raw edit still discards the polished text.

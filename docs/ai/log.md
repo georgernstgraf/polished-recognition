@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-25 (#208 — Owner-Korrektur: MRU-Ring restauriert, nur ＋ erzeugt)
+
+* **Update**: [decisions/workbench.md](decisions/workbench.md) — der #208-Top-Eintrag erzählt den ganzen Bogen: Promote-als-Zug BLEIBT, die Creation-Order-Entscheidung wurde am selben Tag RETRACTED (Owner: „edit SHALL promote to youngest"), der MRU-Ring ist restauriert (`11e5b56`), und die geklärte Invariante „nur ＋ erzeugt ein Diktat" ist notiert; die Superseded-Zeiger an #173/#188 sind zurückgenommen (#173-MRU wieder gültig, mit Re-Affirmation).
+* **Update**: [state/workbench.md](state/workbench.md) — der #208-Absatz beschreibt den Zwischenstand und die Rücknahme; Owner-Check präzisiert (Sprung ans Ringende OHNE neuen Eintrag).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #208-Block umgeschrieben (a7c7d89 + 11e5b56, Invariante, Owner-Check).
+* **Update**: [STATE.md](STATE.md) — Statuszeile: MRU restauriert, Invariante gepinnt, offen bis Owner-Check.
+* **No change**: [index.md](index.md), [PITFALLS.md](PITFALLS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [HISTORY.md](HISTORY.md) — keine neuen Konzepte, keine Strukturänderung; der Creation-Order-Irrtum lebt als retracted-Erzählung im Entscheidungs-Eintrag, nicht als historischer Sonderfall.
+
 ## 2026-11-25 (#208 — Promote als Zug, Creation-Order-Ring)
 
 * **Update**: [decisions/workbench.md](decisions/workbench.md) — neuer Top-Eintrag: Promote leert den Polished-Slot (Zug statt Kopie, strikter No-op bei `raw == polished`) und der Ring ist Creation-Order (`createdAtMs` für Anzeige und Eviction, ein Touch reordert nie, `updatedAtMs` entfernt); die #178- und #173-Bullets („Polished-Text bleibt stehen", „Ordering is last-touched") und der #188-Ordner-Bullet tragen Superseded-Zeiger.
