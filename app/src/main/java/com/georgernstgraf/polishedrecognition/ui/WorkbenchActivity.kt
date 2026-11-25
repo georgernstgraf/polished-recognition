@@ -63,8 +63,7 @@ import java.util.Locale
  *  - the **compose slot** is transient: shown on entry, never persisted while
  *    empty, outside the ring, materialised on pause / ＋ / a navigation with
  *    content (decision 2).
- *  - the ring is **creation order** with wrap-around (#208: a touched
- *    dictation never moves; decisions 5/7 as amended).
+ *  - the ring is **last-touched (MRU)** order with wrap-around (decisions 5/7).
  *
  * #178 redesigns the surface:
  *  - the header carries **icons only** (◀ position ⚙ ＋ ▶), no title;
@@ -714,9 +713,10 @@ class WorkbenchActivity : Activity() {
     }
 
     /**
-     * Re-reads the store and the journal and follows [selection] to its ring
+     * Re-reads the store and the journal and follows [selection] to its new ring
      * position **without** rewriting the fields — the field the user is typing
-     * in keeps its caret (#208: a touched dictation never moves in the ring).
+     * in keeps its caret (#173 decision 5: a touched dictation moves to the top;
+     * #208: the touch never CREATES an entry).
      */
     private fun syncPositions(selection: Selection = currentSelection()) {
         applyPages(
@@ -1382,7 +1382,8 @@ class WorkbenchActivity : Activity() {
                     val updated = store.updateRaw(id, rawField.text.toString())
                     showRaw(updated?.raw ?: rawField.text.toString())
                     showPolished(updated?.polished.orEmpty())
-                    // #208: the edit stays on its ring page — no reorder.
+                    // #173 decision 5: the edit bumps it to the top of the ring
+                    // (a touch never creates an entry, #208).
                     syncPositions(Selection.Stored(id))
                 }
             }

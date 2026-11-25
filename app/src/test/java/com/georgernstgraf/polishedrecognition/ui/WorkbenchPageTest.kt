@@ -7,15 +7,15 @@ import org.junit.Test
 
 /**
  * #188: the ring's merge rule — stored dictations and unfinished journal
- * sessions as ONE list, ascending by the page's order instant (#208: creation
- * for stored pages, start for leftovers).
+ * sessions as ONE list, ascending by the page's last change.
  */
 class WorkbenchPageTest {
 
-    private fun stored(id: String, createdAtMs: Long) = Dictation(
+    private fun stored(id: String, updatedAtMs: Long) = Dictation(
         id = id,
         raw = "text of $id",
-        createdAtMs = createdAtMs
+        createdAtMs = updatedAtMs,
+        updatedAtMs = updatedAtMs
     )
 
     private fun leftover(sessionId: String, startedAtMs: Long?, hasAudio: Boolean = true) =

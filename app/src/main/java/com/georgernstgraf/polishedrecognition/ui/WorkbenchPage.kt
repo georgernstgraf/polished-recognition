@@ -43,8 +43,7 @@ sealed interface WorkbenchPage {
  * [DictationStore.loadAll] uses (least recently changed first, so the LAST
  * element is the ring's "newest"):
  *
- * - a stored page is ordered by its creation ([Dictation.createdAtMs]) —
- *   #208: an edit, a polish or a promote never moves the page;
+ * - a stored page changes when its text changes ([Dictation.updatedAtMs]);
  * - a leftover changes when it started (`startedAtMs`) — it has no content
  *   to touch, and its recording is its whole being.
  *
@@ -57,7 +56,7 @@ object WorkbenchPages {
 
     /** The instant a page is ordered by; `null` when the journal has none. */
     fun changedAt(page: WorkbenchPage): Long? = when (page) {
-        is WorkbenchPage.Stored -> page.dictation.createdAtMs
+        is WorkbenchPage.Stored -> page.dictation.updatedAtMs
         is WorkbenchPage.Leftover -> page.summary.startedAtMs
     }
 

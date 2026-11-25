@@ -38,10 +38,9 @@ class DictationStore(
     private val dir = File(context.applicationContext.filesDir, DIR_NAME)
 
     /**
-     * All kept dictations, **oldest created first** (#208: creation order —
-     * a touch must not move the page the user is reading). The ring's "newest"
-     * is the last element, and [pruneToSize] evicts from the front — display
-     * order and eviction order cannot disagree.
+     * All kept dictations, **least recently edited first** (#173, decision 5).
+     * The ring's "newest" is the last element, and [pruneToSize] evicts from
+     * the front — display order and eviction order cannot disagree.
      *
      * An entry is only ever created by [append] — a mere glance at the
      * Workbench never evicts a real dictation (D4).
@@ -50,7 +49,7 @@ class DictationStore(
     fun loadAll(): List<Dictation> =
         dictationFiles()
             .mapNotNull { read(it) }
-            .sortedWith(compareBy({ it.createdAtMs }, { it.id }))
+            .sortedWith(compareBy({ it.updatedAtMs }, { it.id }))
 
     /**
      * Creates a dictation for [raw] and prunes the FIFO to its configured
@@ -61,14 +60,19 @@ class DictationStore(
     fun append(raw: String): Dictation {
         // Strictly increasing stamps: two dictations created in the same
         // millisecond must still have a stable FIFO order (the file id is
-        // random), so the newest is always `max(now, newest + 1)`.
+        // random), so the newest is always `max(now, newest + 1)`. The
+        // touch stamp additionally respects the newest *edit*, so a new
+        // dictation is the ring's last entry even when an old one was just
+        // edited "into the future" by the same rule.
         val existing = loadAll()
         val newestCreated = existing.maxOfOrNull { it.createdAtMs } ?: 0L
+        val newestEdited = existing.maxOfOrNull { it.updatedAtMs } ?: 0L
         val createdAt = maxOf(now(), newestCreated + 1)
         val dictation = Dictation(
             id = newId(Date(createdAt)),
             raw = raw,
-            createdAtMs = createdAt
+            createdAtMs = createdAt,
+            updatedAtMs = maxOf(createdAt, newestEdited + 1)
         )
         ensureDir()
         write(dictation)
@@ -133,9 +137,8 @@ class DictationStore(
 
     /**
      * Enforces the current FIFO depth (a shrunk Settings value prunes on save,
-     * #172). The **oldest created** dictations go first (#208: creation order
-     * — an edit no longer protects an entry from eviction); the newest
-     * survives even at a cap below one.
+     * #172). The **least recently edited** dictations go first (#173); the
+     * newest survives even at a cap below one.
      */
     @Synchronized
     fun pruneToSize() {
@@ -147,17 +150,21 @@ class DictationStore(
 
     /**
      * Applies [transform] and writes only when it actually changes the
-     * dictation. A change is **never** a reorder (#208): the ring sorts and
-     * evicts by [Dictation.createdAtMs], so editing, polishing or promoting
-     * leaves the page exactly where it is.
+     * dictation. A real change bumps [Dictation.updatedAtMs] to
+     * `max(now, newest edit + 1)` — strictly increasing, so touches never tie
+     * and MRU order stays deterministic (#173). An update never CREATES an
+     * entry (#208): promote, edit and polish stay on their dictation; only
+     * [append] (the ＋ icon and the compose slot) instantiates one.
      */
     private fun update(id: String, transform: (Dictation) -> Dictation): Dictation? {
         val file = fileFor(id)
         val current = read(file) ?: return null
         val updated = transform(current)
         if (updated == current) return current
-        write(updated)
-        return updated
+        val newestEdited = loadAll().maxOfOrNull { it.updatedAtMs } ?: 0L
+        val touched = updated.copy(updatedAtMs = maxOf(now(), newestEdited + 1))
+        write(touched)
+        return touched
     }
 
     private fun write(dictation: Dictation) {
@@ -181,10 +188,16 @@ class DictationStore(
     private fun read(file: File): Dictation? {
         if (!file.isFile) return null
         return try {
-            // #208 legacy tolerance: files written while `updatedAtMs` existed
-            // (the #173 MRU key) carry the extra property; Gson ignores it.
-            gson.fromJson(file.readText(Charsets.UTF_8), Dictation::class.java)
-                ?.takeIf { it.id.isNotBlank() && it.raw.isNotBlank() }
+            val parsed = gson.fromJson(file.readText(Charsets.UTF_8), Dictation::class.java)
+            when {
+                parsed == null || parsed.id.isBlank() || parsed.raw.isBlank() -> null
+                // #173 legacy: files written before the MRU key existed carry
+                // no `updatedAtMs`; Gson leaves it 0, so fall back to creation.
+                // The same fallback covers files written by the 2026-11-25
+                // build that briefly dropped the field (#208).
+                parsed.updatedAtMs > 0 -> parsed
+                else -> parsed.copy(updatedAtMs = parsed.createdAtMs)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "skipping unparseable dictation ${file.name}", e)
             null

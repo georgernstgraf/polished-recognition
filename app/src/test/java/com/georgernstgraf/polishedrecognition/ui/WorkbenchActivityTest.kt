@@ -271,7 +271,7 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `dictating into an old raw edits it and keeps its ring page`() {
+    fun `dictating into an old raw edits it and bumps it to the top`() {
         val store = seed("a", "b", "c")
         val activity = launch()
         // ◀ from the compose slot lands on the newest, then walks down to "a"
@@ -282,10 +282,9 @@ class WorkbenchActivityTest {
         activity.raw().setText("a extended")
         activity.onTranscriptArrived(" extended")
 
-        // #208: the edit stays on its page — creation order never reorders.
         assertThat(store.loadAll().map { it.raw })
-            .containsExactly("a extended", "b", "c").inOrder()
-        assertThat(activity.position()).isEqualTo("1 / 3")
+            .containsExactly("b", "c", "a extended").inOrder()
+        assertThat(activity.position()).isEqualTo("3 / 3")
         assertThat(activity.raw().text()).isEqualTo("a extended")
     }
 
