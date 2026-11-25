@@ -252,7 +252,7 @@
                 android:paddingStart="0dp"
                 android:paddingEnd="6dp"
                 android:textColor="?android:attr/textColorSecondary"
-                android:textSize="14sp" />
+                android:textSize="22sp" />
 
             <TextView
                 android:layout_width="0dp"
@@ -382,7 +382,7 @@
                 android:paddingStart="0dp"
                 android:paddingEnd="6dp"
                 android:textColor="?android:attr/textColorSecondary"
-                android:textSize="14sp" />
+                android:textSize="22sp" />
 
             <TextView
                 android:layout_width="0dp"

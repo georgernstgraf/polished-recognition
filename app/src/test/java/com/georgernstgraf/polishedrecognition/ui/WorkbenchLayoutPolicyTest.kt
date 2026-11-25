@@ -374,6 +374,12 @@ class WorkbenchLayoutPolicyTest {
             if (chevron.attributes["android:importantForAccessibility"] != "no") {
                 violations += "line ${chevron.line} ${section}: the chevron must not be announced"
             }
+            val chevronSize = chevron.attributes["android:textSize"]
+                ?.removeSuffix("sp")?.toIntOrNull() ?: 0
+            if (chevronSize < 22) {
+                violations += "line ${chevron.line} $section: the chevron glyph must stay readable " +
+                    "on a screen (>= 22sp, was $chevronSize) — #209"
+            }
             val preview = elementById("workbench_${section}_preview")
             if (preview.attributes["android:maxLines"] != "1" ||
                 preview.attributes["android:ellipsize"] != "end"
