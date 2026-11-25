@@ -42,6 +42,13 @@ Before starting any task, read the following files in order:
 Knowledge files follow the Open Knowledge Format v0.2: each has YAML
 frontmatter with `type` and trust fields.
 
+`DECISIONS.md`, `PITFALLS.md` and `STATE.md` are **routers**: their entries
+live in theme concepts under `docs/ai/decisions/`, `docs/ai/pitfalls/` and
+`docs/ai/state/` (shared slugs: `foundations`, `build-release`, `ime-field`,
+`session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`,
+`recognition-service`; `pitfalls/` adds `testing` and `device-lab`). Read the
+router first, then the theme for the surface you are touching.
+
 If `HANDOFF.md` contains open tasks, complete them before starting
 any new work unless the user explicitly says otherwise.
 
@@ -83,10 +90,10 @@ After significant progress or at session end, persist context into
 `docs/ai/` files:
 
 - `HANDOFF.md` — active issues, pending tasks, next session plan
-- `STATE.md` — current project state, known issues, recent changes
-- `DECISIONS.md` — architectural and implementation decisions
+- `STATE.md` — status line, focus, pending list and device notes (+ `state/` for per-issue detail)
+- `DECISIONS.md` — router; append the entry to the matching `decisions/<theme>.md`
 - `DOMAIN.md` — business logic and domain knowledge
-- `PITFALLS.md` — bugs, edge cases, gotchas
+- `PITFALLS.md` — router; append the entry to the matching `pitfalls/<theme>.md`
 - `CONVENTIONS.md` — naming, file layout, code style
 
 Run knowledge persistence after every `commit` or `finish` mode in

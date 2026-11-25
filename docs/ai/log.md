@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-25 (#206 — Bootstrap und Index zeigen auf die Themen-Bundles)
+
+* **Update**: [index.md](index.md) — neue Sektion **Theme Bundles** mit den drei Verzeichnissen und den Abschnittszahlen; `DECISIONS.md`/`PITFALLS.md` sind als Router beschrieben, `STATE.md` als Statuszeile + Themenliste.
+* **Update**: `AGENTS.md` (Repo-Wurzel) — Bootstrap-Liste und der Knowledge-Persistence-Abschnitt nennen die Router-Regel, die gemeinsamen Slugs und wohin ein neuer Eintrag geht.
+* **Update**: `knowledge-persistence` (opencode-helpers, `ae9e602`) — neuer Absatz **Theme bundles (project repos)**: die Kategoriedatei bleibt Router, Einträge gehen in die Themendatei, `index.md` bekommt eine Zeile, Cross-Reference statt doppeltem Body, Splits werden als byte-identische Multiset-Verschiebung geprüft.
+* **No change**: [HISTORY.md](HISTORY.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md) — kein neuer Domänenbegriff, keine Strukturaussage über die App geändert.
+
 ## 2026-11-25 (#206 — der Projektstatus wird thematisch aufgeteilt)
 
 * **Creation**: [state/](state/index.md) — sieben Themenkonzepte (`foundations`, `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`); alle 45 Per-Issue-Abschnitte byte-identisch verschoben (Multiset geprüft), Reihenfolge bleibt „neueste zuerst".
