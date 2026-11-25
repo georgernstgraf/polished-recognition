@@ -41,6 +41,8 @@ class ImeLivePreviewTest {
         private var compEnd = -1
         var composingWrites = 0
         val commits = mutableListOf<String>()
+        /** #207: the lengths of the delete-before requests the client honoured. */
+        val deletions = mutableListOf<Int>()
 
         fun select(start: Int, end: Int) {
             selStart = start
@@ -72,6 +74,14 @@ class ImeLivePreviewTest {
             selStart = selEnd + text.length
             selEnd = selStart
             commits += text.toString()
+        }
+
+        override fun deleteBefore(length: Int) {
+            val start = maxOf(0, selEnd - length)
+            buffer.delete(start, selEnd)
+            selStart = start
+            selEnd = start
+            deletions += length
         }
 
         override fun setComposing(text: CharSequence) {
@@ -115,10 +125,14 @@ class ImeLivePreviewTest {
         val inserted = mutableListOf<String>()
         var startCalls = 0
 
+        /** #207: apply the terminal insert to the fake editor for field assertions. */
+        var applyInsert = false
+
         override fun editorPort(): EditorPort? = editor
 
         override fun insertResultText(text: String) {
             inserted += text
+            if (applyInsert) editor?.commit(text)
         }
 
         override fun startIfPermitted() {
@@ -264,22 +278,72 @@ class ImeLivePreviewTest {
     }
 
     @Test
-    fun `a field holding the whole provisional inserts nothing and copies the polished text`() {
+    fun `an identical delivery keeps the committed raw text and copies it`() {
         stream("hallo")
         // The platform commits the composition when the field finishes input.
         editor.clientCommitsComposition()
 
-        service.handleCompletedSuccess("Hallo.", completed("Hallo."))
+        // Raw mode: the delivery equals what the field holds — the clipboard
+        // behaviour of #205 stays (Q == field content).
+        service.handleCompletedSuccess("hallo", completed("hallo"))
 
         assertThat(service.inserted).isEmpty()
         assertThat(editor.buffer.toString()).isEqualTo("hallo")
-        assertThat(clipboardText()).isEqualTo("Hallo.")
+        assertThat(editor.deletions).isEmpty()
+        assertThat(clipboardText()).isEqualTo("hallo")
+        assertThat(ShadowToast.getTextOfLatestToast())
+            .isEqualTo(app.getString(R.string.ime_raw_kept))
+    }
+
+    /**
+     * The #207 device incident (OnePlus, Markor, 2026-11-25): a mid-take
+     * rebind left the streamed provisional COMMITTED in the field
+     * (`committed=934 composed=0`, no selection), and Send classified it
+     * "already delivered" — the polished text went ONLY to the clipboard
+     * while the field kept the raw text. Send must leave exactly the
+     * polished text in the field.
+     */
+    @Test
+    fun `send after the platform committed the stream replaces the raw text with the polished one`() {
+        stream("hello world")
+        editor.clientCommitsComposition()
+        // The rebind finds everything committed and re-composes nothing.
+        service.onStartInput(field(), false)
+        assertThat(controller.livePreview.reconciled).isTrue()
+        assertThat(controller.livePreview.committedPrefix).isEqualTo("hello world")
+        // The incident record had no readable selection either.
+        assertThat(controller.livePreview.selectionUnreadable).isTrue()
+
+        service.applyInsert = true
+        service.handleCompletedSuccess("Hallo Welt.", completed("Hallo Welt."))
+
+        // Exactly the polished text, no duplicate, no leftover of the stream.
+        assertThat(editor.buffer.toString()).isEqualTo("Hallo Welt.")
+        assertThat(service.inserted).containsExactly("Hallo Welt.")
+        assertThat(editor.deletions).containsExactly(11)
+        assertThat(clipboardText()).isNull()
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
+    }
+
+    /** The raw-mode twin of the incident: an identical delivery keeps the field. */
+    @Test
+    fun `send after the platform committed the stream keeps an identical delivery`() {
+        stream("hello world")
+        editor.clientCommitsComposition()
+        service.onStartInput(field(), false)
+
+        service.handleCompletedSuccess("hello world", completed("hello world"))
+
+        assertThat(service.inserted).isEmpty()
+        assertThat(editor.buffer.toString()).isEqualTo("hello world")
+        assertThat(editor.deletions).isEmpty()
+        assertThat(clipboardText()).isEqualTo("hello world")
         assertThat(ShadowToast.getTextOfLatestToast())
             .isEqualTo(app.getString(R.string.ime_raw_kept))
     }
 
     @Test
-    fun `a verified prefix gets the raw suffix appended and the polished text copied`() {
+    fun `a verified prefix gets the raw suffix appended and an identical delivery copied`() {
         editor.buffer.append("vor hal")
         editor.select(7, 7)
         controller.livePreview.begin(true)
@@ -289,14 +353,37 @@ class ImeLivePreviewTest {
         controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
         service.onStartInputView(field(), false)
 
-        service.handleCompletedSuccess("Hallo Welt.", completed("Hallo Welt."))
+        service.handleCompletedSuccess("hallo welt", completed("hallo welt"))
 
         assertThat(editor.commits).containsExactly("lo welt")
         assertThat(editor.buffer.toString()).isEqualTo("vor hallo welt")
         assertThat(service.inserted).isEmpty()
-        assertThat(clipboardText()).isEqualTo("Hallo Welt.")
+        assertThat(clipboardText()).isEqualTo("hallo welt")
         assertThat(ShadowToast.getTextOfLatestToast())
             .isEqualTo(app.getString(R.string.ime_polished_copied))
+    }
+
+    /** #207: the incident's own classification — a differing Q replaces the prefix. */
+    @Test
+    fun `send with a differing polished result replaces the verified prefix instead of appending`() {
+        editor.buffer.append("vor hal")
+        editor.select(7, 7)
+        controller.livePreview.begin(true)
+        controller.livePreview.onFragments("hallo welt", 0)
+        controller.livePreview.streamed = true
+        controller.livePreview.before = "vor "
+        controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
+        service.onStartInputView(field(), false)
+
+        service.applyInsert = true
+        service.handleCompletedSuccess("Hallo Welt.", completed("Hallo Welt."))
+
+        assertThat(editor.buffer.toString()).isEqualTo("vor Hallo Welt.")
+        assertThat(service.inserted).containsExactly("Hallo Welt.")
+        assertThat(editor.deletions).containsExactly(3)
+        assertThat(editor.commits).containsExactly("Hallo Welt.")
+        assertThat(clipboardText()).isNull()
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
     }
 
     @Test
@@ -310,7 +397,7 @@ class ImeLivePreviewTest {
         controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
         service.onStartInputView(field(), false)
 
-        service.handleCompletedSuccess("Q", completed("Q"))
+        service.handleCompletedSuccess("hallo welt", completed("hallo welt"))
 
         assertThat(editor.commits).containsExactly("lo welt")
         assertThat(editor.buffer.toString()).isEqualTo("vor hallo welt")
@@ -421,11 +508,55 @@ class ImeLivePreviewTest {
         val second = Robolectric.buildService(RecordingIme::class.java).create().get()
         second.editor = editor
         second.onStartInputView(field(), false)
+        second.applyInsert = true
         second.handleCompletedSuccess("Hallo.", completed("Hallo."))
+
+        // #207: classified, not blind-inserted — the verified streamed span
+        // was replaced by exactly the polished text.
+        assertThat(second.inserted).containsExactly("Hallo.")
+        assertThat(editor.buffer.toString()).isEqualTo("Hallo.")
+        assertThat(editor.deletions).containsExactly(5)
+        assertThat(clipboardText()).isNull()
+    }
+
+    /** The raw-mode twin: an identical delivery keeps the committed text. */
+    @Test
+    fun `a new IME instance with an identical delivery keeps the committed text`() {
+        stream("hallo")
+        editor.clientCommitsComposition()
+
+        val second = Robolectric.buildService(RecordingIme::class.java).create().get()
+        second.editor = editor
+        second.onStartInputView(field(), false)
+        second.handleCompletedSuccess("hallo", completed("hallo"))
 
         assertThat(second.inserted).isEmpty()
         assertThat(editor.buffer.toString()).isEqualTo("hallo")
+        assertThat(editor.deletions).isEmpty()
+        assertThat(clipboardText()).isEqualTo("hallo")
+    }
+
+    /**
+     * #207: the delete is a REQUEST the client may refuse — inserting the
+     * polished text over a surviving span would be the forbidden duplicate
+     * (I5). The verified fallback: Q to the clipboard, the field untouched.
+     */
+    @Test
+    fun `a refused delete falls back to the clipboard instead of duplicating`() {
+        stream("hallo")
+        editor.clientCommitsComposition()
+
+        service.editor = object : EditorPort by editor {
+            override fun deleteBefore(length: Int) = Unit
+        }
+
+        service.handleCompletedSuccess("Hallo.", completed("Hallo."))
+
+        assertThat(service.inserted).isEmpty()
+        assertThat(editor.buffer.toString()).isEqualTo("hallo")
         assertThat(clipboardText()).isEqualTo("Hallo.")
+        assertThat(ShadowToast.getTextOfLatestToast())
+            .isEqualTo(app.getString(R.string.ime_stream_incomplete))
     }
 
     // ----------------------------------------------------- non-delivering I1

@@ -1062,6 +1062,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * is not a clean success — it inserts the recovered text only when there is
      * any and always shows [rescueText], so an empty rescue can never look like
      * a silent success.
+     *
+     * #207: a field holding our committed streamed text counts as
+     * already-delivered ONLY when the delivery is identical (raw mode). A
+     * differing polished Q gets the verified streamed span deleted
+     * ([LivePreviewTerminal] → [StreamOutcome.COMMITTED_STREAM_REPLACED]) and
+     * is then inserted here, so Send leaves exactly Q in the field.
      */
     internal fun handleCompletedSuccess(
         text: String,
@@ -1069,16 +1075,19 @@ open class PolishedVoiceInputIME : InputMethodService() {
     ) {
         // #205 D4: classify the field (and abandon the composition) BEFORE
         // anything reaches it. The outcome decides which today-path runs.
-        val outcome = finishLivePreview()
+        val outcome = finishLivePreview(text)
         logInsertion(text, event, outcome)
         val partial = event.partial
         val messages = mutableListOf<String>()
         when (outcome) {
             StreamOutcome.DISABLED,
             StreamOutcome.UNREADABLE,
-            StreamOutcome.CLEARED -> {
+            StreamOutcome.CLEARED,
+            StreamOutcome.COMMITTED_STREAM_REPLACED -> {
                 // Today's single terminal insertion — the field is either
-                // verifiably cleared (B only) or was never written by us.
+                // verifiably cleared (B only), was never written by us, or our
+                // verified streamed span was just deleted for exactly this
+                // delivery (#207).
                 if (partial == null || text.isNotBlank()) insertResultText(text)
             }
             StreamOutcome.COMMITTED_BY_APP -> {
@@ -1299,10 +1308,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
 
     /**
      * #205 D4: the terminal step — abandon the composition, classify the field
-     * (writing the one verified raw suffix the classification asks for), end
-     * the streaming state, and return the outcome for the delivery branch.
+     * (writing the one verified raw suffix the classification asks for, or
+     * deleting the verified streamed span a differing delivery replaces
+     * (#207)), end the streaming state, and return the outcome for the
+     * delivery branch.
      */
-    private fun finishLivePreview(): StreamOutcome {
+    private fun finishLivePreview(delivery: String): StreamOutcome {
         val stream = controller.livePreview
         if (!stream.active) return StreamOutcome.DISABLED
         val outcome: StreamOutcome
@@ -1313,7 +1324,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
             // first probe failed) — today's path applies unchanged.
             outcome = StreamOutcome.UNREADABLE
         } else {
-            outcome = terminalClassify(stream)
+            outcome = terminalClassify(stream, delivery)
         }
         ImeLifecycleTrace.log(
             this, "livePreview",
@@ -1328,7 +1339,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
         return outcome
     }
 
-    private fun terminalClassify(stream: LivePreview): StreamOutcome {
+    private fun terminalClassify(stream: LivePreview, delivery: String): StreamOutcome {
         val field = currentFieldId()
         val sameField = field != null && stream.field != null &&
             RotationGate.isSameField(stream.field, field)
@@ -1346,13 +1357,52 @@ open class PolishedVoiceInputIME : InputMethodService() {
         val decision = LivePreviewTerminal.classify(
             window = probe,
             before = stream.before,
-            provisional = stream.provisional
+            provisional = stream.provisional,
+            delivery = delivery
         )
         if (decision.outcome == StreamOutcome.SUFFIX_APPENDED) {
             // Append-only (I2): the raw delta the client does not hold yet.
             port.commit(decision.append)
+        } else if (decision.outcome == StreamOutcome.COMMITTED_STREAM_REPLACED) {
+            return replaceStreamedSpan(port, stream, delivery, decision.deleteBefore)
         }
         return decision.outcome
+    }
+
+    /**
+     * #207: the field holds OUR verified streamed text behind the cursor and
+     * the polished delivery Q differs — delete the span, so the caller inserts
+     * Q through today's path and the field ends with exactly Q (no duplicate,
+     * no leftover). The delete is a REQUEST the client may honour differently
+     * ([EditorPort]); writing Q over a surviving span would be the forbidden
+     * duplicate (I5), so the deletion is verified with the same before-window
+     * probe the classification used. A refused delete falls back to
+     * [StreamOutcome.MISMATCH]: Q to the clipboard, the field untouched.
+     */
+    private fun replaceStreamedSpan(
+        port: EditorPort,
+        stream: LivePreview,
+        delivery: String,
+        chars: Int
+    ): StreamOutcome {
+        port.deleteBefore(chars)
+        val verify = LivePreviewTerminal.classify(
+            window = port.textBefore(
+                LivePreviewTerminal.windowLength(stream.before, stream.provisional)
+            ),
+            before = stream.before,
+            provisional = stream.provisional,
+            delivery = delivery
+        )
+        if (verify.outcome != StreamOutcome.CLEARED) {
+            ImeLifecycleTrace.log(
+                this, "livePreview",
+                "replace failed deleted=$chars got=${verify.outcome}"
+            )
+            return StreamOutcome.MISMATCH
+        }
+        ImeLifecycleTrace.log(this, "livePreview", "replace deleted=$chars verified=cleared")
+        return StreamOutcome.COMMITTED_STREAM_REPLACED
     }
 
     /**

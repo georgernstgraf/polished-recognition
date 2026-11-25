@@ -134,7 +134,17 @@ enum class StreamOutcome {
     DISABLED,
 
     /** Streaming was enabled but nothing could be displayed — today's path. */
-    UNREADABLE
+    UNREADABLE,
+
+    /**
+     * #207: the field holds our verified streamed text, but the polished
+     * delivery Q differs from it (LLM mode) — that is NOT "already
+     * delivered". The streamed span behind the cursor was deleted, so the
+     * caller inserts Q through today's path and the field ends with exactly
+     * Q. Never fires for an identical delivery (raw mode keeps the clipboard
+     * behaviour of [COMMITTED_BY_APP]/[SUFFIX_APPENDED]).
+     */
+    COMMITTED_STREAM_REPLACED
 }
 
 /**
@@ -268,18 +278,35 @@ object LivePreviewReconcile {
 /**
  * #205 D4: the terminal classification — what the field holds AFTER the
  * composition was abandoned. Pure; the caller performs the one write the
- * [StreamOutcome.SUFFIX_APPENDED] decision asks for.
+ * [StreamOutcome.SUFFIX_APPENDED] decision asks for, or the verified deletion
+ * the [StreamOutcome.COMMITTED_STREAM_REPLACED] decision asks for (#207).
  */
 object LivePreviewTerminal {
 
-    data class Decision(val outcome: StreamOutcome, val append: String = "")
+    data class Decision(
+        val outcome: StreamOutcome,
+        val append: String = "",
+        /** #207: chars of OUR verified streamed text to delete left of the cursor. */
+        val deleteBefore: Int = 0
+    )
 
     /**
      * @param window      `getTextBeforeCursor(<sized>)` after the composition was cleared.
      * @param before      B, or null when it was never captured (I3).
      * @param provisional P, markers included.
+     * @param delivery    Q, the polished delivery text. When Q differs from
+     *   what the field holds of the streamed provisional (LLM mode with an
+     *   effective polish), the committed streamed state is NOT "already
+     *   delivered" — #207: the span is replaced so the field ends with
+     *   exactly Q. An identical delivery (raw mode, a polish no-op) or a
+     *   blank one keeps the clipboard behaviour.
      */
-    fun classify(window: CharSequence?, before: String?, provisional: String): Decision {
+    fun classify(
+        window: CharSequence?,
+        before: String?,
+        provisional: String,
+        delivery: String
+    ): Decision {
         // There is no fingerprint of "before our text" — the field cannot be
         // classified at all; the caller falls back to today's path.
         if (before == null) return Decision(StreamOutcome.UNREADABLE)
@@ -291,20 +318,31 @@ object LivePreviewTerminal {
         // than a long provisional needs, #205 device finding).
         val tail = oursBehindCursor(w, before, provisional)
             ?: return Decision(StreamOutcome.MISMATCH)
+        val identical = delivery == stripMarkers(provisional)
         return when {
             // nothing of ours after B — insert Q through today's path
             tail.isEmpty() -> Decision(StreamOutcome.CLEARED)
             // the field already holds the whole provisional text
-            tail.length == provisional.length -> Decision(StreamOutcome.COMMITTED_BY_APP)
+            tail.length == provisional.length ->
+                if (identical || delivery.isBlank()) Decision(StreamOutcome.COMMITTED_BY_APP)
+                else replaceStreamedSpan(tail)
             else -> {
                 // A verified prefix K of P sits behind B — append only the
-                // missing, marker-free suffix (I2: never delete).
+                // missing, marker-free suffix (I2: never delete) — unless the
+                // delivery differs: then the appended raw text is not what
+                // the user asked for, and the verified span is replaced (#207).
                 val suffix = stripMarkers(provisional.substring(tail.length))
-                if (suffix.isNotBlank()) Decision(StreamOutcome.SUFFIX_APPENDED, suffix)
-                else Decision(StreamOutcome.MISMATCH)
+                if (suffix.isNotBlank()) {
+                    if (identical || delivery.isBlank()) Decision(StreamOutcome.SUFFIX_APPENDED, suffix)
+                    else replaceStreamedSpan(tail)
+                } else Decision(StreamOutcome.MISMATCH)
             }
         }
     }
+
+    /** #207: the span behind the cursor is OUR verified text — delete it whole. */
+    private fun replaceStreamedSpan(tail: String) =
+        Decision(StreamOutcome.COMMITTED_STREAM_REPLACED, deleteBefore = tail.length)
 
     /**
      * The probe length the terminal classification needs: B plus the whole

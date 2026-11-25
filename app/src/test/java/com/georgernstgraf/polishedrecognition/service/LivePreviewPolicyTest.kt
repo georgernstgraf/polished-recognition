@@ -199,9 +199,26 @@ class LivePreviewPolicyTest {
 
     // ----------------------------------------------------------- terminal D4
 
+    private fun classify(
+        window: String?,
+        before: String? = "abc",
+        provisional: String = "hallo",
+        delivery: String
+    ): LivePreviewTerminal.Decision =
+        LivePreviewTerminal.classify(
+            window = window,
+            before = before,
+            provisional = provisional,
+            delivery = delivery
+        )
+
     @Test
     fun `cleared field - B only - inserts through today's path`() {
-        val d = LivePreviewTerminal.classify(window = "abc", before = "abc", provisional = "hallo")
+        val d = classify(
+            window = "abc",
+            provisional = "hallo",
+            delivery = "Hallo."
+        )
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.CLEARED)
         assertThat(d.append).isEmpty()
@@ -209,30 +226,110 @@ class LivePreviewPolicyTest {
 
     @Test
     fun `committed provisional inserts nothing`() {
-        val d = LivePreviewTerminal.classify(
-            window = "abchallo", before = "abc", provisional = "hallo"
+        val d = classify(
+            window = "abchallo",
+            provisional = "hallo",
+            delivery = "hallo"
         )
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_BY_APP)
         assertThat(d.append).isEmpty()
     }
 
+    /**
+     * #207: the committed streamed text is NOT "already delivered" when the
+     * polished result differs — the verified span is deleted so the caller
+     * inserts Q and the field ends with exactly Q.
+     */
+    @Test
+    fun `a differing delivery replaces the committed streamed span`() {
+        val d = classify(
+            window = "abchallo",
+            provisional = "hallo",
+            delivery = "Hallo."
+        )
+
+        assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_STREAM_REPLACED)
+        assertThat(d.deleteBefore).isEqualTo(5)
+        assertThat(d.append).isEmpty()
+    }
+
     @Test
     fun `a committed prefix appends exactly the missing suffix`() {
-        val d = LivePreviewTerminal.classify(
-            window = "abchallo we", before = "abc", provisional = "hallo welt"
+        val d = classify(
+            window = "abchallo we",
+            provisional = "hallo welt",
+            delivery = "hallo welt"
         )
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.SUFFIX_APPENDED)
         assertThat(d.append).isEqualTo("lt")
     }
 
+    /** #207: the incident shape — a differing Q replaces the prefix instead. */
+    @Test
+    fun `a differing delivery replaces the verified prefix instead of appending the suffix`() {
+        val d = classify(
+            window = "abchallo we",
+            provisional = "hallo welt",
+            delivery = "Hallo Welt."
+        )
+
+        // The whole verified tail behind B ("hallo we") goes, not a guess.
+        assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_STREAM_REPLACED)
+        assertThat(d.deleteBefore).isEqualTo(8)
+        assertThat(d.append).isEmpty()
+    }
+
+    /** #207: a blank delivery must never delete without anything to insert. */
+    @Test
+    fun `a blank delivery never replaces the streamed span`() {
+        val committed = classify(window = "abchallo", delivery = "")
+        val prefix = classify(
+            window = "abchallo we",
+            provisional = "hallo welt",
+            delivery = ""
+        )
+
+        assertThat(committed.outcome).isEqualTo(StreamOutcome.COMMITTED_BY_APP)
+        assertThat(prefix.outcome).isEqualTo(StreamOutcome.SUFFIX_APPENDED)
+        assertThat(prefix.append).isEqualTo("lt")
+    }
+
+    /**
+     * #207: the comparison runs against the field content as the user sees it
+     * — markers stripped, join collapsed. A delivery equal modulo that
+     * normalisation keeps today's clipboard behaviour (raw mode).
+     */
+    @Test
+    fun `a delivery equal modulo collapsed whitespace keeps the committed field`() {
+        val d = classify(
+            window = "abchallo  welt",
+            provisional = "hallo  welt",
+            delivery = "hallo welt"
+        )
+
+        assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_BY_APP)
+    }
+
+    /** The same normalisation covers a committed marker — display-only (I7). */
+    @Test
+    fun `a delivery equal to the marker-stripped provisional keeps the committed field`() {
+        val d = classify(
+            window = "abchallo <pending>",
+            provisional = "hallo <pending>",
+            delivery = "hallo"
+        )
+
+        assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_BY_APP)
+    }
+
     @Test
     fun `the appended suffix never contains a pending marker`() {
-        val d = LivePreviewTerminal.classify(
+        val d = classify(
             window = "abchallo",
-            before = "abc",
-            provisional = "hallo <pending> welt"
+            provisional = "hallo <pending> welt",
+            delivery = "hallo welt"
         )
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.SUFFIX_APPENDED)
@@ -241,7 +338,7 @@ class LivePreviewPolicyTest {
 
     @Test
     fun `an edited field is a mismatch - nothing is inserted`() {
-        val d = LivePreviewTerminal.classify(window = "abcXYZ", before = "abc", provisional = "hallo")
+        val d = classify(window = "abcXYZ", provisional = "hallo", delivery = "Q")
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.MISMATCH)
         assertThat(d.append).isEmpty()
@@ -249,8 +346,10 @@ class LivePreviewPolicyTest {
 
     @Test
     fun `a field that ends with the whole provisional but not at B is a mismatch`() {
-        val d = LivePreviewTerminal.classify(
-            window = "edited hallo", before = "abc", provisional = "hallo"
+        val d = classify(
+            window = "edited hallo",
+            provisional = "hallo",
+            delivery = "hallo"
         )
 
         // "hallo" is a suffix, but K = P means there is no suffix to append.
@@ -259,14 +358,14 @@ class LivePreviewPolicyTest {
 
     @Test
     fun `no before-window means the field was never readable`() {
-        val d = LivePreviewTerminal.classify(window = "abc", before = null, provisional = "hallo")
+        val d = classify(window = "abc", before = null, delivery = "hallo")
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.UNREADABLE)
     }
 
     @Test
     fun `an unreadable terminal window is a mismatch - never a write`() {
-        val d = LivePreviewTerminal.classify(window = null, before = "abc", provisional = "hallo")
+        val d = classify(window = null, delivery = "hallo")
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.MISMATCH)
     }
@@ -274,10 +373,11 @@ class LivePreviewPolicyTest {
     @Test
     fun `a long committed provisional is classified even with context left of B`() {
         val long = "wort ".repeat(24)
-        val d = LivePreviewTerminal.classify(
+        val d = classify(
             window = "alterkram abc$long",
-            before = "abc",
-            provisional = long
+            provisional = long,
+            // stripMarkers trims the join — the delivery as it is delivered.
+            delivery = long.trim()
         )
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_BY_APP)
@@ -286,10 +386,10 @@ class LivePreviewPolicyTest {
 
     @Test
     fun `a cleared field with context left of B is still cleared`() {
-        val d = LivePreviewTerminal.classify(
+        val d = classify(
             window = "alterkram abc",
-            before = "abc",
-            provisional = "wort ".repeat(24)
+            provisional = "wort ".repeat(24),
+            delivery = "QS"
         )
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.CLEARED)

@@ -25,6 +25,13 @@ internal interface EditorPort {
     /** A final, committed insertion (the terminal suffix append). */
     fun commit(text: CharSequence)
 
+    /**
+     * #207: deletes [length] chars left of the cursor — the verified span of
+     * OUR streamed text, so the polished delivery can replace it. A REQUEST
+     * the client may refuse; the caller verifies the result before writing.
+     */
+    fun deleteBefore(length: Int)
+
     /** `setComposingText(text)` — REPLACES the current composing region. */
     fun setComposing(text: CharSequence)
 
@@ -61,6 +68,10 @@ internal class InputConnectionEditorPort(
 
     override fun commit(text: CharSequence) {
         connection.commitText(text, 1)
+    }
+
+    override fun deleteBefore(length: Int) {
+        connection.deleteSurroundingText(length, 0)
     }
 
     override fun setComposing(text: CharSequence) {
