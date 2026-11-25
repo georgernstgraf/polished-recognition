@@ -1,5 +1,9 @@
 # Persistence Log
 
+## 2026-11-25 (#205 — GIT_HASH/VERSION_DISPLAY statisch, Push-Install im Sekundenbereich)
+
+* **Update**: [decisions/build-release.md](decisions/build-release.md) — Owner-Entscheidung 2026-11-25: der Build-Hash kommt aus Gradle-Properties (release.yml übergibt die echten Werte), lokale Builds nutzen statische Release-Defaults; die `ValueSource`-Klassen sind gelöscht. Grund: ein per Commit einzigartiger BuildConfig-Inhalt erzwang den R8-Rebuild bei jedem Push-Install (54 s → 9 s, gemessen).
+
 ## 2026-11-25 (#205 — Gerätebefund: das Fensterproblem der Live-Vorschau)
 
 * **Update**: [pitfalls/ime-field.md](pitfalls/ime-field.md) — neuer Eintrag: die Fensterprobe muss so groß sein wie der Text, den sie verifiziert (konstantes 64-Zeichen-Fenster frierte die Live-Vorschau nach dem ersten Fragment ein); Regel „Probe-Länge aus dem erwarteten Inhalt, B-Grenze tolerant suchen" + die neue Abort-Signatur.

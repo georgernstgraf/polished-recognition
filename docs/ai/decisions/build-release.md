@@ -3,13 +3,36 @@ type: Decisions
 title: Decisions — Build, Release and Distribution
 description: Gradle and toolchain, signing, CI, lint gates, versioning, the Play and F-Droid channels, listing assets and the repo docs.
 tags: [knowledge, decisions, build-release]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T18:20:00Z }
 status: stable
 ---
 
 # Decisions — Build, Release and Distribution
 
 Moved out of `DECISIONS.md` in #206; entries are verbatim. New decisions in this area are appended here.
+
+## 2026-11-25: #205 — GIT_HASH/VERSION_DISPLAY statisch, CI übergibt die echten Werte
+
+Der About-Screen zeigte den per Commit generierten Build-Hash
+(`git rev-parse HEAD`) und die Commits seit dem letzten Tag
+(`rev-list --count`) aus der `BuildConfig`. Ein per Commit einzigartiger
+BuildConfig-Inhalt garantierte einen Cache-Miss auf compile → R8 → package
+für **jeden** Commit: ein Push-Install zahlte ~50 s Rebuild, obwohl sonst
+nichts geändert hatte. Der Owner entschied (2026-11-25, im Zuge der neuen
+„Install nach jedem Push"-Regel in `AGENTS.md`):
+
+- **GIT_HASH/commitCount kommen aus Gradle-Properties**
+  (`-PbuildGitHash` / `-PbuildCommitCount`), die `release.yml` beim
+  Release-Bau mit den echten Git-Werten übergibt — die Traceability bleibt
+  für Release-Builds exakt.
+- **Lokale Builds nutzen statische Defaults** (letzter Release-Hash, count 0,
+  bei Release gebumpt wie `versionCode`): der Push-Install fällt auf ~9 s
+  (43/47 Tasks up-to-date, gemessen `b1a30e5`), der About zeigt lokal den
+  Hash des letzten Releases — akzeptiert, weil die Owner-Diktate auf dem
+  Gerät die Build-Traceability über die Diagnosedateien ohnehin führen.
+- Die beiden `ValueSource`-Klassen (`GitHashSource`, `CommitCountSource`)
+  sind gelöscht; die Release-Instructions in `app/build.gradle.kts` nennen
+  den statischen Hash als Teil des Version-Bumps.
 
 ## 2026-11-24: #193 — der Lint-Backlog ist bei null: keine Baseline mehr, `warningsAsErrors`, sechs dokumentierte Ausnahmen
 
