@@ -271,7 +271,7 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `dictating into an old raw edits it and bumps it to the top`() {
+    fun `dictating into an old raw edits it and keeps its ring page`() {
         val store = seed("a", "b", "c")
         val activity = launch()
         // ◀ from the compose slot lands on the newest, then walks down to "a"
@@ -282,9 +282,10 @@ class WorkbenchActivityTest {
         activity.raw().setText("a extended")
         activity.onTranscriptArrived(" extended")
 
+        // #208: the edit stays on its page — creation order never reorders.
         assertThat(store.loadAll().map { it.raw })
-            .containsExactly("b", "c", "a extended").inOrder()
-        assertThat(activity.position()).isEqualTo("3 / 3")
+            .containsExactly("a extended", "b", "c").inOrder()
+        assertThat(activity.position()).isEqualTo("1 / 3")
         assertThat(activity.raw().text()).isEqualTo("a extended")
     }
 
@@ -336,7 +337,7 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `promote in zone B makes polished the new raw and keeps the polished text`() {
+    fun `promote in zone B makes polished the new raw and clears the polished slot`() {
         val store = seed("filler", "raw text")
         val id = store.loadAll().last().id
         store.updatePolished(id, "polished text")
@@ -348,10 +349,13 @@ class WorkbenchActivityTest {
         val saved = DictationStore(context).loadAll().last()
         assertThat(saved.id).isEqualTo(id)
         assertThat(saved.raw).isEqualTo("polished text")
-        assertThat(saved.polished).isEqualTo("polished text")
+        assertThat(saved.polished).isNull()
         assertThat(activity.raw().text()).isEqualTo("polished text")
-        assertThat(activity.polished().text.toString()).isEqualTo("polished text")
+        assertThat(activity.polished().text.toString()).isEmpty()
         assertThat(activity.position()).isEqualTo("2 / 2")
+        // A promoted page has nothing left to promote or copy.
+        assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
     }
 
     @Test
@@ -364,8 +368,11 @@ class WorkbenchActivityTest {
 
         activity.click(R.id.workbench_promote_c)
 
-        assertThat(DictationStore(context).loadAll().last().raw).isEqualTo("promoted")
+        val saved = DictationStore(context).loadAll().last()
+        assertThat(saved.raw).isEqualTo("promoted")
+        assertThat(saved.polished).isNull()
         assertThat(activity.raw().text()).isEqualTo("promoted")
+        assertThat(activity.polished().text.toString()).isEmpty()
     }
 
     @Test

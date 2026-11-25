@@ -167,7 +167,7 @@ class DictationStoreTest {
     }
 
     @Test
-    fun `a real edit moves the dictation to the end of the mru order`() {
+    fun `an edit does not move the dictation in the ring`() {
         val store = store(cap = 10)
         store.append("a")
         clock += 1_000
@@ -179,11 +179,11 @@ class DictationStoreTest {
         store.updateRaw(a.id, "a edited")
 
         assertThat(store.loadAll().map { it.raw })
-            .containsExactly("b", "c", "a edited").inOrder()
+            .containsExactly("a edited", "b", "c").inOrder()
     }
 
     @Test
-    fun `a changed polished text also bumps the mru position`() {
+    fun `a changed polished text also stays on its ring page`() {
         val store = store(cap = 10)
         store.append("a")
         clock += 1_000
@@ -192,11 +192,11 @@ class DictationStoreTest {
 
         store.updatePolished(a.id, "polished a")
 
-        assertThat(store.loadAll().map { it.raw }).containsExactly("b", "a").inOrder()
+        assertThat(store.loadAll().map { it.raw }).containsExactly("a", "b").inOrder()
     }
 
     @Test
-    fun `an unchanged write neither bumps the stamp nor the order`() {
+    fun `an unchanged write is a no-op`() {
         val store = store(cap = 10)
         store.append("a")
         clock += 1_000
@@ -211,7 +211,7 @@ class DictationStoreTest {
     }
 
     @Test
-    fun `pruning evicts the least recently edited dictation`() {
+    fun `pruning evicts the oldest created dictation even after an edit`() {
         val store = store(cap = 2)
         store.append("a")
         clock += 1_000
@@ -220,19 +220,19 @@ class DictationStoreTest {
         store.append("c") // evicts a
         val b = store.loadAll().first { it.raw == "b" }
 
-        store.updateRaw(b.id, "b edited") // c is now the least recently edited
+        store.updateRaw(b.id, "b edited") // #208: the edit does not protect b
         store.append("d")
 
         assertThat(store.loadAll().map { it.raw })
-            .containsExactly("b edited", "d").inOrder()
+            .containsExactly("c", "d").inOrder()
     }
 
     @Test
-    fun `a legacy file without a touch stamp falls back to its creation time`() {
+    fun `a legacy file with the retired touch stamp is read without it`() {
         val id = "20261119-1200-legacy01"
         dir().mkdirs()
         File(dir(), "$id.json").writeText(
-            """{"id":"$id","raw":"legacy","createdAtMs":4242}""",
+            """{"id":"$id","raw":"legacy","createdAtMs":4242,"updatedAtMs":9999}""",
             Charsets.UTF_8
         )
 
@@ -240,13 +240,12 @@ class DictationStoreTest {
 
         assertThat(loaded.raw).isEqualTo("legacy")
         assertThat(loaded.createdAtMs).isEqualTo(4242L)
-        assertThat(loaded.updatedAtMs).isEqualTo(4242L)
     }
 
     // --- promote (#178: polished becomes raw) and clear-polished ---
 
     @Test
-    fun `promote copies the polished text into raw and keeps the polished slot`() {
+    fun `promote moves the polished text into raw and clears the polished slot`() {
         val store = store()
         val dictation = store.append("raw")
         store.updatePolished(dictation.id, "polished")
@@ -254,10 +253,10 @@ class DictationStoreTest {
         val promoted = store.replaceRawWithPolished(dictation.id)
 
         assertThat(promoted!!.raw).isEqualTo("polished")
-        assertThat(promoted.polished).isEqualTo("polished")
+        assertThat(promoted.polished).isNull()
         val reloaded = store.loadAll().single()
         assertThat(reloaded.raw).isEqualTo("polished")
-        assertThat(reloaded.polished).isEqualTo("polished")
+        assertThat(reloaded.polished).isNull()
     }
 
     @Test
@@ -281,7 +280,7 @@ class DictationStoreTest {
     }
 
     @Test
-    fun `promoting when raw already equals polished does not bump the mru position`() {
+    fun `promoting when raw already equals polished is a strict no-op`() {
         val store = store(cap = 10)
         store.append("a")
         clock += 1_000
@@ -298,7 +297,7 @@ class DictationStoreTest {
     }
 
     @Test
-    fun `a real promotion bumps the dictation to the end of the mru order`() {
+    fun `a real promotion keeps the dictation on its ring page`() {
         val store = store(cap = 10)
         store.append("a")
         clock += 1_000
@@ -309,7 +308,7 @@ class DictationStoreTest {
         store.replaceRawWithPolished(a.id)
 
         assertThat(store.loadAll().map { it.raw })
-            .containsExactly("b", "a polished").inOrder()
+            .containsExactly("a polished", "b").inOrder()
     }
 
     @Test
@@ -328,18 +327,17 @@ class DictationStoreTest {
     }
 
     @Test
-    fun `clearing a filled polished slot bumps the mru position`() {
+    fun `clearing a filled polished slot stays on its ring page`() {
         val store = store(cap = 10)
         store.append("a")
         clock += 1_000
         store.append("b")
         val a = store.loadAll().first { it.raw == "a" }
         store.updatePolished(a.id, "polished a")
-        clock += 1_000
 
         store.clearPolished(a.id)
 
-        assertThat(store.loadAll().map { it.raw }).containsExactly("b", "a").inOrder()
+        assertThat(store.loadAll().map { it.raw }).containsExactly("a", "b").inOrder()
     }
 
     @Test

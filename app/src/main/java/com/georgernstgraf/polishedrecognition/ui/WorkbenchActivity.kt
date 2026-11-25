@@ -63,7 +63,8 @@ import java.util.Locale
  *  - the **compose slot** is transient: shown on entry, never persisted while
  *    empty, outside the ring, materialised on pause / ＋ / a navigation with
  *    content (decision 2).
- *  - the ring is **last-touched (MRU)** order with wrap-around (decisions 5/7).
+ *  - the ring is **creation order** with wrap-around (#208: a touched
+ *    dictation never moves; decisions 5/7 as amended).
  *
  * #178 redesigns the surface:
  *  - the header carries **icons only** (◀ position ⚙ ＋ ▶), no title;
@@ -713,9 +714,9 @@ class WorkbenchActivity : Activity() {
     }
 
     /**
-     * Re-reads the store and the journal and follows [selection] to its new ring
+     * Re-reads the store and the journal and follows [selection] to its ring
      * position **without** rewriting the fields — the field the user is typing
-     * in keeps its caret (#173 decision 5: a touched dictation moves to the top).
+     * in keeps its caret (#208: a touched dictation never moves in the ring).
      */
     private fun syncPositions(selection: Selection = currentSelection()) {
         applyPages(
@@ -1199,9 +1200,9 @@ class WorkbenchActivity : Activity() {
 
     /**
      * #178: "Make Polished the new RAW" — the store does the move
-     * ([DictationStore.replaceRawWithPolished]), so the MRU bump and the
-     * no-op-on-equal rule live in one place. Polished keeps its text: it is
-     * the polished version of the *new* raw text.
+     * ([DictationStore.replaceRawWithPolished]): the polished slot is
+     * **cleared** (#208 — a move, not a copy), so the fields never show the
+     * same text twice.
      */
     private fun promotePolished() {
         if (rendering) return
@@ -1209,13 +1210,18 @@ class WorkbenchActivity : Activity() {
         if (index == FifoNavigation.COMPOSE_INDEX) {
             if (composePolished.isBlank() || composePolished == composeRaw) return
             composeRaw = composePolished
+            composePolished = ""
             showRaw(composeRaw)
+            showPolished("")
             updateChrome()
             return
         }
         val id = currentId ?: return
         val promoted = store.replaceRawWithPolished(id) ?: return
         showRaw(promoted.raw)
+        // A position sync never rewrites the fields (#208: the polished text
+        // is gone — show it instead of waiting for the next full render).
+        showPolished(promoted.polished.orEmpty())
         syncPositions(Selection.Stored(id))
     }
 
@@ -1376,7 +1382,7 @@ class WorkbenchActivity : Activity() {
                     val updated = store.updateRaw(id, rawField.text.toString())
                     showRaw(updated?.raw ?: rawField.text.toString())
                     showPolished(updated?.polished.orEmpty())
-                    // #173 decision 5: the edit bumps it to the top of the ring.
+                    // #208: the edit stays on its ring page — no reorder.
                     syncPositions(Selection.Stored(id))
                 }
             }
