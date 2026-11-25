@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-23T20:41:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T10:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -12,6 +12,37 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-25: #205 — die Live-Vorschau ist entschieden (ersetzt #190)
+
+#190 wurde als *superseded* geschlossen; alle Owner-Entscheidungen stehen in
+#205 als D1–D6. Was sich gegenüber dem #190-Entwurf geändert hat:
+
+- **Anzeigetakt statt „Kadenz“**: ein Sprung pro fertigem Fragment. Keine
+  zusätzlichen STT-/LLM-Requests, keine zweite Anzeige-Kadenz, keine verkürzte
+  Produktions-Slice, kein Streaming-STT. Gemessen 20 s (gregor/ogg), 137 s
+  (GROQ); Bootstrap 21 s, Untergrenze `8 s/(1−p)` ≈ 11 s. Ein Diktat kürzer als
+  eine Slice zeigt nichts — akzeptiert.
+- **Rotation = NavBar-Schließen**: ein Mechanismus. Die Plattform committet beim
+  Field-Ende (`onFinishInput` → `finishComposingText`), K ist damit der
+  Normalfall. Reconciliation beim Bind gegen die Fensterprobe (`B+P` / nur `B` /
+  `B+K`); **verifiziertes** Wiederaufsetzen ist erlaubt — die frühere
+  Invariante 4 („nie wieder komponieren“) gilt nur noch unverifiziert.
+- **Streaming-Zustand app-weit** (neben dem Controller): nach einem
+  IME-Instanz-Tod kommt `Completed(redelivered = true)` an eine Instanz ohne
+  Gedächtnis; ein instanzgebundener Zustand machte den blinden Insert in ein
+  K-Feld zum verbotenen Duplikat (Invariante 5).
+- **Terminal-Kaskade E → B → A** für `0 < K < P`: Anzeige fortsetzen, sonst
+  Roh-Suffix anhängen (Cursor-Verifikation, Marker gestrippt), sonst nichts +
+  Clipboard. Nie löschen; **Invariante 2** ist auf den Streaming-Pfad
+  eingegrenzt (Löschen nur als ausdrückliche Nutzeraktion).
+- **Invariante 1** gilt „auf der Verbindung, die gestreamt hat“; **I6** keine
+  Zusatzkosten; **I7** Marker und Zwischentext sind nie Liefertext.
+- **Neue Naht `EditorPort`**: es gibt keinen Fake-`InputConnection`, und
+  `insertResultText` liegt über dem Commit — ohne diese Naht ist die
+  Composing-Seite nicht testbar.
+- Unterlage: `docs/design/190-live-vorschau-begriffe.pdf` (9 Seiten, `a9ef070`);
+  wird um die Kadenz-Sektion und diese Entscheidungen ergänzt.
 
 ## 2026-11-24: #189 — Sektionen klappen wieder zu, Promote zeigt nach oben, die Zonen B und C sind identisch
 

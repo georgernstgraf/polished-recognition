@@ -3,11 +3,14 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-23T20:41:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T10:00:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#205 (2026-11-25, decided, supersedes #190): live preview in the target field — ready to implement.**
+The interim display runs through the composing region; the terminal step stays frozen. **Display tick = one step per finished fragment, no extra requests** (20 s gregor/ogg, 137 s GROQ). Rotation and nav-bar close are one case: reconciliation at bind (`onBindInput`/`onStartInput`) against the window probe — `B + P` or `B` ⇒ re-compose, `B + K` ⇒ delta only; **verified** re-composition is allowed (invariant 4 relaxed). The streaming state lives **app-wide** (otherwise a rotation blind-inserts into the K field — the forbidden duplicate). Terminal cascade for the committed prefix: **E → B → A**; never delete. New seam: **`EditorPort`** (no fake `InputConnection` exists). Order: EditorPort → marker join + controller state → reconciliation → terminal cascade → tests. After #156 and the owner device checks. Full wording: #205.
 
 **#189 (2026-11-24, shipped): the Workbench sections collapse again.** Both label rows are
 `<summary>`-style toggles (chevron · label · copy) with a one-line, ellipsised preview while the
