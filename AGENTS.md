@@ -117,6 +117,22 @@ The Android SDK is read from `ANDROID_HOME` or `local.properties`.
 ./gradlew clean             # Clean
 ```
 
+### Device install after every push — REQUIRED
+
+After every push to `main`, check whether one of the owner's phones is attached
+and install the fresh release APK on it — the owner's device runs the real
+verification, so a pushed fix nobody has run is an unverified fix:
+
+```bash
+adb devices
+# a known serial attached? f6de166c (OnePlus 7T HD1903) / R7SRB06XF5K (SM-A032F)
+ANDROID_SERIAL=<serial> ./gradlew installRelease
+```
+
+Done when `installRelease` prints `Installed on 1 device.` — or when no known
+serial is attached (then say so and skip). In-place installs preserve config,
+permissions and `firstInstallTime`; this needs no version bump.
+
 ### Git Hooks — REQUIRED
 
 This repository **requires** the `pre-push` hook: it runs the unit tests and
