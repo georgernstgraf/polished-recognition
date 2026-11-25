@@ -53,6 +53,8 @@ jobs:
     - name: Build Release AAB
       run: |
         ./gradlew bundleRelease --no-daemon \
+          -PbuildGitHash=$(git rev-parse --short=7 HEAD) \
+          -PbuildCommitCount=$(git rev-list $(git describe --tags --match 'v*' --abbrev=0)..HEAD --count) \
           -Pandroid.injected.signing.store.file=$RUNNER_TEMP/upload.keystore \
           -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \

@@ -1,37 +1,6 @@
-import org.gradle.api.provider.ValueSource
-import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import java.io.File
 import java.util.Properties
-
-abstract class GitHashSource : ValueSource<String, ValueSourceParameters.None> {
-    override fun obtain(): String {
-        val process =
-            ProcessBuilder("git", "rev-parse", "--short=7", "HEAD")
-                .directory(File(System.getProperty("user.dir")))
-                .start()
-        process.waitFor()
-        return process.inputStream.bufferedReader().readText().trim()
-    }
-}
-
-abstract class CommitCountSource : ValueSource<String, ValueSourceParameters.None> {
-    override fun obtain(): String {
-        val tagProcess =
-            ProcessBuilder("git", "describe", "--tags", "--match", "v*", "--abbrev=0")
-                .directory(File(System.getProperty("user.dir")))
-                .start()
-        tagProcess.waitFor()
-        val tag = tagProcess.inputStream.bufferedReader().readText().trim()
-        if (!tag.startsWith("v")) return "0"
-        val countProcess =
-            ProcessBuilder("git", "rev-list", "$tag..HEAD", "--count")
-                .directory(File(System.getProperty("user.dir")))
-                .start()
-        countProcess.waitFor()
-        return countProcess.inputStream.bufferedReader().readText().trim()
-    }
-}
 
 plugins {
     id("com.android.application")
@@ -86,7 +55,8 @@ android {
         minSdk = 30
         targetSdk = 36
         // === RELEASE INSTRUCTIONS ===
-        // 1. Bump versionCode + versionName here
+        // 1. Bump versionCode + versionName here (and the static GIT_HASH
+        //    fallback above — release.yml passes the true hash regardless)
         // 2. git commit -m "chore: bump version to X.Y.Z"
         // 3. git tag vX.Y.Z && git push origin vX.Y.Z
         // 4. release.yml → signs + uploads to Play Store
@@ -94,10 +64,15 @@ android {
         versionCode = 10501
         versionName = "1.5.1"
 
-        val gitHash = providers.of(GitHashSource::class.java) {}.get().trim()
+        // The build hash comes from Gradle properties (-PbuildGitHash / -PbuildCommitCount,
+        // passed by the CI release build). The STATIC default keeps local installs
+        // cache-stable: a per-commit BuildConfig value (the old `git rev-parse HEAD`
+        // value source) rebuilt compile → R8 → package on every push. Bump the static
+        // GIT_HASH at release time; release.yml always passes the true values.
+        val gitHash = providers.gradleProperty("buildGitHash").orElse("a9fc136").get()
         buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
 
-        val commitCount = providers.of(CommitCountSource::class.java) {}.get().trim()
+        val commitCount = providers.gradleProperty("buildCommitCount").orElse("0").get()
         val versionDisplay = if (commitCount == "0") versionName else "$versionName+$commitCount"
         buildConfigField("String", "VERSION_DISPLAY", "\"$versionDisplay\"")
 
