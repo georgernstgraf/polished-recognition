@@ -1,5 +1,11 @@
 # Persistence Log
 
+## 2026-11-25 (#206 — der Projektstatus wird thematisch aufgeteilt)
+
+* **Creation**: [state/](state/index.md) — sieben Themenkonzepte (`foundations`, `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`); alle 45 Per-Issue-Abschnitte byte-identisch verschoben (Multiset geprüft), Reihenfolge bleibt „neueste zuerst".
+* **Update**: [STATE.md](STATE.md) — behält Statuszeile, `Current Focus`, `Pending` und `Device Notes` (die drei bleiben verbatim) und bekommt eine Themenliste mit Abschnittszahl; 110 KB → 8 KB. Ein „siehe den Abschnitt unten" zeigt jetzt in die Themenliste.
+* **No change**: [DECISIONS.md](DECISIONS.md), [PITFALLS.md](PITFALLS.md), [HISTORY.md](HISTORY.md), [index.md](index.md) — der Status selbst ist unverändert, nur sein Ort; der Index folgt im selben Issue.
+
 ## 2026-11-25 (#206 — die Fallstricke werden thematisch aufgeteilt)
 
 * **Creation**: [pitfalls/](pitfalls/index.md) — zehn Themenkonzepte (`foundations`, `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`, `recognition-service`, `testing`, `device-lab`); alle 273 Bullets byte-identisch verschoben, Multiset geprüft. 15 Einträge tragen einen **Also stored elsewhere**-Zeiger; die Regel „Harness-Fakten gehören nach `testing`/`build-release`, nie in das Produktionsthema" steht im Kopf des Routers.
