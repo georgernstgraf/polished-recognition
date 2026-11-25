@@ -1259,6 +1259,16 @@ open class PolishedVoiceInputIME : InputMethodService() {
      *
      * Verified re-composition is allowed exactly here (owner, 2026-11-25);
      * an unverified reconstruction stays forbidden (I4).
+     *
+     * #207 (workstream 3, owner decision "BOTH"): the whole-provisional-
+     * committed case — `B + P` after any unbind/rebind mid-take (gear detour,
+     * pause rebind, keyboard switch) — is the platform committing the
+     * composition (`onFinishInput` → `finishComposingText`, AOSP default;
+     * platform behaviour, NOT a preview bug). Before this workstream it
+     * re-composed nothing and the provisional rendered NOT underlined until
+     * the next fragment arrived — during a paused take, for the whole pause.
+     * That bind case now attempts the guarded underline restore in
+     * [attemptRecomposeAtBind]; every other case keeps the behaviour above.
      */
     private fun reconcileLivePreviewAtBind(attribute: EditorInfo?) {
         val stream = controller.livePreview
@@ -1301,6 +1311,18 @@ open class PolishedVoiceInputIME : InputMethodService() {
             )
             return
         }
+        // #207 (workstream 3): the exact B + P case — the whole provisional
+        // sits as COMMITTED text behind B, the underline defect's signature
+        // (`reconciled committed=934 composed=0`). Everything the restore
+        // needs is already verified here: the stream is active and behind the
+        // `imeLivePreview` kill switch, the bound field IS the preview's own
+        // field (the field-changed guard above), and `decide` verified the
+        // field holds exactly B + P. The guarded delete → read-back → compose
+        // sequence runs in [attemptRecomposeAtBind].
+        if (decision.composing.isEmpty() && decision.committedPrefix == stream.provisional) {
+            attemptRecomposeAtBind(port, stream, before, info)
+            return
+        }
         if (decision.composing.isNotEmpty() || stream.sent.isNotEmpty()) {
             port.setComposing(decision.composing)
         }
@@ -1311,6 +1333,94 @@ open class PolishedVoiceInputIME : InputMethodService() {
             this, "livePreview",
             "reconciled committed=${decision.committedPrefix.length} " +
                 "composed=${decision.composing.length} field=${info.packageName}/${info.fieldId}"
+        )
+    }
+
+    /**
+     * #207 (workstream 3): the guarded underline restore after an unbind —
+     * the composing region is rebuilt over the platform-committed provisional
+     * so the text renders underlined again while the take is paused.
+     *
+     * The sequence is **read → delete → read-back → compose**, so a mismatch
+     * can never mangle the field:
+     *
+     * 1. **read** — done by the caller: `decide` verified the field holds
+     *    EXACTLY B + P, so the delete targets a span of OUR text and nothing
+     *    else.
+     * 2. **delete** — `deleteSurroundingText(P.length)` against that verified
+     *    span. A REQUEST the client may honour differently ([EditorPort]).
+     * 3. **read-back** — BEFORE any write, the same bind `decide` machinery
+     *    re-verifies the field over a fresh probe. Only a read-back that
+     *    shows B intact with NOTHING of ours behind the cursor may proceed;
+     *    a field still holding the whole P means the delete was refused
+     *    (today's behaviour — committed, no compose — is the fallback), and
+     *    any other mismatch (deleted less, deleted more, field unreadable)
+     *    aborts BEFORE the compose write and leaves the classification to
+     *    the terminal step.
+     * 4. **compose** — `setComposingText(P)` restores the underlined region.
+     *
+     * Guards, all upstream of the write: the kill switch and the own-field
+     * check gate the whole reconcile; the exact B + P match gates the call;
+     * the read-back gates the compose. Every abort logs its reason in the
+     * existing `livePreview ...` lifecycle line style.
+     */
+    private fun attemptRecomposeAtBind(
+        port: EditorPort,
+        stream: LivePreview,
+        before: String,
+        info: EditorInfo
+    ) {
+        val provisional = stream.provisional
+        val probeLength = LivePreviewReconcile.windowLengthForBind(before, provisional)
+        port.deleteBefore(provisional.length)
+        val readBack = port.textBefore(probeLength)
+        val decision = LivePreviewReconcile.decide(
+            window = readBack,
+            before = before,
+            committedPrefix = "",
+            sent = "",
+            provisional = provisional,
+            atBind = true
+        )
+        if (decision.action != LivePreviewReconcile.Action.COMPOSE ||
+            (decision.composing.isNotEmpty() && decision.composing != provisional)
+        ) {
+            // The client honoured the delete differently (less than the
+            // verified span, into B, or the field went unreadable): never
+            // write over a field we cannot verify — the terminal classifies
+            // whatever the client actually holds.
+            stream.aborted = true
+            ImeLifecycleTrace.log(
+                this, "livePreview",
+                "abort re-compose reason=window deleted=${provisional.length} " +
+                    "state=${controller.state} window=${readBack?.length} " +
+                    "tail=${readBack?.takeLast(24)}"
+            )
+            return
+        }
+        if (decision.composing.isEmpty()) {
+            // The delete was refused: the field still holds B + P committed,
+            // byte-identical to before the attempt. Today's behaviour
+            // (committed text, no compose) is the fallback — the terminal
+            // keeps classifying it as already-delivered. The empty compose
+            // today's path would send is skipped: it starts no region and
+            // writes nothing.
+            ImeLifecycleTrace.log(
+                this, "livePreview",
+                "abort re-compose reason=delete-refused requested=${provisional.length} " +
+                    "state=${controller.state}"
+            )
+        } else {
+            port.setComposing(decision.composing)
+        }
+        stream.committedPrefix = decision.committedPrefix
+        stream.sent = decision.composing
+        stream.reconciled = true
+        ImeLifecycleTrace.log(
+            this, "livePreview",
+            "reconciled committed=${decision.committedPrefix.length} " +
+                "composed=${decision.composing.length} field=${info.packageName}/${info.fieldId}" +
+                if (decision.composing.isNotEmpty()) " recomposed=true" else ""
         )
     }
 

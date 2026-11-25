@@ -307,10 +307,14 @@ class ImeLivePreviewTest {
     fun `send after the platform committed the stream replaces the raw text with the polished one`() {
         stream("hello world")
         editor.clientCommitsComposition()
-        // The rebind finds everything committed and re-composes nothing.
+        // The rebind finds everything committed and restores the composition
+        // (#207 workstream 3): the underline is back, no duplicate.
         service.onStartInput(field(), false)
         assertThat(controller.livePreview.reconciled).isTrue()
-        assertThat(controller.livePreview.committedPrefix).isEqualTo("hello world")
+        assertThat(controller.livePreview.sent).isEqualTo("hello world")
+        assertThat(controller.livePreview.committedPrefix).isEmpty()
+        assertThat(editor.buffer.toString()).isEqualTo("hello world")
+        assertThat(editor.deletions).containsExactly(11)
         // The incident record had no readable selection either.
         assertThat(controller.livePreview.selectionUnreadable).isTrue()
 
@@ -325,21 +329,27 @@ class ImeLivePreviewTest {
         assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
     }
 
-    /** The raw-mode twin of the incident: an identical delivery keeps the field. */
+    /**
+     * The raw-mode twin of the incident. Since #207 workstream 3 the bind
+     * re-composes the committed stream, so the field holds OUR composition
+     * again at Send: the terminal clears it and inserts Q through today's
+     * path — the field ends with exactly Q, and the #205 clipboard copy of
+     * an identical delivery is not needed any more (the text IS in the field).
+     */
     @Test
     fun `send after the platform committed the stream keeps an identical delivery`() {
         stream("hello world")
         editor.clientCommitsComposition()
         service.onStartInput(field(), false)
 
+        service.applyInsert = true
         service.handleCompletedSuccess("hello world", completed("hello world"))
 
-        assertThat(service.inserted).isEmpty()
+        assertThat(service.inserted).containsExactly("hello world")
         assertThat(editor.buffer.toString()).isEqualTo("hello world")
-        assertThat(editor.deletions).isEmpty()
-        assertThat(clipboardText()).isEqualTo("hello world")
-        assertThat(ShadowToast.getTextOfLatestToast())
-            .isEqualTo(app.getString(R.string.ime_raw_kept))
+        assertThat(editor.deletions).containsExactly(11)
+        assertThat(clipboardText()).isNull()
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
     }
 
     @Test
@@ -459,8 +469,14 @@ class ImeLivePreviewTest {
         assertThat(controller.livePreview.reconciled).isTrue()
     }
 
+    /**
+     * #207 workstream 3: the rebind over a fully committed stream no longer
+     * leaves the provisional un-underlined — the guarded restore deletes the
+     * verified span and re-composes it, WITHOUT duplicating anything (the
+     * field content is byte-identical, only the composing region is back).
+     */
     @Test
-    fun `a rebind after the platform committed everything writes no text`() {
+    fun `a rebind over a fully committed stream restores the composition without duplicating`() {
         controller.livePreview.begin(true)
         controller.livePreview.onFragments("hallo", 0)
         controller.livePreview.streamed = true
@@ -473,7 +489,124 @@ class ImeLivePreviewTest {
         service.onStartInput(field(), false)
 
         assertThat(editor.buffer.toString()).isEqualTo("abchallo")
+        assertThat(controller.livePreview.reconciled).isTrue()
+        assertThat(controller.livePreview.committedPrefix).isEmpty()
+        assertThat(controller.livePreview.sent).isEqualTo("hallo")
+        assertThat(editor.deletions).containsExactly(5)
+        assertThat(editor.commits).isEmpty()
+    }
+
+    /**
+     * #207 workstream 3: the restored region keeps streaming — the next
+     * fragment replaces it through the normal tick path.
+     */
+    @Test
+    fun `a restored composition keeps growing with the next fragment`() {
+        controller.livePreview.begin(true)
+        controller.livePreview.onFragments("hallo", 0)
+        controller.livePreview.streamed = true
+        controller.livePreview.before = "abc"
+        controller.livePreview.sent = "hallo"
+        controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
+        editor.buffer.append("abchallo")
+        editor.select(8, 8)
+        service.onStartInput(field(), false)
+        assertThat(controller.livePreview.sent).isEqualTo("hallo")
+
+        controller.livePreview.onFragments("hallo welt", 0)
+        service.handleEvent(VoiceSessionController.Event.DisplayChanged("hallo welt", 0))
+
+        assertThat(editor.buffer.toString()).isEqualTo("abchallo welt")
+        assertThat(controller.livePreview.aborted).isFalse()
+    }
+
+    /**
+     * #207 workstream 3: the delete is a REQUEST the client may refuse. The
+     * read-back then still shows exactly B + P — today's behaviour
+     * (committed text, no compose) is the fallback, and no write happens.
+     */
+    @Test
+    fun `a rebind whose restore delete is refused keeps the committed text`() {
+        controller.livePreview.begin(true)
+        controller.livePreview.onFragments("hallo", 0)
+        controller.livePreview.streamed = true
+        controller.livePreview.before = "abc"
+        controller.livePreview.sent = "hallo"
+        controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
+        editor.buffer.append("abchallo")
+        editor.select(8, 8)
+        service.editor = object : EditorPort by editor {
+            override fun deleteBefore(length: Int) = Unit
+        }
+
+        service.onStartInput(field(), false)
+
+        assertThat(editor.buffer.toString()).isEqualTo("abchallo")
+        assertThat(controller.livePreview.reconciled).isTrue()
         assertThat(controller.livePreview.committedPrefix).isEqualTo("hallo")
+        assertThat(controller.livePreview.sent).isEmpty()
+        assertThat(editor.composingWrites).isEqualTo(0)
+    }
+
+    /**
+     * #207 workstream 3: the client honoured the delete but the read-back is
+     * unreadable — abort BEFORE the compose write; the field holds B only
+     * and the terminal classifies it at Send.
+     */
+    @Test
+    fun `a rebind restore aborts without composing when the read-back is unreadable`() {
+        controller.livePreview.begin(true)
+        controller.livePreview.onFragments("hallo", 0)
+        controller.livePreview.streamed = true
+        controller.livePreview.before = "abc"
+        controller.livePreview.sent = "hallo"
+        controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
+        editor.buffer.append("abchallo")
+        editor.select(8, 8)
+        service.editor = object : EditorPort by editor {
+            var deleted = false
+            override fun deleteBefore(length: Int) {
+                deleted = true
+                editor.deleteBefore(length)
+            }
+
+            override fun textBefore(length: Int): CharSequence? =
+                if (deleted) null else editor.textBefore(length)
+        }
+
+        service.onStartInput(field(), false)
+
+        assertThat(editor.buffer.toString()).isEqualTo("abc")
+        assertThat(controller.livePreview.aborted).isTrue()
+        assertThat(editor.composingWrites).isEqualTo(0)
+        assertThat(controller.livePreview.reconciled).isFalse()
+    }
+
+    /**
+     * #207 workstream 3: the client deleted LESS than the verified span —
+     * the read-back mismatch aborts BEFORE any write (the spec's hard rule:
+     * a mismatch cannot mangle the field).
+     */
+    @Test
+    fun `a rebind restore aborts when the client deleted less than the span`() {
+        controller.livePreview.begin(true)
+        controller.livePreview.onFragments("hallo", 0)
+        controller.livePreview.streamed = true
+        controller.livePreview.before = "abc"
+        controller.livePreview.sent = "hallo"
+        controller.livePreview.field = RotationGate.FieldId("com.example.chat", 1)
+        editor.buffer.append("abchallo")
+        editor.select(8, 8)
+        service.editor = object : EditorPort by editor {
+            override fun deleteBefore(length: Int) = editor.deleteBefore(length / 2)
+        }
+
+        service.onStartInput(field(), false)
+
+        // "hallo" minus its tail — the client kept "hal" committed.
+        assertThat(editor.buffer.toString()).isEqualTo("abchal")
+        assertThat(controller.livePreview.aborted).isTrue()
+        assertThat(editor.composingWrites).isEqualTo(0)
     }
 
     @Test
