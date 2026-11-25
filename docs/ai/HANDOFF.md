@@ -3,7 +3,7 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T19:55:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T21:30:00Z }
 status: stable
 ---
 
