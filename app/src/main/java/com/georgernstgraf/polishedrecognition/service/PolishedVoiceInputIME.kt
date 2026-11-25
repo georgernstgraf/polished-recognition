@@ -1159,8 +1159,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
         }
         val before = stream.before ?: return
         val port = editorPort() ?: return
+        val probe = port.textBefore(
+            LivePreviewReconcile.windowLengthForBind(before, stream.provisional)
+        )
         val decision = LivePreviewReconcile.decide(
-            window = port.textBefore(LivePreviewReconcile.WINDOW),
+            window = probe,
             before = before,
             committedPrefix = stream.committedPrefix,
             sent = stream.sent,
@@ -1172,7 +1175,8 @@ open class PolishedVoiceInputIME : InputMethodService() {
             ImeLifecycleTrace.log(
                 this, "livePreview",
                 "abort bind reason=window state=${controller.state} " +
-                    "before=${before.length} provisional=${stream.provisional.length}"
+                    "before=${before.length} provisional=${stream.provisional.length} " +
+                    "window=${probe?.length} tail=${probe?.takeLast(24)}"
             )
             return
         }
@@ -1249,8 +1253,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
             logStreamAppend(event, sameField = true)
             return
         }
+        val probe = port.textBefore(
+            LivePreviewReconcile.windowLength(
+                stream.before!!, stream.committedPrefix, stream.sent
+            )
+        )
         val decision = LivePreviewReconcile.decide(
-            window = port.textBefore(LivePreviewReconcile.WINDOW),
+            window = probe,
             before = stream.before!!,
             committedPrefix = stream.committedPrefix,
             sent = stream.sent,
@@ -1261,7 +1270,8 @@ open class PolishedVoiceInputIME : InputMethodService() {
             stream.aborted = true
             ImeLifecycleTrace.log(
                 this, "livePreview",
-                "abort tick reason=window provisional=${event.text.length}"
+                "abort tick reason=window provisional=${event.text.length} " +
+                    "window=${probe?.length} tail=${probe?.takeLast(24)}"
             )
             return
         }
@@ -1330,8 +1340,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
         }
         // Abandon the composition: it must never be committed as text.
         port.setComposing("")
+        val probe = port.textBefore(
+            LivePreviewTerminal.windowLength(stream.before, stream.provisional)
+        )
         val decision = LivePreviewTerminal.classify(
-            window = port.textBefore(LivePreviewReconcile.WINDOW),
+            window = probe,
             before = stream.before,
             provisional = stream.provisional
         )
@@ -1373,6 +1386,9 @@ open class PolishedVoiceInputIME : InputMethodService() {
     /** #205 D6: put the snapshot back text-and-range, or return the warning. */
     private fun restoreSelectionSnapshot(port: EditorPort, before: String?): String? {
         val snapshot = selectionSnapshot ?: return null
+        // The composition is already cleared. The conservative fingerprint
+        // check stays: a wider-than-B window fails more often and falls back
+        // to the clipboard — never restores into a field that changed.
         val window = port.textBefore(LivePreviewReconcile.WINDOW)
         if (before != null && window != null && window.toString() == before) {
             port.setComposing(snapshot.text)

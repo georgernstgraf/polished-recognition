@@ -209,6 +209,25 @@ class ImeLivePreviewTest {
         assertThat(editor.buffer.toString()).isEqualTo("hallo welt")
     }
 
+    /**
+     * Device finding 2026-11-25: the reconciliation probe read a constant 64
+     * chars, so a composition outgrowing it aborted every tick after the
+     * first — the preview froze after fragment one until Send delivered.
+     */
+    @Test
+    fun `a composition outgrowing the old constant window keeps advancing`() {
+        val first = "wort ".repeat(24) // 120 chars
+        stream(first)
+        assertThat(editor.buffer.toString()).isEqualTo(first)
+
+        val second = "$first und weiter"
+        controller.livePreview.onFragments(second, 0)
+        service.handleEvent(VoiceSessionController.Event.DisplayChanged(second, 0))
+
+        assertThat(editor.buffer.toString()).isEqualTo(second)
+        assertThat(controller.livePreview.aborted).isFalse()
+    }
+
     @Test
     fun `the display keeps the text left of the composition intact`() {
         editor.buffer.append("vor ")

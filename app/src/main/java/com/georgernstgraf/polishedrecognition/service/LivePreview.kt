@@ -138,7 +138,7 @@ enum class StreamOutcome {
 }
 
 /**
- * #205 D3: the reconciliation decision against the 64-char window probe.
+ * #205 D3: the reconciliation decision against the before-window probe.
  *
  * Events give the timing, the probe gives the truth. [atBind] is the
  * reconciliation after a rebind: AOSP's `onFinishInput()` commits the
@@ -149,10 +149,21 @@ enum class StreamOutcome {
  * On a live connection (display tick) our composition is still ours: the
  * window shows `B + K + sent`, and re-sending `P − K` *replaces* the
  * composing region — that is the one re-composition the owner allows.
+ *
+ * **The probe must cover what it verifies** (device finding, 2026-11-25): the
+ * window was read with a constant 64 chars, and a composition outgrows that
+ * on the second fragment — the window then showed only the *tail* of our own
+ * text and every tick aborted. The window the IME reads is now sized by
+ * [windowLength]/[windowLengthForBind], and [decide] tolerates extra context
+ * left of B (a longer request can only pull pre-B text into the window).
  */
 object LivePreviewReconcile {
 
-    /** The window the probe reads (`getTextBeforeCursor`) — owner's ≤64 chars. */
+    /**
+     * The B fingerprint length (`getTextBeforeCursor` at the first append) —
+     * NOT the length of a reconciliation probe; size that one with
+     * [windowLength]/[windowLengthForBind].
+     */
     const val WINDOW = 64
 
     enum class Action {
@@ -172,7 +183,22 @@ object LivePreviewReconcile {
     private val ABORT = Decision(Action.ABORT)
 
     /**
-     * @param window      `getTextBeforeCursor(WINDOW)` — null when unreadable.
+     * The probe length the live tick needs: B + K + the composition the tick
+     * replaces — the window must show ALL of our text or the verification is
+     * impossible.
+     */
+    fun windowLength(before: String, committedPrefix: String, sent: String): Int =
+        before.length + committedPrefix.length + sent.length
+
+    /**
+     * The probe length a bind reconciliation needs: B plus the whole
+     * provisional (the committed prefix K is unknown before the probe).
+     */
+    fun windowLengthForBind(before: String, provisional: String): Int =
+        before.length + provisional.length
+
+    /**
+     * @param window      `getTextBeforeCursor(<sized>)` — null when unreadable.
      * @param before      B, the fingerprint captured at the first append.
      * @param committedPrefix K, the verified committed prefix so far.
      * @param sent        the composing text last written (without K).
@@ -190,21 +216,17 @@ object LivePreviewReconcile {
         // I4: never re-compose unverified; a null probe can never verify.
         if (window == null) return ABORT
         if (provisional.isEmpty()) return ABORT
-        if (!window.startsWith(before)) return ABORT
-        val after = window.substring(before.length).toString()
-        // Whatever the client shows of OUR text must be a beginning of P —
-        // anything else is an edit we cannot reason about.
-        if (!provisional.startsWith(after)) return ABORT
+        val tail = oursInWindow(window.toString(), before, provisional) ?: return ABORT
 
         if (atBind) {
-            // The platform finished our input: `after` IS the committed
+            // The platform finished our input: `tail` IS the committed
             // prefix now (empty when the client dropped our text, the whole
             // provisional when it committed it, something between when the
-            // app committed a prefix). Continue by composing only P − K.
-            return Decision(Action.COMPOSE, provisional.removePrefix(after), after)
+            // app committed a prefix). Continue by composing only P − tail.
+            return Decision(Action.COMPOSE, provisional.removePrefix(tail), tail)
         }
 
-        return when (after) {
+        return when (tail) {
             // our composition survived (hide/show, no rebind) — replace it
             committedPrefix + sent -> Decision(
                 Action.COMPOSE,
@@ -221,6 +243,26 @@ object LivePreviewReconcile {
             else -> ABORT
         }
     }
+
+    /**
+     * The part of P the field holds immediately left of the cursor: the
+     * window must contain B with ONLY a prefix of P after it. Context left of
+     * B is tolerated (the probe asks for more than the composition is long,
+     * and the first candidate boundary may sit inside look-alike text); the
+     * first B occurrence that verifies wins. Null when no boundary verifies.
+     */
+    private fun oursInWindow(window: String, before: String, provisional: String): String? {
+        if (before.isEmpty()) {
+            return window.takeIf { provisional.startsWith(it) }
+        }
+        var idx = window.indexOf(before)
+        while (idx >= 0) {
+            val tail = window.substring(idx + before.length)
+            if (provisional.startsWith(tail)) return tail
+            idx = window.indexOf(before, idx + 1)
+        }
+        return null
+    }
 }
 
 /**
@@ -233,7 +275,7 @@ object LivePreviewTerminal {
     data class Decision(val outcome: StreamOutcome, val append: String = "")
 
     /**
-     * @param window      `getTextBeforeCursor(WINDOW)` after the composition was cleared.
+     * @param window      `getTextBeforeCursor(<sized>)` after the composition was cleared.
      * @param before      B, or null when it was never captured (I3).
      * @param provisional P, markers included.
      */
@@ -244,28 +286,49 @@ object LivePreviewTerminal {
         // A field we cannot read is not a field we may write into (I3).
         if (window == null) return Decision(StreamOutcome.MISMATCH)
         val w = window.toString()
-        if (w == before) return Decision(StreamOutcome.CLEARED)
-        if (provisional.isNotEmpty() && w == before + provisional) {
-            return Decision(StreamOutcome.COMMITTED_BY_APP)
+        // The boundary the cursor sits behind: B with only a prefix of P
+        // after it (context left of B is tolerated — the probe asks for more
+        // than a long provisional needs, #205 device finding).
+        val tail = oursBehindCursor(w, before, provisional)
+            ?: return Decision(StreamOutcome.MISMATCH)
+        return when {
+            // nothing of ours after B — insert Q through today's path
+            tail.isEmpty() -> Decision(StreamOutcome.CLEARED)
+            // the field already holds the whole provisional text
+            tail.length == provisional.length -> Decision(StreamOutcome.COMMITTED_BY_APP)
+            else -> {
+                // A verified prefix K of P sits behind B — append only the
+                // missing, marker-free suffix (I2: never delete).
+                val suffix = stripMarkers(provisional.substring(tail.length))
+                if (suffix.isNotBlank()) Decision(StreamOutcome.SUFFIX_APPENDED, suffix)
+                else Decision(StreamOutcome.MISMATCH)
+            }
         }
-        // The prefix case: the cursor sits directly behind a proper prefix K
-        // of P (the window ends where the cursor is). Append-only — the only
-        // write the terminal does without a clear field, and never a delete.
-        val longest = longestPrefixSuffix(provisional, w)
-        if (longest in 1 until provisional.length) {
-            val suffix = stripMarkers(provisional.substring(longest))
-            if (suffix.isNotBlank()) return Decision(StreamOutcome.SUFFIX_APPENDED, suffix)
-        }
-        return Decision(StreamOutcome.MISMATCH)
     }
 
-    /** The longest prefix of [text] that is a suffix of [window], or 0. */
-    private fun longestPrefixSuffix(text: String, window: String): Int {
-        val max = minOf(text.length, window.length)
-        for (len in max downTo 1) {
-            if (window.regionMatches(window.length - len, text, 0, len)) return len
+    /**
+     * The probe length the terminal classification needs: B plus the whole
+     * provisional — the composition may have been committed in full.
+     */
+    fun windowLength(before: String?, provisional: String): Int =
+        (before?.length ?: 0) + provisional.length
+
+    /** The longest P-prefix the window holds directly behind B, or null. */
+    private fun oursBehindCursor(
+        window: String,
+        before: String,
+        provisional: String
+    ): String? {
+        if (before.isEmpty()) {
+            return window.takeIf { provisional.startsWith(it) }
         }
-        return 0
+        var idx = window.indexOf(before)
+        while (idx >= 0) {
+            val tail = window.substring(idx + before.length)
+            if (provisional.startsWith(tail)) return tail
+            idx = window.indexOf(before, idx + 1)
+        }
+        return null
     }
 
     /**

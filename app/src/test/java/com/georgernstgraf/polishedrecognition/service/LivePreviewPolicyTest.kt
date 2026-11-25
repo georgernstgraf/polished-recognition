@@ -136,6 +136,67 @@ class LivePreviewPolicyTest {
         assertThat(d.action).isEqualTo(LivePreviewReconcile.Action.ABORT)
     }
 
+    // ------------------------------------------- probe sizing (device finding)
+
+    /**
+     * Device finding 2026-11-25: the window was read with a constant 64
+     * chars, so a composition outgrowing it showed only its own TAIL and
+     * every second tick aborted — the first fragment displayed, then the
+     * preview froze until Send. The sized probe covers the whole
+     * composition; the decision must replace it in full.
+     */
+    @Test
+    fun `a composition longer than the old constant window still reconciles`() {
+        val first = "wort ".repeat(24) // 120 chars — outgrew the old 64
+        val second = "$first und weiter"
+        val d = reconcile(
+            window = first,
+            before = "",
+            committedPrefix = "",
+            sent = first,
+            provisional = second
+        )
+
+        assertThat(d.action).isEqualTo(LivePreviewReconcile.Action.COMPOSE)
+        assertThat(d.composing).isEqualTo(second)
+    }
+
+    @Test
+    fun `a longer request may pull context left of B into the window - the tick tolerates it`() {
+        val d = reconcile(
+            window = "alter text abchallo",
+            before = "abc",
+            committedPrefix = "",
+            sent = "hallo",
+            provisional = "hallo welt"
+        )
+
+        assertThat(d.action).isEqualTo(LivePreviewReconcile.Action.COMPOSE)
+        assertThat(d.composing).isEqualTo("hallo welt")
+    }
+
+    @Test
+    fun `a longer request may pull context left of B into the window - the bind tolerates it`() {
+        val d = reconcile(
+            window = "alter text abchal",
+            before = "abc",
+            provisional = "hallo welt",
+            atBind = true
+        )
+
+        assertThat(d.action).isEqualTo(LivePreviewReconcile.Action.COMPOSE)
+        assertThat(d.composing).isEqualTo("lo welt")
+        assertThat(d.committedPrefix).isEqualTo("hal")
+    }
+
+    @Test
+    fun `the probe lengths cover B plus everything of ours`() {
+        assertThat(LivePreviewReconcile.windowLength("abc", "hal", "lo")).isEqualTo(8)
+        assertThat(LivePreviewReconcile.windowLengthForBind("abc", "hallo")).isEqualTo(8)
+        assertThat(LivePreviewTerminal.windowLength("abc", "hallo")).isEqualTo(8)
+        assertThat(LivePreviewTerminal.windowLength(null, "hallo")).isEqualTo(5)
+    }
+
     // ----------------------------------------------------------- terminal D4
 
     @Test
@@ -208,6 +269,31 @@ class LivePreviewPolicyTest {
         val d = LivePreviewTerminal.classify(window = null, before = "abc", provisional = "hallo")
 
         assertThat(d.outcome).isEqualTo(StreamOutcome.MISMATCH)
+    }
+
+    @Test
+    fun `a long committed provisional is classified even with context left of B`() {
+        val long = "wort ".repeat(24)
+        val d = LivePreviewTerminal.classify(
+            window = "alterkram abc$long",
+            before = "abc",
+            provisional = long
+        )
+
+        assertThat(d.outcome).isEqualTo(StreamOutcome.COMMITTED_BY_APP)
+        assertThat(d.append).isEmpty()
+    }
+
+    @Test
+    fun `a cleared field with context left of B is still cleared`() {
+        val d = LivePreviewTerminal.classify(
+            window = "alterkram abc",
+            before = "abc",
+            provisional = "wort ".repeat(24)
+        )
+
+        assertThat(d.outcome).isEqualTo(StreamOutcome.CLEARED)
+        assertThat(d.append).isEmpty()
     }
 
     // ------------------------------------------------------------- markers I7
