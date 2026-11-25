@@ -70,6 +70,8 @@ class SettingsActivity : Activity() {
     private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
     private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
+    /** #205: the live-preview kill switch (read at session start). */
+    private val livePreviewCheckbox: CheckBox by lazy { findViewById(R.id.ime_live_preview) }
     /** #142: the 0→50-years log slider (0 = no retention, complete off). */
     private val evidenceRetentionSlider: SeekBar by lazy { findViewById(R.id.evidence_retention_slider) }
     private val evidenceRetentionLabel: TextView by lazy { findViewById(R.id.evidence_retention_label) }
@@ -417,6 +419,7 @@ class SettingsActivity : Activity() {
         }
 
         compressAudioCheckbox.isChecked = settings.compressAudio
+        livePreviewCheckbox.isChecked = settings.imeLivePreview
         // #142: the retention slider — the label tracks the position
         evidenceRetentionSlider.max = EvidenceRetention.MAX_POSITION
         val retentionPosition = EvidenceRetention.positionFor(settings.evidenceRetentionSeconds)
@@ -1141,6 +1144,7 @@ class SettingsActivity : Activity() {
         )
 
         settings.compressAudio = compressAudioCheckbox.isChecked
+        settings.imeLivePreview = livePreviewCheckbox.isChecked
         // #142: the retention horizon (0 = no retention)
         settings.evidenceRetentionSeconds = EvidenceRetention.secondsFor(evidenceRetentionSlider.progress)
         val wrapWidth = parseWrapWidth()

@@ -117,6 +117,21 @@ class SettingsStoreTest {
         assertThat(store.rawMode).isTrue()
     }
 
+    // ---- #205: the live-preview kill switch ----------------------------------
+
+    @Test
+    fun `imeLivePreview defaults to on`() {
+        clearPrefs()
+        assertThat(freshStore().imeLivePreview).isTrue()
+    }
+
+    @Test
+    fun `imeLivePreview saves and loads off`() {
+        store.imeLivePreview = false
+        assertThat(store.imeLivePreview).isFalse()
+        assertThat(settingsPrefs().getBoolean("ime_live_preview", true)).isFalse()
+    }
+
     // ---- #142: audio-evidence retention (0→50-years slider) -------------------
 
     @Test

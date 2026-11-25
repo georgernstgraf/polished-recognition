@@ -183,6 +183,10 @@ class PolishedRecognitionService : RecognitionService() {
                 // the service session's cancels are system-driven and have
                 // no salvage surface. Nothing to do here.
                 is VoiceSessionController.Event.CancelledWithTranscripts -> Unit
+                // #205: the live preview is an IME-only surface; a
+                // keyboard-less SpeechRecognizer caller has no editor field
+                // of its own to grow the text in.
+                is VoiceSessionController.Event.DisplayChanged -> Unit
                 is VoiceSessionController.Event.Completed -> {
                     awaitingResult = false
                     controller.removeSecondaryListener(secondaryListener)

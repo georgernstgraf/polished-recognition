@@ -122,6 +122,16 @@ class SettingsStore(
         set(value) = prefs.edit { putBoolean(COMPRESS_AUDIO_KEY, value) }
 
     /**
+     * #205 D1: the LIVE PREVIEW kill switch — the dictation grows in the target
+     * field through the composing region while it is transcribed. Read once at
+     * session start; OFF means zero composing writes and a terminal step that
+     * is byte-identical to the world before the feature. Default ON.
+     */
+    var imeLivePreview: Boolean
+        get() = prefs.getBoolean(IME_LIVE_PREVIEW_KEY, true)
+        set(value) = prefs.edit { putBoolean(IME_LIVE_PREVIEW_KEY, value) }
+
+    /**
      * #166 D2: how many Workbench dictations the FIFO keeps (1..10, default 3).
      * Settable in the Advanced settings section (#172); read by
      * [com.georgernstgraf.polishedrecognition.dictation.DictationStore] on
@@ -640,6 +650,7 @@ class SettingsStore(
         private const val STT_MODEL_LISTS_KEY = "stt_model_lists"
         private const val LLM_MODEL_LISTS_KEY = "llm_model_lists"
         private const val RAW_MODE_KEY = "raw_mode"
+        private const val IME_LIVE_PREVIEW_KEY = "ime_live_preview"
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val WORKBENCH_FIFO_SIZE_KEY = "workbench_fifo_size"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"

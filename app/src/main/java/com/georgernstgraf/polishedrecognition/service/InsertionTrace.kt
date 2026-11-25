@@ -4,8 +4,13 @@ package com.georgernstgraf.polishedrecognition.service
  * #118 Phase A: pure classification of a result delivery for the `insertion`
  * breadcrumb stream. Extracted so the reason mapping is unit tested without an
  * Android surface.
+ *
+ * #205: [STREAM] marks the live preview's per-fragment append records — the
+ * `insertion.json` stream now carries BOTH the display appends and the single
+ * terminal insertion, so a device log can prove the composition grew and what
+ * the terminal did with it.
  */
-enum class InsertionReason { LIVE, REDELIVERED, RAW_RESCUE_PARTIAL }
+enum class InsertionReason { LIVE, REDELIVERED, RAW_RESCUE_PARTIAL, STREAM }
 
 object InsertionTrace {
 

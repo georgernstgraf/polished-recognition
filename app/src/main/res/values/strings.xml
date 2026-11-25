@@ -15,6 +15,8 @@
     <string name="fetch_models">Fetch Models</string>
     <string name="test_token">Test Token</string>
     <string name="compress_audio">Slow connection: upload OGG/Opus</string>
+    <string name="live_preview">Live preview in the text field</string>
+    <string name="live_preview_hint">While you dictate, the transcript grows in the field you are typing into. It is display only — Send still inserts the finished text exactly once. Off: nothing is written until Send.</string>
     <string name="advanced_section">Advanced / seldom needed</string>
     <string name="slice_auto">Fragment cut: auto</string>
     <string name="slice_seconds">Fragment cut (slice) in seconds</string>
@@ -119,6 +121,15 @@
     <!-- #186: a raw-mode rescue is not a completion — say where the rest waits. -->
     <string name="ime_rescue_saved">The recording is saved in the Workbench — Retry STT there.</string>
     <string name="ime_mic_blocked">Microphone unavailable — tap the mic to start again</string>
+    <!-- #205: the live preview's terminal toasts. The first says the field
+         already holds the whole raw text; the second says the raw text was
+         completed and the polished version waits in the clipboard; the third
+         must NOT claim the raw text is complete (it is not). -->
+    <string name="ime_raw_kept">The raw text is already in the field — the polished version is in the clipboard</string>
+    <string name="ime_polished_copied">Dictation completed raw — the polished version is in the clipboard</string>
+    <string name="ime_stream_incomplete">The field could not be completed — the polished text is in the clipboard</string>
+    <string name="ime_selection_restore_failed">The text selection could not be restored — it is in the clipboard</string>
+    <string name="live_preview_clip">Polished dictation</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>
     <string name="crash_title">Fatal Error</string>

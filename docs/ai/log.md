@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-25 (#205 — die Live-Vorschau im Textfeld)
+
+* **Update**: [STATE.md](STATE.md) — Statuszeile (1083 Tests) + Abschnitt `#205 — die Live-Vorschau im Textfeld`: app-weiter Zustand, Editor-Naht, Reconciliation beim Bind, Terminal-Kaskade, nicht-liefernde Pfade, Selection-Snapshot inkl. B-Kürzung, Marker, Diagnose, Kill-Switch, Testbilanz, inkl. der Regel „nur die IME-eigene Session streamt“.
+* **Update**: [DECISIONS.md](DECISIONS.md) — neuer Eintrag `#205 — die Live-Vorschau ist implementiert (eine Abweichung von der Entscheidungstabelle)`: `B + P` beim Bind = committetes K = P (statt Resend), B-Kürzung um die Selektion, Tick-Abbruch vs. Terminal-Klassifikation. Der Entscheidungs-Eintrag vom selben Tag bleibt als D1–D6 stehen.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — zwei Komponenten-Zeilen (`LivePreview`/`LivePreviewReconcile`/`LivePreviewTerminal`, `EditorPort`/`InputConnectionEditorPort`), `ImeLifecycleTrace` um die `livePreview`-Zeilen ergänzt, neuer Datenfluss-Abschnitt `Live preview in the field (#205)`.
+* **Update**: [PITFALLS.md](PITFALLS.md) — drei Einträge: `setComposingText` ersetzt die Region (Duplikat bei Resend nach Client-Commit), B muss um die Selektion gekürzt werden, ein Display-Callback darf nie zur Fragment-Failure werden.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #205 als implementiert/green vermerkt, neuer Owner-Gerätematrix-Punkt 11, `#190` aus den offenen Punkten entfernt.
+* **No change**: [index.md](index.md), [DOMAIN.md](DOMAIN.md), [CONVENTIONS.md](CONVENTIONS.md), [HISTORY.md](HISTORY.md) — keine neuen/entfernten Konzeptdateien, kein neuer Domänenbegriff außerhalb des STATE-Abschnitts, keine superseded Einträge (der #205-Entwurf wurde ersetzt, nicht widerrufen).
+
 ## 2026-11-24 (#200 — der Settings-Getter schreibt nicht mehr beim Lesen)
 * **Update**: [STATE.md](STATE.md) — Statuszeile (Tests, #200 zu) + Abschnitt `#200 — ein Settings-Getter darf nicht schreiben: der Flake hatte einen Thread`: falsche QueuedWork-Hypothese, die Messung (TempDirectory pro Testmethode, leerer Shadow, echte `SharedPreferencesImpl`), der Startup-Thread als Schreiber, der reine Lese-Getter, die zwei Regressionstests, die Doku-Korrekturen.
 * **Update**: [PITFALLS.md](PITFALLS.md) — der #200-Eintrag ersetzt die falsche `apply()`-Hypothese; der „known flake"-Eintrag aus #178 ist als aufgelöst markiert; die #142-Lehre „Prefs leaken zwischen Testmethoden" ist korrigiert (kein Platten-Leak, sondern ein gleichzeitiger Schreiber); der #150-Eintrag verweist nicht mehr auf materialisierende Getter.

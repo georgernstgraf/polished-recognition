@@ -82,8 +82,7 @@ class VoiceSessionControllerSecondaryTest {
     }
 
     @Test
-    fun `startShared delivers events to secondary without disturbing primary`() {
-        val controller = newController()
+    fun `startShared delivers events to secondary without disturbing primary`() {        val controller = newController()
         val primary = mutableListOf<VoiceSessionController.Event>()
         val secondary = mutableListOf<VoiceSessionController.Event>()
         controller.attach { primary.add(it) }
@@ -176,6 +175,36 @@ class VoiceSessionControllerSecondaryTest {
         controller.startShared { secondary.add(it) }
 
         assertThat(secondary).isEmpty()
+        controller.cancel()
+    }
+
+    // ---- #205: only the IME's own session may display into a field ---------
+
+    @Test
+    fun `a shared session never starts the live preview`() {
+        val controller = newController()
+        try {
+            controller.startShared { }
+        } catch (_: Throwable) {
+        }
+
+        // A keyboard-less caller (Duolingo, Corvus) has no field of its own —
+        // streaming its transcript into whatever field the IME is bound to
+        // would be wrong by construction.
+        assertThat(controller.livePreview.active).isFalse()
+        controller.cancel()
+    }
+
+    @Test
+    fun `the IME's own session starts the live preview`() {
+        val controller = newController()
+        try {
+            controller.start { }
+        } catch (_: Throwable) {
+        }
+
+        assertThat(controller.livePreview.active).isTrue()
+        assertThat(controller.livePreview.enabled).isTrue()
         controller.cancel()
     }
 }

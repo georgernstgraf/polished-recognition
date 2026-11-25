@@ -188,6 +188,25 @@ class VoiceSessionController(
             val result: Result<String>,
             val redelivered: Boolean = false,
             val partial: PartialInfo? = null,
+            /**
+             * #205: the provisional text was displayed in the field — the IME's
+             * terminal step classified the field (`streamOutcome`) instead of
+             * blind-inserting.
+             */
+            val streamed: Boolean = false,
+            /** #205: the terminal classification (`CLEARED`, `COMMITTED_BY_APP`, …). */
+            val streamOutcome: String? = null,
+        ) : Event()
+
+        /**
+         * #205: a finished fragment advanced the preview. Display only — the
+         * DELIVERED text never contains a `<pending>` marker. Emitted on Main
+         * like [StageChanged]; not replayed, which is why the streaming state
+         * itself is app-wide ([livePreview]).
+         */
+        data class DisplayChanged(
+            val text: String,
+            val pendingMarkers: Int
         ) : Event()
 
         /**
@@ -265,6 +284,14 @@ class VoiceSessionController(
         private set
 
     /**
+     * #205: the app-wide LIVE PREVIEW state (owner D3). It must survive the IME
+     * instance — after a rotation the new instance classifies the field from
+     * here instead of blind-inserting into text the client already committed.
+     * Read synchronously by the IME; reset by [begin] for every new session.
+     */
+    val livePreview = com.georgernstgraf.polishedrecognition.service.LivePreview()
+
+    /**
      * #185: the session the controller currently owns (recording, parked or
      * processing). The recovery UI must hide it — the IME can still retry it,
      * and a recovery re-run of the same journal would race that retry.
@@ -329,7 +356,7 @@ class VoiceSessionController(
     fun start(onEvent: (Event) -> Unit) {
         if (state == State.RECORDING || state == State.PROCESSING) return
         callback = onEvent
-        beginRecording()
+        beginRecording(shared = false)
     }
 
     /**
@@ -341,16 +368,22 @@ class VoiceSessionController(
     fun startShared(secondary: (Event) -> Unit) {
         if (state == State.RECORDING || state == State.PROCESSING) return
         addSecondaryListener(secondary)
-        beginRecording()
+        beginRecording(shared = true)
     }
 
-    private fun beginRecording() {
+    private fun beginRecording(shared: Boolean) {
         accumulatedMs = 0L
         segStartMs = System.currentTimeMillis()
         // #168: a new session starts with the global rule; the target package
         // is resolved at stop time, when the field the user dictated into is
         // known for certain.
         sessionForcedRaw = false
+        // #205: the kill switch is read ONCE per session (owner D1); OFF keeps
+        // the whole path byte-identical to the world before this feature.
+        // #205: a keyboard-less caller (RecognitionService, #82) has no field
+        // of its own — only the IME's own session may display into the
+        // focused field, so a shared session never streams.
+        livePreview.begin(!shared && settings.imeLivePreview)
         state = State.RECORDING
         // Fragment preparation starts BEFORE the capture so a recorder
         // failure can never leave the session without its preparer (#115).
@@ -440,7 +473,14 @@ class VoiceSessionController(
         // #182: the journal's own session key — the same #132 id the fragment
         // dir uses, so a post-mortem can correlate journal, cache and bundle.
         journal = journal,
-        sessionId = sessionId
+        sessionId = sessionId,
+        // #205: one display tick per finished fragment. The state is updated
+        // BEFORE the event goes out, so a fresh IME instance can read it even
+        // if the event is dropped while nobody is bound.
+        onDisplayChanged = { text, markers ->
+            livePreview.onFragments(text, markers)
+            emit(Event.DisplayChanged(text, markers))
+        }
     )
 
     /**
@@ -1407,7 +1447,7 @@ class VoiceSessionController(
     private fun deliver(result: Result<String>) {
         // Consume-once: the rescue detail belongs to this delivery only.
         val partial = rescuePartial.also { rescuePartial = null }
-        val completed = Event.Completed(result, partial = partial)
+        val completed = Event.Completed(result, partial = partial, streamed = livePreview.streamed)
         if (callback != null || secondaryListeners.isNotEmpty()) {
             emit(completed)
         } else {

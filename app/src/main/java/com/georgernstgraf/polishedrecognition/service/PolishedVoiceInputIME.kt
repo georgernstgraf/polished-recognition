@@ -16,6 +16,7 @@ import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.Build
+import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
@@ -23,6 +24,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
@@ -102,6 +104,24 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * learn the dictation target on successful insertion.
      */
     private var editorPackage: String? = null
+    /**
+     * #205 D6: the selection snapshot taken at session start (text + range).
+     * Written back on every non-delivering outcome — but only while the
+     * before-window still matches (an edited field never gets a blind
+     * restore). Connection-bound by design: the app-wide
+     * [VoiceSessionController.livePreview] carries the field fingerprint, this
+     * carries the selection of the instance that saw it.
+     */
+    private var selectionSnapshot: EditorPort.Selection? = null
+    private var selectionCaptured = false
+    /**
+     * #205: the field the last bind named. The terminal and the display ticks
+     * read [currentFieldId], which prefers `currentInputEditorInfo` but falls
+     * back here — a Robolectric service never goes through `doStartInput`, and
+     * on a real device the EditorInfo can be gone while the connection still
+     * points at the field.
+     */
+    private var boundField: RotationGate.FieldId? = null
     /**
      * #168 (epic #166 D7): the caller is our own app, so the LLM is forced off
      * for the whole binding and the bar toggle renders disabled. Recomputed on
@@ -329,7 +349,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
             // keyboard is the X's job (#155), discarding the trash's.
             when (controller.state) {
                 VoiceSessionController.State.RECORDING,
-                VoiceSessionController.State.PAUSED -> controller.flush()
+                VoiceSessionController.State.PAUSED -> {
+                    // #205 I1: Flush discards the audio, so its preview must
+                    // leave the field — clear the composition and restore the
+                    // selection snapshot before the controller forgets it.
+                    abandonLivePreview(restoreSelection = true)?.let { showToast(it) }
+                    controller.flush()
+                }
                 else -> Unit
             }
         }
@@ -513,6 +539,22 @@ open class PolishedVoiceInputIME : InputMethodService() {
         ImeLifecycleTrace.log(this, "onConfigurationChanged")
     }
 
+    /**
+     * #205 D3: the reconciliation anchor. `onStartInput` guarantees a valid
+     * connection (unlike `onFinishInput`, which is not called on a nav-bar
+     * close or `restartInput`), so it is where the field is probed after a
+     * rebind. The app-wide [VoiceSessionController.livePreview] state says what
+     * we last displayed; the probe says what the client really holds — and the
+     * platform has normally committed our composition by now (`onFinishInput`
+     * → `finishComposingText`), so re-sending it would be the forbidden
+     * duplicate.
+     */
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+        attribute?.let { boundField = RotationGate.FieldId(it.packageName, it.fieldId) }
+        reconcileLivePreviewAtBind(attribute)
+    }
+
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         // Rotation (#83 v3): same field, views rebuilt — freeze the session
@@ -526,6 +568,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // auto-resume until the mark has had time to arrive.
         val app = application as PolishedRecognitionApp
         editorPackage = info.packageName
+        boundField = RotationGate.FieldId(info.packageName, info.fieldId)
         val now = SystemClock.uptimeMillis()
         val currentField = RotationGate.FieldId(info.packageName, info.fieldId)
         val previousField = app.imeLastField
@@ -573,6 +616,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
             applyParkingEvent(PostSendParkingPolicy.Event.FIELD_CHANGED)
         }
         if (outcome == ImeStartDecision.Outcome.CANCEL) {
+            // #205 D3: a field change during RECORDING is a non-delivering
+            // terminal path. The connection already points at the NEW field,
+            // so the old composition is unreachable — a K left in the old
+            // field is the accepted COMMITTED_BY_APP family, and nothing may
+            // be written into the new one.
+            endLivePreviewWithoutWriting()
             controller.cancel()
         }
         refreshQuickSettings(info.packageName)
@@ -887,6 +936,8 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 "drawn=$windowDrawn"
         )
         if (!blocked) return
+        // #205 I1: the take is aborted — clear its preview before the cancel.
+        abandonLivePreview(restoreSelection = true)?.let { showToast(it) }
         controller.cancel()
         Toast.makeText(this, getString(R.string.ime_mic_blocked), Toast.LENGTH_LONG).show()
     }
@@ -900,10 +951,19 @@ open class PolishedVoiceInputIME : InputMethodService() {
                     VoiceSessionController.State.RECORDING -> startMicForeground()
                     VoiceSessionController.State.PROCESSING ->
                         updateNotification(getString(R.string.processing_notification))
-                    VoiceSessionController.State.IDLE -> stopMicForeground()
+                    VoiceSessionController.State.IDLE -> {
+                        // #205 I1: every path that ends the take without a
+                        // delivery (a cancel, an external teardown) clears the
+                        // composition on the connection that streamed it. The
+                        // terminal step already ended the preview state, so a
+                        // delivered session is a no-op here.
+                        abandonLivePreview(restoreSelection = true)?.let { showToast(it) }
+                        stopMicForeground()
+                    }
                     else -> Unit
                 }
             }
+            is VoiceSessionController.Event.DisplayChanged -> handleDisplayChanged(event)
             is VoiceSessionController.Event.StageChanged -> {
                 stageText?.text = when (val stage = event.stage) {
                     is TranscriptionPipeline.TranscriptionStage.CompressingAudio ->
@@ -922,6 +982,10 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 }
             }
             is VoiceSessionController.Event.CancelledWithTranscripts -> {
+                // #205 I1: the take is discarded — its preview must not stay in
+                // the field. Clear the composition and restore the selection
+                // snapshot (where one exists) BEFORE the salvage Toast.
+                abandonLivePreview(restoreSelection = true)?.let { showToast(it) }
                 // #113 salvage: the cancel destroyed a session whose fragments
                 // were already transcribed — copy the joined text to the
                 // clipboard so the dictation is recoverable. Never inject
@@ -951,7 +1015,14 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 if (text != null) {
                     handleCompletedSuccess(text, event)
                 } else {
-                    Toast.makeText(this, failureText(result.exceptionOrNull()), Toast.LENGTH_LONG).show()
+                    // #205 I1: a failed/still-parked session inserts nothing,
+                    // so the provisional text must leave the field — clear the
+                    // composition and restore the selection snapshot first.
+                    // A failed restore is SAID in the same Toast as the failure.
+                    val warning = abandonLivePreview(restoreSelection = true)
+                    val message = listOfNotNull(failureText(result.exceptionOrNull()), warning)
+                        .joinToString("\n")
+                    showToast(message)
                 }
                 applyUiState()
             }
@@ -996,16 +1067,48 @@ open class PolishedVoiceInputIME : InputMethodService() {
         text: String,
         event: VoiceSessionController.Event.Completed
     ) {
-        logInsertion(text, event)
+        // #205 D4: classify the field (and abandon the composition) BEFORE
+        // anything reaches it. The outcome decides which today-path runs.
+        val outcome = finishLivePreview()
+        logInsertion(text, event, outcome)
         val partial = event.partial
-        if (partial == null) {
-            insertResultText(text)
-        } else {
-            // #186: a raw-mode rescue is not a clean success — a fragment is
-            // missing. Insert what was recovered (an EMPTY rescue inserts
-            // nothing at all), and always say why plus where the rest is.
-            if (text.isNotBlank()) insertResultText(text)
-            Toast.makeText(this, rescueText(partial), Toast.LENGTH_LONG).show()
+        val messages = mutableListOf<String>()
+        when (outcome) {
+            StreamOutcome.DISABLED,
+            StreamOutcome.UNREADABLE,
+            StreamOutcome.CLEARED -> {
+                // Today's single terminal insertion — the field is either
+                // verifiably cleared (B only) or was never written by us.
+                if (partial == null || text.isNotBlank()) insertResultText(text)
+            }
+            StreamOutcome.COMMITTED_BY_APP -> {
+                // The field already holds the whole provisional text; a blind
+                // insert would be the forbidden duplicate (I5).
+                copyToClipboard(text)
+                messages += getString(R.string.ime_raw_kept)
+            }
+            StreamOutcome.SUFFIX_APPENDED -> {
+                // The raw suffix was appended through the verified prefix case;
+                // the polished text can only go to the clipboard (never a
+                // guessed polished suffix — the LLM output is not aligned).
+                copyToClipboard(text)
+                messages += getString(R.string.ime_polished_copied)
+            }
+            StreamOutcome.MISMATCH -> {
+                // Never delete, never insert into a field we cannot classify.
+                // A dedicated wording: the field is INCOMPLETE, so
+                // `ime_raw_kept` would be a lie (owner's rule).
+                copyToClipboard(text)
+                messages += getString(R.string.ime_stream_incomplete)
+            }
+        }
+        // #186: a raw-mode rescue is not a clean success — a fragment is
+        // missing. Insert what was recovered (an EMPTY rescue inserts nothing
+        // at all), always say why plus where the rest is. ONE Toast: the
+        // preview's message and the rescue's share it.
+        if (partial != null) messages += rescueText(partial)
+        if (messages.isNotEmpty()) {
+            Toast.makeText(this, messages.joinToString("\n"), Toast.LENGTH_LONG).show()
         }
         // Re-learn on successful insertion (#100): the session already
         // recorded the target at start (#102 amendment); this captures
@@ -1017,6 +1120,289 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // so it cannot start a new take behind the parked bar.
         cancelPendingAutoStart()
         applyParkingEvent(PostSendParkingPolicy.Event.COMPLETED_SUCCESS)
+    }
+
+    /**
+     * #205: the editor seam. Every composing write, probe and the terminal
+     * suffix go through it; the `insertResultText` override seam above still
+     * serves the four existing Robolectric classes. Overridable so the preview
+     * tests can drive a recording port instead of an `InputConnection` shadow.
+     */
+    internal open fun editorPort(): EditorPort? = EditorPort.of(currentInputConnection)
+
+    /**
+     * #205 D3: reconciliation after a rebind — the events give the timing, this
+     * probe gives the truth. Three window cases: `B` only ⇒ resend the whole
+     * provisional (nothing was committed), `B + K` ⇒ compose only the delta,
+     * anything else ⇒ the display is abandoned and the terminal classifies.
+     *
+     * Verified re-composition is allowed exactly here (owner, 2026-11-25);
+     * an unverified reconstruction stays forbidden (I4).
+     */
+    private fun reconcileLivePreviewAtBind(attribute: EditorInfo?) {
+        val stream = controller.livePreview
+        if (!stream.active || !stream.enabled || stream.aborted || !stream.streamed) return
+        val info = attribute ?: return
+        val field = RotationGate.FieldId(info.packageName, info.fieldId)
+        val bound = stream.field
+        if (bound == null) {
+            stream.field = field
+        } else if (!RotationGate.isSameField(bound, field)) {
+            // Another field bound: the composition in the old field is
+            // unreachable and must not be touched (D3).
+            stream.aborted = true
+            ImeLifecycleTrace.log(
+                this, "livePreview",
+                "abort bind reason=field-changed state=${controller.state}"
+            )
+            return
+        }
+        val before = stream.before ?: return
+        val port = editorPort() ?: return
+        val decision = LivePreviewReconcile.decide(
+            window = port.textBefore(LivePreviewReconcile.WINDOW),
+            before = before,
+            committedPrefix = stream.committedPrefix,
+            sent = stream.sent,
+            provisional = stream.provisional,
+            atBind = true
+        )
+        if (decision.action != LivePreviewReconcile.Action.COMPOSE) {
+            stream.aborted = true
+            ImeLifecycleTrace.log(
+                this, "livePreview",
+                "abort bind reason=window state=${controller.state} " +
+                    "before=${before.length} provisional=${stream.provisional.length}"
+            )
+            return
+        }
+        if (decision.composing.isNotEmpty() || stream.sent.isNotEmpty()) {
+            port.setComposing(decision.composing)
+        }
+        stream.committedPrefix = decision.committedPrefix
+        stream.sent = decision.composing
+        stream.reconciled = true
+        ImeLifecycleTrace.log(
+            this, "livePreview",
+            "reconciled committed=${decision.committedPrefix.length} " +
+                "composed=${decision.composing.length} field=${info.packageName}/${info.fieldId}"
+        )
+    }
+
+    /**
+     * #205 D2: one display tick per finished fragment — resend the whole
+     * provisional (minus a verified committed prefix) through the composing
+     * region. A failed probe stops only the DISPLAY; the terminal still
+     * classifies the field.
+     */
+    private fun handleDisplayChanged(event: VoiceSessionController.Event.DisplayChanged) {
+        val stream = controller.livePreview
+        if (!stream.active || !stream.enabled || stream.aborted) return
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            recTickHandler.post { handleDisplayChanged(event) }
+            return
+        }
+        val field = currentFieldId()
+        if (field == null) {
+            stream.aborted = true
+            return
+        }
+        val bound = stream.field
+        if (bound == null) {
+            stream.field = field
+        } else if (!RotationGate.isSameField(bound, field)) {
+            stream.aborted = true
+            ImeLifecycleTrace.log(this, "livePreview", "abort tick reason=field-changed")
+            return
+        }
+        val port = editorPort() ?: run {
+            stream.aborted = true
+            return
+        }
+        if (stream.before == null) {
+            // I3: never write into a field we cannot read. The very first
+            // peek is the gate; a null answer ends the preview for good.
+            val peek = port.textBefore(LivePreviewReconcile.WINDOW) ?: run {
+                stream.aborted = true
+                ImeLifecycleTrace.log(this, "livePreview", "abort tick reason=unreadable")
+                return
+            }
+            // #205 D6: the selection snapshot and B are captured together —
+            // B is what sits LEFT OF THE COMPOSITION, i.e. without the
+            // selected text the first composing write is about to replace.
+            val window = peek.toString()
+            captureSelectionSnapshot(port)
+            val selected = selectionSnapshot?.text
+            stream.before =
+                if (selected != null && selected.isNotEmpty() && window.endsWith(selected.toString())) {
+                    window.dropLast(minOf(selected.length, window.length))
+                } else {
+                    window
+                }
+            // Nothing of ours is in the field yet — the first append needs no
+            // reconciliation (and the window still contains the selection the
+            // write is about to replace, so it could not be reconciled anyway).
+            port.setComposing(event.text)
+            stream.streamed = true
+            stream.sent = event.text
+            stream.committedPrefix = ""
+            logStreamAppend(event, sameField = true)
+            return
+        }
+        val decision = LivePreviewReconcile.decide(
+            window = port.textBefore(LivePreviewReconcile.WINDOW),
+            before = stream.before!!,
+            committedPrefix = stream.committedPrefix,
+            sent = stream.sent,
+            provisional = event.text,
+            atBind = false
+        )
+        if (decision.action != LivePreviewReconcile.Action.COMPOSE) {
+            stream.aborted = true
+            ImeLifecycleTrace.log(
+                this, "livePreview",
+                "abort tick reason=window provisional=${event.text.length}"
+            )
+            return
+        }
+        val write = decision.composing.isNotEmpty() || stream.sent.isNotEmpty()
+        if (write) {
+            port.setComposing(decision.composing)
+            stream.streamed = true
+            logStreamAppend(event, sameField = true)
+        }
+        stream.committedPrefix = decision.committedPrefix
+        stream.sent = decision.composing
+    }
+
+    /**
+     * #205 D6: the selection snapshot at session start. A field that exposes
+     * no selection is normal (a plain cursor) — the preview streams anyway,
+     * recorded as `selectionUnreadable`.
+     */
+    private fun captureSelectionSnapshot(port: EditorPort) {
+        if (selectionCaptured) return
+        selectionCaptured = true
+        selectionSnapshot = port.selection()
+        if (selectionSnapshot == null) controller.livePreview.selectionUnreadable = true
+    }
+
+    /**
+     * #205 D4: the terminal step — abandon the composition, classify the field
+     * (writing the one verified raw suffix the classification asks for), end
+     * the streaming state, and return the outcome for the delivery branch.
+     */
+    private fun finishLivePreview(): StreamOutcome {
+        val stream = controller.livePreview
+        if (!stream.active) return StreamOutcome.DISABLED
+        val outcome: StreamOutcome
+        if (!stream.enabled) {
+            outcome = StreamOutcome.DISABLED
+        } else if (!stream.streamed) {
+            // Enabled, but nothing ever reached the field (no fragment, or the
+            // first probe failed) — today's path applies unchanged.
+            outcome = StreamOutcome.UNREADABLE
+        } else {
+            outcome = terminalClassify(stream)
+        }
+        ImeLifecycleTrace.log(
+            this, "livePreview",
+            "terminal outcome=$outcome streamed=${stream.streamed} " +
+                "aborted=${stream.aborted} reconciled=${stream.reconciled} " +
+                "markers=${stream.pendingMarkers}"
+        )
+        stream.recordOutcome(outcome)
+        stream.end()
+        selectionSnapshot = null
+        selectionCaptured = false
+        return outcome
+    }
+
+    private fun terminalClassify(stream: LivePreview): StreamOutcome {
+        val field = currentFieldId()
+        val sameField = field != null && stream.field != null &&
+            RotationGate.isSameField(stream.field, field)
+        val port = if (sameField) editorPort() else null
+        if (port == null) {
+            // The field that streamed is gone (or unreadable). Never insert
+            // into a foreign field; the caller sends Q to the clipboard.
+            return StreamOutcome.MISMATCH
+        }
+        // Abandon the composition: it must never be committed as text.
+        port.setComposing("")
+        val decision = LivePreviewTerminal.classify(
+            window = port.textBefore(LivePreviewReconcile.WINDOW),
+            before = stream.before,
+            provisional = stream.provisional
+        )
+        if (decision.outcome == StreamOutcome.SUFFIX_APPENDED) {
+            // Append-only (I2): the raw delta the client does not hold yet.
+            port.commit(decision.append)
+        }
+        return decision.outcome
+    }
+
+    /**
+     * #205 I1: a non-delivering outcome clears the composition on the
+     * connection that streamed it — and restores the selection snapshot where
+     * one exists (only while the before-window still matches; otherwise the
+     * snapshot goes to the clipboard and a Toast explains it).
+     */
+    private fun abandonLivePreview(restoreSelection: Boolean): String? {
+        val stream = controller.livePreview
+        if (!stream.active) return null
+        val streamed = stream.streamed
+        val before = stream.before
+        val field = currentFieldId()
+        val sameField = field != null && stream.field != null &&
+            RotationGate.isSameField(stream.field, field)
+        var warning: String? = null
+        if (streamed && sameField) {
+            val port = editorPort()
+            if (port != null) {
+                port.setComposing("")
+                if (restoreSelection) warning = restoreSelectionSnapshot(port, before)
+            }
+        }
+        stream.end()
+        selectionSnapshot = null
+        selectionCaptured = false
+        return warning
+    }
+
+    /** #205 D6: put the snapshot back text-and-range, or return the warning. */
+    private fun restoreSelectionSnapshot(port: EditorPort, before: String?): String? {
+        val snapshot = selectionSnapshot ?: return null
+        val window = port.textBefore(LivePreviewReconcile.WINDOW)
+        if (before != null && window != null && window.toString() == before) {
+            port.setComposing(snapshot.text)
+            port.finishComposing()
+            port.setSelection(snapshot.start, snapshot.end)
+            return null
+        }
+        copyToClipboard(snapshot.text.toString())
+        return getString(R.string.ime_selection_restore_failed)
+    }
+
+    /** #205 D3: the field changed — forget the preview without writing into the new one. */
+    private fun endLivePreviewWithoutWriting() {
+        controller.livePreview.end()
+        selectionSnapshot = null
+        selectionCaptured = false
+    }
+
+    private fun copyToClipboard(text: String) {
+        if (text.isBlank()) return
+        runCatching {
+            getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                ClipData.newPlainText(getString(R.string.live_preview_clip), text)
+            )
+        }
+    }
+
+    private fun showToast(text: String) {
+        if (text.isBlank()) return
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     }
 
     /**
@@ -1106,7 +1492,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * `InputConnection` was available. Correlate by timestamp with
      * `ime-lifecycle.log`. Best-effort: logging must never break insertion.
      */
-    private fun logInsertion(text: String, event: VoiceSessionController.Event.Completed) {
+    private fun logInsertion(
+        text: String,
+        event: VoiceSessionController.Event.Completed,
+        outcome: StreamOutcome
+    ) {
         try {
             val app = application as PolishedRecognitionApp
             val origin = app.imeSessionField
@@ -1115,6 +1505,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 redelivered = event.redelivered,
                 partial = event.partial != null
             ).name
+            val stream = controller.livePreview
             app.jsonLogger.log(
                 "insertion",
                 com.google.gson.Gson().toJson(
@@ -1131,7 +1522,42 @@ open class PolishedVoiceInputIME : InputMethodService() {
                         "currentField" to current?.fieldId,
                         "sameField" to (origin != null && current != null &&
                             RotationGate.isSameField(origin, current)),
-                        "hasConnection" to (currentInputConnection != null)
+                        "hasConnection" to (currentInputConnection != null),
+                        // #205: what the preview did with this field.
+                        "streamed" to event.streamed,
+                        "streamOutcome" to outcome.name,
+                        "streamAborted" to stream.aborted,
+                        "reconciled" to stream.reconciled,
+                        "selectionUnreadable" to stream.selectionUnreadable
+                    )
+                )
+            )
+        } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * #205: one `insertion.json` record per display APPEND — the composition
+     * grew in the field. `reason=STREAM` separates these from the terminal
+     * delivery record, so a device log proves the preview advanced and how
+     * many marker gaps the displayed text carries.
+     */
+    private fun logStreamAppend(event: VoiceSessionController.Event.DisplayChanged, sameField: Boolean) {
+        try {
+            val app = application as PolishedRecognitionApp
+            val current = currentFieldId()
+            app.jsonLogger.log(
+                "insertion",
+                com.google.gson.Gson().toJson(
+                    mapOf(
+                        "surface" to "ime",
+                        "reason" to InsertionReason.STREAM.name,
+                        "length" to event.text.length,
+                        "sameField" to sameField,
+                        "pendingMarkers" to event.pendingMarkers,
+                        "state" to controller.state.name,
+                        "currentPkg" to current?.packageName,
+                        "currentField" to current?.fieldId
                     )
                 )
             )
@@ -1142,6 +1568,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
     /** The focused field identity, or null when the editor info is absent (#118). */
     private fun currentFieldId(): RotationGate.FieldId? =
         currentInputEditorInfo?.let { RotationGate.FieldId(it.packageName, it.fieldId) }
+            ?: boundField
 
     /**
      * #118 Phase C: a recreated input view must paint once, whatever the last

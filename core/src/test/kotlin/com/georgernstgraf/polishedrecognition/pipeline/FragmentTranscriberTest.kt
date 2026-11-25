@@ -1141,4 +1141,71 @@ class FragmentTranscriberTest {
 
         assertThat(seen).containsExactly(journalSession to 0, journalSession to 1).inOrder()
     }
+
+    // ---- #205: the display join (marker join, display only) ----------------
+
+    @Test
+    fun `the display join keeps fragment order without markers when nothing failed`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } answers {
+            val index = firstArg<File>().name.substringAfter("frag_").takeWhile { it.isDigit() }.toInt()
+            Result.success(SttResponse(text = "f$index"))
+        }
+
+        transcriber.start()
+        transcriber.offer(fragment(0))
+        transcriber.offer(fragment(1))
+        transcriber.drain()
+
+        assertThat(transcriber.displayText()).isEqualTo("f0 f1")
+        assertThat(transcriber.pendingMarkerCount()).isEqualTo(0)
+    }
+
+    @Test
+    fun `one marker per contiguous failed gap - never per failed fragment`() = runBlocking {
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                ok("eins"),
+                Result.failure(SttRequestRunner.SttRequestException("HTTP 500", httpCode = 500)),
+                Result.failure(SttRequestRunner.SttRequestException("HTTP 500", httpCode = 500)),
+                ok("vier")
+            )
+
+        transcriber.start()
+        (0..3).forEach { transcriber.offer(fragment(it)) }
+        val drained = transcriber.drain()
+
+        assertThat(transcriber.displayText())
+            .isEqualTo("eins ${FragmentTranscriber.PENDING_MARKER} vier")
+        assertThat(transcriber.pendingMarkerCount()).isEqualTo(1)
+        // I7: the DELIVERED text never carries a marker.
+        assertThat(drained.text).isEqualTo("eins vier")
+        assertThat(drained.text).doesNotContain(FragmentTranscriber.PENDING_MARKER)
+    }
+
+    @Test
+    fun `the display callback fires once per finished fragment`() = runBlocking {
+        val ticks = mutableListOf<Pair<String, Int>>()
+        val t = FragmentTranscriber(
+            sttRunner = sttRunner,
+            configProvider = { config },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+            onDisplayChanged = { text, markers -> ticks += text to markers }
+        )
+        coEvery { sttRunner.run(any(), any(), any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                ok("eins"),
+                Result.failure(SttRequestRunner.SttRequestException("HTTP 500", httpCode = 500)),
+                ok("drei")
+            )
+
+        t.start()
+        (0..2).forEach { t.offer(fragment(it)) }
+        t.drain()
+
+        assertThat(ticks).containsExactly(
+            "eins" to 0,
+            "eins ${FragmentTranscriber.PENDING_MARKER}" to 1,
+            "eins ${FragmentTranscriber.PENDING_MARKER} drei" to 1
+        ).inOrder()
+    }
 }

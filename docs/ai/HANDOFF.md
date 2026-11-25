@@ -3,14 +3,29 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
 status: stable
 ---
 
 # Hand Off
 
-**#205 (2026-11-25, decided, supersedes #190): live preview in the target field — ready to implement.**
-The interim display runs through the composing region; the terminal step stays frozen. **Display tick = one step per finished fragment, no extra requests** (20 s gregor/ogg, 137 s GROQ). Rotation and nav-bar close are one case: reconciliation at bind (`onBindInput`/`onStartInput`) against the window probe — `B + P` or `B` ⇒ re-compose, `B + K` ⇒ delta only; **verified** re-composition is allowed (invariant 4 relaxed). The streaming state lives **app-wide** (otherwise a rotation blind-inserts into the K field — the forbidden duplicate). Terminal cascade for the committed prefix: **E → B → A**; never delete. New seam: **`EditorPort`** (no fake `InputConnection` exists). Order: EditorPort → marker join + controller state → reconciliation → terminal cascade → tests. After #156 and the owner device checks. Full wording: #205.
+**#205 (2026-11-25, implemented, tests green — OPEN until the owner's device matrix passes): live preview in the target field.**
+Implemented in one wave: `service/LivePreview.kt` (the app-wide state next to the controller + the
+pure `LivePreviewReconcile`/`LivePreviewTerminal` policies + `StreamOutcome`), `service/EditorPort.kt`
+(the new editor seam with the `InputConnection` adapter — no fake connection existed before),
+`FragmentTranscriber.displayText()/pendingMarkerCount()` + the per-fragment `onDisplayChanged`
+callback, `SettingsStore.imeLivePreview` (key `ime_live_preview`, default ON) + the Settings
+checkbox, `InsertionTrace.InsertionReason.STREAM`, `Event.DisplayChanged` and
+`Event.Completed.streamed/streamOutcome`, and the IME's reconciliation (`onStartInput`), display
+tick, terminal cascade (E → B → A) and the clear/restore on every non-delivering path. **The one
+deviation from D3's table:** a bind that finds `B + P` treats the provisional as the COMMITTED
+prefix K = P and composes nothing — the platform commits on every field end (`onFinishInput`), and
+re-sending it would be the forbidden duplicate (I5); the "composition survived" tick case is handled
+on the live connection instead (D4's E row only needs K = ∅ or K = P). **Left for the owner (device
+matrix, part of the issue):** Markor, Telegram and one webview field; rotation mid-stream; nav-bar
+close mid-stream; Flush mid-stream; X mid-stream; kill switch OFF; a take resumed after hide/show;
+correlate `insertion.json` (the new `reason=STREAM` appends + `streamOutcome` on the terminal
+record) with `ime-lifecycle.log` (`livePreview ...` lines).
 
 **#189 (2026-11-24, shipped): the Workbench sections collapse again.** Both label rows are
 `<summary>`-style toggles (chevron · label · copy) with a one-line, ellipsised preview while the
@@ -246,5 +261,22 @@ a device**, so neither #186 nor #152 may be closed yet.
    both sites (under Raw and under Polished); the trash can sits next to it in
    the bottom bar too. (e) Leaving and re-entering the Workbench starts with
    both sections open (the state is per visit, not persisted).
+11. [ ] **#205 device check (owner): the live preview matrix.** With the kill
+   switch ON (default): dictate a multi-fragment take (a slice is ~21 s at the
+   auto default) into **Markor**, **Telegram** and **one webview field** — the
+   raw text must grow in the field while you speak, the `<pending>` marker must
+   appear for a failed fragment, and Send must leave exactly the polished text
+   (no duplicate, no leftover). Then: **rotation mid-stream** (the raw text
+   stays, Send completes it or copies Q with `ime_raw_kept`), **nav-bar close
+   mid-stream** (the composition survives; the same field continues), **Flush
+   mid-stream** (the preview disappears, the selection comes back), **X
+   mid-stream** (keyboard switch — the field keeps the raw text, the terminal
+   classifies on return), **kill switch OFF** (zero composing writes, one
+   `commitText` at the end), and a take **resumed after hide/show**. Evidence:
+   `insertion.json` now carries `reason=STREAM` per display append and
+   `streamOutcome`/`streamed`/`streamAborted`/`reconciled` on the terminal
+   record; `ime-lifecycle.log` carries `livePreview ...` lines. A blind insert
+   into a field that already holds the raw text is a test failure, not a
+   follow-up.
 
 ## Not scheduled (owner-gated, no issue yet)

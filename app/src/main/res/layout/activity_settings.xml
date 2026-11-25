@@ -479,6 +479,23 @@
             android:text="@string/compress_audio"
             android:layout_marginBottom="8dp" />
 
+        <!-- #205: the live preview kill switch (owner D1, default ON) -->
+        <CheckBox
+            android:id="@+id/ime_live_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/live_preview"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/live_preview_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
 
 
         <EditText

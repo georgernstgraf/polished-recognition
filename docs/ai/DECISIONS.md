@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Active architectural and technical decisions still in force.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-20T17:10:00Z }
 status: stable
 ---
@@ -12,6 +12,35 @@ status: stable
 
 Architectural and technical decisions made in this project.
 Each entry documents WHAT was decided and WHY.
+
+## 2026-11-25: #205 — die Live-Vorschau ist implementiert (eine Abweichung von der Entscheidungstabelle)
+
+Die Owner-Entscheidungen D1–D6 stehen unverändert; umgesetzt sind sie in
+`service/LivePreview.kt` (app-weiter Zustand + die reinen Policy-Objekte),
+`service/EditorPort.kt` (die Editor-Naht) und der IME. Eine Stelle der
+D3-Tabelle war **nicht eindeutig** und wurde zugunsten der Invariante 5
+(„nie ein Duplikat") aufgelöst:
+
+- **Entscheidung: beim Bind bedeutet `B + P` „committetes Präfix K = P", nicht
+  „Composition hat überlebt".** `setComposingText` **ersetzt** die
+  Composing-Region; sind `B + P` im Feld und P bereits committet, würde ein
+  erneutes Senden von P das Feld verdoppeln. Die Plattform committet bei jedem
+  Feldende (`onFinishInput` → `finishComposingText`), also ist K = P der
+  Normalfall eines Rebinds (D3 sagt das selbst). Die Tabellenzeile
+  „`B + P` ⇒ resend" gilt für den **Tick auf der lebenden Verbindung**, wo
+  `B + K + sent` das Ersetzen der Region erlaubt; beim Bind wird sie nie
+  ausgeführt. Folge: Ein Diktat, das eine Rotation überlebt, endet raw
+  vollständig (`SUFFIX_APPENDED` bzw. `COMMITTED_BY_APP`) mit Q in der
+  Zwischenablage — genau der Owner-Satz „roh oder poliert, egal; vollständig
+  ist die Anforderung".
+- **Entscheidung: B beim ersten Append um die Selektion kürzen.** Der erste
+  Compose-Schreibvorgang ersetzt die Selektion; ohne die Kürzung enthielte B
+  den markierten Text und der Restore-Guard (`Fenster == B`) könnte nach dem
+  Löschen der Composition nie passen.
+- **Entscheidung: ein Tick mit unlesbarem Fenster bricht nur die ANZEIGE ab**
+  (`streamAborted`); die Lieferung entscheidet der Terminal-Schritt. Ein
+  unlesbares Feld am Terminal ist `MISMATCH` (nichts einfügen, Q ins
+  Clipboard), ein nie geschriebenes Feld `UNREADABLE` (heutiger Pfad).
 
 ## 2026-11-25: #205 — die Live-Vorschau ist entschieden (ersetzt #190)
 

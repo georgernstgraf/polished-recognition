@@ -141,7 +141,16 @@ class FragmentTranscriber(
      */
     private val journal: FragmentJournal? = null,
     /** #182: the journal's session key. `null` disables journaling. */
-    private val sessionId: String? = null
+    private val sessionId: String? = null,
+    /**
+     * #205: the DISPLAY notification — fires once per finished fragment (a
+     * stored transcript or a finally-failed fragment) with the marker join of
+     * everything transcribed so far. It is display only: the delivered text
+     * ([snapshot]) never contains a [PENDING_MARKER]. Called on the worker's
+     * dispatcher (main in production) so a listener may write to the editor
+     * synchronously. `null` in tests that do not care.
+     */
+    private val onDisplayChanged: ((text: String, pendingMarkers: Int) -> Unit)? = null
 ) {
 
     data class CommittedFragment(
@@ -217,6 +226,13 @@ class FragmentTranscriber(
          * class (`OFFLINE`) is what the ring and the auto path act on.
          */
         const val OFFLINE_BLOCKED_MESSAGE = "No usable network — saved for later"
+
+        /**
+         * #205: the DISPLAY placeholder for a contiguous gap of finally-failed
+         * fragments — one marker per gap, never part of a delivered text.
+         * The literal spelling is the owner's vocabulary (`<pending>`).
+         */
+        const val PENDING_MARKER = "<pending>"
 
         private const val TAG = "FragmentTranscriber"
     }
@@ -396,6 +412,7 @@ class FragmentTranscriber(
         if (transcripts.containsKey(fragment.index) || failures.containsKey(fragment.index)) return
         val config = configProvider() ?: run {
             failures[fragment.index] = SttRequestRunner.SttRequestException("STT provider not configured")
+            notifyDisplay()
             return
         }
         // Prompt carry-over (#117): the previous fragment's transcript tail
@@ -594,6 +611,9 @@ class FragmentTranscriber(
                 }
             }
         )
+        // #205: one display tick per finished fragment — the transcript is
+        // stored (or the failure recorded), so the preview can advance.
+        notifyDisplay()
     }
 
     /**
@@ -837,5 +857,55 @@ class FragmentTranscriber(
             failedIndex = lowestFailure?.key,
             failure = lowestFailure?.value
         )
+    }
+
+    /**
+     * #205: the marker join for the live preview — the stored transcripts in
+     * fragment order, with ONE [PENDING_MARKER] per contiguous gap of
+     * finally-failed fragments (a fragment still queued has no marker: the
+     * worker is serial, so nothing after it can be there yet). Display only —
+     * [snapshot] is the marker-free delivery join.
+     */
+    fun displayText(): String = displayJoin().first
+
+    /** #205: how many contiguous failed-fragment gaps [displayText] marks. */
+    fun pendingMarkerCount(): Int = displayJoin().second
+
+    private fun displayJoin(): Pair<String, Int> {
+        val max = (transcripts.keys + failures.keys).maxOrNull() ?: return "" to 0
+        val sb = StringBuilder()
+        var markers = 0
+        var inGap = false
+        for (i in 0..max) {
+            val text = transcripts[i]?.text
+            if (!text.isNullOrBlank()) {
+                if (sb.isNotEmpty()) sb.append(' ')
+                sb.append(text)
+                inGap = false
+            } else if (failures.containsKey(i)) {
+                // One marker per CONTIGUOUS gap, not per failed fragment.
+                if (!inGap) {
+                    if (sb.isNotEmpty()) sb.append(' ')
+                    sb.append(PENDING_MARKER)
+                    markers++
+                    inGap = true
+                }
+            }
+        }
+        return sb.toString() to markers
+    }
+
+    private fun notifyDisplay() {
+        val cb = onDisplayChanged ?: return
+        val (text, markers) = displayJoin()
+        if (text.isEmpty()) return
+        try {
+            cb(text, markers)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // A display listener must never turn into a fragment failure.
+            CoreLog.w(TAG, "display notification failed: ${e.message}")
+        }
     }
 }
