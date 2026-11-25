@@ -3,11 +3,17 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:55:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#210 (2026-11-25, implemented — OPEN until the owner's device checks): rotation keeps the edited dictation; landscape never goes fullscreen.**
+Two OnePlus findings from the same flow, fixed in `246a22b`, 771 `:app` tests forced green + lint 0, release installed on the OnePlus:
+1. **Resume/rebind after rotation instantiated a NEW dictation** — `WorkbenchActivity` lost its page state on recreation (no `configChanges`, instance fields without `onSaveInstanceState`) and fell back to the compose slot, so the IME's resumed take got `pendingTarget = NEW` and appended. Fix: instance-state save/restore (index, ids, session, compose drafts) with an id-based `pendingReloadSelection` for the first reload, plus an attach self-heal in `onResume` (controller already RECORDING ⇒ `onRecordingStarted()` after `reload()`) for the event race.
+2. **Landscape showed the platform fullscreen extract editor** (the "white field + Done button" in dark mode) — the inherited `onEvaluateFullscreenMode` default is true in landscape; now overridden to unconditional `false` in `PolishedVoiceInputIME` (the voice bar is an overlay in every orientation), pinned by `ImeFullscreenModeTest`.
+Owner checks on the device: (a) dictate into a stored edit → rotate → the same page stays, the dictation lands in the edit, no new ring entry; (b) landscape → the voice bar shows, no extract field, no Done button, no white field.
 
 **#209 (2026-11-25, shipped — OPEN until the owner's glance): the collapse chevrons are readable now.**
 Both summary-row chevrons (`▾`/`▸` glyphs, #189) rendered at 14sp secondary — the owner read them as „visually way too small". `4bd3f19` bumps `workbench_raw_chevron`/`workbench_polished_chevron` to **22sp** (label/preview/copy untouched) and `WorkbenchLayoutPolicyTest` pins `>= 22sp` so it cannot regress. 766 `:app` tests green, lint 0, release installed on the OnePlus. Owner: judge the size on the device — too small again is a follow-up with a proper drawable, not a bigger font.

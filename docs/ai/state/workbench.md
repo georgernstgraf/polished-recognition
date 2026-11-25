@@ -3,13 +3,44 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:55:00Z }
 status: stable
 ---
 
 # Project State — Workbench
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #210 — Rotation erhält die gezeigte Seite; kein neues Diktat (2026-11-25, implementiert — offen bis Owner-Gerätecheck)
+
+- **Was:** Owner-Befund: Diktieren in einen Workbench-Edit, dann rotieren —
+  der Resume/Rebind erzeugte ein NEUES Diktat statt den Edit fortzusetzen.
+- **Ursache:** Die Workbench-Activity verliert ihren Seitenzustand bei
+  Rotation (kein `configChanges` im Manifest ⇒ Recreation). `index`,
+  `currentId`, `currentSession`, `composeRaw`, `composePolished` waren
+  Instanzfelder ohne `onSaveInstanceState`; frisch erstellt fiel
+  `currentSelection()` auf den leeren Ring ⇒ Compose-Slot ⇒ der
+  auto-resumte Take bekam `pendingTarget = NEW` ⇒ `store.append`.
+- **Fix (`246a22b`):** (1) `onSaveInstanceState` + `restore()` im `onCreate`
+  — Index, Ids, Session und die Compose-Drafts; die erste `reload` folgt
+  einer `pendingReloadSelection` (Id-basiert, der übliche Selection-Regel —
+  ein Default-`currentSelection()` liest den noch leeren Ring). (2) Self-Heal
+  in `onResume`: ist der Controller beim Attach schon RECORDING (das IME hat
+  resumed, BEVOR die neue Instanz ihren Secondary-Listener hängte — das
+  `StateChanged`-Event ist weg), läuft `onRecordingStarted()` explizit —
+  **nach** `reload()`, weil es den gefüllten Ring liest.
+- **Tests:** +2 `WorkbenchActivityTest` (`a rotation restores the shown
+  stored page` via `saveInstanceState`+`create(bundle)`; `a take already
+  recording at attach targets the restored page` — Controller vor dem
+  Rebuild auf RECORDING, Store muss beim `onTranscriptArrived` RAW_EDIT
+  treffen, nie appenden). Suite **771 grün** (forced), lint 0, Release auf
+  dem OnePlus installiert. Kein Versions-Bump.
+- **Owner-Check (Teil 1 von #210):** in einen gespeicherten Edit diktieren →
+  rotieren → dieselbe Seite bleibt unter dem Benutzer (`n / m` unverändert),
+  das Diktat landet im Edit, kein neuer Ring-Eintrag.
+- Der Cold-Start-Fallback (Prozess-Tod, kein Bundle ⇒ Compose-Slot) bleibt
+  bewusst bestehen und ist vom Test `a rotated screen starts on a fresh
+  compose slot …` gepinnt.
 
 ## #209 — Collapse-Chevrons auf 22sp (2026-11-25, shipped — offen bis der Owner abnickt)
 

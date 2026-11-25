@@ -3,13 +3,32 @@ type: State
 title: Project State — IME and the Target Field
 description: The keyboard surface, its output control, the palette and the live preview.
 tags: [knowledge, state, ime-field]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T17:44:43Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:55:00Z }
 status: stable
 ---
 
 # Project State — IME and the Target Field
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #210 — Landscape geht nie fullscreen (2026-11-25, implementiert — offen bis Owner-Gerätecheck)
+
+- **Was:** Owner-Befunde im Landscape: (1) „only the edit field with a stupid
+  Done button", (2) das Raw-Feld wirkt **weiß** im Dark-Theme. Beides dieselbe
+  Ursache: `InputMethodService`'s Default-`onEvaluateFullscreenMode` liefert
+  in Landscape true ⇒ die Plattform legt ihren fullscreen Extract-Editor über
+  die App (Done-Button; OxygenOS rendert das Extract-Feld auch in Dark hell).
+- **Fix (`246a22b`):** `PolishedVoiceInputIME.onEvaluateFullscreenMode()`
+  überschrieben, **unconditional false** — die Voice-Bar bleibt in jeder
+  Orientierung eine Leiste über dem Zielfeld (D10). Nie per Konfiguration
+  gemacht: das IME ist eine Leiste, kein Tastatur-Layout.
+- **Tests:** neuer `ImeFullscreenModeTest` pinnt false für beide Orientierungen
+  (ein späterer „fullscreen wäre in Landscape nett"-Gedanke muss zuerst mit
+  diesem Test argumentieren).
+- **Owner-Check (Teil 2 von #210):** Landscape diktieren → die Voice-Bar
+  erscheint, kein Extract-Feld, kein Done-Button, kein weißes Feld.
+- **Einordnung:** kein neuer Defect — dieses Plattform-Default war seit
+  Entstehung des IME (#43) aktiv, wurde nur nie im Landscape benutzt.
 
 ## #205 — die Live-Vorschau im Textfeld (2026-11-25, implementiert, Gerätematrix offen)
 

@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-25 (#210 — Rotation erhält die Seite; Landscape nie fullscreen)
+
+* **Update**: [state/workbench.md](state/workbench.md) — neuer #210-Abschnitt: Ursache (Instanzfelder ohne `onSaveInstanceState`, Compose-Fallback, `pendingTarget = NEW`), Fix (Restore + `pendingReloadSelection` + Attach-Self-Heal nach `reload()`), Tests, Owner-Check.
+* **Update**: [state/ime-field.md](state/ime-field.md) — neuer #210-Abschnitt: das Landscape-Fullscreen-Default des `InputMethodService` (Extract-Editor = „weißes Feld + Done"), Override auf false, kein neuer Defect.
+* **Update**: [pitfalls/ime-field.md](pitfalls/ime-field.md) — permanenter Constraint-Eintrag: ererbte `onEvaluate*`-Defaults sind Verdächtige, wenn Verhalten nur in einer Orientierung wechselt.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #210-Block oben, offen bis Owner-Gerätechecks.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #210 implementiert/offen, #209/#207 folgen.
+* **No change**: [decisions/](decisions/) (keine Design-Entscheidung — Verhalten nach bestehender Regel; die `onEvaluateFullscreenMode=false`-Konstante ist im state/pitfalls-Abschnitt vollständig erklärt), [index.md](index.md), [HISTORY.md](HISTORY.md), [PITFALLS.md](PITFALLS.md).
+
 ## 2026-11-25 (#209 — Collapse-Chevrons auf 22sp)
 
 * **Update**: [state/workbench.md](state/workbench.md) — neuer #209-Abschnitt (14sp-Glyphen lasen sich als Deko; 22sp + Policy-Pin).
