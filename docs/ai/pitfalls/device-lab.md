@@ -3,13 +3,15 @@ type: Pitfalls
 title: Pitfalls — Devices and the Lab
 description: Oplus/OnePlus and Samsung behaviour, adb and shell tricks, emulators and the on-device capture pipeline.
 tags: [knowledge, pitfalls, device-lab]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T19:55:00Z }
 status: stable
 ---
 
 # Pitfalls — Devices and the Lab
 
 Moved out of `PITFALLS.md` in #206; entries are verbatim. New pitfalls in this area are appended here.
+
+- **Rotating log-ring files are NOT the current session's call list (2026-11-25, #207).** The `/sdcard/.../logs` streams (`stt-upload_*`, `llm-response_*`, `insertion_*`, …) each keep their own rotation depth (6–100 slots), which spans DAYS — the file count of a stream says nothing about how many calls one session made. Evidence: 33 `llm-response` files existed, but take `20261125-1911-7299db48` made exactly ONE LLM call (`created: 1795630605` = 19:16:45, whole transcript in the prompt); the other 32 reached back over previous days — the initial reading "polish runs per fragment" was wrong (the polish IS one session-level full-context pass, per the owner decision in decisions/audio-pipeline.md). Rule: count a session's calls from the records' `created`/`ts` fields (or correlate with `ime-lifecycle.log` epochs), never from the ring's file count. Second trap in the same run: `adb pull` does NOT preserve device mtimes — local file times are the PULL time; read the device-side `ls -lt` (or `shell date`) BEFORE pulling to anchor the chronology.
 
 - **Reproducing IME/layout bugs headless: the emulator AVDs are the cheap evidence (2026-11-13, #157).** `Medium_Phone_API_35` + `Medium_Phone_API_31` exist with the release APK of the working tree. Fast path: `emulator -avd … -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -port 5554`; `settings put secure navigation_mode 0` is silently ineffective on Play images — use `cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.threebutton` and verify the nav bar frame (`dumpsys window displays`, 126 px = 48 dp = 3-button, 63 px = gesture handle). **API 31 throws a "System UI isn't responding" ANR right after that overlay switch** — tap "Wait" (or press BACK), it recovers. Then `ime enable`/`ime set`, `pm grant … RECORD_AUDIO`, tap an `EditText` from a `uiautomator dump`'s bounds, `exec-out screencap -p`. Silence the `prepare_*.json`/retention noise by remembering the IME auto-starts a recording when it appears. Watch out: `ime enable` right after `adb install` fails with "Unknown input method" — wait a second and retry.
 

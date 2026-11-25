@@ -3,11 +3,37 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T17:44:43Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T19:55:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#207 (2026-11-25, NEW — OPEN, implementation not started): Send must leave exactly the polished text in the field.**
+Owner device findings on the OnePlus `f6de166c` (2026-11-25 19:06–19:17, Markor, EN→DE,
+LLM mode, session `20261125-1911-7299db48`; key log lines are IN the issue body — the
+ring evidence itself was pulled to /tmp and is ephemeral, do not rely on it). Four
+workstreams, all in one issue (owner decision):
+1. **Terminal cascade (main):** after a mid-take rebind (checkbox/pause/language churn,
+   `churn=render:12`) the bind reconcile left the streamed provisional committed
+   (`reconciled committed=934 composed=0`, `PolishedVoiceInputIME` L190-evidence), and Send
+   classified `SUFFIX_APPENDED` → polished text went ONLY to the clipboard, field kept the
+   raw text. Fix: "field holds committed streamed text" counts as already-delivered ONLY
+   when the polished result is identical (raw mode); otherwise clear/replace and insert Q
+   (#205's own criterion "Send must leave exactly the polished text"). Regression tests for
+   the `committed=N composed=0` + stream-active bind state. NOTE: the polish itself is
+   CORRECT — exactly one session-level full-context LLM pass at Send (verified against the
+   ring timestamps after an initial false reading).
+2. **Park/UNREADABLE gap:** two earlier sends that evening parked with `outcome=UNREADABLE`
+   (19:10:55, 19:11:31) and were cleared by the owner's `USER_TAP_RESUME` without evidence
+   of delivery. A parked result must be delivered or salvaged on resume/next bind — never
+   silently dropped.
+3. **Underline loss after unbind (owner: BOTH):** document the platform-commit behavior
+   (no underline until the next fragment) AND attempt a guarded re-compose
+   (`deleteSurroundingText` + `setComposingText`) behind `imeLivePreview`.
+4. **Toast durations:** central chained-show helper (~5–6 s), at least for all
+   delivery/recovery toasts; ~42 scattered `Toast.makeText` sites, no central helper today.
+Also posted: a device-matrix-finding comment on #205.
 
 **#205 (2026-11-25, implemented, tests green — OPEN until the owner's device matrix passes): live preview in the target field.**
 Implemented in one wave: `service/LivePreview.kt` (the app-wide state next to the controller + the

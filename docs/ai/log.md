@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-25 (#207 — Issue angelegt, Pitfall Ring-Rotation)
+
+* **Creation**: [Issue #207](https://github.com/georgernstgraf/polished-recognition/issues/207) — Owner-Gerätebefunde (OnePlus, 2026-11-25 Abend): Send liefert den polierten Text nach Mid-Take-Rebind nur in die Zwischenablage (Terminal `SUFFIX_APPENDED`, `committed=934 composed=0`), zwei geparkte UNREADABLE-Sends ohne Liefer-Nachweis, Underline-Verlust nach Unbind (dokumentieren + bewachter Re-Compose), Toast-Dauern zentral verlängern. Vier Bausteine, ein Issue (Owner-Entscheidung); Device-Matrix-Kommentar an #205.
+* **Update**: [pitfalls/device-lab.md](pitfalls/device-lab.md) — neuer Eintrag: rotierende Log-Ring-Dateien sind NICHT die Call-Liste der Session (Ringtiefe spannt Tage; 33 `llm-response`-Dateien ≠ 33 LLM-Calls von Take C — exakt EIN Call, verifiziert über `created`); plus `adb pull` erhält keine Device-mtimes.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #207-Block oben; der #205-Block bleibt unverändert darunter.
+* **Update**: [STATE.md](STATE.md) — Statuszeile auf 2026-11-25 mit #207 als offenem Thread.
+
 ## 2026-11-25 (#205 — GIT_HASH/VERSION_DISPLAY statisch, Push-Install im Sekundenbereich)
 
 * **Update**: [decisions/build-release.md](decisions/build-release.md) — Owner-Entscheidung 2026-11-25: der Build-Hash kommt aus Gradle-Properties (release.yml übergibt die echten Werte), lokale Builds nutzen statische Release-Defaults; die `ValueSource`-Klassen sind gelöscht. Grund: ein per Commit einzigartiger BuildConfig-Inhalt erzwang den R8-Rebuild bei jedem Push-Install (54 s → 9 s, gemessen).
