@@ -3,13 +3,25 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T22:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:30:00Z }
 status: stable
 ---
 
 # Project State — Workbench
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #209 — Collapse-Chevrons auf 22sp (2026-11-25, shipped — offen bis der Owner abnickt)
+
+- **Was:** Owner-Feedback: „the arrows to collapse the raw and polished field
+  are visually way too small" — die #189-Glyphen (`▾`/`▸` als Text) standen
+  bei 14sp in Secondary-Farbe und lasen sich als Deko, nicht als Bedienelement.
+- **Fix (`4bd3f19`):** `workbench_raw_chevron` + `workbench_polished_chevron`
+  auf **22sp** (Label, Vorschau, Copy unberührt); `WorkbenchLayoutPolicyTest`
+  pinnt `>= 22sp`, damit das nicht zurückfällt. 766 `:app`-Tests grün,
+  `lintDebug` 0, Release auf dem OnePlus installiert. Kein Versions-Bump.
+- **Falls es immer noch zu klein wirkt:** eigener Drawables statt größerem
+  Font — Follow-up-Issue, kein Vor-Ort-Fix.
 
 ## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, CLOSED — Owner-Urteil „the functionality is good now")
 

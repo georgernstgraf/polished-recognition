@@ -3,11 +3,14 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T22:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:30:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#209 (2026-11-25, shipped — OPEN until the owner's glance): the collapse chevrons are readable now.**
+Both summary-row chevrons (`▾`/`▸` glyphs, #189) rendered at 14sp secondary — the owner read them as „visually way too small". `4bd3f19` bumps `workbench_raw_chevron`/`workbench_polished_chevron` to **22sp** (label/preview/copy untouched) and `WorkbenchLayoutPolicyTest` pins `>= 22sp` so it cannot regress. 766 `:app` tests green, lint 0, release installed on the OnePlus. Owner: judge the size on the device — too small again is a follow-up with a proper drawable, not a bigger font.
 
 **#208 (2026-11-25, CLOSED — owner verdict „the functionality is good now"): promote clears the polished slot; the MRU ring stays; only ＋ instantiates a dictation.**
 Final shape over two commits: `a7c7d89` (promote is a move — `replaceRawWithPolished` sets `copy(raw = polished, polished = null)`, strict no-op when `raw == polished`; compose path clears `composePolished`; the stored path shows the emptied field immediately, `syncPositions` never rewrites fields; promote buttons disable after) + `11e5b56` (the same-day creation-order excursion retracted per owner: `updatedAtMs` restored as the MRU key — bump on every real change, `loadAll` + FIFO eviction by it, edits protect against eviction; legacy file fallback covers what the intermediate build wrote). Header icons untouched; the invariant **only ＋ / the compose materialisation instantiates a dictation** — never promote/edit/polish/◀/▶/⚙ — is pinned by a store test. 766 `:app` tests green, lint 0, release installed on the OnePlus (`f6de166c`).

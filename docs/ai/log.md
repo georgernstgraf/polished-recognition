@@ -1,5 +1,11 @@
 # Persistence Log
 
+## 2026-11-25 (#209 — Collapse-Chevrons auf 22sp)
+
+* **Update**: [state/workbench.md](state/workbench.md) — neuer #209-Abschnitt (14sp-Glyphen lasen sich als Deko; 22sp + Policy-Pin).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #209-Block oben (offen bis der Owner die Größe auf dem Gerät beurteilt).
+* **No change**: [decisions/workbench.md](decisions/workbench.md) (keine Entscheidung — reiner Größen-Fix), [STATE.md](STATE.md) (Statuszeile bleibt bei #207 als nächstem offenem Owner-Block; #209 ist eine reine Optik-Prüfung), [index.md](index.md), [PITFALLS.md](PITFALLS.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-25 (#208 — geschlossen: Owner-Urteil „functionality is good")
 
 * **Update**: [HANDOFF.md](HANDOFF.md) — #208-Block auf „CLOSED (Owner-Urteil)" umgeschrieben; #207 bleibt der oberste offene Block.
