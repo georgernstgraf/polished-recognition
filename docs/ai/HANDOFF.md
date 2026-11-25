@@ -3,11 +3,15 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T21:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T22:30:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#208 (2026-11-25, shipped — OPEN until the owner's device check): promote clears the polished slot, and the ring is creation-ordered.**
+Two stacked owner findings, fixed in one commit (`a7c7d89`, 766 `:app` tests green, lint 0, release installed on the OnePlus `f6de166c`): (1) **promote is a move** — `DictationStore.replaceRawWithPolished` sets `copy(raw = polished, polished = null)` (strict no-op when `raw == polished`), the compose path clears `composePolished`, and the stored path shows the emptied field immediately (`showPolished("")` — `syncPositions` never rewrites fields, that omission was the one review-cycle fix); after promoting, both promote buttons disable. (2) **a touch never reorders the ring** — `DictationStore.update` no longer bumps a stamp; `loadAll`, `pruneToSize` (FIFO eviction) and `WorkbenchPages.ORDER` sort by `createdAtMs`; `updatedAtMs` is removed (old files read fine, Gson ignores the property — pinned by a legacy-file test). Deliberate consequence: an edit no longer protects a dictation from eviction, the oldest CREATED goes first.
+**Owner check on the device:** promote → Polished ends empty and both promote buttons disable; edit/polish an older dictation → its position label (`n / m`) must not change.
 
 **#207 (2026-11-25, all four workstreams IMPLEMENTED — issue OPEN until the owner's device checks): Send must leave exactly the polished text in the field.**
 Landed in four waves + one review fix, each commit suite-forced green + lint 0 + installed on the OnePlus (`f6de166c`):

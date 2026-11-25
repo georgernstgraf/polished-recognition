@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-25 (#208 — Promote als Zug, Creation-Order-Ring)
+
+* **Update**: [decisions/workbench.md](decisions/workbench.md) — neuer Top-Eintrag: Promote leert den Polished-Slot (Zug statt Kopie, strikter No-op bei `raw == polished`) und der Ring ist Creation-Order (`createdAtMs` für Anzeige und Eviction, ein Touch reordert nie, `updatedAtMs` entfernt); die #178- und #173-Bullets („Polished-Text bleibt stehen", „Ordering is last-touched") und der #188-Ordner-Bullet tragen Superseded-Zeiger.
+* **Update**: [state/workbench.md](state/workbench.md) — neuer Abschnitt: #208 shipped (`a7c7d89`), 766 `:app`-Tests grün, Release auf dem OnePlus; Owner-Check notiert.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #208-Block oben (implementiert, offen bis Owner-Gerätecheck); #207-Block bleibt darunter.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #208 shipped, offen bis Owner-Check; #207 darunter unverändert.
+* **No change**: [index.md](index.md), [PITFALLS.md](PITFALLS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [HISTORY.md](HISTORY.md) — keine neuen Konzepte, keine Strukturänderung, keine zu verschiebenden Einträge (die Superseded-Zeiger bleiben als Verweis in den Verbatim-Entscheidungen).
+
 ## 2026-11-25 (#207 — vier Wellen gelandet, Review, Fix)
 
 * **Update**: [state/session-lifecycle.md](state/session-lifecycle.md) — neuer Abschnitt: UNREADABLE-Delivery wird GEHALTEN (`HeldDeliveryPolicy` KEEP/DELIVER/SALVAGE, Resume-Tap/Bind-Zustellung, Fremdfeld → Clipboard-Salvage, onDestroy-Letztrettung); die stillen Drops von 19:10:55/19:11:31 sind gefixt; bewusst IDLE-strenger als der Work order.
