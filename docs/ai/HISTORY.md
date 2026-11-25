@@ -171,3 +171,23 @@ Origin file: docs/ai/PITFALLS.md. Reason superseded: debug-keystore era long ove
 
 - **Original statement (pruned from DECISIONS.md, #176):** "The single polish site is `TranscriptionPipeline.polish`, driven by Re-polish with the per-dictation language (never written back to `settings.targetLanguage`)."
 - Origin: DECISIONS.md (the 2026-11-20 #176 entry). Reason: #178 gives the Workbench two polish buttons — `workbench_polish_a` above Raw and `workbench_polish_b` below Polished — that share one per-visit `polishLanguage`. "Only when asked" is still the rule and `TranscriptionPipeline.polish` is still the only polish implementation; counting the UI trigger as one site is what became false.
+
+## 2026-06-03 (SUPERSEDED 2026-06-03, origin: decisions/build-release.md, reason: the CI-only rule was replaced the same day by RELEASE_KEYSTORE-based signing): CI-only signing (no Gradle signing config)
+
+- **Choice**: Remove `signingConfigs { release { ... } }` and `signingConfig` from `build.gradle.kts`. All signing done via `-Pandroid.injected.signing.*` in CI workflows.
+- **Reason**: `build.yml` builds APK signed with `~/.android/debug.keystore` for GitHub distribution. `release.yml` builds AAB signed with upload keystore from secrets for Play Store. Keeping signing config in Gradle caused mismatch — `upload.keystore` didn't exist on CI runner. Matches zazentimer's approach.
+- **Considered**: Environment-variable-based fallback in build.gradle.kts (complex, fragile), keeping debug keystore in Gradle (`signingConfigs.getByName("debug")`)
+- **Tradeoff**: Local `./gradlew assembleRelease` produces unsigned APK. Signed APK/AAB only from CI. Local testing should use `assembleDebug` (unsigned, `.debug` suffix).
+
+- **Origin**: decisions/build-release.md (entry "2026-06-03: CI-only signing (no Gradle signing config) [SUPERSEDED]")
+- **Reason**: the CI-only rule was replaced the same day by RELEASE_KEYSTORE-based signing
+
+## 2026-06-09 (SUPERSEDED 2026-06-16, origin: decisions/build-release.md, reason: #30 replaced the removal with a file-existence-guarded signingConfig, restoring local installRelease without disturbing F-Droid/CI): Remove signingConfigs.release for F-Droid
+
+- **Choice**: Remove the entire `signingConfigs { release { ... } }` block and `signingConfig` from `release` build type in `app/build.gradle.kts`
+- **Reason**: F-Droid's `fdroid build` could not find the signed APK output — `assembleRelease` produced no APK when a signing config with a keystore was active. Removing the signing config lets the build produce `app-release-unsigned.apk` which F-Droid finds and signs itself.
+- **Considered**: Keeping signing config with `output:` directive (wrong path, APK naming mismatch), creating dummy keystore via `prebuild` (worked locally but F-Droid's Gradle setup changed output behavior)
+- **Tradeoff**: Local `./gradlew assembleRelease` now produces unsigned APK. GitHub CI workflows (`build.yml`, `release.yml`) inject signing via `-Pandroid.injected.signing.*` properties, so releases remain signed.
+
+- **Origin**: decisions/build-release.md (entry "2026-06-09: Remove signingConfigs.release for F-Droid [SUPERSEDED]")
+- **Reason**: #30 replaced the removal with a file-existence-guarded signingConfig, restoring local installRelease without disturbing F-Droid/CI

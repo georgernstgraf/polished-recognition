@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-25 (#206 — der Entscheidungs-Bestand wird thematisch aufgeteilt)
+
+* **Creation**: [decisions/](decisions/index.md) — acht Themenkonzepte `foundations`, `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`, `recognition-service`; alle 220 Einträge sind byte-identisch verschoben (Multiset-Prüfung), jeder Block genau einmal. Sieben Einträge tragen einen **Also stored elsewhere**-Zeiger auf das zweite plausibele Themenkonzept (kein doppelter Body).
+* **Update**: [DECISIONS.md](DECISIONS.md) — ist jetzt ein Router statt eines 380-KB-Archivs: Routing-Tabelle (Thema → wofür), die zehn neuesten Entscheidungen mit Link, und die Regel, dass neue Einträge direkt in die Themendatei gehen und `decisions/index.md` eine Zeile bekommt.
+* **Deprecation**: die zwei vollständig superseded Einträge (`2026-06-03 CI-only signing`, `2026-06-09 signingConfigs.release entfernt`) sind nach [HISTORY.md](HISTORY.md) gewandert — Bullets verbatim, `Origin` zeigt auf `decisions/build-release.md`, im Themenkonzept bleibt der Ein-Zeilen-Stub. Die übrigen „superseded"-Markierungen waren entweder schon Stubs (#113/#179/#185), betrafen nur einen Teil des Eintrags (#188/#189) oder tragen keine Markierung (#105) und bleiben deshalb stehen.
+* **No change**: [index.md](index.md) (folgt im selben Issue mit PITFALLS/STATE), [STATE.md](STATE.md), [PITFALLS.md](PITFALLS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md) — kein neuer Domänenbegriff, keine Strukturaussage geändert.
+
 ## 2026-11-25 (#205 — die Live-Vorschau im Textfeld)
 
 * **Update**: [STATE.md](STATE.md) — Statuszeile (1083 Tests) + Abschnitt `#205 — die Live-Vorschau im Textfeld`: app-weiter Zustand, Editor-Naht, Reconciliation beim Bind, Terminal-Kaskade, nicht-liefernde Pfade, Selection-Snapshot inkl. B-Kürzung, Marker, Diagnose, Kill-Switch, Testbilanz, inkl. der Regel „nur die IME-eigene Session streamt“.
