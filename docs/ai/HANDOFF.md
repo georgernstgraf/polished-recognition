@@ -3,7 +3,7 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T17:44:43Z }
 status: stable
 ---
 
@@ -25,7 +25,14 @@ on the live connection instead (D4's E row only needs K = ∅ or K = P). **Left 
 matrix, part of the issue):** Markor, Telegram and one webview field; rotation mid-stream; nav-bar
 close mid-stream; Flush mid-stream; X mid-stream; kill switch OFF; a take resumed after hide/show;
 correlate `insertion.json` (the new `reason=STREAM` appends + `streamOutcome` on the terminal
-record) with `ime-lifecycle.log` (`livePreview ...` lines).
+record) with `ime-lifecycle.log` (`livePreview ...` lines). **First owner finding
+already fixed (`8fcc84b`, 2026-11-25):** the freeze after the first fragment was the
+constant-64 probe — a composition outgrows it on the second tick and every later
+tick aborted. The probe is now sized to B + K + sent (bind/terminal: B + P) and the
+B-boundary is located tolerantly; +5 regression tests, suite + `lintDebug` green.
+The matrix above must now show the raw text GROWING fragment by fragment; if any
+field still freezes, pull `ime-lifecycle.log` — the abort lines now carry
+`window=<len> tail=<24>`, so the cause is readable instead of guessable.
 
 **#189 (2026-11-24, shipped): the Workbench sections collapse again.** Both label rows are
 `<summary>`-style toggles (chevron · label · copy) with a one-line, ellipsised preview while the

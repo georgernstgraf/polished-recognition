@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-25 (#205 — Gerätebefund: das Fensterproblem der Live-Vorschau)
+
+* **Update**: [pitfalls/ime-field.md](pitfalls/ime-field.md) — neuer Eintrag: die Fensterprobe muss so groß sein wie der Text, den sie verifiziert (konstantes 64-Zeichen-Fenster frierte die Live-Vorschau nach dem ersten Fragment ein); Regel „Probe-Länge aus dem erwarteten Inhalt, B-Grenze tolerant suchen" + die neue Abort-Signatur.
+* **Update**: [state/ime-field.md](state/ime-field.md) — der #205-Abschnitt bekam den Gerätebefund + Fix (`8fcc84b`): dynamische Probe-Längen, toleranter Boundary-Vergleich, Restore-Fingerprint bewusst breit, +5 Tests.
+* **Update**: [STATE.md](STATE.md) — die #205-Statuszeile trägt den Befund und den Fix; die Gerätematrix (Item 11) bleibt offen, muss jetzt aber sichtbares Fragment-für-Fragment-Wachstum zeigen.
+* **Update**: [HANDOFF.md](HANDOFF.md) — der #205-Block verweist auf den gefixten Freeze und die neue Abort-Zeilen-Signatur für künftige Diagnosen.
+* **No change**: [index.md](index.md), [PITFALLS.md](PITFALLS.md), [DECISIONS.md](DECISIONS.md), [HISTORY.md](HISTORY.md) — keine neuen Konzepte, keine entlassenen Einträge.
+
 ## 2026-11-25 (#206 — Bootstrap und Index zeigen auf die Themen-Bundles)
 
 * **Update**: [index.md](index.md) — neue Sektion **Theme Bundles** mit den drei Verzeichnissen und den Abschnittszahlen; `DECISIONS.md`/`PITFALLS.md` sind als Router beschrieben, `STATE.md` als Statuszeile + Themenliste.
