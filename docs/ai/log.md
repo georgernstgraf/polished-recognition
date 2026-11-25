@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-25 (#208 — geschlossen: Owner-Urteil „functionality is good")
+
+* **Update**: [HANDOFF.md](HANDOFF.md) — #208-Block auf „CLOSED (Owner-Urteil)" umgeschrieben; #207 bleibt der oberste offene Block.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #208 geschlossen; #207 rückt zum offenen Thread Nr. 1.
+* **Update**: [state/workbench.md](state/workbench.md) — #208-Abschnitt auf CLOSED gesetzt.
+* **No change**: [decisions/workbench.md](decisions/workbench.md) (der Eintrag trägt den Bogen bereits vollständig), [index.md](index.md), [PITFALLS.md](PITFALLS.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-25 (#208 — Owner-Korrektur: MRU-Ring restauriert, nur ＋ erzeugt)
 
 * **Update**: [decisions/workbench.md](decisions/workbench.md) — der #208-Top-Eintrag erzählt den ganzen Bogen: Promote-als-Zug BLEIBT, die Creation-Order-Entscheidung wurde am selben Tag RETRACTED (Owner: „edit SHALL promote to youngest"), der MRU-Ring ist restauriert (`11e5b56`), und die geklärte Invariante „nur ＋ erzeugt ein Diktat" ist notiert; die Superseded-Zeiger an #173/#188 sind zurückgenommen (#173-MRU wieder gültig, mit Re-Affirmation).

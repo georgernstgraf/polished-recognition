@@ -11,7 +11,7 @@ status: stable
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
 
-## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, shipped — offen bis der Owner prüft)
+## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, CLOSED — Owner-Urteil „the functionality is good now")
 
 - **Was:** Zwei Owner-Gerätebefunde: (1) nach dem Promoten hielt RAW **und**
   Polished denselben Text („same topic in one translation or the other" beim
