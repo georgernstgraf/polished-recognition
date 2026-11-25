@@ -9,31 +9,10 @@ status: stable
 
 # Hand Off
 
-**#207 (2026-11-25, NEW — OPEN, implementation not started): Send must leave exactly the polished text in the field.**
-Owner device findings on the OnePlus `f6de166c` (2026-11-25 19:06–19:17, Markor, EN→DE,
-LLM mode, session `20261125-1911-7299db48`; key log lines are IN the issue body — the
-ring evidence itself was pulled to /tmp and is ephemeral, do not rely on it). Four
-workstreams, all in one issue (owner decision):
-1. **Terminal cascade (main):** after a mid-take rebind (checkbox/pause/language churn,
-   `churn=render:12`) the bind reconcile left the streamed provisional committed
-   (`reconciled committed=934 composed=0`, `PolishedVoiceInputIME` L190-evidence), and Send
-   classified `SUFFIX_APPENDED` → polished text went ONLY to the clipboard, field kept the
-   raw text. Fix: "field holds committed streamed text" counts as already-delivered ONLY
-   when the polished result is identical (raw mode); otherwise clear/replace and insert Q
-   (#205's own criterion "Send must leave exactly the polished text"). Regression tests for
-   the `committed=N composed=0` + stream-active bind state. NOTE: the polish itself is
-   CORRECT — exactly one session-level full-context LLM pass at Send (verified against the
-   ring timestamps after an initial false reading).
-2. **Park/UNREADABLE gap:** two earlier sends that evening parked with `outcome=UNREADABLE`
-   (19:10:55, 19:11:31) and were cleared by the owner's `USER_TAP_RESUME` without evidence
-   of delivery. A parked result must be delivered or salvaged on resume/next bind — never
-   silently dropped.
-3. **Underline loss after unbind (owner: BOTH):** document the platform-commit behavior
-   (no underline until the next fragment) AND attempt a guarded re-compose
-   (`deleteSurroundingText` + `setComposingText`) behind `imeLivePreview`.
-4. **Toast durations:** central chained-show helper (~5–6 s), at least for all
-   delivery/recovery toasts; ~42 scattered `Toast.makeText` sites, no central helper today.
-Also posted: a device-matrix-finding comment on #205.
+**#207 (2026-11-25, all four workstreams IMPLEMENTED — issue OPEN until the owner's device checks): Send must leave exactly the polished text in the field.**
+Landed in four waves + one review fix, each commit suite-forced green + lint 0 + installed on the OnePlus (`f6de166c`):
+`6776fed` (WS1 terminal cascade: new `StreamOutcome.COMMITTED_STREAM_REPLACED` — a field holding the platform-committed streamed text is "already delivered" ONLY when the polished result is identical; differing Q replaces the verified span via `EditorPort.deleteBefore` + verify-then-insert, refusals fall back to the MISMATCH/clipboard path, I5 kept), `7e0b244` (WS2 held delivery: UNREADABLE results are HELD in `heldDelivery` + pending toast, delivered on resume-tap/bind into the same field, salvaged to the clipboard on a foreign field or teardown — the 19:10:55/19:11:31 silent drops are fixed; `HeldDeliveryPolicy` + 13 tests), `aa7a377` (WS3 underline: the bind reconcile now re-composes a fully committed B+P stream — read→delete→read-back→compose with aborts BEFORE any write, behind `imeLivePreview`; documented in state/ime-field.md), `72aef6d` (WS4 toasts: `ui/Toasts.kt` — every production toast routed through it, chained ~5.5 s readable default, `short` for trivial confirmations, the #88 hint folded in, zero remaining `Toast.makeText` sites), `96e5bf5` (review fix: `show`/`short` dismiss a live hint — the "one toast alive" invariant is now real, 3 new invariant tests). Suites: 737→750→754→763 `:app` tests, all forced; aggregate re-run `--rerun-tasks --no-build-cache` green. Code review (Standards+Spec, parallel): no hard violations; three deliberate deviations documented (IDLE-gate stricter than the work order, SUFFIX-prefix replace extends I2 with issue sanction, partial-delete → MISMATCH fallback).
+**Open: the owner device matrix on the OnePlus:** (1) the exact incident sequence in Markor (raw→polished + language + pause → Send → the FIELD must end with the polished German text); (2) held delivery (unreadable field → Send → pending toast → resume tap → text in the field); (3) the underline re-compose during a paused take (no duplicate, underline back); (4) toast readability (~5.5 s). The polish itself is verified correct — exactly one session-level full-context LLM pass at Send (ring timestamps, see pitfalls/device-lab.md).
 
 **#205 (2026-11-25, implemented, tests green — OPEN until the owner's device matrix passes): live preview in the target field.**
 Implemented in one wave: `service/LivePreview.kt` (the app-wide state next to the controller + the

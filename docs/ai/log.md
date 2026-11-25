@@ -1,5 +1,11 @@
 # Persistence Log
 
+## 2026-11-25 (#207 — vier Wellen gelandet, Review, Fix)
+
+* **Update**: [state/session-lifecycle.md](state/session-lifecycle.md) — neuer Abschnitt: UNREADABLE-Delivery wird GEHALTEN (`HeldDeliveryPolicy` KEEP/DELIVER/SALVAGE, Resume-Tap/Bind-Zustellung, Fremdfeld → Clipboard-Salvage, onDestroy-Letztrettung); die stillen Drops von 19:10:55/19:11:31 sind gefixt; bewusst IDLE-strenger als der Work order.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #207-Block auf „implementiert, offen bis Owner-Gerätechecks" umgeschrieben (5 Commits, Suite-Entwicklung 737→763, Review-Befunde, offene Gerätematrix); alter Plan-Block entfernt.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #207 implementiert, offen bis Owner-Checks.
+
 ## 2026-11-25 (#207 — Issue angelegt, Pitfall Ring-Rotation)
 
 * **Creation**: [Issue #207](https://github.com/georgernstgraf/polished-recognition/issues/207) — Owner-Gerätebefunde (OnePlus, 2026-11-25 Abend): Send liefert den polierten Text nach Mid-Take-Rebind nur in die Zwischenablage (Terminal `SUFFIX_APPENDED`, `committed=934 composed=0`), zwei geparkte UNREADABLE-Sends ohne Liefer-Nachweis, Underline-Verlust nach Unbind (dokumentieren + bewachter Re-Compose), Toast-Dauern zentral verlängern. Vier Bausteine, ein Issue (Owner-Entscheidung); Device-Matrix-Kommentar an #205.

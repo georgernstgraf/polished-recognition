@@ -3,13 +3,21 @@ type: State
 title: Project State — Session Lifecycle
 description: Pause/resume/cancel, auto-start, rotation resilience, the journal and recovery.
 tags: [knowledge, state, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T21:30:00Z }
 status: stable
 ---
 
 # Project State — Session Lifecycle
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #207 — an UNREADABLE delivery is HELD, never silently dropped (2026-11-25, shipped `7e0b244`)
+
+- **The drop the device logs exposed:** two same-evening sends parked with `terminal outcome=UNREADABLE` (`COMPLETED_SUCCESS parked=true`) and were cleared by the owner's `USER_TAP_RESUME` without delivery. Root cause (file:line evidence from the wave-2 trace): the park itself holds NO text (`applyParkingEvent` sets only the bar flag; `PostSendParkingPolicy`), and the IME's delivery path ran `insertResultText` → `commitWithSpacing` → `currentInputConnection ?: return` — a null connection was a silent no-op. The controller-level `pendingResult` redelivery never applied (the IME callback WAS bound; the event was delivered live).
+- **The fix:** new pure `service/HeldDeliveryPolicy.kt` — `KEEP` (field not readable / a live take owns it), `DELIVER` (bound field == origin field via `RotationGate.isSameField`), `SALVAGE` (foreign field or unknown origin — #192 rule c: never "any field"). The IME holds an UNREADABLE result in `heldDelivery` (+ `ime_delivery_pending` toast), `attemptHeldDelivery(trigger)` fires on the resume-tap (`:323`, BEFORE the fresh recording starts) and on bind (`:631`): same field → insert, foreign field → clipboard + `ime_delivery_salvaged` toast. A second hold salvages the older one first ("superseded"); `onDestroy` is a last-resort salvage. Never silently dropped.
+- **Deliberately stricter than the work order:** delivery only at `controller.state == IDLE` (a same-field bind during a paused take is `keep` — conservative #192 guard).
+- **Tests:** +13 (`HeldDeliveryPolicyTest` 6, `ImeHeldDeliveryTest` 7 incl. resume-tap → delivered, foreign-bind → salvage, instance-teardown → salvage, older-hold-first). Robolectric double-`onDestroy` needed a test-subclass guard (`SoftInputWindow.dismissForDestroyIfNecessary` is illegal twice) — test artifact only.
+- **Open:** the owner device check (unreadable field → send → pending toast → resume tap delivers); the `DISABLED` kill-switch path keeps the old null-connection drop byte-identically (#205 promise) — closing it there would be a one-liner if the owner wants it.
 
 ## #186 device defect — a raw-mode rescue was delivered as an empty "success" (2026-11-22, fixed and device-verified 2026-11-23; #186 closed)
 
