@@ -51,6 +51,40 @@
 * **Update**: [HANDOFF.md](HANDOFF.md) — #200 als geschlossen vermerkt, der „Not scheduled"-Eintrag entfernt.
 * **No change**: [ARCHITECTURE.md](ARCHITECTURE.md), [DOMAIN.md](DOMAIN.md), [index.md](index.md) — keine neue/entfernte Komponente, kein neuer Begriff, kein neues Konzeptfile.
 
+## 2026-11-24 (#193 — the lint baseline is gone; #198/#199 test defects)
+* **Update**: [STATE.md](STATE.md) — status line (1033 tests, no baseline, `warningsAsErrors`, #193/#198/#199 shipped, #200 open), a `#193` paragraph (71 fixes + 6 documented exceptions) and a `#198`/`#199` paragraph; the old "baseline accepted" notes marked obsolete/superseded.
+* **Update**: [HANDOFF.md](HANDOFF.md) — new top sections for #193 and #198/#199, #200 as the one known red-spot in the push gate, #156 amended with the two Workbench shots and the #189 sequencing, the lint burn-down bullet removed (done).
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-24 entries: the backlog at zero with six documented exceptions and the inverted `XmlColorPolicyTest` rule 6; a capture/worker throwable parks PAUSED instead of killing the process.
+* **Update**: [PITFALLS.md](PITFALLS.md) — four new entries: `exit value 2` is the app's crash handler (not the heap), `flush()` must not truncate the spool under the worker, a Robolectric test must not rely on the shadow `AudioRecord` having written, `SharedPreferences.apply()` is really deferred in Robolectric (#200); the baseline entries marked obsolete.
+* **No change**: [ARCHITECTURE.md](ARCHITECTURE.md) — resources and build config only, no new module or entry point. [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [index.md](index.md) — no new vocabulary or concept file.
+## 2026-11-22
+* **Update**: [STATE.md](STATE.md) — status line + the #187 section extended: AAPT literal-`%` strings declare `formatted="false"`, the two unseen warnings fixed, update notices ignored instead of baselined, baseline 91 → 77, the `lintVitalRelease` notes accepted and documented; the #163 gate line carries the amendment.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — "Compiler warnings (#187)" became "Build-output warnings (#187)" (read the build log, literal `%` → `formatted="false"`, `Locale.ROOT` prefill, ignored update notices, `checkReleaseBuilds` stays default, test-only warnings outside the claim).
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-22 entry: the release-build output is a gate, update notices are never baselined, the vital-baseline notes are accepted (owner decision).
+* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: `lintVitalRelease` is fatal-only so a global baseline always looks stale there; a literal `%` in `strings.xml` is a format specifier; a baselined "newer version" notice stops matching on its own.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #187 reopened and closed again; the baseline burn-down recorded as not scheduled.
+* **No change**: [index.md](index.md) — no new concept file.
+
+## 2026-11-22 (#188 — incomplete dictations in the Workbench ring)
+* **Update**: [STATE.md](STATE.md) — status line (962 tests, #152 at 4/5 with #186 as the only open child) + a `#188` section: merged ring, the read-only leftover page, the when-line, the four actions on the page, the retired screen, the count+jump banner, the string/help drift fixed en route.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #188 checked off (5 of 5 done), the owner device check for the merged ring (banner jump, editable-again Raw, a delivery on a leftover page).
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — the recovery-screen row is gone; new `WorkbenchPage`/`WorkbenchPages`, `WorkbenchStamp` and `RecoveryRestore`/`RecoveryShare` rows; the `WorkbenchActivity` row carries the merged ring.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — "Recovery / pending transcriptions" became "Incomplete dictations"; a new "The merged ring (#188)" section (one ring, two page kinds; the two truths; a leftover page cannot take focus; the tiered stamp; restore/share contracts).
+* **Update**: [DOMAIN.md](DOMAIN.md) — "incomplete dictation" is THE term ("pending transcription" retired), plus `leftover page`, `Retry STT`, `when-line`.
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-22 entry: merged view without a schema change, chronological ordering by last change, a read-only leftover page, retiring the screen into the page.
+* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: a page without text must not be focusable; the coordinator's single `onFinished` slot; three `DictationStore` instances with a per-instance lock.
+* **Update**: `docs/help.html` — the "Pending transcriptions" section became "Unfinished dictations": the page, Retry STT, the banner jump, and the never-aged-away rule.
+* **No change**: [index.md](index.md) — no new or removed concept file.
+
+## 2026-11-21
+* **Update**: [STATE.md](STATE.md) — new `#185` section (journal session marker, recovery scan, `JournalReplay`, auto-recovery on Workbench entry, the recovery screen, share) + refreshed status line (902 tests, no version bump).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #185 done (4/5 of #152), #186 is next, plus an owner device check for the recovery paths.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `EchoTrim` + `JournalReplay` rows, the `FragmentJournal` session states, the recovery-screen row, and the Workbench banner.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — new "Recovery / pending transcriptions (#185)" section (journal is the only source, marker states, record-before-delete, replay the gaps, yield to the live path, store-before-delete, `RecoveryActions` enablement).
+* **Update**: [DOMAIN.md](DOMAIN.md) — "Recovery (leftovers)" vocabulary table (pending transcription, finished/completed, dismissed, re-run, restore, yield).
+* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-21 entry: the bundle marker as the session state, no separate audit file, gap-only replay, auto-retry policy + once-per-process guard, WAV reconstruct only for sharing.
+* **Update**: `docs/help.html` — a "Pending transcriptions" section plus the #178 drift fix (Polished is read-only, the button is "Polish").
+
 ## 2026-11-20 (#184 — idempotent fragment uploads)
 * **Update**: [STATE.md](STATE.md) — status line (806 tests, 2/5 #152 children) + a `#184 — idempotent fragment uploads` section: the one-`@PartMap` shape, empty map = unchanged wire, retry identity, the client-side `putIfAbsent` second line, the Retrofit wildcard pitfall, the `session.json` deviation.
 * **Update**: [DECISIONS.md](DECISIONS.md) — entry `#184 — Identität als EIN @PartMap, leerer Map = unverändertes Wire-Format`: one map instead of three parts (future fields cost no signature churn), all-or-nothing identity, 0-based `fragment_index` vs 1-based log `chunk`, client-side guarantee, no duplicated bundle fields.
@@ -131,37 +165,3 @@
 * **Update**: Regenerated [STATE.md](STATE.md) (status line + a `#158` section) and added open task 12 to [HANDOFF.md](HANDOFF.md) — the UI-contrast epic #158 with its four remaining sub-issues (#161–#164); #159 and #160 closed (#158, #159, #160).
 * **Update**: Added two entries to [PITFALLS.md](PITFALLS.md) — the IME window is edge-to-edge from API 35 (up to API 34 the platform insets the IME content itself, so the same listener is inert there; rebuild padding from the XML base, `max` not sum), and the emulator recipe that produced the evidence (3-button nav via `cmd overlay enable-exclusive`, the API-31 SystemUI ANR, the `ime enable` retry). [DECISIONS.md](DECISIONS.md) records the "no SDK gate" decision; [STATE.md](STATE.md) has the `#157` section, [HANDOFF.md](HANDOFF.md) the run entry (#157).
 
-## 2026-11-21
-* **Update**: [STATE.md](STATE.md) — new `#185` section (journal session marker, recovery scan, `JournalReplay`, auto-recovery on Workbench entry, the recovery screen, share) + refreshed status line (902 tests, no version bump).
-* **Update**: [HANDOFF.md](HANDOFF.md) — #185 done (4/5 of #152), #186 is next, plus an owner device check for the recovery paths.
-* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `EchoTrim` + `JournalReplay` rows, the `FragmentJournal` session states, the recovery-screen row, and the Workbench banner.
-* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — new "Recovery / pending transcriptions (#185)" section (journal is the only source, marker states, record-before-delete, replay the gaps, yield to the live path, store-before-delete, `RecoveryActions` enablement).
-* **Update**: [DOMAIN.md](DOMAIN.md) — "Recovery (leftovers)" vocabulary table (pending transcription, finished/completed, dismissed, re-run, restore, yield).
-* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-21 entry: the bundle marker as the session state, no separate audit file, gap-only replay, auto-retry policy + once-per-process guard, WAV reconstruct only for sharing.
-* **Update**: `docs/help.html` — a "Pending transcriptions" section plus the #178 drift fix (Polished is read-only, the button is "Polish").
-
-## 2026-11-22
-* **Update**: [STATE.md](STATE.md) — status line + the #187 section extended: AAPT literal-`%` strings declare `formatted="false"`, the two unseen warnings fixed, update notices ignored instead of baselined, baseline 91 → 77, the `lintVitalRelease` notes accepted and documented; the #163 gate line carries the amendment.
-* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — "Compiler warnings (#187)" became "Build-output warnings (#187)" (read the build log, literal `%` → `formatted="false"`, `Locale.ROOT` prefill, ignored update notices, `checkReleaseBuilds` stays default, test-only warnings outside the claim).
-* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-22 entry: the release-build output is a gate, update notices are never baselined, the vital-baseline notes are accepted (owner decision).
-* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: `lintVitalRelease` is fatal-only so a global baseline always looks stale there; a literal `%` in `strings.xml` is a format specifier; a baselined "newer version" notice stops matching on its own.
-* **Update**: [HANDOFF.md](HANDOFF.md) — #187 reopened and closed again; the baseline burn-down recorded as not scheduled.
-* **No change**: [index.md](index.md) — no new concept file.
-
-## 2026-11-22 (#188 — incomplete dictations in the Workbench ring)
-* **Update**: [STATE.md](STATE.md) — status line (962 tests, #152 at 4/5 with #186 as the only open child) + a `#188` section: merged ring, the read-only leftover page, the when-line, the four actions on the page, the retired screen, the count+jump banner, the string/help drift fixed en route.
-* **Update**: [HANDOFF.md](HANDOFF.md) — #188 checked off (5 of 5 done), the owner device check for the merged ring (banner jump, editable-again Raw, a delivery on a leftover page).
-* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — the recovery-screen row is gone; new `WorkbenchPage`/`WorkbenchPages`, `WorkbenchStamp` and `RecoveryRestore`/`RecoveryShare` rows; the `WorkbenchActivity` row carries the merged ring.
-* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — "Recovery / pending transcriptions" became "Incomplete dictations"; a new "The merged ring (#188)" section (one ring, two page kinds; the two truths; a leftover page cannot take focus; the tiered stamp; restore/share contracts).
-* **Update**: [DOMAIN.md](DOMAIN.md) — "incomplete dictation" is THE term ("pending transcription" retired), plus `leftover page`, `Retry STT`, `when-line`.
-* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-22 entry: merged view without a schema change, chronological ordering by last change, a read-only leftover page, retiring the screen into the page.
-* **Update**: [PITFALLS.md](PITFALLS.md) — three entries: a page without text must not be focusable; the coordinator's single `onFinished` slot; three `DictationStore` instances with a per-instance lock.
-* **Update**: `docs/help.html` — the "Pending transcriptions" section became "Unfinished dictations": the page, Retry STT, the banner jump, and the never-aged-away rule.
-* **No change**: [index.md](index.md) — no new or removed concept file.
-
-## 2026-11-24 (#193 — the lint baseline is gone; #198/#199 test defects)
-* **Update**: [STATE.md](STATE.md) — status line (1033 tests, no baseline, `warningsAsErrors`, #193/#198/#199 shipped, #200 open), a `#193` paragraph (71 fixes + 6 documented exceptions) and a `#198`/`#199` paragraph; the old "baseline accepted" notes marked obsolete/superseded.
-* **Update**: [HANDOFF.md](HANDOFF.md) — new top sections for #193 and #198/#199, #200 as the one known red-spot in the push gate, #156 amended with the two Workbench shots and the #189 sequencing, the lint burn-down bullet removed (done).
-* **Update**: [DECISIONS.md](DECISIONS.md) — 2026-11-24 entries: the backlog at zero with six documented exceptions and the inverted `XmlColorPolicyTest` rule 6; a capture/worker throwable parks PAUSED instead of killing the process.
-* **Update**: [PITFALLS.md](PITFALLS.md) — four new entries: `exit value 2` is the app's crash handler (not the heap), `flush()` must not truncate the spool under the worker, a Robolectric test must not rely on the shadow `AudioRecord` having written, `SharedPreferences.apply()` is really deferred in Robolectric (#200); the baseline entries marked obsolete.
-* **No change**: [ARCHITECTURE.md](ARCHITECTURE.md) — resources and build config only, no new module or entry point. [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [index.md](index.md) — no new vocabulary or concept file.
