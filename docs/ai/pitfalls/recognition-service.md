@@ -1,0 +1,27 @@
+---
+type: Pitfalls
+title: Pitfalls — RecognitionService
+description: The bound Android speech service and its caller-facing contract.
+tags: [knowledge, pitfalls, recognition-service]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+status: stable
+---
+
+# Pitfalls — RecognitionService
+
+Moved out of `PITFALLS.md` in #206; entries are verbatim. New pitfalls in this area are appended here.
+
+- **`stopAndTranscribe` must deliver `Completed` to secondary-only consumers (#82, fixed `d327d43`).** The result used to be emitted only when the primary (IME) callback was non-null (`if (callback != null) … else pendingResult`). A bound `RecognitionService` is a **secondary** listener and, on a keyboard-less call (Duolingo/Corvus — no IME callback attached), got no `Completed`; the controller then emitted `StateChanged(IDLE)`, which the service mapped to `ERROR_CLIENT` (5) — the caller saw an error although the pipeline had produced the **exact** expected text. Fix: a `deliver(result)` helper emits `Completed` when `callback != null || secondaryListeners.isNotEmpty()`, else parks it in `pendingResult` (rotation path #83). Regression test: `VoiceSessionControllerSecondaryTest`.
+
+- **On Android 11 a `RecognitionService` is bound *directly* by the caller, so `android:permission="android.permission.BIND_RECOGNITION_SERVICE"` blocks normal apps (#82).** Android 12+ mediates binds through `RecognitionServiceManager` (system holds the permission), which is why the shipped declaration works on the OnePlus (Android 12). On Android 11 (the app's `minSdk` 30) a normal caller's `SpeechRecognizer`/`bindService` is denied with `requires android.permission.BIND_RECOGNITION_SERVICE` — verified with an explicit-component test caller on the LineageOS S5: binding failed until the service permission was removed, after which our service recorded and the caller got **6× `onResults` / 0× `onError`** (the delivery fix, confirmed at the **protocol level** — this does NOT verify a real caller such as Duolingo). Reproducible harness: **`tools/testcaller/`** (explicit-component `SpeechRecognizer` client; build/install/run + the no-`BIND_RECOGNITION_SERVICE` Android-11 recipe are in its README). Consequence: the RecognitionService path is Android-12+ only. **Decided 2026-10-03 (owner):** keep the `BIND_RECOGNITION_SERVICE` declaration and gate the feature to API 31+ — the service is disabled on Android 11 via `android:enabled="@bool/recognition_service_enabled"` (base `false`, `values-v31` `true`); the IME is the Android-11 path (see DECISIONS).
+
+- **OnePlus/OxygenOS denies the `RecognitionService` start preflight for the *caller* (#82, observed 2026-10-03).** On the owner's OnePlus 7T (HD1903, OxygenOS/Android 12) a Duolingo `SpeechRecognizer` request is rejected by the framework **before any service code runs**: `RecognitionService: caller doesn't have permission:android.permission.RECORD_AUDIO`, then the caller gets `ERROR_INSUFFICIENT_PERMISSIONS` (9). Reproduced with **two independent recognizers** (Polished and Claude-as-service) and after a fresh Duolingo reinstall, so it is the caller/system permission state, not the service. Duolingo's `RECORD_AUDIO` shows `granted=true` yet the preflight still fails (mic app-op uid mode is `foreground`); a device reboot did not fix it. OxygenOS blocks `pm grant`/`pm revoke` and `cmd appops set` from adb (`WRITE_SECURE_SETTINGS` / `MANAGE_APP_OPS_MODES`). **Confirmed 2026-10-03 by rolling the OnePlus back**: a release build from the pre-session commit (`195f889`, without #103/#82) was installed over it and Duolingo still aborted immediately with the same `ERROR_INSUFFICIENT_PERMISSIONS`, and the app produced **no pipeline logs at all** — so this is the ROM state, not the app build (our rollback proved it). Consequence: the RecognitionService path cannot be exercised on this device — verify on a clean ROM (LineageOS S5).
+
+- RecognitionService cannot be annotated with @AndroidEntryPoint (Hilt). Manual DI via Application class is required.
+- `callback.results()` must be called from the same thread that received `onStopListening()` — use `runOnUiThread` or Main dispatcher.
+- `SpeechRecognizer.RESULTS_RECOGNITION` expects `ArrayList<String>` — plain `List<String>` causes a ClassCastException in Bundle.
+- `RecognitionService.Callback.readyForSpeech()` requires a `Bundle` parameter (pass `Bundle.EMPTY`) in API 30+.
+- `Settings.Secure.putString("voice_recognition_service", …)` from a non-system app throws `SecurityException` on OEM ROMs (Samsung One UI, Realme UI, ColorOS, MIUI) — `WRITE_SECURE_SETTINGS` is `signature|privileged`. This was the broken path behind removing the bound `RecognitionService`. The replacement is the auxiliary IME (`Settings.ACTION_INPUT_METHOD_SETTINGS`), which needs no privileged permission. (MR !40029, @bhavyashah04122005.)
+
+**Also stored elsewhere** (ambiguous placement, cross-referenced per #206):
+- [device-lab.md](device-lab.md) — „**`adb install -r` on Oplus re-scans recognition services and perturbs permission state (#82).** Updating the app over adb makes the system re-run `RecognitionServiceInfo.getAvailableServices` (logs "No android.speech meta-data" for every service, incl. Google) and dropped Google's entry from the Voice-Input picker; it also produced a transient `RECORD_AUDIO` denial for our app. When permission/recognition state matters, prefer the normal package-installer path over adb."

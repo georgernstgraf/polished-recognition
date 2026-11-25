@@ -1,5 +1,11 @@
 # Persistence Log
 
+## 2026-11-25 (#206 — die Fallstricke werden thematisch aufgeteilt)
+
+* **Creation**: [pitfalls/](pitfalls/index.md) — zehn Themenkonzepte (`foundations`, `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`, `recognition-service`, `testing`, `device-lab`); alle 273 Bullets byte-identisch verschoben, Multiset geprüft. 15 Einträge tragen einen **Also stored elsewhere**-Zeiger; die Regel „Harness-Fakten gehören nach `testing`/`build-release`, nie in das Produktionsthema" steht im Kopf des Routers.
+* **Update**: [PITFALLS.md](PITFALLS.md) — jetzt ein Router (Intro, Zuordnungsregel, Themen-Tabelle); der 160-KB-Stapel liegt in den Themendateien. Enthält weiterhin den neuen Build-Cache-Eintrag vom selben Tag, der beim Aufteilen mitgewandert ist.
+* **No change**: [DECISIONS.md](DECISIONS.md), [STATE.md](STATE.md), [HISTORY.md](HISTORY.md), [index.md](index.md) — keine Fallstricke nach HISTORY entlassen (die „OBSOLET"/durchgestrichenen Einträge bleiben als Kontext stehen), Index folgt im selben Issue.
+
 ## 2026-11-25 (#206 — der Entscheidungs-Bestand wird thematisch aufgeteilt)
 
 * **Creation**: [decisions/](decisions/index.md) — acht Themenkonzepte `foundations`, `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`, `stt-providers`, `workbench`, `recognition-service`; alle 220 Einträge sind byte-identisch verschoben (Multiset-Prüfung), jeder Block genau einmal. Sieben Einträge tragen einen **Also stored elsewhere**-Zeiger auf das zweite plausibele Themenkonzept (kein doppelter Body).
