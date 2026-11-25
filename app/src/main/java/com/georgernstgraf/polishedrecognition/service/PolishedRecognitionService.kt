@@ -11,13 +11,13 @@ import android.os.Bundle
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.SettingsStore
+import com.georgernstgraf.polishedrecognition.ui.Toasts
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
@@ -203,7 +203,7 @@ class PolishedRecognitionService : RecognitionService() {
                                 // would delete it and the audio with it).
                                 logServiceInsertion(text, event)
                                 val msg = event.partial?.message ?: getString(R.string.ime_error)
-                                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                                Toasts.show(this, msg)
                                 cb.error(mapRecognitionError(msg))
                                 clientCallback = null
                                 stopServiceForeground()
@@ -223,7 +223,7 @@ class PolishedRecognitionService : RecognitionService() {
                         },
                         onFailure = { e ->
                             val msg = e.message ?: getString(R.string.ime_error)
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                            Toasts.show(this, msg)
                             cb.error(mapRecognitionError(msg))
                             // Back to IDLE, no PAUSED residue for the IME
                             // (#82, owner decision). This nulls the IME's

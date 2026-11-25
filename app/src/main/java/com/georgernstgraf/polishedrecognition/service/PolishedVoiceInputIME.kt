@@ -20,7 +20,6 @@ import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -33,7 +32,6 @@ import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.Spinner
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -50,6 +48,7 @@ import com.georgernstgraf.polishedrecognition.ui.HelpActivity
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
+import com.georgernstgraf.polishedrecognition.ui.Toasts
 
 /**
  * Open for the Robolectric tests: they subclass the service to record what it
@@ -79,7 +78,6 @@ open class PolishedVoiceInputIME : InputMethodService() {
     private var breathAlpha = BREATH_CEIL
     private var breathAnimator: ValueAnimator? = null
     private var silenceLangListener = false
-    private var hintToast: Toast? = null
     /**
      * Set by [onConfigurationChanged], consumed by [onStartInputView]. Fast
      * path for rotation detection when the mark arrives before the rebind;
@@ -960,7 +958,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // #205 I1: the take is aborted — clear its preview before the cancel.
         abandonLivePreview(restoreSelection = true)?.let { showToast(it) }
         controller.cancel()
-        Toast.makeText(this, getString(R.string.ime_mic_blocked), Toast.LENGTH_LONG).show()
+        Toasts.show(this, getString(R.string.ime_mic_blocked))
     }
 
     /** Module-visible since #118 Phase C: the tests drive the coalescing through it. */
@@ -1020,15 +1018,14 @@ open class PolishedVoiceInputIME : InputMethodService() {
                         )
                     )
                 }
-                Toast.makeText(
+                Toasts.show(
                     this,
                     resources.getQuantityString(
                         R.plurals.cancelled_dictation_saved,
                         event.text.length,
                         event.text.length
-                    ),
-                    Toast.LENGTH_LONG
-                ).show()
+                    )
+                )
             }
             is VoiceSessionController.Event.Completed -> {
                 val result = event.result
@@ -1154,7 +1151,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
         // preview's message and the rescue's share it.
         if (partial != null) messages += rescueText(partial)
         if (messages.isNotEmpty()) {
-            Toast.makeText(this, messages.joinToString("\n"), Toast.LENGTH_LONG).show()
+            Toasts.show(this, messages.joinToString("\n"))
         }
         // Re-learn on successful insertion (#100): the session already
         // recorded the target at start (#102 amendment); this captures
@@ -1690,7 +1687,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
 
     private fun showToast(text: String) {
         if (text.isBlank()) return
-        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+        Toasts.show(this, text)
     }
 
     /**
@@ -2015,8 +2012,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
             if (event.action == MotionEvent.ACTION_UP ||
                 event.action == MotionEvent.ACTION_CANCEL
             ) {
-                hintToast?.cancel()
-                hintToast = null
+                Toasts.dismissHint()
             }
             false
         }
@@ -2026,15 +2022,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * Single reused hint Toast (#88): creating a new Toast per long-press
      * churns show/cancel through the notification manager and stops
      * appearing after a few consecutive presses — one instance with
-     * setText() does not.
+     * setText() does not. Since #207 the reuse mechanics live in
+     * [Toasts.hint]; this IME keeps only the offset (the bar's geometry).
      */
     private fun showHintToast(text: String) {
-        val toast = hintToast ?: Toast.makeText(this, text, Toast.LENGTH_LONG).apply {
-            setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, hintYOffsetPx())
-            hintToast = this
-        }
-        toast.setText(text)
-        toast.show()
+        Toasts.hint(this, text, hintYOffsetPx())
     }
 
     private fun hintYOffsetPx(): Int =
@@ -2230,8 +2222,7 @@ open class PolishedVoiceInputIME : InputMethodService() {
     override fun onDestroy() {
         breathAnimator?.cancel()
         breathAnimator = null
-        hintToast?.cancel()
-        hintToast = null
+        Toasts.cancelAll()
         recTickHandler.removeCallbacks(recTick)
         recTickHandler.removeCallbacks(micGuard)
         micGuardPending = false

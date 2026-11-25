@@ -16,7 +16,6 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -422,11 +421,10 @@ class WorkbenchActivity : Activity() {
             val auto = scanned.map { it.summary }.filter { coordinator.shouldAutoRecover(it) }
             if (auto.isEmpty()) return@launch
             if (coordinator.startAuto(auto)) {
-                Toast.makeText(
+                Toasts.show(
                     this@WorkbenchActivity,
-                    resources.getQuantityString(R.plurals.recovery_started, auto.size, auto.size),
-                    Toast.LENGTH_SHORT
-                ).show()
+                    resources.getQuantityString(R.plurals.recovery_started, auto.size, auto.size)
+                )
             }
         }
     }
@@ -471,7 +469,7 @@ class WorkbenchActivity : Activity() {
                 outcome.stillPending
             )
         }
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        Toasts.show(this, message)
         commitEdits()
         materialiseCompose()
         refreshPages { merged ->
@@ -613,7 +611,7 @@ class WorkbenchActivity : Activity() {
     private fun deliver(text: String, notify: Boolean) {
         if (!ClipboardDelivery.deliver(this, text, getString(R.string.workbench_title))) return
         if (notify) {
-            Toast.makeText(this, getString(R.string.workbench_delivered), Toast.LENGTH_SHORT).show()
+            Toasts.short(this, getString(R.string.workbench_delivered))
         }
     }
 
@@ -1015,7 +1013,7 @@ class WorkbenchActivity : Activity() {
         val page = pages.getOrNull(index) as? WorkbenchPage.Leftover ?: return
         val sessionId = page.summary.sessionId
         if (!retryRunner(sessionId)) {
-            Toast.makeText(this, getString(R.string.recovery_busy), Toast.LENGTH_LONG).show()
+            Toasts.show(this, getString(R.string.recovery_busy))
             return
         }
         manualSession = sessionId
@@ -1039,7 +1037,7 @@ class WorkbenchActivity : Activity() {
                 RecoveryRestore.Outcome.NoText -> R.string.recovery_restore_empty
                 RecoveryRestore.Outcome.NotStored -> R.string.recovery_store_failed
             }
-            Toast.makeText(this@WorkbenchActivity, getString(message), Toast.LENGTH_LONG).show()
+            Toasts.show(this@WorkbenchActivity, getString(message))
             refreshPages { merged ->
                 val restored = (outcome as? RecoveryRestore.Outcome.Restored)?.dictationId
                 if (restored != null && merged.any { WorkbenchPages.idOf(it) == restored }) {
@@ -1087,11 +1085,10 @@ class WorkbenchActivity : Activity() {
             }
             val intent = RecoveryShare.intent(uris)
             if (intent == null) {
-                Toast.makeText(
+                Toasts.show(
                     this@WorkbenchActivity,
-                    getString(R.string.recovery_share_empty),
-                    Toast.LENGTH_LONG
-                ).show()
+                    getString(R.string.recovery_share_empty)
+                )
                 return@launch
             }
             startActivity(Intent.createChooser(intent, getString(R.string.recovery_chooser)))
@@ -1189,11 +1186,10 @@ class WorkbenchActivity : Activity() {
             }.onFailure {
                 // Keep the previous polished text — a failed call never
                 // destroys the dictation.
-                Toast.makeText(
+                Toasts.show(
                     this@WorkbenchActivity,
-                    getString(R.string.workbench_polish_failed),
-                    Toast.LENGTH_LONG
-                ).show()
+                    getString(R.string.workbench_polish_failed)
+                )
             }
             updateChrome()
         }

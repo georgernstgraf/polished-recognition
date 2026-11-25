@@ -7,7 +7,6 @@ import android.content.ClipboardManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import com.georgernstgraf.polishedrecognition.R
 
 class CrashDialogActivity : Activity() {
@@ -34,7 +33,7 @@ class CrashDialogActivity : Activity() {
         view.findViewById<Button>(R.id.crash_copy_button).setOnClickListener {
             val clipboard = getSystemService(ClipboardManager::class.java)
             clipboard.setPrimaryClip(ClipData.newPlainText("Polished Recognition crash", message))
-            Toast.makeText(this, R.string.crash_copied, Toast.LENGTH_SHORT).show()
+            Toasts.short(this, getString(R.string.crash_copied))
         }
         view.findViewById<Button>(R.id.crash_close_button).setOnClickListener {
             finishAffinity()

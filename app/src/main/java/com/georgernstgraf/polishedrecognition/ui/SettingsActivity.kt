@@ -25,7 +25,6 @@ import android.widget.Filterable
 import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.BuildConfig
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
@@ -161,7 +160,7 @@ class SettingsActivity : Activity() {
         findViewById<Button>(R.id.restore_defaults).setOnClickListener {
             promptStore.restoreAllDefaults()
             loadPromptDefaults()
-            Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+            Toasts.short(this, getString(R.string.saved))
         }
 
         findViewById<Button>(R.id.reset_system_prompt).setOnClickListener {
@@ -528,7 +527,7 @@ class SettingsActivity : Activity() {
             dropdown.setOnClickListener {
                 val adapter = dropdown.adapter as? ModelFilterAdapter
                 if (adapter == null) {
-                    Toast.makeText(this, R.string.no_models_yet, Toast.LENGTH_SHORT).show()
+                    Toasts.show(this, getString(R.string.no_models_yet))
                     return@setOnClickListener
                 }
                 adapter.showAll()
@@ -575,12 +574,12 @@ class SettingsActivity : Activity() {
         val baseUrl = sttUrlField.text.toString()
 
         if (token.isBlank()) {
-            Toast.makeText(this, "Enter an API token first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Enter an API token first")
             return
         }
 
         if (baseUrl.isBlank()) {
-            Toast.makeText(this, "Enter an API URL first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Enter an API URL first")
             return
         }
 
@@ -602,12 +601,11 @@ class SettingsActivity : Activity() {
                         }
                     }
                     sttTokenField.error = null
-                    Toast.makeText(this@SettingsActivity, getString(R.string.token_valid), Toast.LENGTH_SHORT).show()
-                    Toast.makeText(
+                    Toasts.short(this@SettingsActivity, getString(R.string.token_valid))
+                    Toasts.show(
                         this@SettingsActivity,
-                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size)
+                    )
                 } else {
                     sttTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
@@ -625,12 +623,12 @@ class SettingsActivity : Activity() {
         val baseUrl = llmUrlField.text.toString()
 
         if (token.isBlank()) {
-            Toast.makeText(this, "Enter an API token first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Enter an API token first")
             return
         }
 
         if (baseUrl.isBlank()) {
-            Toast.makeText(this, "Enter an API URL first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Enter an API URL first")
             return
         }
 
@@ -652,11 +650,10 @@ class SettingsActivity : Activity() {
                         }
                     }
                     llmTokenField.error = null
-                    Toast.makeText(
+                    Toasts.show(
                         this@SettingsActivity,
-                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size)
+                    )
                 } else {
                     llmTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
@@ -675,17 +672,17 @@ class SettingsActivity : Activity() {
         val model = llmModelDropdown.text.toString()
 
         if (token.isBlank()) {
-            Toast.makeText(this, "Enter an API token first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Enter an API token first")
             return
         }
 
         if (model.isBlank()) {
-            Toast.makeText(this, "Select a model first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Select a model first")
             return
         }
 
         if (baseUrl.isBlank()) {
-            Toast.makeText(this, "Enter an API URL first", Toast.LENGTH_SHORT).show()
+            Toasts.show(this, "Enter an API URL first")
             return
         }
 
@@ -695,7 +692,7 @@ class SettingsActivity : Activity() {
                 val result = testLlmTokenCall(baseUrl, token, model)
                 if (result.isSuccess) {
                     llmTokenField.error = null
-                    Toast.makeText(this@SettingsActivity, R.string.token_valid, Toast.LENGTH_SHORT).show()
+                    Toasts.short(this@SettingsActivity, getString(R.string.token_valid))
                 } else {
                     llmTokenField.error = result.exceptionOrNull()?.message
                         ?: getString(R.string.token_invalid)
@@ -904,7 +901,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun openVoiceKeyboardSettings() {
-        Toast.makeText(this, R.string.voice_keyboard_hint, Toast.LENGTH_LONG).show()
+        Toasts.show(this, getString(R.string.voice_keyboard_hint))
         try {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
         } catch (_: Exception) {
@@ -999,7 +996,7 @@ class SettingsActivity : Activity() {
                 settings.targetLanguage = result.language
                 targetLanguageDropdown.setText(result.language, false)
                 (targetLanguageDropdown.adapter as? LanguageDropdownAdapter)?.rebuild()
-                Toast.makeText(this, R.string.language_added, Toast.LENGTH_SHORT).show()
+                Toasts.short(this, getString(R.string.language_added))
             }
             CustomLanguages.CommitResult.Reverted ->
                 targetLanguageDropdown.setText(languageEditPrevious, false)
@@ -1069,7 +1066,7 @@ class SettingsActivity : Activity() {
                             targetLanguageDropdown.setText(newName, false)
                         }
                         (targetLanguageDropdown.adapter as? LanguageDropdownAdapter)?.rebuild()
-                        Toast.makeText(this, R.string.language_renamed, Toast.LENGTH_SHORT).show()
+                        Toasts.short(this, getString(R.string.language_renamed))
                         dialog.dismiss()
                         onRenamed()
                     }
@@ -1206,7 +1203,7 @@ class SettingsActivity : Activity() {
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM, systemPromptField.text.toString())
         promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE, targetLanguageClauseField.text.toString())
 
-        Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+        Toasts.short(this, getString(R.string.saved))
         finish()
     }
 
@@ -1219,7 +1216,7 @@ class SettingsActivity : Activity() {
      * adb-readable rotating log, then leave the screen open.
      */
     private fun saveAborted(check: String): Unit {
-        Toast.makeText(this, getString(R.string.settings_save_blocked, check), Toast.LENGTH_LONG).show()
+        Toasts.show(this, getString(R.string.settings_save_blocked, check))
         runCatching {
             val line = """{"ts":${System.currentTimeMillis()},"pid":${Process.myPid()},"event":"settings-save-aborted","check":"$check"}"""
             app.jsonLogger.log("settings", line)
