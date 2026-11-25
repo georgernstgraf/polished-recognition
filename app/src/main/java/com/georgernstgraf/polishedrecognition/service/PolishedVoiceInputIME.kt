@@ -155,6 +155,18 @@ open class PolishedVoiceInputIME : InputMethodService() {
      */
     private var postSendParked = false
     /**
+     * #207: a polished result that could not be delivered at Send (the field
+     * was unreadable — the device case: two sends parked `outcome=UNREADABLE`
+     * and the resume tap cleared them with nothing delivered anywhere). The
+     * text is HELD here, not dropped: [attemptHeldDelivery] delivers it into
+     * the origin field at the next readable moment (the resume tap, the next
+     * bind) or [salvageHeldDelivery] salvages it to the clipboard with a
+     * toast naming where the text is — [HeldDeliveryPolicy] decides.
+     */
+    private var heldDelivery: String? = null
+    /** #207: the field the held result was dictated into ([HeldDeliveryPolicy]). */
+    private var heldOrigin: RotationGate.FieldId? = null
+    /**
      * #118 Phase C: the signature of the last painted bar. [applyUiState] is
      * the single writer of that state, so an equal signature means an
      * identical paint and the rebind storm skips it. [invalidateUiRender]
@@ -305,6 +317,10 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 // for BOTH no-take bars: fresh idle renders ↺ live, and a live
                 // control must have an effect (owner's rule).
                 VoiceSessionController.State.IDLE -> {
+                    // #207: the resume tap is a readable moment — an
+                    // undeliverable UNREADABLE result is due NOW, before the
+                    // fresh take takes the field over.
+                    attemptHeldDelivery("resume-tap")
                     if (postSendParked) {
                         applyParkingEvent(PostSendParkingPolicy.Event.USER_TAP_RESUME)
                     }
@@ -608,6 +624,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
         )
         resetChurnCounters()
         restoredSnapshot = false
+        // #207: a bind is the next readable moment after an UNREADABLE send —
+        // the held result is delivered into its origin field here, or
+        // salvaged when the user has since bound a different one (#192). The
+        // attempt only fires for an IDLE controller; a live take keeps it.
+        attemptHeldDelivery("bind")
         // #177: a genuine field change ends the post-send park — the parked
         // bar belongs to the field the dictation was sent into. Same-field
         // rebinds (hide/show, rotation) keep it: the keyboard comes back
@@ -1081,7 +1102,6 @@ open class PolishedVoiceInputIME : InputMethodService() {
         val messages = mutableListOf<String>()
         when (outcome) {
             StreamOutcome.DISABLED,
-            StreamOutcome.UNREADABLE,
             StreamOutcome.CLEARED,
             StreamOutcome.COMMITTED_STREAM_REPLACED -> {
                 // Today's single terminal insertion — the field is either
@@ -1089,6 +1109,23 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 // verified streamed span was just deleted for exactly this
                 // delivery (#207).
                 if (partial == null || text.isNotBlank()) insertResultText(text)
+            }
+            StreamOutcome.UNREADABLE -> {
+                // #186: an empty rescue inserts (and holds) nothing — its
+                // Toast below explains where the audio waits.
+                val insertable = partial == null || text.isNotBlank()
+                if (insertable && !fieldReadable()) {
+                    // #207: no connection — `commitWithSpacing` would
+                    // silently no-op, exactly the device drop (two sends
+                    // parked `outcome=UNREADABLE` and the resume tap cleared
+                    // them with nothing delivered anywhere). HOLD the result
+                    // instead: delivered into the origin field at the next
+                    // readable moment, or salvaged to the clipboard. Never
+                    // silently discarded.
+                    holdUnreadableDelivery(text)
+                } else if (insertable) {
+                    insertResultText(text)
+                }
             }
             StreamOutcome.COMMITTED_BY_APP -> {
                 // The field already holds the whole provisional text; a blind
@@ -1138,6 +1175,81 @@ open class PolishedVoiceInputIME : InputMethodService() {
      * tests can drive a recording port instead of an `InputConnection` shadow.
      */
     internal open fun editorPort(): EditorPort? = EditorPort.of(currentInputConnection)
+
+    /**
+     * #207: can the CURRENT binding receive a delivery? Overridable so the
+     * held-delivery tests decide readability without an `InputConnection`
+     * shadow (a Robolectric service never goes through `doStartInput`).
+     */
+    internal open fun fieldReadable(): Boolean = currentInputConnection != null
+
+    /**
+     * #207: an UNREADABLE send's result is HELD, not dropped (the device
+     * defect: two sends parked `outcome=UNREADABLE`, the resume taps cleared
+     * the park and no text ever arrived anywhere). The origin field is the
+     * one the Send press recorded (#118); without one, [HeldDeliveryPolicy]
+     * later reads "foreign field" → clipboard, never a blind insertion
+     * (#192). A second hold supersedes the first — the older result is
+     * salvaged NOW so the two can never arrive out of order. One Toast says
+     * the text is waiting; the trace line makes the hold diagnosable.
+     */
+    private fun holdUnreadableDelivery(text: String) {
+        if (heldDelivery != null) salvageHeldDelivery("superseded")
+        heldDelivery = text
+        heldOrigin = (application as PolishedRecognitionApp).imeSessionField ?: boundField
+        ImeLifecycleTrace.log(this, "heldDelivery", "held chars=${text.length}")
+        showToast(getString(R.string.ime_delivery_pending))
+    }
+
+    /**
+     * #207: delivers or salvages the held result at a readable moment. Only
+     * an IDLE controller may receive it — a live or paused take owns the
+     * field now, and a field the user has since repurposed is not auto-
+     * written (#192): the hold waits for an IDLE bind of the ORIGIN field,
+     * everything else goes to the clipboard with a toast naming where the
+     * text is. Never silently discarded.
+     */
+    private fun attemptHeldDelivery(trigger: String) {
+        val text = heldDelivery ?: return
+        if (controller.state != VoiceSessionController.State.IDLE) {
+            ImeLifecycleTrace.log(
+                this, "heldDelivery", "keep trigger=$trigger state=${controller.state}"
+            )
+            return
+        }
+        val current = boundField
+        val readable = fieldReadable() && current != null
+        when (HeldDeliveryPolicy.decide(heldOrigin, current, readable)) {
+            HeldDeliveryPolicy.Action.KEEP ->
+                ImeLifecycleTrace.log(
+                    this, "heldDelivery", "keep trigger=$trigger state=${controller.state}"
+                )
+            HeldDeliveryPolicy.Action.DELIVER -> {
+                heldDelivery = null
+                heldOrigin = null
+                insertResultText(text)
+                ImeLifecycleTrace.log(
+                    this, "heldDelivery", "delivered trigger=$trigger chars=${text.length}"
+                )
+            }
+            HeldDeliveryPolicy.Action.SALVAGE -> salvageHeldDelivery(trigger)
+        }
+    }
+
+    /**
+     * #207: the clipboard fallback — the result never reached a field (or
+     * reached the wrong one), so the user is TOLD where the text is now.
+     */
+    private fun salvageHeldDelivery(reason: String) {
+        val text = heldDelivery ?: return
+        heldDelivery = null
+        heldOrigin = null
+        copyToClipboard(text)
+        showToast(getString(R.string.ime_delivery_salvaged))
+        ImeLifecycleTrace.log(
+            this, "heldDelivery", "salvaged reason=$reason chars=${text.length}"
+        )
+    }
 
     /**
      * #205 D3: reconciliation after a rebind — the events give the timing, this
@@ -2020,6 +2132,10 @@ open class PolishedVoiceInputIME : InputMethodService() {
         pendingAutoStart = null
         recTickHandler.removeCallbacks(windowDrawTimeout)
         ImeLifecycleTrace.log(this, "onDestroy", "state=${controller.state}")
+        // #207: a held result whose field never became readable again is
+        // salvaged here — the clipboard is its last resort, never a silent
+        // drop.
+        salvageHeldDelivery("destroy")
         // Rotation-safe teardown (#83, hardened after the Oplus process-death
         // finding): a live session is never cancelled here — RECORDING is
         // parked as PAUSED (pause() also snapshots PCM + duration to disk)

@@ -129,6 +129,11 @@
     <string name="ime_polished_copied">Dictation completed raw — the polished version is in the clipboard</string>
     <string name="ime_stream_incomplete">The field could not be completed — the polished text is in the clipboard</string>
     <string name="ime_selection_restore_failed">The text selection could not be restored — it is in the clipboard</string>
+    <!-- #207: an UNREADABLE send holds its result instead of dropping it. The
+         first toast says the text is waiting for a readable field; the second
+         is the salvage fallback and names where the text is now. -->
+    <string name="ime_delivery_pending">The field could not be read — the polished text will follow when a field is ready</string>
+    <string name="ime_delivery_salvaged">The polished text could not be inserted — it is in the clipboard</string>
     <string name="live_preview_clip">Polished dictation</string>
     <string name="ime_channel_name">Voice input</string>
     <string name="ime_channel_desc">Active voice input session</string>
