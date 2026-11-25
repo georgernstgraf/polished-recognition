@@ -250,6 +250,16 @@ open class PolishedVoiceInputIME : InputMethodService() {
         )
     }
 
+    /**
+     * #210: never go fullscreen. The InputMethodService default returns true in
+     * landscape, which replaces the voice bar with the platform's extracted-
+     * text editor — a white, system-styled edit field with a Done button that
+     * covers the app (the "white raw field in landscape" on OxygenOS). This IME
+     * is a voice BAR over the target field, in every orientation; the target
+     * field itself stays the dictation surface (D10).
+     */
+    override fun onEvaluateFullscreenMode(): Boolean = false
+
     // #194: an IME input view has no parent at inflate time — the system
     // attaches it to the input-method window afterwards.
     @SuppressLint("InflateParams")

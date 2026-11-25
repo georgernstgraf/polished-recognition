@@ -267,6 +267,12 @@ class WorkbenchActivity : Activity() {
         settings = app.settingsStore
         controller = app.voiceSessionController
         store = DictationStore(this, fifoSize = { settings.workbenchFifoSize })
+        // #210: the shown page must survive a rotation. The activity is
+        // recreated on every rotation (no configChanges in the manifest), and
+        // without this the fresh instance falls back to the compose slot —
+        // the IME's auto-resumed take then targets NEW and instantiates a
+        // brand-new dictation while the edited one stays where it was.
+        savedInstanceState?.let { restore(it) }
 
         setContentView(R.layout.activity_workbench)
         root = findViewById(R.id.workbench_root)
@@ -306,6 +312,45 @@ class WorkbenchActivity : Activity() {
         wireActions()
     }
 
+    /**
+     * #210: the shown page survives a rotation. Saved in `onSaveInstanceState`
+     * (which runs after [onPause]'s materialise/commit, so it always reflects
+     * what is really in the store) and restored before the first `onResume`
+     * reload — `currentSelection()` then resolves to the same page instead of
+     * the compose slot, which is what made a resumed take instantiate a new
+     * dictation after the rotation.
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_INDEX, index)
+        outState.putString(STATE_CURRENT_ID, currentId)
+        outState.putString(STATE_CURRENT_SESSION, currentSession)
+        outState.putString(STATE_COMPOSE_RAW, composeRaw)
+        outState.putString(STATE_COMPOSE_POLISHED, composePolished)
+    }
+
+    private fun restore(state: Bundle) {
+        index = state.getInt(STATE_INDEX, FifoNavigation.COMPOSE_INDEX)
+        currentId = state.getString(STATE_CURRENT_ID)
+        currentSession = state.getString(STATE_CURRENT_SESSION)
+        composeRaw = state.getString(STATE_COMPOSE_RAW).orEmpty()
+        composePolished = state.getString(STATE_COMPOSE_POLISHED).orEmpty()
+        // The identity decides, not the old position: the ring is re-merged on
+        // the first reload, so the selection follows the id (the same rule
+        // applyPages already applies). Consumed by the first reload in
+        // [onResume] — a default currentSelection() would read the still
+        // empty ring and fall back to the compose slot.
+        pendingReloadSelection = when {
+            index == FifoNavigation.COMPOSE_INDEX -> Selection.Compose
+            currentId != null -> Selection.Stored(currentId!!)
+            currentSession != null -> Selection.Leftover(currentSession!!)
+            else -> Selection.Compose
+        }
+    }
+
+    /** #210: the selection the first reload after a restoration follows. */
+    private var pendingReloadSelection: Selection? = null
+
     override fun onResume() {
         super.onResume()
         visible = true
@@ -313,7 +358,16 @@ class WorkbenchActivity : Activity() {
         // D9: the spinner is seeded from the global settings at display time;
         // the choice lives for this visit only and is never written back.
         seedLanguageSpinner()
-        reload()
+        reload(pendingReloadSelection ?: currentSelection())
+        pendingReloadSelection = null
+        // #210: the IME may have auto-resumed the paused take BEFORE this fresh
+        // instance attached its listener — the StateChanged→RECORDING event is
+        // gone, and pendingTarget would stay NEW (a new dictation). If a take
+        // is already recording at attach, the target decision runs here —
+        // after reload(), because it reads the (now filled) ring.
+        if (controller.state == VoiceSessionController.State.RECORDING) {
+            onRecordingStarted()
+        }
         // #185: entering the Workbench is the moment the leftovers are picked
         // up — the feedback Toast comes before any request goes out.
         app.recoveryCoordinator.onFinished = { outcome -> onRecoveryFinished(outcome) }
@@ -1411,5 +1465,12 @@ class WorkbenchActivity : Activity() {
         /** #189: the summary chevrons (text, so no extra drawables are needed). */
         const val CHEVRON_OPEN = "▾"
         const val CHEVRON_CLOSED = "▸"
+
+        /** #210: the page state that survives a rotation (instance recreation). */
+        const val STATE_INDEX = "workbench.index"
+        const val STATE_CURRENT_ID = "workbench.currentId"
+        const val STATE_CURRENT_SESSION = "workbench.currentSession"
+        const val STATE_COMPOSE_RAW = "workbench.composeRaw"
+        const val STATE_COMPOSE_POLISHED = "workbench.composePolished"
     }
 }

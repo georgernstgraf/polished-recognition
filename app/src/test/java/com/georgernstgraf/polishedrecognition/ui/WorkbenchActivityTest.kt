@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.os.Bundle
 import android.view.View
 import android.widget.AutoCompleteTextView
 import android.widget.Button
@@ -13,6 +14,7 @@ import com.georgernstgraf.polishedrecognition.dictation.DictationStore
 import com.georgernstgraf.polishedrecognition.network.NetworkGate
 import com.georgernstgraf.polishedrecognition.network.ReconnectMonitor
 import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
+import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.recovery.RecoveryCoordinator
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CompletableDeferred
@@ -774,6 +776,74 @@ class WorkbenchActivityTest {
             .containsExactly("typed before rotation")
         assertThat(recreated.position()).isEqualTo("new")
         assertThat(recreated.raw().text()).isEmpty()
+    }
+
+    /**
+     * #210: a REAL rotation saves the instance state, and the recreated screen
+     * must come back on the page the user was on — a cold start (process death,
+     * no state) keeps the compose-slot fallback of the test above.
+     */
+    @Test
+    fun `a rotation restores the shown stored page`() {
+        seed("older", "the edited dictation")
+        val controller = Robolectric.buildActivity(WorkbenchActivity::class.java)
+        controller.get().ioDispatcher = Dispatchers.Unconfined
+        val activity = controller.setup().get().also { idle() }
+        activity.showNewest()
+        assertThat(activity.position()).isEqualTo("2 / 2")
+        assertThat(activity.raw().text()).isEqualTo("the edited dictation")
+
+        val saved = Bundle()
+        controller.pause().stop()
+        controller.saveInstanceState(saved)
+        controller.destroy()
+        val reborn = Robolectric.buildActivity(WorkbenchActivity::class.java)
+        reborn.get().ioDispatcher = Dispatchers.Unconfined
+        val recreated = reborn.create(saved).start().resume().visible().get().also { idle() }
+
+        assertThat(recreated.position()).isEqualTo("2 / 2")
+        assertThat(recreated.raw().text()).isEqualTo("the edited dictation")
+    }
+
+    /**
+     * #210: the IME can auto-resume the paused take BEFORE the recreated
+     * screen attaches its listener — the StateChanged→RECORDING event is gone.
+     * The attach self-heal must still target the RESTORED stored page, never a
+     * new dictation.
+     */
+    @Test
+    fun `a take already recording at attach targets the restored page`() {
+        seed("filler", "first")
+        val controller = context.voiceSessionController
+        // The Robolectric capture may throw; the state is what matters (#67).
+        try {
+            try {
+                controller.start { }
+            } catch (_: Throwable) {
+            }
+            assertThat(controller.state).isEqualTo(VoiceSessionController.State.RECORDING)
+
+            val builder = Robolectric.buildActivity(WorkbenchActivity::class.java)
+            builder.get().ioDispatcher = Dispatchers.Unconfined
+            val activity = builder.setup().get().also { idle() }
+            activity.showNewest()
+
+            val saved = Bundle()
+            builder.pause().stop()
+            builder.saveInstanceState(saved)
+            builder.destroy()
+            val reborn = Robolectric.buildActivity(WorkbenchActivity::class.java)
+            reborn.get().ioDispatcher = Dispatchers.Unconfined
+            val recreated = reborn.create(saved).start().resume().visible().get().also { idle() }
+
+            recreated.raw().setText("first dictated")
+            recreated.onTranscriptArrived("dictated")
+
+            assertThat(DictationStore(context).loadAll().map { it.raw })
+                .containsExactly("filler", "first dictated")
+        } finally {
+            controller.cancel()
+        }
     }
 
     // ------------------------------------------------ #188: the merged ring
