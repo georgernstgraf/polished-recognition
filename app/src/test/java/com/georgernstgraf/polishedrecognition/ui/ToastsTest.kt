@@ -131,4 +131,39 @@ class ToastsTest {
 
         assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("the delivery message")
     }
+
+    /** Reads the private hint slot — the invariant "one toast alive" lives there. */
+    private fun hintSlot(): Any? =
+        Toasts::class.java.getDeclaredField("hint").apply { isAccessible = true }.get(Toasts)
+
+    @Test
+    fun `a show dismisses a live hint - one surface at a time`() {
+        val context = RuntimeEnvironment.getApplication()
+        Toasts.hint(context, "long-press hint", 120)
+        Toasts.show(context, "the delivery message")
+
+        // The hint slot is empty the moment a message takes over: a later
+        // dismissHint() can no longer touch anything.
+        assertThat(hintSlot()).isNull()
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("the delivery message")
+    }
+
+    @Test
+    fun `a short dismisses a live hint too`() {
+        val context = RuntimeEnvironment.getApplication()
+        Toasts.hint(context, "long-press hint", 120)
+        Toasts.short(context, "Saved")
+
+        assertThat(hintSlot()).isNull()
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Saved")
+    }
+
+    @Test
+    fun `hint keeps its instance - it reuses, never cancels, the hint`() {
+        val context = RuntimeEnvironment.getApplication()
+        Toasts.hint(context, "long-press hint", 120)
+
+        // hint() must NOT churn the reused #88 instance away.
+        assertThat(hintSlot()).isNotNull()
+    }
 }

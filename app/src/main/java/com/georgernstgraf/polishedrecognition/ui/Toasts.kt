@@ -23,7 +23,8 @@ import android.widget.Toast
  * ("Settings saved", "Token valid", …); [hint] keeps the #88 mechanics — a
  * reused instance, gravity-top, NO chaining, cancelled by [dismissHint]
  * when the long-pressing finger lifts. At most one toast is ever alive:
- * any new show cancels the previous one, so two IME messages never overlap.
+ * any new [show]/[short] cancels BOTH the previous message chain and a
+ * live hint, so two surfaces never overlap.
  */
 object Toasts {
 
@@ -51,14 +52,15 @@ object Toasts {
 
     /**
      * The informative default: a LENGTH_LONG toast kept readable by
-     * re-showing it until [targetMs] elapsed.
+     * re-showing it until [DEFAULT_TARGET_MS] elapsed.
      */
-    fun show(context: Context, text: CharSequence, targetMs: Long = DEFAULT_TARGET_MS) {
+    fun show(context: Context, text: CharSequence) {
         cancelMessage()
+        cancelHint()
         val toast = Toast.makeText(context, text, Toast.LENGTH_LONG)
         message = toast
         toast.show()
-        scheduleChain(toast, targetMs)
+        scheduleChain(toast, DEFAULT_TARGET_MS)
     }
 
     /**
@@ -67,6 +69,7 @@ object Toasts {
      */
     fun short(context: Context, text: CharSequence) {
         cancelMessage()
+        cancelHint()
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     }
 
@@ -87,13 +90,13 @@ object Toasts {
     }
 
     /**
-     * Ends the hint when the long press is over. Only cancels while the
-     * hint is the newest toast — a message shown since the press started
-     * must not be killed by the finger lifting.
+     * Ends the hint when the long press is over. The hint is a separate
+     * instance from every message toast, and every [show]/[short] dismisses
+     * the hint FIRST — so a finger lift can only ever cancel the hint
+     * itself, never a message shown since the press started.
      */
     fun dismissHint() {
-        hint?.cancel()
-        hint = null
+        cancelHint()
     }
 
     /** Cancels everything alive — the owner of the last toast calls this. */
@@ -153,5 +156,11 @@ object Toasts {
         messageChain = null
         message?.cancel()
         message = null
+    }
+
+    /** A live hint never outlives a newer message surface. */
+    private fun cancelHint() {
+        hint?.cancel()
+        hint = null
     }
 }
