@@ -47,9 +47,20 @@ screens). Sections are verbatim, newest first.
   omits the effort, polish carries it), `ProvidersActivityTest` +4 (row hidden, exact levels +
   unselected, draft-only write, model switch clears), `SettingsValidationTest` +3 (isEmpty, persist,
   stale normalize). Full suite + `lintDebug` green (forced). Release installed on BOTH devices.
+- **Preset wave (`0b03719`):** two LLM presets in `provider_presets.json` — **"OpenCode"**
+  (`https://opencode.ai/inference/openai/v1/`, the Console pay-as-you-go endpoint) and
+  **"OpenCode Go"** (`https://opencode.ai/inference/go/openai/v1/`), both `default_model
+  glm-5.3-flash` (the owner's own agent model, 0-day retention). Researched 2026-11-26: the level
+  vocabulary is per model across the whole catalog; OpenCode's own config syntax `opencode-go/
+  glm-5.3-flash#high` confirms the `#variant` IS the reasoning effort. Caveats pinned in the issue
+  comment: Go's free-tier chat models answer 403 outside OpenCode; Go asks for
+  `x-opencode-session` (documented as no-longer-required; the app sends none — a follow-up issue
+  would add it via an OkHttp interceptor if the device verdict says so). `ProviderPresetLoaderTest`
+  pins both base URLs.
 - **Owner check:** open a Provider setup whose LLM endpoint is opencode-go → Fetch Models → pick a
   reasoning model (e.g. `glm-5.3`): the spinner must appear with exactly `low / high / max`, stay
-  empty until touched, and the polish must still work; the STT section must be unchanged.
+  empty until touched, and the polish must still work; the STT section must be unchanged. Preset
+  path: pick the "OpenCode Go" preset → URL + default model land in the fields → Fetch Models.
 
 
 ## #212 — Settings becomes an overview with four category screens (2026-11-26, CLOSED — owner verdict passed on the device)

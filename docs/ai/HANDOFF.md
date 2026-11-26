@@ -20,8 +20,13 @@ section ONLY when the selected model advertises effort levels — no provider vo
 "default" entry, unselected = nothing sent; no capabilities → the row does not exist and the surface
 looks exactly as before.** `SettingsValidation.apply` normalizes a stale effort to null against the
 cached list. Tests: full suite + lint green (forced, `:core` new `ChatRequestJsonTest`, +5/+3/+4/+3
-in the four app suites). Release installed on BOTH devices. **Owner check:** opencode-go LLM setup →
-Fetch Models → a reasoning model shows the spinner with exactly its levels, STT section unchanged.
+in the four app suites). Release installed on BOTH devices. **Preset wave `0b03719`:** the LLM
+presets learn "OpenCode" (`https://opencode.ai/inference/openai/v1/`) and "OpenCode Go"
+(`https://opencode.ai/inference/go/openai/v1/`), default `glm-5.3-flash`; Go's free-tier models
+403 outside OpenCode and the app sends no `x-opencode-session` (documented as not required —
+follow-up issue if the device verdict disagrees). **Owner check:** opencode-go LLM setup →
+Fetch Models → a reasoning model shows the spinner with exactly its levels, STT section unchanged;
+preset path: "OpenCode Go" preset → Fetch Models.
 See `state/settings.md` + `state/stt-providers.md`.
 
 **#213 (2026-11-26, CLOSED — owner verdict passed on the device, final wave `49f78b1`): recording-red FONT, polished-zone summary actions, app-wide rounded button style, borderless bigger workbench icons.**

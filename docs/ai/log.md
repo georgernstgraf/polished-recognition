@@ -1,5 +1,10 @@
 # Persistence Log
 
+## 2026-11-26 (#153 — Preset-Welle: OpenCode Console + Go als LLM-Presets)
+
+* **Update**: [state/settings.md](state/settings.md) — #153-Abschnitt um die Preset-Welle ergänzt: „OpenCode" (`…/inference/openai/v1/`) + „OpenCode Go" (`…/inference/go/openai/v1/`), Default `glm-5.3-flash`, Recherche-Fund (Vokabel pro Modell, `#variant` = Reasoning-Effort in OpenCodes Config), Caveats (Go-Free-403, `x-opencode-session` nicht gesendet), Preset-Owner-Check.
+* **No change**: [state/stt-providers.md](state/stt-providers.md), [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [state/index.md](state/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#153 — Reasoning-Efforts des LLM-Modells als Einstellung)
 
 * **Creation**: [state/settings.md](state/settings.md) — neuer #153-Abschnitt: konditioneller Reasoning-Spinner in der LLM-Sektion (nur bei kommunizierten `capabilities.reasoning.effort`-Levels), keine synthetische „Default"-Option (Owner-Wunsch), Spinner unselektiert = nichts senden, Invarianten über `updateReasoningRow()`, Draft/Apply-Fäden + Normalisierung im Apply.
