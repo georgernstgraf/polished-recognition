@@ -3,13 +3,44 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T12:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
 status: stable
 ---
 
 # Project State — Workbench
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #213 — Polished-Zone: Aktionen in der Summary-Zeile, unten nur Copy (2026-11-26, implementiert — offen bis Owner-Gerätecheck)
+
+- **Was:** Owner-Wunsch: eine Zeile weniger im Workbench-UI. Die
+  Polished-Summary-Zeile trägt jetzt **chevron · „Polished" · Mistkübel ·
+  Promote · Copy** (genau diese Reihenfolge); die bisherige eigene
+  Promote+Mistkübel-Zeile über der Summary (`workbench_actions_b` mit
+  48dp-Icons) ist weg. Unter dem read-only Polished-Feld steht **nur noch das
+  Copy-Icon** (`workbench_copy_polished_bottom`, 40dp) — die Zone-C-IDs
+  `workbench_promote_c`/`workbench_clear_polished_c` sind getestet aus den
+  Ressourcen entfernt (`getIdentifier == 0`).
+- **IDs gehalten:** `workbench_promote_b`/`workbench_clear_polished_b` zogen
+  nur um (in die Summary-Zeile, 40dp) — die Activity-Logik blieb bei den
+  bekannten IDs. Neu ist nur der Bottom-Copy-Button: derselbe
+  `deliver(polished)`-Pfad wie `workbench_copy_polished`, dieselbe
+  Enable-Policy (`actions.copyPolished`).
+- **Buttons:** Alle Text-Buttons der App tragen jetzt `@style/AppButton`
+  (`app_button_bg`: 1dp-Border in `textColorSecondary`, 6dp-Ecken, Ripple,
+  nur Theme-Attribute); die Polish-Buttons wechselten auf `drawableEnd`
+  (Text dann Icon). Regel in CONVENTIONS.md „AppButton".
+- **Tests:** `WorkbenchLayoutPolicyTest` — Zonen-Pin neu (Zone C nur Copy,
+  die _c_-IDs verboten), Summary-Zeilen-Pin (chevron · label · trash ·
+  promote · copy); `WorkbenchActivityTest` — Bottom-Copy liefert denselben
+  Text wie die Summary-Zeile, Bottom-bar-holds-only-copy-Pin. Suite + lint
+  grün, Release auf dem OnePlus (`f6de166c`) installiert; Samsung (A032F)
+  war nicht angeschlossen.
+- **Owner-Check (Teil 1 von #213):** die Summary-Zeile liest
+  chevron · Polished · 🗑 · ↑ · ⧉ in dieser Reihenfolge, eine Zeile weniger
+  als vorher; unter dem Polished-Feld nur noch ⧉ mit demselben Effekt; die
+  Polish-Buttons sind sichtbar gerahmt mit leicht gerundeten Ecken, Icon
+  NACH dem Text. (Das rote IME ist Teil 2, siehe state/ime-field.md.)
 
 ## #210 — Rotation erhält die gezeigte Seite; kein neues Diktat (2026-11-25, implementiert — offen bis Owner-Gerätecheck)
 

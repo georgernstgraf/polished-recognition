@@ -1,5 +1,15 @@
 # Persistence Log
 
+## 2026-11-26 (#213 — rotes IME + Workbench-Polished-Zone + AppButton implementiert)
+
+* **Update**: [state/workbench.md](state/workbench.md) — neuer #213-Abschnitt: Summary-Zeile trägt trash · promote · copy (eine Zeile weniger), unten nur Copy, AppButton-Regel, Test-Pins.
+* **Update**: [state/ime-field.md](state/ime-field.md) — neuer #213-Abschnitt: Recording-Rot als konstanter Grund, `PulseColorPolicy` (Alpha+Rot-Puls des Vordergrunds), Weiß-Vordergrund in beiden Modi.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — neue UI-Regel „AppButton": alle Text-Buttons tragen `@style/AppButton` (`app_button_bg`), ImageButtons ausgenommen, Polish text-then-icon.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #213-Block oben (implementiert, offen bis Owner-Gerätechecks; vier Checks).
+* **Update**: [STATE.md](STATE.md) — Statuszeile führt #213.
+* **Update**: [index.md](index.md) + [state/index.md](state/index.md) — Section-Counts (Workbench 7, IME 8, State 48).
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#212 — geschlossen: Owner-Urteil auf dem Gerät + Polish-Welle)
 
 * **Update**: [state/settings.md](state/settings.md) — #212-Abschnitt auf CLOSED gesetzt; Polish-Welle dokumentiert (H1-Titel + LLM-Control-Überschrift `3c24afc`, 13 Divider `5f63b29`, About-Tausch `81992d2`, Kontrast-Tausch `96cc343`: Divider in `text_secondary`, `colorControlNormal` → `control_quiet` ~20 %).

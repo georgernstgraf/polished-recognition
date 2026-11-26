@@ -3,13 +3,44 @@ type: State
 title: Project State — IME and the Target Field
 description: The keyboard surface, its output control, the palette and the live preview.
 tags: [knowledge, state, ime-field]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:15:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
 status: stable
 ---
 
 # Project State — IME and the Target Field
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #213 — Recording-Rot: konstanter roter Grund, Alpha+Rot-Puls des Vordergrunds (2026-11-26, implementiert — offen bis Owner-Gerätecheck)
+
+- **Was:** Owner-Wunsch: das IME bekommt während des Diktats eine Farbe —
+  „ein angenehmes Rot", „genauso blinkend wie zuvor". Präzisierung im
+  Plan-Gespräch: **der Hintergrund pulsiert nicht** (so wie jetzt) — nur die
+  Vordergrundfarbe pulsiert; bisher nur Alpha, geplant **Alpha + Rot**.
+- **Umsetzung (`f508f8f`):** `recording_overlay` ist jetzt Recording-Rot in
+  beiden Modi (hell `#D32F2F`, nacht `#B71C1C`), Text/Icons/Divider darauf
+  weiß in BEIDEN Modi (`recording_text_primary`/`recording_icon_tint` →
+  `#FFFFFF`, Divider `#4DFFFFFF`), neu `recording_pulse_red`
+  (hell `#FFB4A9`, nacht `#FF8A80` — am Gerät feinjustieren). Die
+  Alpha-Puls-Mechanik ist UNANGETASTET (Sinus 0,3↔1,0 über die Reihen,
+  `breathAnimator`/`PulseAlphaPolicy`). Neu: `service/PulseColorPolicy.kt`
+  (reine Policy neben `PulseAlphaPolicy`) mischt die Vordergrundfarbe
+  **invers** zur Welle — am Scheitel (Alpha 1) Neutralweiß, im Tal
+  (Alpha 0,3) voll Richtung Pulse-Rot; ein einziger Treiber (`breathAlpha`)
+  hält Alpha und Farbe kohärent. `applyAlpha()` setzt zusätzlich
+  `imageTintList` (alle 6 ImageButtons), `setTextColor` (Timer, Stage-Text,
+  Checkbox) und `buttonTintList` (Checkbox); außerhalb RECORDING pinnt die
+  Grundfarbe (#77-Regel, farblich). Das Zahnrad-Icon hat jetzt einen
+  statischen `recording_icon_tint`-Tint im XML.
+- **Tests:** `PulseColorPolicyTest` — Mix-lerp inkl. Truncation (218/212 bei
+  t=0,5), Clamping, inverse Wellen-Abbildung, Pin außerhalb RECORDING. Ein
+  During-der-Entwicklung gefundener Inversionsfehler (erst
+  `(breathAlpha-floor)`, damit wäre der Scheitel rot gewesen) ist durch den
+  Test aufgezeigt und im Policy-Code korrigiert. Suite + lint grün; Release
+  auf dem OnePlus installiert; Samsung nicht angeschlossen.
+- **Owner-Check (Teil 2 von #213):** während des Diktats ist die Leiste rot
+  und pulsiert — Helligkeit UND leichter Rotstich der Schrift/Icons bewegen
+  sich gemeinsam; pausiert steht sie still in voller Deckung, weiß auf Rot.
 
 ## #211 — die LLM-Checkbox zeigt den effektiven Zustand (2026-11-26, CLOSED — Owner-Urteil)
 

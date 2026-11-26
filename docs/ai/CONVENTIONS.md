@@ -3,8 +3,8 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T10:30:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-22T10:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
 status: stable
 ---
 
@@ -71,6 +71,7 @@ Follow these without question. Do not deviate unless explicitly told.
 - **Record the dictation target at dictation start (`#102` amendment)**: both entry points call `recordKnownApp` when recording begins — IME `startIfPermitted()` and service `onStartListening()` — so the currently active app is top/pre-selected while dictating (e.g. gear → Settings). The insertion/delivery-time call stays as the authoritative capture/fallback; the second call is absorbed by the 24 h throttle (no extra disk I/O).
 
 ## UI Patterns
+- **AppButton — the one text-button style (since #213)**: every TEXT button in the app wears `style="@style/AppButton"` (`app_button_bg`: quiet 1dp border in `textColorSecondary`, 6dp rounded corners, ripple, theme attributes only —(XmlColorPolicy rules). Text colour is NOT set in the style: buttons inherit the theme's `textColorPrimary` selector, so disabled dimming (@color/text_disabled) keeps working. Do NOT re-add `borderlessButtonStyle`/`buttonBarButtonStyle` to a text button. Icon `ImageButton`s are NOT part of this rule — they carry no background (#173). The Polish buttons order text-then-icon (`drawableEnd`).
 - **The app is fully Material-free + appcompat-free** (since #61): every activity extends plain `android.app.Activity`, `Theme.PolishedRecognition.Plain` → `Theme.DeviceDefault.DayNight` is the only theme family, and only plain platform Views are used (`EditText`, `CheckBox`, `Button`, `AutoCompleteTextView`, `ImageButton`). NEVER reintroduce `com.google.android.material`, `androidx.appcompat`, `TextInputLayout`/`TextInputEditText`/`MaterialCheckBox`/`Widget.Material3.Button.*`/`?attr/textAppearance*`/`?attr/...` (bare) into any layout or theme — they crash under `Theme.DeviceDefault`. Use `?android:attr/...` (platform), `@android:style/...`, or explicit `textSize`/`textColor`. IME layouts additionally must not use any `?attr/` at all (see PITFALLS).
 - **Settings validation errors** (since #45): call `editText.error = msg` (or `autoCompleteTextView.error = msg`) — shows a red warning icon + popup. Add a `TextWatcher` that clears `error = null` on text change so the icon disappears as the user corrects. Do NOT use `TextInputLayout.error`/`helperText` (no `TextInputLayout` exists in Settings anymore). Success states use `Toast` (the Material `helperText = "Token valid"` green text is gone).
 - **Settings token reveal** (since #45): each API-token `EditText` is paired with an `ImageButton` (`stt_token_toggle`/`llm_token_toggle`) whose `OnClickListener` calls `togglePassword(field, toggle)` — flips `PasswordTransformationMethod` + swaps `ic_eye`↔`ic_eye_off` + moves the cursor to the end. Do NOT re-add Material's `app:endIconMode="password_toggle"` (no `TextInputLayout`).
