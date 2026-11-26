@@ -184,6 +184,19 @@
             android:inputType="text|textNoSuggestions"
             android:importantForAutofill="no"
             android:completionThreshold="1"
+            android:layout_marginBottom="8dp" />
+
+        <!-- #153: the reasoning-effort spinner — GONE unless the selected
+             model's fetched capability list advertises effort levels. -->
+        <AutoCompleteTextView
+            android:id="@+id/llm_reasoning_effort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/reasoning_level"
+            android:inputType="none"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
     </LinearLayout>

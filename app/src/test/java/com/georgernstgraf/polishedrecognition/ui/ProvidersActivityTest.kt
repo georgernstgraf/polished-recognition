@@ -111,8 +111,85 @@ class ProvidersActivityTest {
         assertThat(SettingsDraft.sttModel).isEmpty()
     }
 
+    // ---- #153: the conditional reasoning-effort spinner -----------------------
+
+    @Test
+    fun `reasoning row stays hidden when the model has no capability info`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        store.setLlmModels("https://seedllm.example/v1", listOf("seed-llm-model"))
+        val activity = launch()
+
+        assertThat(activity.findViewById<android.widget.AutoCompleteTextView>(R.id.llm_reasoning_effort).visibility)
+            .isEqualTo(android.view.View.GONE)
+        // And nothing is pending — a provider that says nothing sends nothing.
+        assertThat(SettingsDraft.isEmpty).isTrue()
+    }
+
+    @Test
+    fun `reasoning spinner offers exactly the communicated levels and starts unselected`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        store.setLlmModels(
+            "https://seedllm.example/v1",
+            listOf("seed-llm-model"),
+            reasoningEfforts = mapOf("seed-llm-model" to listOf("low", "high", "max"))
+        )
+        val activity = launch()
+        val spinner = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.llm_reasoning_effort)
+
+        assertThat(spinner.visibility).isEqualTo(android.view.View.VISIBLE)
+        assertThat((0 until spinner.adapter.count).map { spinner.adapter.getItem(it) as String })
+            .containsExactly("low", "high", "max").inOrder()
+        // No preselection: an untouched row sends nothing (the provider's own
+        // default applies) — there is no synthetic "default" entry.
+        assertThat(spinner.text.toString()).isEmpty()
+        assertThat(SettingsDraft.llmReasoningEffort).isNull()
+    }
+
+    @Test
+    fun `picking a reasoning level writes the draft and never the prefs`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        store.setLlmModels(
+            "https://seedllm.example/v1",
+            listOf("seed-llm-model"),
+            reasoningEfforts = mapOf("seed-llm-model" to listOf("low", "high", "max"))
+        )
+        val activity = launch()
+        val spinner = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.llm_reasoning_effort)
+        val beforeEdits = prefs().getString("llm_provider", null)!!
+
+        val position = (0 until spinner.adapter.count).first { spinner.adapter.getItem(it) == "high" }
+        spinner.onItemClickListener!!.onItemClick(null, null, position, position.toLong())
+
+        assertThat(SettingsDraft.llmReasoningEffort).isEqualTo("high")
+        assertThat(prefs().getString("llm_provider", null)).isEqualTo(beforeEdits)
+    }
+
+    @Test
+    fun `switching the model to one without levels clears the pending choice`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        store.setLlmModels(
+            "https://seedllm.example/v1",
+            listOf("seed-llm-model", "plain-model"),
+            reasoningEfforts = mapOf("seed-llm-model" to listOf("low", "high", "max"))
+        )
+        val activity = launch()
+        val spinner = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.llm_reasoning_effort)
+        val position = (0 until spinner.adapter.count).first { spinner.adapter.getItem(it) == "high" }
+        spinner.onItemClickListener!!.onItemClick(null, null, position, position.toLong())
+        assertThat(SettingsDraft.llmReasoningEffort).isEqualTo("high")
+
+        // The user picks a model whose cached entry carries no levels — the
+        // row disappears and the stale choice must not survive it.
+        activity.field(R.id.llm_model).setText("plain-model")
+
+        assertThat(spinner.visibility).isEqualTo(android.view.View.GONE)
+        assertThat(SettingsDraft.llmReasoningEffort).isNull()
+    }
+
     private companion object {
         const val STT_SEED =
             """{"displayName":"seed","baseUrl":"https://seed.example/v1","apiToken":"t","model":"seed-model"}"""
+        const val LLM_SEED =
+            """{"displayName":"seedLlm","baseUrl":"https://seedllm.example/v1","apiToken":"t","model":"seed-llm-model"}"""
     }
 }

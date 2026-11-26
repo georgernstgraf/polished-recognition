@@ -9,6 +9,7 @@ import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.view.View
 import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
@@ -46,6 +47,7 @@ class ProvidersActivity : Activity() {
     private val llmTokenField: EditText by lazy { findViewById(R.id.llm_token) }
     private val llmTokenToggle: ImageButton by lazy { findViewById(R.id.llm_token_toggle) }
     private val llmModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_model) }
+    private val llmReasoningDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_reasoning_effort) }
     private val fetchLlmModelsButton: Button by lazy { findViewById(R.id.fetch_llm_models) }
     private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
 
@@ -83,7 +85,13 @@ class ProvidersActivity : Activity() {
 
         llmTokenField.addTextChangedListener(draftWatcher { draft.llmToken = it })
         llmUrlField.addTextChangedListener(draftWatcher { draft.llmUrl = it })
-        llmModelDropdown.addTextChangedListener(draftWatcher { draft.llmModel = it })
+        llmModelDropdown.addTextChangedListener(draftWatcher {
+            draft.llmModel = it
+            // #153: the model decides the capability vocabulary — every model
+            // edit re-evaluates whether the reasoning row exists and what it
+            // offers.
+            updateReasoningRow()
+        })
     }
 
     private val draft: SettingsDraft get() = SettingsDraft
@@ -120,6 +128,7 @@ class ProvidersActivity : Activity() {
             llmModelDropdown.setText(draft.llmModel ?: llm?.model ?: "", false)
             updateModelDropdown(llmModelDropdown, settings.getLlmModels(llmUrlField.text.toString()))
         }
+        updateReasoningRow()
     }
 
     private fun setupDropdowns() {
@@ -171,6 +180,17 @@ class ProvidersActivity : Activity() {
             dropdown.setOnClickListener { dropdown.showDropDown() }
         }
 
+        // #153: the reasoning spinner behaves like the provider dropdowns —
+        // inputType=none (never filters, tap opens), and the selection lands
+        // in the draft, applied on the overview's back-exit.
+        llmReasoningDropdown.threshold = Int.MAX_VALUE
+        llmReasoningDropdown.setOnClickListener { llmReasoningDropdown.showDropDown() }
+        llmReasoningDropdown.setOnItemClickListener { _, _, position, _ ->
+            if (!silenceDraftWatchers) {
+                draft.llmReasoningEffort = llmReasoningDropdown.adapter.getItem(position) as String
+            }
+        }
+
         sttModelDropdown.threshold = 1
         llmModelDropdown.threshold = 1
 
@@ -204,6 +224,9 @@ class ProvidersActivity : Activity() {
         val baseUrl = if (dropdown === sttModelDropdown) sttUrlField.text.toString() else llmUrlField.text.toString()
         val models = if (dropdown === sttModelDropdown) settings.getSttModels(baseUrl) else settings.getLlmModels(baseUrl)
         updateModelDropdown(dropdown, models)
+        // #153: a URL change swaps the capability cache too — re-evaluate the
+        // reasoning row against the new endpoint's vocabulary.
+        if (dropdown === llmModelDropdown) updateReasoningRow()
     }
 
     private fun validateModelField(dropdown: AutoCompleteTextView) {
@@ -288,8 +311,17 @@ class ProvidersActivity : Activity() {
             try {
                 val result = fetchLlmModels(baseUrl, token)
                 if (result.isSuccess) {
-                    val models = result.getOrThrow()
-                    settings.setLlmModels(baseUrl, models)
+                    val entries = result.getOrThrow()
+                    val models = entries.map { it.id }
+                    // #153: the capability vocabulary rides along — per model,
+                    // the effort list the provider communicated (absent when
+                    // it did not).
+                    val efforts = entries.mapNotNull { entry ->
+                        entry.capabilities?.reasoning?.effort
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.let { entry.id to it }
+                    }.toMap()
+                    settings.setLlmModels(baseUrl, models, efforts)
                     updateModelDropdown(llmModelDropdown, models)
                     if (llmModelDropdown.text.toString() !in models) {
                         val currentPresetName = llmProviderDropdown.text.toString()
@@ -300,6 +332,9 @@ class ProvidersActivity : Activity() {
                             llmModelDropdown.text.clear()
                         }
                     }
+                    // The model text may be unchanged (watcher silent) while
+                    // the capability cache is not — always re-evaluate.
+                    updateReasoningRow()
                     llmTokenField.error = null
                     Toasts.show(
                         this@ProvidersActivity,
@@ -340,7 +375,12 @@ class ProvidersActivity : Activity() {
         testLlmTokenButton.isEnabled = false
         scope.launch {
             try {
-                val result = testLlmTokenCall(baseUrl, token, model)
+                val result = testLlmTokenCall(
+                    baseUrl,
+                    token,
+                    model,
+                    reasoningEffort = draft.llmReasoningEffort ?: settings.llmProvider?.reasoningEffort
+                )
                 if (result.isSuccess) {
                     llmTokenField.error = null
                     Toasts.short(this@ProvidersActivity, getString(R.string.token_valid))
@@ -356,14 +396,13 @@ class ProvidersActivity : Activity() {
         }
     }
 
-    private suspend fun fetchLlmModels(baseUrl: String, token: String): Result<List<String>> =
+    private suspend fun fetchLlmModels(baseUrl: String, token: String): Result<List<com.georgernstgraf.polishedrecognition.api.dto.ModelEntry>> =
         withContext(Dispatchers.IO) {
             try {
                 val api = app.getChatApi(baseUrl)
                 val response = api.listModelsSync("Bearer $token").execute()
                 if (response.isSuccessful && response.body() != null) {
-                    val models = response.body()!!.data.map { it.id }
-                    Result.success(models)
+                    Result.success(response.body()!!.data)
                 } else {
                     val detail = extractErrorDetail(response.errorBody())
                     val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
@@ -374,14 +413,58 @@ class ProvidersActivity : Activity() {
             }
         }
 
-    private suspend fun testLlmTokenCall(baseUrl: String, token: String, model: String): Result<Unit> =
+    /**
+     * #153: shows the reasoning-effort spinner ONLY when the selected model's
+     * fetched capability list advertises effort levels — a provider that says
+     * nothing leaves the Settings surface exactly as it was. The entries are
+     * exactly the communicated levels (no app-side vocabulary, no synthetic
+     * "default" entry): the spinner starts WITHOUT a selection and nothing is
+     * sent until the user picks one, so the provider's own default stays
+     * intact for an untouched row.
+     *
+     * Invariants enforced here (the apply normalizes defensively against the
+     * same cache):
+     *  - no levels (no fetch, capability-less model, expired cache) → the row
+     *    is GONE and any pending choice is dropped;
+     *  - a stored choice survives a re-render only while the current model
+     *    still lists it.
+     */
+    private fun updateReasoningRow() {
+        val baseUrl = llmUrlField.text.toString()
+        val model = llmModelDropdown.text.toString().trim()
+        val levels = settings.getLlmReasoningEfforts(baseUrl)[model].orEmpty()
+        if (levels.isEmpty()) {
+            llmReasoningDropdown.visibility = View.GONE
+            if (draft.llmReasoningEffort != null) draft.llmReasoningEffort = null
+            return
+        }
+        llmReasoningDropdown.visibility = View.VISIBLE
+        llmReasoningDropdown.setAdapter(
+            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, levels)
+        )
+        val effective = draft.llmReasoningEffort ?: settings.llmProvider?.reasoningEffort
+        if (effective != null && effective in levels) {
+            llmReasoningDropdown.setText(effective, false)
+        } else {
+            if (draft.llmReasoningEffort != null) draft.llmReasoningEffort = null
+            llmReasoningDropdown.setText("", false)
+        }
+    }
+
+    private suspend fun testLlmTokenCall(
+        baseUrl: String,
+        token: String,
+        model: String,
+        reasoningEffort: String? = null
+    ): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
                 val api = app.getChatApi(baseUrl)
                 val request = ChatRequest(
                     model = model,
                     messages = listOf(ChatMessage(role = "user", content = "ping")),
-                    maxTokens = 1
+                    maxTokens = 1,
+                    reasoningEffort = reasoningEffort
                 )
                 val response = api.chatSync("Bearer $token", request).execute()
                 if (response.isSuccessful) {

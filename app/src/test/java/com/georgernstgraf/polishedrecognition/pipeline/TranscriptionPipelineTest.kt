@@ -223,6 +223,42 @@ class TranscriptionPipelineTest {
         assertThat(system).doesNotContain("{{source_language_clause}}")
     }
 
+    // ---- #153: the reasoning effort rides every LLM chat request --------------
+
+    @Test
+    fun `LLM chat request carries the configured reasoning effort (#153)`() = runBlocking {
+        settingsStore.llmProvider = settingsStore.llmProvider!!.copy(reasoningEffort = "high")
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+        mockSttSuccess()
+
+        pipeline.transcribe(listOf(lincolnFile))
+
+        assertThat(requestSlot.captured.reasoningEffort).isEqualTo("high")
+    }
+
+    @Test
+    fun `LLM chat request sends no reasoning effort when none is configured (#153)`() = runBlocking {
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+        mockSttSuccess()
+
+        pipeline.transcribe(listOf(lincolnFile))
+
+        assertThat(requestSlot.captured.reasoningEffort).isNull()
+    }
+
+    @Test
+    fun `manual polish carries the reasoning effort too (#153)`() = runBlocking {
+        settingsStore.llmProvider = settingsStore.llmProvider!!.copy(reasoningEffort = "max")
+        val requestSlot = slot<ChatRequest>()
+        mockChatSuccessWithCapture(requestSlot)
+
+        pipeline.polish("Hallo Welt", null)
+
+        assertThat(requestSlot.captured.reasoningEffort).isEqualTo("max")
+    }
+
     @Test
     fun `manual polish fails loudly on an http error (#171)`() = runBlocking {
         every { chatApi.chatSync(any(), any()) } returns

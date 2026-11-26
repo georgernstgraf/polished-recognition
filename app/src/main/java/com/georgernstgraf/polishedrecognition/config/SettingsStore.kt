@@ -15,12 +15,29 @@ data class LlmProviderConfig(
     val displayName: String,
     val baseUrl: String,
     val apiToken: String,
-    val model: String
+    val model: String,
+    /**
+     * #153: the reasoning effort sent as `reasoning_effort` on every LLM chat
+     * request — `null` = send nothing (the provider's own default applies).
+     * A value may only be stored when the configured model's fetched
+     * capability list advertises it (the ProvidersActivity UI enforces that
+     * invariant, [SettingsValidation.apply] normalizes defensively).
+     */
+    val reasoningEffort: String? = null
 )
 
 data class CachedModels(
     val timestamp: Long,
-    val models: List<String>
+    val models: List<String>,
+    /**
+     * #153: per-model reasoning effort levels as communicated by the
+     * provider's `/models` response (`capabilities.reasoning.effort`), keyed
+     * by model id. Nullable on purpose: a pre-#153 cache JSON carries no such
+     * member and Gson bypasses the Kotlin default (deserializes a non-null
+     * declaration to null — see the #101 comment on [readProvider]), so every
+     * reader normalizes through `orEmpty()`.
+     */
+    val reasoningEfforts: Map<String, List<String>>? = null
 )
 
 /**
@@ -372,15 +389,52 @@ class SettingsStore(
 
     fun getSttModels(baseUrl: String): List<String> = getCachedModels(STT_MODEL_LISTS_KEY, baseUrl)
 
-    fun setLlmModels(baseUrl: String, models: List<String>) {
-        setCachedModels(LLM_MODEL_LISTS_KEY, baseUrl, models)
+    /**
+     * #153: [reasoningEfforts] carries the per-model effort levels the
+     * provider communicated in the same fetch; an empty map (the default)
+     * keeps the STT-style call sites and older tests unchanged.
+     */
+    fun setLlmModels(
+        baseUrl: String,
+        models: List<String>,
+        reasoningEfforts: Map<String, List<String>> = emptyMap()
+    ) {
+        setCachedModels(LLM_MODEL_LISTS_KEY, baseUrl, models, reasoningEfforts)
     }
 
     fun getLlmModels(baseUrl: String): List<String> = getCachedModels(LLM_MODEL_LISTS_KEY, baseUrl)
 
-    private fun setCachedModels(mapKey: String, baseUrl: String, models: List<String>) {
+    /**
+     * #153: the effort levels the provider advertised for each model at this
+     * endpoint, or an empty map when the cache holds no capability info
+     * (pre-#153 cache, a provider without the extension, or an expired
+     * entry). The expiry behaves exactly like [getLlmModels] — an expired
+     * entry is dropped for both readers alike.
+     */
+    fun getLlmReasoningEfforts(baseUrl: String): Map<String, List<String>> {
+        migrateLegacyModelList(LLM_MODEL_LISTS_KEY)
+        val cache = readModelCache(LLM_MODEL_LISTS_KEY)
+        val entry = cache[baseUrl] ?: return emptyMap()
+        if (System.currentTimeMillis() - entry.timestamp > MODEL_CACHE_TTL_MS) {
+            cache.remove(baseUrl)
+            prefs.edit { putString(LLM_MODEL_LISTS_KEY, gson.toJson(cache)) }
+            return emptyMap()
+        }
+        return entry.reasoningEfforts.orEmpty()
+    }
+
+    private fun setCachedModels(
+        mapKey: String,
+        baseUrl: String,
+        models: List<String>,
+        reasoningEfforts: Map<String, List<String>> = emptyMap()
+    ) {
         val cache = readModelCache(mapKey)
-        cache[baseUrl] = CachedModels(System.currentTimeMillis(), models)
+        cache[baseUrl] = CachedModels(
+            timestamp = System.currentTimeMillis(),
+            models = models,
+            reasoningEfforts = reasoningEfforts.ifEmpty { null }
+        )
         prefs.edit { putString(mapKey, gson.toJson(cache)) }
     }
 

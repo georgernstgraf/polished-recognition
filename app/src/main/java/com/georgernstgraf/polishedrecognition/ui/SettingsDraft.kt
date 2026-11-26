@@ -32,6 +32,14 @@ object SettingsDraft {
     var llmToken: String? = null
     var llmModel: String? = null
 
+    /**
+     * #153: the pending reasoning-effort choice for the LLM provider — the
+     * value of the conditional spinner. `null` = no selection (nothing is
+     * sent); the row itself only exists when the selected model's fetched
+     * capability list advertises effort levels.
+     */
+    var llmReasoningEffort: String? = null
+
     // ---- Manage Prompts (PromptsActivity) ----
     var systemPrompt: String? = null
     var targetLanguageClause: String? = null
@@ -62,6 +70,7 @@ object SettingsDraft {
     val isEmpty: Boolean
         get() = sttProviderName == null && sttUrl == null && sttToken == null && sttModel == null &&
             llmProviderName == null && llmUrl == null && llmToken == null && llmModel == null &&
+            llmReasoningEffort == null &&
             systemPrompt == null && targetLanguageClause == null &&
             wrapWidth == null && appWrapWidths.isEmpty() && pendingAppWrap == null &&
             appWrapForgotten.isEmpty() &&
@@ -79,6 +88,7 @@ object SettingsDraft {
         llmUrl = null
         llmToken = null
         llmModel = null
+        llmReasoningEffort = null
         systemPrompt = null
         targetLanguageClause = null
         wrapWidth = null

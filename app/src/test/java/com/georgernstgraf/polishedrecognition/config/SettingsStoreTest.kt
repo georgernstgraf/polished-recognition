@@ -267,6 +267,71 @@ class SettingsStoreTest {
         assertThat(store.getLlmModels("https://other.example.com")).isEmpty()
     }
 
+    // ---- #153: the reasoning-effort capability cache --------------------------
+
+    @Test
+    fun `LlmProviderConfig reasoningEffort round-trips`() {
+        store.llmProvider = LlmProviderConfig(
+            displayName = "LLM",
+            baseUrl = "https://llm.example.com/v1",
+            apiToken = "tok",
+            model = "glm-5.3",
+            reasoningEffort = "high"
+        )
+        val loaded = store.llmProvider
+        assertThat(loaded!!.reasoningEffort).isEqualTo("high")
+    }
+
+    @Test
+    fun `LlmProviderConfig reasoningEffort defaults to null`() {
+        store.llmProvider = LlmProviderConfig(
+            displayName = "LLM",
+            baseUrl = "https://llm.example.com/v1",
+            apiToken = "tok",
+            model = "glm-5.3"
+        )
+        assertThat(store.llmProvider!!.reasoningEffort).isNull()
+    }
+
+    @Test
+    fun `LLM reasoning efforts are keyed per URL and model`() {
+        store.setLlmModels(
+            "https://llm.example.com/v1",
+            listOf("glm-5.3", "hungerg-free"),
+            reasoningEfforts = mapOf("glm-5.3" to listOf("low", "high", "max"))
+        )
+        assertThat(store.getLlmReasoningEfforts("https://llm.example.com/v1"))
+            .containsExactlyEntriesIn(mapOf("glm-5.3" to listOf("low", "high", "max")))
+        assertThat(store.getLlmReasoningEfforts("https://other.example.com/v1")).isEmpty()
+        // The id list is untouched by the enrichment.
+        assertThat(store.getLlmModels("https://llm.example.com/v1")).containsExactly("glm-5.3", "hungerg-free")
+    }
+
+    @Test
+    fun `LLM cache without capability info reads as empty reasoning efforts`() {
+        // A pre-#153 cache JSON carries no reasoningEfforts member (Gson leaves
+        // the field null) — the reader normalizes to an empty map.
+        store.setLlmModels("https://llm.example.com/v1", listOf("m"))
+        assertThat(store.getLlmReasoningEfforts("https://llm.example.com/v1")).isEmpty()
+    }
+
+    @Test
+    fun `expired LLM cache entry drops the reasoning efforts too`() {
+        store.setLlmModels(
+            "https://llm.example.com/v1",
+            listOf("glm-5.3"),
+            reasoningEfforts = mapOf("glm-5.3" to listOf("low", "high", "max"))
+        )
+        val prefs = settingsPrefs()
+        val json = prefs.getString("llm_model_lists", null)!!
+        val aged = json.replace("\"timestamp\":", "\"timestamp\":${System.currentTimeMillis() - SettingsStore.MODEL_CACHE_TTL_MS - 1000},\"ignored\":")
+        prefs.edit().putString("llm_model_lists", aged).commit()
+
+        assertThat(store.getLlmReasoningEfforts("https://llm.example.com/v1")).isEmpty()
+        val fresh = SettingsStore(RuntimeEnvironment.getApplication(), directExecutor)
+        assertThat(fresh.getLlmReasoningEfforts("https://llm.example.com/v1")).isEmpty()
+    }
+
     @Test
     fun `stt and llm caches are independent`() {
         store.setSttModels("https://same.example.com/v1", listOf("stt-model"))

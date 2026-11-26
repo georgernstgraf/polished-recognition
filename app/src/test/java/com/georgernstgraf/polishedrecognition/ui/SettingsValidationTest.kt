@@ -247,6 +247,43 @@ class SettingsValidationTest {
         assertThat(beforeSystem).isNotEqualTo("edited prompt")
     }
 
+    // ---- #153: the reasoning effort in the draft/apply flow -------------------
+
+    @Test
+    fun `a pending reasoning effort alone makes the draft non-empty`() {
+        assertThat(SettingsDraft.isEmpty).isTrue()
+        SettingsDraft.llmReasoningEffort = "low"
+        assertThat(SettingsDraft.isEmpty).isFalse()
+    }
+
+    @Test
+    fun `apply persists the pending reasoning effort when the model advertises it`() {
+        seedProviders()
+        store.setLlmModels(
+            "https://seedllm.example/v1",
+            listOf("seed-llm-model"),
+            reasoningEfforts = mapOf("seed-llm-model" to listOf("low", "high", "max"))
+        )
+        SettingsDraft.llmReasoningEffort = "high"
+
+        SettingsValidation.apply(RuntimeEnvironment.getApplication(), SettingsDraft, store, promptStore, emptySet())
+
+        assertThat(store.llmProvider!!.reasoningEffort).isEqualTo("high")
+    }
+
+    @Test
+    fun `apply normalizes a stale reasoning effort to null (nothing sent)`() {
+        seedProviders()
+        // No capability info in the cache (pre-#153 shape or a provider
+        // without the extension): the stored choice must not go on the wire.
+        store.setLlmModels("https://seedllm.example/v1", listOf("seed-llm-model"))
+        SettingsDraft.llmReasoningEffort = "high"
+
+        SettingsValidation.apply(RuntimeEnvironment.getApplication(), SettingsDraft, store, promptStore, emptySet())
+
+        assertThat(store.llmProvider!!.reasoningEffort).isNull()
+    }
+
     private companion object {
         const val STT_SEED =
             """{"displayName":"seed","baseUrl":"https://seed.example/v1","apiToken":"t","model":"seed-model"}"""

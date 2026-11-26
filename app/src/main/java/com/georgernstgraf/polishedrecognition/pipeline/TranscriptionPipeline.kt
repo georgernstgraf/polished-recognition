@@ -194,7 +194,8 @@ class TranscriptionPipeline(
             messages = listOf(
                 ChatMessage(role = "system", content = systemPrompt),
                 ChatMessage(role = "user", content = userPrompt)
-            )
+            ),
+            reasoningEffort = llmConfig.reasoningEffort
         )
 
         logger?.log("llm-prompt", GsonBuilder().setPrettyPrinting().create().toJson(request))
@@ -270,7 +271,8 @@ class TranscriptionPipeline(
                 messages = listOf(
                     ChatMessage(role = "system", content = systemPrompt),
                     ChatMessage(role = "user", content = userPrompt)
-                )
+                ),
+                reasoningEffort = llmConfig.reasoningEffort
             )
             logger?.log("llm-prompt", GsonBuilder().setPrettyPrinting().create().toJson(request))
             val response = getChatApi(llmConfig.baseUrl).chatSync(

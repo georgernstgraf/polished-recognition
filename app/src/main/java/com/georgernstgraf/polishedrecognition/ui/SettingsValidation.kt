@@ -62,6 +62,13 @@ object SettingsValidation {
     fun llmModel(draft: SettingsDraft, store: SettingsStore): String =
         draft.llmModel ?: store.llmProvider?.model ?: ""
 
+    /**
+     * #153: the effective reasoning effort — the pending draft choice wins
+     * over the persisted one. `null` = send nothing.
+     */
+    fun llmReasoningEffort(draft: SettingsDraft, store: SettingsStore): String? =
+        draft.llmReasoningEffort ?: store.llmProvider?.reasoningEffort
+
     fun wrapWidthText(draft: SettingsDraft, store: SettingsStore): String =
         draft.wrapWidth ?: String.format(Locale.ROOT, "%d", store.wrapWidth)
 
@@ -218,13 +225,23 @@ object SettingsValidation {
             )
         }
         val llmPending = draft.llmProviderName != null || draft.llmUrl != null ||
-            draft.llmToken != null || draft.llmModel != null
+            draft.llmToken != null || draft.llmModel != null ||
+            draft.llmReasoningEffort != null
         if (llmPending && CHECK_LLM_MODEL_EMPTY !in failed && CHECK_LLM_MODEL_NOT_IN_LIST !in failed) {
+            // #153: the effort survives the apply only when the configured
+            // model's cached capability list still advertises it — a stale
+            // value (expired cache, model switched outside the spinner's
+            // reach) is normalized to null (nothing sent) instead of going
+            // out on the wire against the provider's vocabulary.
+            val effortLevels = store.getLlmReasoningEfforts(llmUrl(draft, store))
+                .get(llmModel(draft, store).trim())
+                .orEmpty()
             store.llmProvider = LlmProviderConfig(
                 displayName = llmName(draft, store),
                 baseUrl = llmUrl(draft, store),
                 apiToken = llmToken(draft, store),
-                model = llmModel(draft, store).trim()
+                model = llmModel(draft, store).trim(),
+                reasoningEffort = llmReasoningEffort(draft, store)?.takeIf { it in effortLevels }
             )
         }
 
