@@ -130,6 +130,24 @@ class SettingsStore(
         get() = readProvider(LLM_PROVIDER_KEY, LLM_TOKEN_KEY, LlmProviderConfig::class.java)
         set(value) = writeProvider(LLM_PROVIDER_KEY, LLM_TOKEN_KEY, value)
 
+    /**
+     * #153: a stable per-install session id, sent as `x-opencode-session` —
+     * exclusively on requests to the OpenCode GO endpoint
+     * (`opencode.ai/inference/go/…`), which answers HTTP 400 without it
+     * (device finding 2026-11-26). Created once and persisted here; the
+     * workspace is already identified by the API key, so this is a
+     * routing/prompt-cache hint, not an additional identity. Not a
+     * #200-style hot-path getter: the first read happens when the chat
+     * client is built.
+     */
+    val opencodeSessionId: String
+        get() {
+            prefs.getString(OPENCODE_SESSION_ID_KEY, null)?.let { return it }
+            val created = java.util.UUID.randomUUID().toString()
+            prefs.edit { putString(OPENCODE_SESSION_ID_KEY, created) }
+            return created
+        }
+
     var rawMode: Boolean
         get() = prefs.getBoolean(RAW_MODE_KEY, false)
         set(value) = prefs.edit { putBoolean(RAW_MODE_KEY, value) }
@@ -699,6 +717,7 @@ class SettingsStore(
         const val KNOWN_APP_REWRITE_INTERVAL_MS = 24L * 60 * 60 * 1000
         private const val STT_PROVIDER_KEY = "stt_provider"
         private const val LLM_PROVIDER_KEY = "llm_provider"
+        private const val OPENCODE_SESSION_ID_KEY = "opencode_session_id"
         private const val STT_MODEL_LIST_KEY = "stt_model_list"
         private const val LLM_MODEL_LIST_KEY = "llm_model_list"
         private const val STT_MODEL_LISTS_KEY = "stt_model_lists"

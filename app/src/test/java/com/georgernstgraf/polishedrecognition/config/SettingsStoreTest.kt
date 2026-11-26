@@ -294,8 +294,7 @@ class SettingsStoreTest {
     }
 
     @Test
-    fun `LLM reasoning efforts are keyed per URL and model`() {
-        store.setLlmModels(
+    fun `LLM reasoning efforts are keyed per URL and model`() {        store.setLlmModels(
             "https://llm.example.com/v1",
             listOf("glm-5.3", "hungerg-free"),
             reasoningEfforts = mapOf("glm-5.3" to listOf("low", "high", "max"))
@@ -330,6 +329,15 @@ class SettingsStoreTest {
         assertThat(store.getLlmReasoningEfforts("https://llm.example.com/v1")).isEmpty()
         val fresh = SettingsStore(RuntimeEnvironment.getApplication(), directExecutor)
         assertThat(fresh.getLlmReasoningEfforts("https://llm.example.com/v1")).isEmpty()
+    }
+
+    @Test
+    fun `opencodeSessionId is created once and stays stable across stores (#153)`() {
+        val id = store.opencodeSessionId
+        assertThat(id).isNotEmpty()
+        // Same store and a fresh store both read the persisted value.
+        assertThat(store.opencodeSessionId).isEqualTo(id)
+        assertThat(freshStore().opencodeSessionId).isEqualTo(id)
     }
 
     @Test

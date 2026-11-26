@@ -22,6 +22,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.CoreLog
 import com.georgernstgraf.polishedrecognition.pipeline.CoreOs
 import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
 import com.georgernstgraf.polishedrecognition.pipeline.JournalReplay
+import com.georgernstgraf.polishedrecognition.api.OpenCodeSessionInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.ResponseLoggerInterceptor
 import com.georgernstgraf.polishedrecognition.pipeline.RotatingJsonLogger
 import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
@@ -157,6 +158,18 @@ class PolishedRecognitionApp : Application() {
 
     val settingsStore by lazy {
         SettingsStore(this, evidenceRetentionDefaultSeconds = BuildConfig.AUDIO_EVIDENCE_RETENTION_DEFAULT_SECONDS)
+    }
+
+    /**
+     * #153: the chat client derives from [okHttpClient] with the OpenCode
+     * session header — OpenCode Go answers HTTP 400 without it (device
+     * finding 2026-11-26). Only [getChatApi] uses this client; the STT path
+     * and every other host stay untouched.
+     */
+    private val chatOkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .addInterceptor(OpenCodeSessionInterceptor(settingsStore.opencodeSessionId))
+            .build()
     }
     val promptStore by lazy { PromptStore(this) }
     val providerPresetLoader by lazy { ProviderPresetLoader(this) }
@@ -350,7 +363,7 @@ class PolishedRecognitionApp : Application() {
         chatApiCache.getOrPut(baseUrl) {
             Retrofit.Builder()
                 .baseUrl(baseUrl)
-                .client(okHttpClient)
+                .client(chatOkHttpClient)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(OpenAiChatApiService::class.java)
