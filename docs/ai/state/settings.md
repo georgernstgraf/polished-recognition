@@ -3,8 +3,8 @@ type: State
 title: Project State — Settings
 description: The settings overview, its four category screens and the draft/apply save model.
 tags: [knowledge, state, settings]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T19:40:00Z }
-sources: ["#212", "#153"]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T20:15:00Z }
+sources: ["#212", "#153", "#214"]
 status: stable
 ---
 
@@ -12,6 +12,25 @@ status: stable
 
 The settings surface as its own theme since #212 (the overview + the four category
 screens). Sections are verbatim, newest first.
+
+## #214 — editing a field clears its own stale error (2026-11-26, shipped)
+
+- **Device finding (owner, while testing #153):** a correctly entered token still wore the red
+  error ball; only leaving and re-entering Settings removed it.
+- **Root cause:** commit `75fd935` (May 2026, „fix: clear token error on text change (#5)") had
+  TextWatchers clear the token fields' errors on every text change. The #212 move consolidated
+  all six watchers into `draftWatcher` — whose KDoc still claimed „clears the field error … (the
+  #45 contract)" — but the body only wrote the draft. Android never auto-clears `setError`, so a
+  stale failure message stuck while the user corrected the field; only the success paths
+  (`error = null` after a successful fetch/test) or a screen rebuild removed it.
+- **Fix (`0bef6f0`):** `draftWatcher(field, write)` clears `field.error = null` on every
+  non-silenced text change BEFORE writing the draft — all six fields (2× token, 2× URL, 2×
+  model dropdown) obey the documented contract again. Silenced programmatic loads (`loadFields`,
+  fetch auto-fill) touch neither draft nor error. The model-dropdown errors are re-set by
+  `validateModelField` on focus loss when still invalid.
+- **Tests:** `ProvidersActivityTest` +3 — editing the token clears its stale error, OTHER fields'
+  errors survive a sibling's edit, the silenced load clears nothing. Suite + lint green; release
+  installed on BOTH devices; #214 closed the same day.
 
 ## #153 — reasoning-effort spinner, only when the provider speaks (2026-11-26, implemented — OPEN until the owner's device check)
 

@@ -3,7 +3,7 @@ type: State
 title: Project State
 description: Current project status and pointers to the open threads.
 tags: [knowledge, state]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T18:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T20:15:00Z }
 status: stable
 ---
 

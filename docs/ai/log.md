@@ -1,5 +1,10 @@
 # Persistence Log
 
+## 2026-11-26 (#214 — Feldfehler löschen sich beim Editieren selbst, #5-Vertrag restauriert)
+
+* **Update**: [state/settings.md](state/settings.md) — neuer #214-Abschnitt: Gerätestfund (rote Kugel trotz korrektem Token), Ursache (die `75fd935`-Fehlerlösche-Hälfte starb im #212-Umbau — KDoc behauptete sie weiter), Fix (`draftWatcher(field, write)` räumt bei nicht-stummen Textwechseln den Fehler weg), Tests, Close.
+* **No change**: [state/stt-providers.md](state/stt-providers.md), [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [state/index.md](state/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#153 — Session-Header-Welle: x-opencode-session, NUR für den Go-Endpunkt)
 
 * **Update**: [state/settings.md](state/settings.md) — #153-Abschnitt um die Session-Header-Welle ergänzt; **Drift korrigiert**: die Web-Doku-Aussage „Header nicht mehr nötig" war falsch (Gerät: HTTP 400) — der Header wird jetzt exklusiv für Go-URLs (`opencode.ai` + `/inference/go/`) gesendet, Owner-Anforderung.
