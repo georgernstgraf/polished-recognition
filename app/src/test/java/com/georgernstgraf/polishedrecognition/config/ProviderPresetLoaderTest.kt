@@ -28,6 +28,24 @@ class ProviderPresetLoaderTest {
         assertThat(names).contains("LM Studio (local)")
     }
 
+    // ---- #153: the OpenCode endpoints (Console pay-as-you-go + Go) -----------
+
+    @Test
+    fun `findLlmPreset OpenCode has the Console inference base_url`() {
+        val preset = loader.findLlmPreset("OpenCode")
+        assertThat(preset).isNotNull()
+        assertThat(preset!!.base_url).isEqualTo("https://opencode.ai/inference/openai/v1/")
+        assertThat(preset.default_model).isEqualTo("glm-5.3-flash")
+    }
+
+    @Test
+    fun `findLlmPreset OpenCode Go has the Go inference base_url`() {
+        val preset = loader.findLlmPreset("OpenCode Go")
+        assertThat(preset).isNotNull()
+        assertThat(preset!!.base_url).isEqualTo("https://opencode.ai/inference/go/openai/v1/")
+        assertThat(preset.default_model).isEqualTo("glm-5.3-flash")
+    }
+
     @Test
     fun `findSttPreset GROQ Whisper has base_url`() {
         val preset = loader.findSttPreset("GROQ Whisper")

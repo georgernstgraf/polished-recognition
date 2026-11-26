@@ -26,6 +26,18 @@
             "models": []
         },
         {
+            "name": "OpenCode",
+            "base_url": "https://opencode.ai/inference/openai/v1/",
+            "models": [],
+            "default_model": "glm-5.3-flash"
+        },
+        {
+            "name": "OpenCode Go",
+            "base_url": "https://opencode.ai/inference/go/openai/v1/",
+            "models": [],
+            "default_model": "glm-5.3-flash"
+        },
+        {
             "name": "GROQ",
             "base_url": "https://api.groq.com/openai/v1/",
             "models": [],
