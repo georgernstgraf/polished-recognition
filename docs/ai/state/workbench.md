@@ -3,7 +3,7 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T12:10:00Z }
 status: stable
 ---
 
@@ -49,15 +49,17 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
   bei 14sp in Secondary-Farbe und lasen sich als Deko, nicht als Bedienelement.
 - **Erster Fix (`4bd3f19`):** Glyphen auf **22sp**; der Owner urteilte am
   2026-11-26: „besser geworden, aber noch immer zu klein".
-- **Zweiter Fix (`f2847f5`, der dokumentierte Drawable-Follow-up):** beide
-  Chevron-TextViews sind jetzt **24dp `ic_chevron_down` ImageViews**
-  (`?android:attr/textColorSecondary`-Tint, IME-Icon-Konvention 24dp; das
-  Drawable zeigt nach unten, eingeklappt rotiert es −90° nach rechts — die
-  Glyph-Konstanten `CHEVRON_OPEN`/`CHEVRON_CLOSED` sind entfernt).
+- **Zweiter Fix (`f2847f5` + `1d9b1b4`, der dokumentierte Drawable-Follow-up):** beide
+  Chevron-TextViews sind jetzt **`ic_chevron_down` ImageViews**
+  (`?android:attr/textColorSecondary`-Tint; das Drawable zeigt nach unten,
+  eingeklappt rotiert es −90° nach rechts — die Glyph-Konstanten
+  `CHEVRON_OPEN`/`CHEVRON_CLOSED` sind entfernt). Nach Owner-Wunsch „eine
+  Stufe größer" stehen beide bei **32dp** (erste Stufe war 24dp).
   `WorkbenchLayoutPolicyTest` pinnt ImageView + `ic_chevron_down` +
-  `>= 24dp` statt des 22sp-Glyphs. Suite erzwungen grün, `lintDebug` 0,
-  Release auf beiden Geräten installiert. Kein Versions-Bump.
-- **Falls es immer noch zu klein wirkt:** reiner Größen-Bump (32dp+), keine
+  `>= 32dp`. Suite erzwungen grün, `lintDebug` 0, Release auf beiden
+  Geräten installiert (gradle + explizites `adb install -r`). Kein
+  Versions-Bump.
+- **Falls es immer noch zu klein wirkt:** reiner Größen-Bump (40dp+), keine
   Rückkehr zu Glyphen.
 
 ## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, CLOSED — Owner-Urteil „the functionality is good now")

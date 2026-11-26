@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-26 (#209 — zweite Stufe: Chevrons 24dp → 32dp)
+
+* **Update**: [state/workbench.md](state/workbench.md) — #209-Abschnitt: Owner-Wunsch „eine Stufe größer", `1d9b1b4` (32dp), Pin auf `>= 32dp`, nächste Stufe 40dp+.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #209-Block auf 32dp umgeschrieben.
+* **Update**: [STATE.md](STATE.md) — Statuszeile.
+* **No change**: [decisions/](decisions/), [pitfalls/](pitfalls/), [CONVENTIONS.md](CONVENTIONS.md), [index.md](index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#209 — Chevron-Drawable-Follow-up: 22sp-Glyph → 24dp-ImageView)
 
 * **Update**: [state/workbench.md](state/workbench.md) — der #209-Abschnitt erzählt den Bogen: erster Fix (22sp, `4bd3f19`), Owner-Zwischenurteil, zweiter Fix (`f2847f5`: 24dp `ic_chevron_down` + Rotation statt Glyphen), neuer Test-Pin.
