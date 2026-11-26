@@ -375,9 +375,10 @@ class WorkbenchLayoutPolicyTest {
                 violations += "line ${chevron.line} ${section}: the chevron must not be announced"
             }
             // #209 follow-up: the glyph was still read as too small, so the
-            // chevron is a real drawable now. Pin the ImageView shape.
+            // chevron is a real drawable now — 32dp after the owner asked for
+            // one step larger than the first 24dp cut. Pin the ImageView shape.
             if (chevron.name != "ImageView") {
-                violations += "line ${chevron.line} $section: the chevron must be a 24dp " +
+                violations += "line ${chevron.line} $section: the chevron must be a 32dp " +
                     "ic_chevron_down ImageView, not a text glyph (was ${chevron.name}) — #209"
             } else {
                 val chevronWidth = chevron.attributes["android:layout_width"]
@@ -385,10 +386,10 @@ class WorkbenchLayoutPolicyTest {
                 val chevronHeight = chevron.attributes["android:layout_height"]
                     ?.removeSuffix("dp")?.toIntOrNull() ?: 0
                 if (chevron.attributes["android:src"] != "@drawable/ic_chevron_down" ||
-                    chevronWidth < 24 ||
-                    chevronHeight < 24
+                    chevronWidth < 32 ||
+                    chevronHeight < 32
                 ) {
-                    violations += "line ${chevron.line} $section: the chevron must stay a >= 24dp " +
+                    violations += "line ${chevron.line} $section: the chevron must stay a >= 32dp " +
                         "ic_chevron_down ImageView (was ${chevronWidth}x$chevronHeight) — #209"
                 }
             }

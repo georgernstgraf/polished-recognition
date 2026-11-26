@@ -246,8 +246,8 @@
 
             <ImageView
                 android:id="@+id/workbench_raw_chevron"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:importantForAccessibility="no"
                 android:paddingStart="0dp"
                 android:paddingEnd="6dp"
@@ -377,8 +377,8 @@
 
             <ImageView
                 android:id="@+id/workbench_polished_chevron"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:importantForAccessibility="no"
                 android:paddingStart="0dp"
                 android:paddingEnd="6dp"
