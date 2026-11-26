@@ -9,6 +9,11 @@ status: stable
 
 # Hand Off
 
+**#212 (2026-11-26, implemented — OPEN until the owner's device checks): settings becomes an overview with four category screens.**
+`313d1c1` — 805 `:app` tests forced green + lint 0, release installed on BOTH devices. Shape: `SettingsActivity` is the overview (language spinner write-through on top, then the four buttons in the agreed order Providers & Tokens → Manage Prompts → Output Control → Advanced / Debugging, service button + About at the bottom, no Save buttons); new `ProvidersActivity`/`PromptsActivity`/`OutputControlActivity`/`AdvancedActivity`, sections moved verbatim with the same ids. Save model: `ui/SettingsDraft` (pending edits only; sub-screen Back writes only the draft, no toast) + `ui/SettingsValidation` (checks verbatim, same 9 names); overview back-exit validates → "Settings saved" or the failed-check toast, applies everything except failing entries (they keep their stored value), clears, finishes. No `SettingsStore` key changes, IME untouched. See `state/settings.md`.
+
+**Owner checks (then #212 closes):** (a) overview order + language spinner (tap/long-press/custom languages); (b) each sub-screen holds its section with unchanged behavior, and an edit → back → re-enter shows the pending edit; (c) leaving Settings overall: toast "Settings saved"; with an invalid value the toast names the check, that field keeps its old value, the rest applies; (d) Providers & Tokens validate/fetch still fill the model dropdowns, out-of-list model still blocked; (e) IME checkbox + IME language spinner unchanged.
+
 **#211 (2026-11-26, CLOSED — owner verdict): the disabled LLM checkbox shows the effective state — unchecked in the Workbench context.**
 Owner finding: the #168-disabled toggle still rendered the GLOBAL preference — checked with the LLM globally on, while the Workbench take delivers raw only. `46761a3` flips `refreshQuickSettings()` to `isChecked = !llmForcedOff && !settings.rawMode`: inside our own app the grayed box reads OFF, a foreign bind restores the global state. The `raw_mode` write-guards are untouched (`ImeLlmTargetTest` re-pins both directions). Tests forced green + lint 0; release installed on BOTH devices (OnePlus `f6de166c`, Samsung A032F) and the owner passed the check.
 

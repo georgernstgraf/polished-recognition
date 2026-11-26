@@ -14,3 +14,4 @@ carries the live status line, the focus and the pending list.
 * [audio-pipeline.md](audio-pipeline.md) - Project State — Audio Pipeline: Capture and spooling, slicing and seams, compression, audio evidence and the forensic bundle. (14 sections)
 * [stt-providers.md](stt-providers.md) - Project State — STT, LLM and Providers: Failure classification, uploads, provider behaviour. (3 sections)
 * [workbench.md](workbench.md) - Project State — Workbench: The Workbench pages, the entry model, the polish sites and the recovery surface. (6 sections)
+* [settings.md](settings.md) - Project State — Settings: The settings overview, the four category screens and the draft/apply save model. (1 sections)

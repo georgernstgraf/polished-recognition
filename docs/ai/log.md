@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-26 (#212 — Settings-Übersicht + vier Kategorien-Screens implementiert)
+
+* **Creation**: [state/settings.md](state/settings.md) — neues State-Theme `settings` mit dem #212-Abschnitt (Übersicht, vier Screens, Draft/Apply, Back-Mechanik, Draft-Randfälle, Tests).
+* **Update**: [state/index.md](state/index.md) und [index.md](index.md) — Theme `settings` ergänzt (8 Themes, 46 State-Sections).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #212-Block oben (implementiert, offen bis Owner-Gerätechecks; fünf Checks).
+* **Update**: [STATE.md](STATE.md) — Statuszeile führt #212; Pending-Liste um den #212-Gerätecheck ergänzt.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `SettingsActivity`-Zeile auf die Übersicht umgeschrieben; neue Zeilen für die vier Category-Screens und `SettingsDraft`/`SettingsValidation` (Drift aus #45/#169-Text korrigiert).
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#209 — geschlossen: Owner-Urteil auf dem Gerät, 32dp)
 
 * **Update**: [HANDOFF.md](HANDOFF.md) — #209-Block auf „CLOSED (Owner-Urteil)" umgeschrieben; #210 bleibt der oberste offene Block.

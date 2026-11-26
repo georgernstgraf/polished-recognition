@@ -20,11 +20,11 @@ directories here — this bundle describes one project, not a fleet.
 ## Theme Bundles
 * [decisions/](decisions/index.md) - What was decided and why, in eight theme concepts (220 entries)
 * [pitfalls/](pitfalls/index.md) - What does not work and why, in ten theme concepts (273 entries)
-* [state/](state/index.md) - Per-issue shipped work, in seven theme concepts (45 sections)
+* [state/](state/index.md) - Per-issue shipped work, in eight theme concepts (46 sections)
 
 The three bundles share their slugs, so one theme is one look: `foundations`,
 `build-release`, `ime-field`, `session-lifecycle`, `audio-pipeline`,
-`stt-providers`, `workbench`, `recognition-service`. `pitfalls/` adds
+`stt-providers`, `workbench`, `settings`, `recognition-service`. `pitfalls/` adds
 `testing` and `device-lab`.
 
 ## Reference
