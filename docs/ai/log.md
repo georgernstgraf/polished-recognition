@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-26 (#212 — geschlossen: Owner-Urteil auf dem Gerät + Polish-Welle)
+
+* **Update**: [state/settings.md](state/settings.md) — #212-Abschnitt auf CLOSED gesetzt; Polish-Welle dokumentiert (H1-Titel + LLM-Control-Überschrift `3c24afc`, 13 Divider `5f63b29`, About-Tausch `81992d2`, Kontrast-Tausch `96cc343`: Divider in `text_secondary`, `colorControlNormal` → `control_quiet` ~20 %).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #212-Block auf CLOSED umgeschrieben (Kommit-Liste, Hinweis auf Samsung-Nachhol-Install, #156-Auswirkung).
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #212 geschlossen; #138 versehentlich entfernt und sofort wiederhergestellt (offen bleibt offen).
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#212 — Settings-Übersicht + vier Kategorien-Screens implementiert)
 
 * **Creation**: [state/settings.md](state/settings.md) — neues State-Theme `settings` mit dem #212-Abschnitt (Übersicht, vier Screens, Draft/Apply, Back-Mechanik, Draft-Randfälle, Tests).

@@ -13,7 +13,7 @@ status: stable
 The settings surface as its own theme since #212 (the overview + the four category
 screens). Sections are verbatim, newest first.
 
-## #212 — Settings becomes an overview with four category screens (2026-11-26, implemented — OPEN until the owner's device checks)
+## #212 — Settings becomes an overview with four category screens (2026-11-26, CLOSED — owner verdict passed on the device)
 
 - **Shape:** `SettingsActivity` is the OVERVIEW — target-language spinner (+ long-press
   add/edit + `manage_custom_languages` dialog, unchanged and WRITE-THROUGH, the IME
@@ -47,6 +47,18 @@ screens). Sections are verbatim, newest first.
   unchecking slice/search auto keeps the resolved value in the draft so back-exit
   validates the displayed value, not an empty manual field; per-app width raw edits
   survive sub-screen hops (`pendingAppWrap` redisplayed).
+- **Polish wave after the first device verdicts (4 commits, all owner-approved):**
+  `3c24afc` — H1 screen title "Polished Recognition Settings" + the language-section
+  heading became **LLM Control** (the reused `processing_section` string said
+  "Output Control" since before #212; the string was retired, the Output Control
+  button/screen keeps its name — different content); `5f63b29` — 13 × 1dp
+  `@style/SettingsDivider` (16dp breathing room) between configuration items across all
+  five screens; `81992d2` — the About row swapped (title left, Help chip right, weighted
+  `Space` = space-between); `96cc343` — the contrast EXCHANGE the owner asked for:
+  dividers lead in `@color/text_secondary` (light 7.8:1 / night 9.4:1), while
+  `colorControlNormal` → `@color/control_quiet` (~20 % opacity light `#33000000` /
+  night `#33FFFFFF`) steps ALL unselected control lines (EditText + spinner underlines)
+  back app-wide. The focused line keeps `colorControlActivated` (accent).
 - **Tests:** 805 `:app` (was 771) — new `SettingsValidationTest` (check-name contract ×
   9, draft-isEmpty, apply-skips-invalid, token/secret separation), per-screen Robolectric
   tests (`ProvidersActivityTest` 5, `PromptsActivityTest` 4, `OutputControlActivityTest`
@@ -54,5 +66,9 @@ screens). Sections are verbatim, newest first.
   `ModelFilterAdapter` extracted (`ui/ModelFilterAdapter.kt`); the four screens joined
   `ui/contrast/ContrastMatrix.kt` (all four passed light/night). `SettingsStore` keys,
   IME and Workbench untouched; no migration.
-- Commit `313d1c1`; suite forced green (`--rerun-tasks --no-build-cache`) + `lintDebug`
-  0; release installed on BOTH devices. Owner checks: see the issue comment.
+- **Owner verdicts (2026-11-26):** overview + heading + dividers „sehr gut eingebaut";
+  About swap + quiet underlines „passst". Known and accepted: `colorControlNormal` is
+  app-wide — Workbench EditText underlines and empty checkbox outlines are quieter too.
+  The final state (`96cc343`) is installed on the OnePlus (`f6de166c`); the Samsung
+  A032F dropped off `adb` before the last push and gets it at the next `installRelease`.
+  #156 note: the settings screenshots are stale across the whole surface now.
