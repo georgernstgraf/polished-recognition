@@ -140,7 +140,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/enable_voice_keyboard"
-            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+            style="@style/AppButton"
             android:layout_marginBottom="16dp" />
 
         <View style="@style/SettingsDivider" />

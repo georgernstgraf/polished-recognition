@@ -32,4 +32,12 @@
         <item name="android:layout_marginTop">16dp</item>
         <item name="android:layout_marginBottom">16dp</item>
     </style>
+
+    <!-- #213: the app-wide text-button style — every text button in the app
+         wears the same visible look (app_button_bg: quiet 1dp border, subtle
+         rounded corners, ripple). Text colour stays the theme's
+         textColorPrimary selector, so disabled dimming keeps working. -->
+    <style name="AppButton">
+        <item name="android:background">@drawable/app_button_bg</item>
+    </style>
 </resources>

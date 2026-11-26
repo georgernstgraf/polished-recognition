@@ -134,10 +134,9 @@ class WorkbenchActivity : Activity() {
     private lateinit var settingsButton: ImageButton
     private lateinit var copyRawButton: ImageButton
     private lateinit var copyPolishedButton: ImageButton
+    private lateinit var copyPolishedBottomButton: ImageButton
     private lateinit var promoteBButton: ImageButton
-    private lateinit var promoteCButton: ImageButton
     private lateinit var clearPolishedBButton: ImageButton
-    private lateinit var clearPolishedCButton: ImageButton
     private lateinit var languageA: AutoCompleteTextView
     private lateinit var languageB: AutoCompleteTextView
     private lateinit var polishA: Button
@@ -294,10 +293,9 @@ class WorkbenchActivity : Activity() {
         settingsButton = findViewById(R.id.workbench_settings)
         copyRawButton = findViewById(R.id.workbench_copy_raw)
         copyPolishedButton = findViewById(R.id.workbench_copy_polished)
+        copyPolishedBottomButton = findViewById(R.id.workbench_copy_polished_bottom)
         promoteBButton = findViewById(R.id.workbench_promote_b)
-        promoteCButton = findViewById(R.id.workbench_promote_c)
         clearPolishedBButton = findViewById(R.id.workbench_clear_polished_b)
-        clearPolishedCButton = findViewById(R.id.workbench_clear_polished_c)
         languageA = findViewById(R.id.workbench_language_a)
         languageB = findViewById(R.id.workbench_language_b)
         polishA = findViewById(R.id.workbench_polish_a)
@@ -627,13 +625,17 @@ class WorkbenchActivity : Activity() {
         copyPolishedButton.setOnClickListener {
             deliver(polishedField.text.toString(), notify = true)
         }
+        // #213: the copy affordance exists twice by design — in the summary row
+        // and under the field ("ganz unten ... nur der Copy-to-Clipboard-Icon");
+        // both deliver the same text.
+        copyPolishedBottomButton.setOnClickListener {
+            deliver(polishedField.text.toString(), notify = true)
+        }
         // #178: two Polish sites, one language and one pipeline.
         polishA.setOnClickListener { polishCurrent() }
         polishB.setOnClickListener { polishCurrent() }
         promoteBButton.setOnClickListener { promotePolished() }
-        promoteCButton.setOnClickListener { promotePolished() }
         clearPolishedBButton.setOnClickListener { emptyPolished() }
-        clearPolishedCButton.setOnClickListener { emptyPolished() }
         // #189: the label row is a summary — a tap collapses or expands its
         // field; both sections start open on every visit.
         rawToggle.setOnClickListener { toggleSection(isRaw = true) }
@@ -939,10 +941,9 @@ class WorkbenchActivity : Activity() {
         newButton.isEnabled = actions.new
         copyRawButton.isEnabled = actions.copyRaw
         copyPolishedButton.isEnabled = actions.copyPolished
+        copyPolishedBottomButton.isEnabled = actions.copyPolished
         promoteBButton.isEnabled = actions.promote
-        promoteCButton.isEnabled = actions.promote
         clearPolishedBButton.isEnabled = actions.clearPolished
-        clearPolishedCButton.isEnabled = actions.clearPolished
         polishA.isEnabled = actions.polish
         polishB.isEnabled = actions.polish
         languageA.isEnabled = actions.polish

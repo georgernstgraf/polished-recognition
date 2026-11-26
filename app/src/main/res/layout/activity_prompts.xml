@@ -42,7 +42,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/reset_prompt"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                style="@style/AppButton"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -87,7 +87,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/reset_prompt"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                style="@style/AppButton"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -136,7 +136,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/restore_defaults"
-            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+            style="@style/AppButton"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="16dp" />
 

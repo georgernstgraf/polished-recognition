@@ -14,18 +14,22 @@
 
   #189: both sections are `<summary>`-style accordions again (the #173 shape
   #178 dropped): the label row toggles its field and a one-line ellipsised
-  preview stands in for the text while it is collapsed. The two action rows
-  below are identical — the same promote + empty-polished pair at both Polish
-  sites:
+  preview stands in for the text while it is collapsed.
 
+  #213 restructures the polished zone — ONE row less:
     A — above Raw:        target language + Polish
-    B — below Raw:        target language + Polish, then promote + empty Polished
-    C — below Polished:   promote + empty Polished
+    B — below Raw:        target language + Polish, then the Polished summary
+                          row, which now carries the actions too:
+                          chevron · label · trash · promote · copy
+    C — below Polished:   only the copy icon (the owner: "ganz unten ... nur
+                          der Copy-to-Clipboard-Icon") — promote/trash live in
+                          the summary row above the field.
 
   Polished is a READ-ONLY TextView: it is produced by the pipeline and can only
   be promoted or emptied, never edited. No row and no icon button carries an
   `android:background` (#173: `?android:attr/selectableItemBackground` paints an
   opaque sheet in night mode); icons are tinted with theme attributes only.
+  Text buttons wear the #213 app-wide AppButton style.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/workbench_root"
@@ -216,11 +220,11 @@
 
             <Button
                 android:id="@+id/workbench_polish_a"
-                style="?android:attr/borderlessButtonStyle"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:drawableStart="@drawable/ic_polish"
+                android:drawableEnd="@drawable/ic_polish"
                 android:drawablePadding="4dp"
                 android:drawableTint="?android:attr/textColorPrimary"
                 android:text="@string/workbench_polish"
@@ -295,7 +299,8 @@
             android:minLines="2"
             android:padding="8dp" />
 
-        <!-- Zone B: the same Polish site below Raw, plus promote and empty. -->
+        <!-- Zone B: the same Polish site below Raw. The Polished actions moved
+             into the summary row directly below (#213). -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -317,11 +322,11 @@
 
             <Button
                 android:id="@+id/workbench_polish_b"
-                style="?android:attr/borderlessButtonStyle"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:drawableStart="@drawable/ic_polish"
+                android:drawableEnd="@drawable/ic_polish"
                 android:drawablePadding="4dp"
                 android:drawableTint="?android:attr/textColorPrimary"
                 android:text="@string/workbench_polish"
@@ -329,40 +334,10 @@
         </LinearLayout>
 
         <!--
-          #189: the two action rows are IDENTICAL — promote (an up arrow: the
-          polished text moves up into Raw) and the trash can (empty the polished
-          slot) at both Polish sites. The trash sits in the bottom bar under
-          Polished as well as under Raw, so neither action needs a scroll.
-        -->
-        <LinearLayout
-            android:id="@+id/workbench_actions_b"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical|end"
-            android:orientation="horizontal">
-
-            <ImageButton
-                android:id="@+id/workbench_promote_b"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/workbench_promote"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_promote"
-                android:tint="?android:attr/textColorSecondary" />
-
-            <ImageButton
-                android:id="@+id/workbench_clear_polished_b"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/workbench_clear_polished"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_delete_outline"
-                android:tint="?android:attr/textColorSecondary" />
-        </LinearLayout>
-
-        <!--
-          Polished: the same accordion shape as Raw (#189) — summary row
-          (chevron · label · copy), collapsed preview, then the READ-ONLY text.
+          #213: the Polished summary row carries the actions now — chevron ·
+          label · trash (empty the polished slot) · promote (the polished text
+          moves up into Raw) · copy. The former separate actions row above it
+          is gone: one row less between Raw and Polished.
         -->
         <LinearLayout
             android:id="@+id/workbench_polished_toggle"
@@ -396,6 +371,24 @@
                 android:textStyle="bold" />
 
             <ImageButton
+                android:id="@+id/workbench_clear_polished_b"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/workbench_clear_polished"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_delete_outline"
+                android:tint="?android:attr/textColorSecondary" />
+
+            <ImageButton
+                android:id="@+id/workbench_promote_b"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/workbench_promote"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_promote"
+                android:tint="?android:attr/textColorSecondary" />
+
+            <ImageButton
                 android:id="@+id/workbench_copy_polished"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
@@ -426,7 +419,11 @@
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp" />
 
-        <!-- Zone C: the same promote + empty pair as zone B, in the bottom bar. -->
+        <!--
+          #213: under the read-only Polished field only the copy icon remains —
+          promote and trash live in the summary row above the field (the owner:
+          "ganz unten ... nur der Copy-to-Clipboard-Icon").
+        -->
         <LinearLayout
             android:id="@+id/workbench_actions_c"
             android:layout_width="match_parent"
@@ -435,21 +432,12 @@
             android:orientation="horizontal">
 
             <ImageButton
-                android:id="@+id/workbench_promote_c"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/workbench_promote"
+                android:id="@+id/workbench_copy_polished_bottom"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/workbench_copy_polished_desc"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_promote"
-                android:tint="?android:attr/textColorSecondary" />
-
-            <ImageButton
-                android:id="@+id/workbench_clear_polished_c"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/workbench_clear_polished"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_delete_outline"
+                android:src="@drawable/ic_copy"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
     </LinearLayout>

@@ -84,7 +84,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/validate_fetch"
-            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+            style="@style/AppButton"
             android:layout_marginBottom="8dp" />
 
         <AutoCompleteTextView
@@ -165,7 +165,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/fetch_models"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                style="@style/AppButton"
                 android:layout_marginEnd="8dp" />
 
             <Button
@@ -173,7 +173,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/test_token"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+                style="@style/AppButton" />
         </LinearLayout>
 
         <AutoCompleteTextView

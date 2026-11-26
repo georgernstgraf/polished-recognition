@@ -148,7 +148,6 @@ class WorkbenchActivityTest {
         assertThat(activity.enabled(R.id.workbench_copy_raw)).isFalse()
         assertThat(activity.enabled(R.id.workbench_copy_polished)).isFalse()
         assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
-        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
         assertThat(activity.enabled(R.id.workbench_clear_polished_b)).isFalse()
         assertThat(activity.findViewById<TextView>(R.id.workbench_empty_hint).visibility)
             .isEqualTo(View.VISIBLE)
@@ -356,24 +355,21 @@ class WorkbenchActivityTest {
         assertThat(activity.position()).isEqualTo("2 / 2")
         // A promoted page has nothing left to promote or copy.
         assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
-        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_copy_polished_bottom)).isFalse()
     }
 
     @Test
-    fun `promote in zone C does the same from below the polished field`() {
+    fun `the bottom copy under the polished field delivers the same text as the summary row`() {
         val store = seed("filler", "raw text")
         val id = store.loadAll().last().id
         store.updatePolished(id, "promoted")
         val activity = launch()
         activity.showNewest()
 
-        activity.click(R.id.workbench_promote_c)
+        activity.click(R.id.workbench_copy_polished_bottom)
 
-        val saved = DictationStore(context).loadAll().last()
-        assertThat(saved.raw).isEqualTo("promoted")
-        assertThat(saved.polished).isNull()
-        assertThat(activity.raw().text()).isEqualTo("promoted")
-        assertThat(activity.polished().text.toString()).isEmpty()
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+        assertThat(clipboard.primaryClip?.getItemAt(0)?.text.toString()).isEqualTo("promoted")
     }
 
     @Test
@@ -383,7 +379,6 @@ class WorkbenchActivityTest {
         activity.showNewest()
 
         assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
-        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
         // Nothing to promote: the store has no polished slot to move.
         activity.click(R.id.workbench_promote_b)
 
@@ -404,7 +399,6 @@ class WorkbenchActivityTest {
         assertThat(DictationStore(context).loadAll().last().polished).isNull()
         assertThat(activity.polished().text.toString()).isEmpty()
         assertThat(activity.enabled(R.id.workbench_promote_b)).isFalse()
-        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
         assertThat(activity.enabled(R.id.workbench_copy_polished)).isFalse()
         assertThat(activity.enabled(R.id.workbench_clear_polished_b)).isFalse()
         // Raw and its actions are untouched by emptying Polished.
@@ -481,17 +475,21 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `the trash can in the bottom bar empties the polished field too`() {
+    fun `the bottom bar under the polished field holds only the copy icon`() {
+        // #213: promote and trash live in the summary row above the field; the
+        // bottom bar is only the copy affordance, so the removed ids must be gone.
         val store = seed("filler", "raw text")
         store.updatePolished(store.loadAll().last().id, "polished text")
         val activity = launch()
         activity.showNewest()
 
-        activity.click(R.id.workbench_clear_polished_c)
-
-        assertThat(DictationStore(context).loadAll().last().polished).isNull()
-        assertThat(activity.polished().text.toString()).isEmpty()
-        assertThat(activity.enabled(R.id.workbench_clear_polished_c)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_copy_polished_bottom)).isTrue()
+        // The removed ids are gone from the resources themselves.
+        val pkg = activity.packageName
+        assertThat(activity.resources.getIdentifier("workbench_promote_c", "id", pkg))
+            .isEqualTo(0)
+        assertThat(activity.resources.getIdentifier("workbench_clear_polished_c", "id", pkg))
+            .isEqualTo(0)
     }
 
     @Test

@@ -51,28 +51,28 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/wrap_width_preset_80"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+                style="@style/AppButton" />
 
             <Button
                 android:id="@+id/wrap_120"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/wrap_width_preset_120"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+                style="@style/AppButton" />
 
             <Button
                 android:id="@+id/wrap_200"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/wrap_width_preset_200"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+                style="@style/AppButton" />
 
             <Button
                 android:id="@+id/wrap_off"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/wrap_width_preset_off"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+                style="@style/AppButton" />
         </LinearLayout>
 
         <View style="@style/SettingsDivider" />
@@ -129,7 +129,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/app_wrap_forget"
-                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+                style="@style/AppButton" />
         </LinearLayout>
 
         <TextView

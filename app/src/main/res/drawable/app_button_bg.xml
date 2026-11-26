@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  #213: the app-wide text-button background — one visible style for every
+  text button in the app (the owner: "alle Buttons applikationsweit
+  gleichermaßen"): a quiet 1dp border over the theme background, slightly
+  rounded corners, a ripple so the whole button reads as tappable. Theme
+  attributes only (XmlColorPolicyTest rule 1/2): no colour literal, no bare
+  `?attr/`. The 6dp radius follows the #191 leftovers-banner precedent.
+
+  The text colour itself is NOT set here — buttons inherit the theme's
+  textColorPrimary selector (@color/text_primary), which dims disabled text
+  to the measured #161 palette.
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?android:attr/colorControlHighlight">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?android:attr/colorBackground" />
+            <stroke
+                android:width="1dp"
+                android:color="?android:attr/textColorSecondary" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+</ripple>
