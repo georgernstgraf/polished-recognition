@@ -3,7 +3,7 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:55:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:45:00Z }
 status: stable
 ---
 
@@ -42,17 +42,23 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
   bewusst bestehen und ist vom Test `a rotated screen starts on a fresh
   compose slot …` gepinnt.
 
-## #209 — Collapse-Chevrons auf 22sp (2026-11-25, shipped — offen bis der Owner abnickt)
+## #209 — Collapse-Chevrons: vom 22sp-Glyph zum 24dp-Drawable (2026-11-25/26, shipped — offen bis der Owner abnickt)
 
 - **Was:** Owner-Feedback: „the arrows to collapse the raw and polished field
   are visually way too small" — die #189-Glyphen (`▾`/`▸` als Text) standen
   bei 14sp in Secondary-Farbe und lasen sich als Deko, nicht als Bedienelement.
-- **Fix (`4bd3f19`):** `workbench_raw_chevron` + `workbench_polished_chevron`
-  auf **22sp** (Label, Vorschau, Copy unberührt); `WorkbenchLayoutPolicyTest`
-  pinnt `>= 22sp`, damit das nicht zurückfällt. 766 `:app`-Tests grün,
-  `lintDebug` 0, Release auf dem OnePlus installiert. Kein Versions-Bump.
-- **Falls es immer noch zu klein wirkt:** eigener Drawables statt größerem
-  Font — Follow-up-Issue, kein Vor-Ort-Fix.
+- **Erster Fix (`4bd3f19`):** Glyphen auf **22sp**; der Owner urteilte am
+  2026-11-26: „besser geworden, aber noch immer zu klein".
+- **Zweiter Fix (`f2847f5`, der dokumentierte Drawable-Follow-up):** beide
+  Chevron-TextViews sind jetzt **24dp `ic_chevron_down` ImageViews**
+  (`?android:attr/textColorSecondary`-Tint, IME-Icon-Konvention 24dp; das
+  Drawable zeigt nach unten, eingeklappt rotiert es −90° nach rechts — die
+  Glyph-Konstanten `CHEVRON_OPEN`/`CHEVRON_CLOSED` sind entfernt).
+  `WorkbenchLayoutPolicyTest` pinnt ImageView + `ic_chevron_down` +
+  `>= 24dp` statt des 22sp-Glyphs. Suite erzwungen grün, `lintDebug` 0,
+  Release auf beiden Geräten installiert. Kein Versions-Bump.
+- **Falls es immer noch zu klein wirkt:** reiner Größen-Bump (32dp+), keine
+  Rückkehr zu Glyphen.
 
 ## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, CLOSED — Owner-Urteil „the functionality is good now")
 

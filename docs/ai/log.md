@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-26 (#209 — Chevron-Drawable-Follow-up: 22sp-Glyph → 24dp-ImageView)
+
+* **Update**: [state/workbench.md](state/workbench.md) — der #209-Abschnitt erzählt den Bogen: erster Fix (22sp, `4bd3f19`), Owner-Zwischenurteil, zweiter Fix (`f2847f5`: 24dp `ic_chevron_down` + Rotation statt Glyphen), neuer Test-Pin.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #209-Block umgeschrieben (Drawable-Follow-up, offen bis Owner-Blick; „noch zu kleiner ⇒ Größen-Bump, keine Glyphen-Rückkehr").
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #211 geschlossen, #209-Follow-up offen, #210 folgt.
+* **No change**: [decisions/workbench.md](decisions/workbench.md) (keine Design-Entscheidung — der dokumentierte „proper drawable, not a bigger font"-Pfad wurde ausgeführt), [pitfalls/](pitfalls/), [CONVENTIONS.md](CONVENTIONS.md), [index.md](index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#211 — geschlossen: Owner-Urteil auf dem Gerät)
 
 * **Update**: [HANDOFF.md](HANDOFF.md) — #211-Block auf „CLOSED (Owner-Urteil)" umgeschrieben; #210 bleibt der oberste offene Block.

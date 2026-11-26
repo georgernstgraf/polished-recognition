@@ -3,7 +3,7 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:15:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:45:00Z }
 status: stable
 ---
 
@@ -18,8 +18,8 @@ Two OnePlus findings from the same flow, fixed in `246a22b`, 771 `:app` tests fo
 2. **Landscape showed the platform fullscreen extract editor** (the "white field + Done button" in dark mode) — the inherited `onEvaluateFullscreenMode` default is true in landscape; now overridden to unconditional `false` in `PolishedVoiceInputIME` (the voice bar is an overlay in every orientation), pinned by `ImeFullscreenModeTest`.
 Owner checks on the device: (a) dictate into a stored edit → rotate → the same page stays, the dictation lands in the edit, no new ring entry; (b) landscape → the voice bar shows, no extract field, no Done button, no white field.
 
-**#209 (2026-11-25, shipped — OPEN until the owner's glance): the collapse chevrons are readable now.**
-Both summary-row chevrons (`▾`/`▸` glyphs, #189) rendered at 14sp secondary — the owner read them as „visually way too small". `4bd3f19` bumps `workbench_raw_chevron`/`workbench_polished_chevron` to **22sp** (label/preview/copy untouched) and `WorkbenchLayoutPolicyTest` pins `>= 22sp` so it cannot regress. 766 `:app` tests green, lint 0, release installed on the OnePlus. Owner: judge the size on the device — too small again is a follow-up with a proper drawable, not a bigger font.
+**#209 (2026-11-26, drawable follow-up shipped — OPEN until the owner's glance): the collapse chevrons are real 24dp drawables now.**
+Second owner finding: the 22sp glyphs (first fix `4bd3f19`) are better but STILL read as too small. Per the documented rule, the follow-up is a proper drawable, not a bigger font: `f2847f5` replaces both summary-row chevron TextViews with **24dp `ic_chevron_down` ImageViews** (`?android:attr/textColorSecondary` tint, IME icon convention; collapsed rotates the drawable −90°, expanded keeps it pointing down — the glyph constants are gone). `WorkbenchLayoutPolicyTest` pins ImageView + `ic_chevron_down` + `>= 24dp` instead of the 22sp glyph. Tests forced green + lint 0; release installed on BOTH devices. Owner: judge the drawable size on the device — still too small is a size bump (32dp+), no more glyph debates.
 
 **#208 (2026-11-25, CLOSED — owner verdict „the functionality is good now"): promote clears the polished slot; the MRU ring stays; only ＋ instantiates a dictation.**
 Final shape over two commits: `a7c7d89` (promote is a move — `replaceRawWithPolished` sets `copy(raw = polished, polished = null)`, strict no-op when `raw == polished`; compose path clears `composePolished`; the stored path shows the emptied field immediately, `syncPositions` never rewrites fields; promote buttons disable after) + `11e5b56` (the same-day creation-order excursion retracted per owner: `updatedAtMs` restored as the MRU key — bump on every real change, `loadAll` + FIFO eviction by it, edits protect against eviction; legacy file fallback covers what the intermediate build wrote). Header icons untouched; the invariant **only ＋ / the compose materialisation instantiates a dictation** — never promote/edit/polish/◀/▶/⚙ — is pinned by a store test. 766 `:app` tests green, lint 0, release installed on the OnePlus (`f6de166c`).
