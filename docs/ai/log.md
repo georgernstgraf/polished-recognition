@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-26 (#209 — geschlossen: Owner-Urteil auf dem Gerät, 32dp)
+
+* **Update**: [HANDOFF.md](HANDOFF.md) — #209-Block auf „CLOSED (Owner-Urteil)" umgeschrieben; #210 bleibt der oberste offene Block.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #209 geschlossen.
+* **Update**: [state/workbench.md](state/workbench.md) — #209-Abschnitt auf CLOSED gesetzt, Owner-Urteil vermerkt.
+* **No change**: [decisions/](decisions/), [pitfalls/](pitfalls/), [CONVENTIONS.md](CONVENTIONS.md), [index.md](index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#209 — zweite Stufe: Chevrons 24dp → 32dp)
 
 * **Update**: [state/workbench.md](state/workbench.md) — #209-Abschnitt: Owner-Wunsch „eine Stufe größer", `1d9b1b4` (32dp), Pin auf `>= 32dp`, nächste Stufe 40dp+.

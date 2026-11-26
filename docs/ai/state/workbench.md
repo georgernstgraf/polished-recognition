@@ -3,7 +3,7 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T12:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T12:30:00Z }
 status: stable
 ---
 
@@ -42,7 +42,7 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
   bewusst bestehen und ist vom Test `a rotated screen starts on a fresh
   compose slot …` gepinnt.
 
-## #209 — Collapse-Chevrons: vom 22sp-Glyph zum 24dp-Drawable (2026-11-25/26, shipped — offen bis der Owner abnickt)
+## #209 — Collapse-Chevrons: vom 22sp-Glyph zum 32dp-Drawable (2026-11-25/26, CLOSED — Owner-Urteil)
 
 - **Was:** Owner-Feedback: „the arrows to collapse the raw and polished field
   are visually way too small" — die #189-Glyphen (`▾`/`▸` als Text) standen
@@ -58,8 +58,8 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
   `WorkbenchLayoutPolicyTest` pinnt ImageView + `ic_chevron_down` +
   `>= 32dp`. Suite erzwungen grün, `lintDebug` 0, Release auf beiden
   Geräten installiert (gradle + explizites `adb install -r`). Kein
-  Versions-Bump.
-- **Falls es immer noch zu klein wirkt:** reiner Größen-Bump (40dp+), keine
+  Versions-Bump. **Owner hat am 2026-11-26 abgenickt — Issue geschlossen.**
+- **Falls es je wieder zu klein wirkt:** reiner Größen-Bump (40dp+), keine
   Rückkehr zu Glyphen.
 
 ## #208 — Promote leert Polished; der MRU-Ring bleibt; nur ＋ erzeugt (2026-11-25, CLOSED — Owner-Urteil „the functionality is good now")
