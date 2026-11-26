@@ -225,6 +225,59 @@ class ProvidersActivityTest {
         assertThat(activity.field(R.id.llm_token).error).isNull()
     }
 
+    // ---- #214: the token field follows the provider URL -----------------------
+
+    @Test
+    fun `a url change refills the token field from the vault (#214)`() {
+        prefs().edit().putString("stt_provider", STT_SEED).commit()
+        val activity = launch()
+        // the launch read seeded the vault for the seed endpoint
+        assertThat(activity.field(R.id.stt_token).text.toString()).isEqualTo("t")
+
+        // switching to an endpoint the vault does not know EMPTIES the field —
+        // the previous provider's token must not leak into the new one —
+        // and a fiddled (unvalidated) token never survives the switch.
+        activity.field(R.id.stt_token).setText("fiddled")
+        activity.field(R.id.stt_url).setText("https://other.example/v1")
+        activity.field(R.id.stt_url).requestFocus()
+        activity.field(R.id.stt_url).clearFocus()
+
+        assertThat(activity.field(R.id.stt_token).text.toString()).isEmpty()
+        assertThat(SettingsDraft.sttToken).isEmpty()
+
+        // returning — even via a trailing-slash variant — restores the token
+        activity.field(R.id.stt_url).setText("https://SEED.example/v1/")
+        activity.field(R.id.stt_url).requestFocus()
+        activity.field(R.id.stt_url).clearFocus()
+
+        assertThat(activity.field(R.id.stt_token).text.toString()).isEqualTo("t")
+        assertThat(SettingsDraft.sttToken).isEqualTo("t")
+    }
+
+    @Test
+    fun `selecting a preset fills the token from the vault when known (#214)`() {
+        val presetName = presets.sttPresetNames().first()
+        val presetUrl = presets.findSttPreset(presetName)!!.base_url
+        // the endpoint was configured before: its token is in the vault
+        store.sttProvider = com.georgernstgraf.polishedrecognition.config.SttProviderConfig(
+            displayName = presetName,
+            baseUrl = presetUrl,
+            apiToken = "vault-token",
+            model = "m"
+        )
+        prefs().edit().putString("stt_provider", STT_SEED).commit()
+        val activity = launch()
+        val dropdown = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.stt_provider)
+        val position = (0 until dropdown.adapter.count)
+            .first { dropdown.adapter.getItem(it) == presetName }
+
+        dropdown.onItemClickListener!!.onItemClick(null, null, position, position.toLong())
+
+        assertThat(activity.field(R.id.stt_url).text.toString()).isEqualTo(presetUrl)
+        assertThat(activity.field(R.id.stt_token).text.toString()).isEqualTo("vault-token")
+        assertThat(SettingsDraft.sttToken).isEqualTo("vault-token")
+    }
+
     private companion object {
         const val STT_SEED =
             """{"displayName":"seed","baseUrl":"https://seed.example/v1","apiToken":"t","model":"seed-model"}"""

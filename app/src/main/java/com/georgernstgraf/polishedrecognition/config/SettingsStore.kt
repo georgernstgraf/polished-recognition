@@ -646,19 +646,34 @@ class SettingsStore(
      * token comes from the backup-excluded file; a pre-#101 JSON that still
      * embeds one is migrated on the spot and the stored copy is scrubbed, so
      * no token ever survives in a file the OS backs up.
+     *
+     * #214: resolution order is the per-type active token first (the last
+     * applied credential — it must keep winning at request time even when a
+     * validated vault entry for the same URL is older), then the per-URL
+     * vault. A pre-#214 install (only the per-type key exists) is migrated by
+     * seeding the vault with the token that has been in effect for this URL,
+     * so the first provider switch already finds it.
      */
     private fun <T> readProvider(key: String, secretKey: String, clazz: Class<T>): T? {
         val raw = prefs.getString(key, null) ?: return null
         val obj = JsonParser().parse(raw).asJsonObject
         val legacyToken = obj.get("apiToken")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
-        val storedToken = secretsPrefs.getString(secretKey, null)
+        val canonical = canonicalProviderUrl(
+            obj.get("baseUrl")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+        )
+        val vaultToken = if (canonical.isEmpty()) null else readTokenVault()[canonical]
+        val storedToken = secretsPrefs.getString(secretKey, null) ?: vaultToken
         if (legacyToken.isNotEmpty()) {
             if (storedToken == null) storeToken(secretKey, legacyToken)
             val scrubbed = JsonParser().parse(raw).asJsonObject
             scrubbed.addProperty("apiToken", "")
             prefs.edit { putString(key, gson.toJson(scrubbed)) }
         }
-        obj.addProperty("apiToken", storedToken ?: legacyToken)
+        val token = storedToken ?: legacyToken
+        if (canonical.isNotEmpty() && token.isNotEmpty() && !readTokenVault().containsKey(canonical)) {
+            seedVaultToken(canonical, token)
+        }
+        obj.addProperty("apiToken", token)
         return gson.fromJson(obj, clazz)
     }
 
@@ -666,18 +681,74 @@ class SettingsStore(
      * #101: writes a provider config with the token split out — the settings
      * file keeps the restorable half, the secret file the credential. An
      * empty token removes the secret instead of storing a blank one.
+     *
+     * #214: the token is ALSO filed into the per-URL vault (the credential
+     * last in effect for this endpoint). Clearing it deliberately drops the
+     * vault entry for that URL — unless the OTHER provider type still points
+     * at the same endpoint, whose credential memory must survive.
      */
     private fun <T> writeProvider(key: String, secretKey: String, value: T?) {
+        val otherCanonical = canonicalProviderUrl(storedBaseUrlOf(otherProviderKey(key)).orEmpty())
         if (value == null) {
+            val oldCanonical = canonicalProviderUrl(storedBaseUrlOf(key).orEmpty())
             prefs.edit { remove(key) }
             storeToken(secretKey, "")
+            if (oldCanonical.isNotEmpty() && oldCanonical != otherCanonical) {
+                seedVaultToken(oldCanonical, "")
+            }
             return
         }
         val obj = gson.toJsonTree(value).asJsonObject
         val token = obj.get("apiToken")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+        val canonical = canonicalProviderUrl(
+            obj.get("baseUrl")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+        )
         obj.addProperty("apiToken", "")
         prefs.edit { putString(key, gson.toJson(obj)) }
         storeToken(secretKey, token)
+        if (canonical.isNotEmpty() && (token.isNotEmpty() || canonical != otherCanonical)) {
+            seedVaultToken(canonical, token)
+        }
+    }
+
+    /** The other provider type's key — the vault is shared between STT and LLM (#214). */
+    private fun otherProviderKey(key: String): String =
+        if (key == STT_PROVIDER_KEY) LLM_PROVIDER_KEY else STT_PROVIDER_KEY
+
+    /** The raw (unresolved) `baseUrl` of the stored provider JSON, if any (#214). */
+    private fun storedBaseUrlOf(key: String): String? {
+        val raw = prefs.getString(key, null) ?: return null
+        return JsonParser().parse(raw).asJsonObject
+            .get("baseUrl")?.takeIf { !it.isJsonNull }?.asString
+    }
+
+    /**
+     * #214: the token remembered for this provider URL in the vault, or
+     * `null`. Trailing-slash and case differences resolve to the same entry.
+     * Read by the Providers screen when the endpoint URL changes: the field
+     * is refilled from here (or emptied) — an unvalidated token the user
+     * fiddled in never survives a provider switch (owner decision #214).
+     */
+    fun vaultTokenFor(baseUrl: String): String? {
+        val canonical = canonicalProviderUrl(baseUrl)
+        if (canonical.isEmpty()) return null
+        return readTokenVault()[canonical]
+    }
+
+    @Synchronized
+    private fun readTokenVault(): LinkedHashMap<String, String> {
+        val json = secretsPrefs.getString(TOKEN_VAULT_KEY, null) ?: return LinkedHashMap()
+        return gson.fromJson(json, object : TypeToken<LinkedHashMap<String, String>>() {}.type)
+            ?: LinkedHashMap()
+    }
+
+    /** Files (or drops, when blank) one vault entry, keeping the cap. */
+    @Synchronized
+    private fun seedVaultToken(canonicalUrl: String, token: String) {
+        val vault = readTokenVault()
+        if (token.isEmpty()) vault.remove(canonicalUrl) else vault[canonicalUrl] = token
+        while (vault.size > TOKEN_VAULT_CAPACITY) vault.remove(vault.keys.first())
+        secretsPrefs.edit { putString(TOKEN_VAULT_KEY, gson.toJson(vault)) }
     }
 
     /** Writes (or removes, when blank) a token in the backup-excluded file. */
@@ -692,15 +763,46 @@ class SettingsStore(
         private const val PREFS_NAME = "polished_recognition_settings"
 
         /**
-         * #101: the backup-excluded file holding the API tokens. **The value is
-         * load-bearing outside this class** — the two backup rule files in
-         * `res/xml/` exclude `<name>.xml` by exactly this name, and
-         * `BackupRulesTest` pins the three of them together.
+         * #214: the canonical vault key for a provider URL — trimmed, scheme +
+         * host lowercased (DNS is case-insensitive), trailing slashes stripped.
+         * `https://Api.Example/v1` and `https://api.example/v1/` are the SAME
+         * provider and share one token. The path is kept verbatim (it can be
+         * case-sensitive on self-hosted endpoints).
+         */
+        fun canonicalProviderUrl(url: String): String {
+            val trimmed = url.trim().trimEnd('/')
+            val schemeEnd = trimmed.indexOf("://")
+            if (schemeEnd <= 0) return trimmed
+            val rest = trimmed.substring(schemeEnd + 3)
+            val pathStart = rest.indexOf('/')
+            val authority = (if (pathStart >= 0) rest.substring(0, pathStart) else rest).lowercase()
+            val path = if (pathStart >= 0) rest.substring(pathStart) else ""
+            return trimmed.substring(0, schemeEnd).lowercase() + "://" + authority + path
+        }
+
+        /**
+         * #101: the backup-excluded file holding the API tokens — the
+         * per-type active credentials AND, since #214, the per-URL vault.
+         * **The value is load-bearing outside this class** — the two backup
+         * rule files in `res/xml/` exclude `<name>.xml` by exactly this
+         * name, and `BackupRulesTest` pins the three of them together.
          */
         const val SECRETS_PREFS_NAME = "polished_recognition_secrets"
 
         private const val STT_TOKEN_KEY = "stt_token"
         private const val LLM_TOKEN_KEY = "llm_token"
+
+        /**
+         * #214: the per-URL token vault inside the secrets file — a JSON map
+         * `canonicalProviderUrl → token` shared by the STT and LLM provider
+         * types (same endpoint = same credential). Lives in
+         * [SECRETS_PREFS_NAME], so the existing backup exclusions keep every
+         * entry off the Google cloud backup and device transfer.
+         */
+        private const val TOKEN_VAULT_KEY = "token_vault"
+
+        /** The vault never grows past this many endpoints (oldest dropped). */
+        private const val TOKEN_VAULT_CAPACITY = 20
 
         /** The #142 legacy-toggle migration target: ON → 30 days. */
         const val THIRTY_DAYS_SECONDS = 30L * 24 * 60 * 60

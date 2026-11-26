@@ -158,6 +158,9 @@ class ProvidersActivity : Activity() {
             val preset = presets.findSttPreset(name)
             if (preset != null) {
                 sttUrlField.setText(preset.base_url)
+                // #214: the preset's endpoint may already have a validated
+                // token in the vault — fill it in (or start empty).
+                refreshTokenFieldFor(isStt = true)
             }
             if (changed) {
                 sttModelDropdown.text.clear()
@@ -176,6 +179,8 @@ class ProvidersActivity : Activity() {
             val preset = presets.findLlmPreset(name)
             if (preset != null) {
                 llmUrlField.setText(preset.base_url)
+                // #214: same refill rule for the LLM endpoint.
+                refreshTokenFieldFor(isStt = false)
             }
             if (changed) {
                 llmModelDropdown.text.clear()
@@ -223,14 +228,36 @@ class ProvidersActivity : Activity() {
         }
 
         // When the endpoint URL changes (manual edit or provider switch), the cached model
-        // list belongs to a different endpoint — reload the dropdown from the store.
+        // list belongs to a different endpoint — reload the dropdown from the store —
+        // and so does the token (#214): refill the field from the vault.
         listOf(sttUrlField, llmUrlField).forEach { urlField ->
             urlField.setOnFocusChangeListener { _, hasFocus ->
                 if (!hasFocus) {
                     reloadModelDropdown(if (urlField === sttUrlField) sttModelDropdown else llmModelDropdown)
+                    refreshTokenFieldFor(urlField === sttUrlField)
                 }
             }
         }
+    }
+
+    /**
+     * #214 (owner decision): the token belongs to the provider URL, not to
+     * the screen session. On a URL change the field is ALWAYS refilled from
+     * the vault for the new endpoint — or emptied when the vault has none.
+     * An unvalidated token the user fiddled in is worthless by definition
+     * and never survives a provider switch; a validated one comes back from
+     * the vault on the way back. The draft records `""` (never `null`) for
+     * the emptied case, so the apply cannot fall back to the previous
+     * provider's stored token.
+     */
+    private fun refreshTokenFieldFor(isStt: Boolean) {
+        val urlField = if (isStt) sttUrlField else llmUrlField
+        val tokenField = if (isStt) sttTokenField else llmTokenField
+        val vaultToken = settings.vaultTokenFor(urlField.text.toString())
+        silenceDraftWatchers = true
+        tokenField.setText(vaultToken ?: "")
+        silenceDraftWatchers = false
+        if (isStt) draft.sttToken = vaultToken ?: "" else draft.llmToken = vaultToken ?: ""
     }
 
     private fun reloadModelDropdown(dropdown: AutoCompleteTextView) {

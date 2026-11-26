@@ -133,4 +133,90 @@ class SettingsStoreSecretsTest {
         assertThat(settingsPrefs().getString("stt_provider", null))
             .doesNotContain("sk-stale-token")
     }
+
+    // ---- #214: the per-URL token vault -----------------------------------------
+
+    private fun sttAt(url: String, token: String) = SttProviderConfig(
+        displayName = "prov",
+        baseUrl = url,
+        apiToken = token,
+        model = "whisper-large-v3"
+    )
+
+    @Test
+    fun `tokens are remembered per url and a trailing slash is the same provider`() {
+        val store = freshStore()
+        store.sttProvider = sttAt("https://stt.example/v1", "tok-a")
+
+        assertThat(store.vaultTokenFor("https://stt.example/v1/")).isEqualTo("tok-a")
+        assertThat(store.vaultTokenFor(" https://STT.example/v1 ")).isEqualTo("tok-a")
+        // a different endpoint is a different provider
+        assertThat(store.vaultTokenFor("https://other.example/v1")).isNull()
+
+        // overwriting via the slash variant updates the SAME entry
+        store.sttProvider = sttAt("https://stt.example/v1/", "tok-a2")
+        assertThat(store.vaultTokenFor("https://stt.example/v1")).isEqualTo("tok-a2")
+    }
+
+    @Test
+    fun `the vault lives in the secrets file, never in the backed-up settings`() {
+        freshStore().sttProvider = sttAt("https://stt.example/v1", "tok-vault")
+
+        val secretsJson = secretsPrefs().getString("token_vault", null)
+        assertThat(secretsJson).contains("https://stt.example/v1")
+        assertThat(secretsJson).contains("tok-vault")
+        assertThat(settingsPrefs().getString("token_vault", null)).isNull()
+        assertThat(settingsPrefs().getString("stt_provider", null)).doesNotContain("tok-vault")
+    }
+
+    @Test
+    fun `switching providers keeps one token per url and restores it on return`() {
+        val store = freshStore()
+        store.sttProvider = sttAt("https://stt.example/v1", "tok-a")
+        store.sttProvider = sttAt("https://other.example/v1", "tok-b")
+
+        assertThat(store.sttProvider!!.apiToken).isEqualTo("tok-b")
+        // returning to the first endpoint re-resolves ITS token
+        store.sttProvider = sttAt("https://stt.example/v1", "tok-a")
+        assertThat(store.sttProvider!!.apiToken).isEqualTo("tok-a")
+        assertThat(store.sttProvider!!.baseUrl).isEqualTo("https://stt.example/v1")
+    }
+
+    @Test
+    fun `a pre-#214 install seeds the vault from the token in effect`() {
+        // pre-#214 shape: only the per-type secret key exists, no vault
+        freshStore().sttProvider = sttAt("https://stt.example/v1", "tok-a")
+        secretsPrefs().edit().remove("token_vault").commit()
+
+        val config = freshStore().sttProvider
+        assertThat(config!!.apiToken).isEqualTo("tok-a")
+        // the read seeded the vault, so the first provider switch finds it
+        assertThat(freshStore().vaultTokenFor("https://stt.example/v1/")).isEqualTo("tok-a")
+    }
+
+    @Test
+    fun `clearing a provider drops its vault entry unless the other type still uses the url`() {
+        val store = freshStore()
+        store.sttProvider = sttAt("https://stt.example/v1", "tok-a")
+        store.sttProvider = null
+        assertThat(store.vaultTokenFor("https://stt.example/v1")).isNull()
+
+        // shared endpoint: the LLM credential memory must survive an STT clear
+        store.sttProvider = sttAt("https://shared.example/v1", "tok-shared")
+        store.llmProvider = llm("sk-llm-secret").copy(baseUrl = "https://shared.example/v1")
+        store.sttProvider = null
+        assertThat(store.vaultTokenFor("https://shared.example/v1")).isNotNull()
+    }
+
+    @Test
+    fun `canonical provider urls collapse trailing slashes and case`() {
+        assertThat(SettingsStore.canonicalProviderUrl(" https://Api.Example.ORG/v1/ "))
+            .isEqualTo("https://api.example.org/v1")
+        assertThat(SettingsStore.canonicalProviderUrl("https://api.example/v1"))
+            .isEqualTo(SettingsStore.canonicalProviderUrl("https://api.example/v1/"))
+        // the path itself is kept verbatim — it can be case-sensitive
+        assertThat(SettingsStore.canonicalProviderUrl("https://api.example/OpenAI/v1"))
+            .isEqualTo("https://api.example/OpenAI/v1")
+        assertThat(SettingsStore.canonicalProviderUrl("not a url")).isEqualTo("not a url")
+    }
 }
