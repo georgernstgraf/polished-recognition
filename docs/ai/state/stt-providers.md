@@ -3,7 +3,7 @@ type: State
 title: Project State — STT, LLM and Providers
 description: Failure classification, uploads, provider behaviour.
 tags: [knowledge, state, stt-providers]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T18:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T19:40:00Z }
 sources: ["#206", "#153"]
 status: stable
 ---
@@ -32,6 +32,10 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
 - **Normalization:** `SettingsValidation.apply` writes the effort only when the configured model's
   cached list advertises it — a stale value decays to `null` (nothing sent) instead of going on
   the wire against the provider's vocabulary.
+- **Header requirement (device finding 2026-11-26, superseding the docs' "no longer
+  necessary" note):** OpenCode's **Go** endpoint answers HTTP 400 without `x-opencode-session` —
+  the app sends a stable per-install UUID on Go-URLs only (`OpenCodeSessionInterceptor`, owner
+  requirement: never on the Console endpoint or any other host); see `state/settings.md`.
 - **Not verified:** whether a real chat completion with a picked effort is accepted end-to-end —
   the opencode-go chat endpoint needs an API key (401 in the probe); `reasoning_effort` itself is
   documented OpenAI standard and LiteLLM-normalized. The owner's device check covers the UI path.

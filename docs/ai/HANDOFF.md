@@ -22,9 +22,11 @@ looks exactly as before.** `SettingsValidation.apply` normalizes a stale effort 
 cached list. Tests: full suite + lint green (forced, `:core` new `ChatRequestJsonTest`, +5/+3/+4/+3
 in the four app suites). Release installed on BOTH devices. **Preset wave `0b03719`:** the LLM
 presets learn "OpenCode" (`https://opencode.ai/inference/openai/v1/`) and "OpenCode Go"
-(`https://opencode.ai/inference/go/openai/v1/`), default `glm-5.3-flash`; Go's free-tier models
-403 outside OpenCode and the app sends no `x-opencode-session` (documented as not required —
-follow-up issue if the device verdict disagrees). **Owner check:** opencode-go LLM setup →
+(`https://opencode.ai/inference/go/openai/v1/`), default `glm-5.3-flash`. **Session-header wave
+`d39a853` (owner device finding — the docs' "no longer necessary" was wrong):** Go answered HTTP
+400 without `x-opencode-session`; the app now sends a stable per-install UUID EXCLUSIVELY on
+Go-URLs (`opencode.ai` + `/inference/go/` prefix) — Console, other hosts and the STT path stay
+byte-identical (`OpenCodeSessionInterceptor` + test). Go's free-tier models 403 outside OpenCode. **Owner check:** opencode-go LLM setup →
 Fetch Models → a reasoning model shows the spinner with exactly its levels, STT section unchanged;
 preset path: "OpenCode Go" preset → Fetch Models.
 See `state/settings.md` + `state/stt-providers.md`.

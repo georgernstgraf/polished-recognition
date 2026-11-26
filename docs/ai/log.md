@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-26 (#153 — Session-Header-Welle: x-opencode-session, NUR für den Go-Endpunkt)
+
+* **Update**: [state/settings.md](state/settings.md) — #153-Abschnitt um die Session-Header-Welle ergänzt; **Drift korrigiert**: die Web-Doku-Aussage „Header nicht mehr nötig" war falsch (Gerät: HTTP 400) — der Header wird jetzt exklusiv für Go-URLs (`opencode.ai` + `/inference/go/`) gesendet, Owner-Anforderung.
+* **Update**: [state/stt-providers.md](state/stt-providers.md) — Header-Anforderung als Gerätebefund im #153-Abschnitt nachgetragen („Not verified"-Bullet präzisiert).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #153-Block auf den Session-Header-Stand korrigiert.
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [state/index.md](state/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#153 — Preset-Welle: OpenCode Console + Go als LLM-Presets)
 
 * **Update**: [state/settings.md](state/settings.md) — #153-Abschnitt um die Preset-Welle ergänzt: „OpenCode" (`…/inference/openai/v1/`) + „OpenCode Go" (`…/inference/go/openai/v1/`), Default `glm-5.3-flash`, Recherche-Fund (Vokabel pro Modell, `#variant` = Reasoning-Effort in OpenCodes Config), Caveats (Go-Free-403, `x-opencode-session` nicht gesendet), Preset-Owner-Check.

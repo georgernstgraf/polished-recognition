@@ -3,7 +3,7 @@ type: State
 title: Project State — Settings
 description: The settings overview, its four category screens and the draft/apply save model.
 tags: [knowledge, state, settings]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T18:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T19:40:00Z }
 sources: ["#212", "#153"]
 status: stable
 ---
@@ -52,15 +52,25 @@ screens). Sections are verbatim, newest first.
   **"OpenCode Go"** (`https://opencode.ai/inference/go/openai/v1/`), both `default_model
   glm-5.3-flash` (the owner's own agent model, 0-day retention). Researched 2026-11-26: the level
   vocabulary is per model across the whole catalog; OpenCode's own config syntax `opencode-go/
-  glm-5.3-flash#high` confirms the `#variant` IS the reasoning effort. Caveats pinned in the issue
-  comment: Go's free-tier chat models answer 403 outside OpenCode; Go asks for
-  `x-opencode-session` (documented as no-longer-required; the app sends none — a follow-up issue
-  would add it via an OkHttp interceptor if the device verdict says so). `ProviderPresetLoaderTest`
+  glm-5.3-flash#high` confirms the `#variant` IS the reasoning effort. `ProviderPresetLoaderTest`
   pins both base URLs.
+- **Session-header wave (`d39a853`) — OWNER DEVICE FINDING, docs drift corrected:** the Go
+  endpoint answered **HTTP 400** "Request is missing x-opencode-session and cannot be routed
+  efficiently" on the first Fetch Models with a real key — the web docs' "no longer necessary"
+  note covers ANOTHER client's native header, not this one. Fix: `OpenCodeSessionInterceptor`
+  (app `api/`) adds the stable per-install `x-opencode-session` UUID
+  (`SettingsStore.opencodeSessionId`, created once, persisted) **exclusively to Go-URLs**
+  (owner requirement: host `opencode.ai` AND path prefix `/inference/go/`) — the Console
+  endpoint, other opencode.ai paths, every foreign host and the whole STT path stay
+  byte-identical. Only `getChatApi` uses the derived `chatOkHttpClient`.
+  `OpenCodeSessionInterceptorTest` pins: Go URL carries the header, Console URL on the same
+  host does NOT, foreign host untouched, stale header overwritten. Suite + lint green;
+  release installed on BOTH devices.
 - **Owner check:** open a Provider setup whose LLM endpoint is opencode-go → Fetch Models → pick a
   reasoning model (e.g. `glm-5.3`): the spinner must appear with exactly `low / high / max`, stay
   empty until touched, and the polish must still work; the STT section must be unchanged. Preset
-  path: pick the "OpenCode Go" preset → URL + default model land in the fields → Fetch Models.
+  path: pick the "OpenCode Go" preset → URL + default model land in the fields → Fetch Models —
+  **which must now succeed past the HTTP 400.**
 
 
 ## #212 — Settings becomes an overview with four category screens (2026-11-26, CLOSED — owner verdict passed on the device)
