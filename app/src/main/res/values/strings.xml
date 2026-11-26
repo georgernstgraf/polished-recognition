@@ -17,15 +17,16 @@
     <string name="compress_audio">Slow connection: upload OGG/Opus</string>
     <string name="live_preview">Live preview in the text field</string>
     <string name="live_preview_hint">While you dictate, the transcript grows in the field you are typing into. It is display only — Send still inserts the finished text exactly once. Off: nothing is written until Send.</string>
-    <string name="advanced_section">Advanced / seldom needed</string>
+    <!-- #212: retired with the old monolithic screen — the Advanced
+         sub-screen and its overview row use `settings_category_advanced`. -->
     <string name="slice_auto">Fragment cut: auto</string>
     <string name="slice_seconds">Fragment cut (slice) in seconds</string>
     <string name="slice_seconds_hint" formatted="false">The slice is a fragment\'s MAXIMUM length. The cut is searched in the last part of the slice, so a fragment ends up between (100 − search window) % and 100 % of it. Auto measures your STT provider\'s latency and picks the largest slice whose stop wait stays within budget — bigger slices mean fewer seams. Manual: 5–180 s.</string>
-    <string name="slice_seconds_error">Enter a fragment cut between 5 and 180 seconds, or switch auto on</string>
-    <string name="search_percent_auto">Search window: auto</string>
-    <string name="search_percent" formatted="false">Search window in % of the slice</string>
+    <!-- #212: slice_seconds_error / search_percent_error were retired with
+         the Save button — the back-exit names the failed check in a toast,
+         not on a field. -->
+    <string name="search_percent_auto">Search window: auto</string>    <string name="search_percent" formatted="false">Search window in % of the slice</string>
     <string name="search_percent_hint" formatted="false">The last N % of the slice is the only region where a cut may land — it is where the app looks for a pause. Auto keeps it as small as possible while almost every seam still finds a silence. Manual: 10–60 %.</string>
-    <string name="search_percent_error" formatted="false">Enter a search window between 10 and 60 %, or switch auto on</string>
     <string name="audio_evidence">Keep session audio for diagnostics</string>
     <string name="audio_evidence_hint">Dictated audio is retained locally for diagnostics: the actually-uploaded fragments plus a session.json manifest (timestamps, statistics, transcripts, delivery) under files/audio, adb-readable. The slider sets how long — from no retention (nothing is written) up to 50 years. Storage pressure evicts the oldest sessions invisibly.</string>
     <string name="target_language">Target language</string>
@@ -59,7 +60,18 @@
     <string name="source_language_clause_title">Source Language Clause (automatic, not configurable)</string>
     <string name="source_language_clause_info">The system prompt always contains the sentence “The STT service transcribed audio spoken in &lt;Language&gt;.” when Whisper reports a language. When Whisper returns null, blank, or “unknown”, the whole sentence is dropped. This clause cannot be edited.</string>
     <string name="restore_defaults">Restore all prompts to default</string>
-    <string name="save">\u2190 save / back</string>
+    <!-- #212: the Settings overview's four category rows. The Output Control
+         label matches the spec verbatim; descriptions sit under each row. -->
+    <string name="settings_category_providers">Providers &amp; Tokens</string>
+    <string name="settings_category_providers_desc">Endpoints, API tokens and model selection</string>
+    <string name="settings_category_prompts">Manage Prompts</string>
+    <string name="settings_category_prompts_desc">System prompt, language clauses, reset to default</string>
+    <string name="settings_category_output">Output Control</string>
+    <string name="settings_category_output_desc">Line wrap and per-app line wrap</string>
+    <string name="settings_category_advanced">Advanced / Debugging</string>
+    <string name="settings_category_advanced_desc">Fragment geometry, FIFO depth, audio evidence, compression</string>
+    <!-- #212: the old "← save / back" (`save`) string was retired with the
+         Save buttons themselves — leaving Settings saves via the draft. -->
     <string name="saved">Settings saved</string>
     <string name="settings_save_blocked">Not saved — fix the highlighted field (%1$s). It may be further down the screen.</string>
     <string name="token_valid">Token valid</string>
@@ -177,7 +189,8 @@
     <string name="workbench_delivered">Copied to clipboard</string>
     <string name="workbench_fifo_size">Keep last N dictations</string>
     <string name="workbench_fifo_size_hint">How many Workbench dictations are kept (1–10). The least recently edited one is deleted first.</string>
-    <string name="workbench_fifo_size_error">Enter a number between 1 and 10</string>
+    <!-- #212: workbench_fifo_size_error was retired with the Save button —
+         the back-exit names the failed check in a toast, not on a field. -->
 
     <!--
       #185/#188: unfinished dictations live in the Workbench ring. The screen

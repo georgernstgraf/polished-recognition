@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- #212: Advanced / Debugging — the fragment geometry, FIFO depth,
+     compression, live-preview and audio-evidence sections moved here
+     verbatim from the old single-screen activity_settings.xml. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_category_advanced"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
+            android:id="@+id/slice_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/slice_auto"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/slice_seconds"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/slice_seconds"
+            android:inputType="numberDecimal"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/slice_seconds_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
+            android:id="@+id/search_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/search_percent_auto"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/search_percent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/search_percent"
+            android:inputType="number"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/search_percent_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- #172: Workbench FIFO depth (epic #166 D2) -->
+        <EditText
+            android:id="@+id/workbench_fifo_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/workbench_fifo_size"
+            android:imeOptions="actionDone"
+            android:inputType="number"
+            android:importantForAutofill="no"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="4dp"
+            android:text="@string/workbench_fifo_size_hint"
+            android:textColor="?android:attr/textColorTertiary"
+            android:textSize="12sp" />
+
+        <CheckBox
+            android:id="@+id/compress_audio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/compress_audio"
+            android:layout_marginBottom="8dp" />
+
+        <!-- #205: the live preview kill switch (owner D1, default ON) -->
+        <CheckBox
+            android:id="@+id/ime_live_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/live_preview"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/live_preview_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- #142: audio-evidence retention — the 0→50-years log slider
+             (0 = "Keine Retention", complete off) -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/audio_evidence"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="2dp" />
+
+        <SeekBar
+            android:id="@+id/evidence_retention_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:id="@+id/evidence_retention_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/audio_evidence_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="16dp" />
+
+    </LinearLayout>
+</ScrollView>

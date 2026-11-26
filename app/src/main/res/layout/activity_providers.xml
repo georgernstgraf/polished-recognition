@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- #212: Providers & Tokens — the STT + LLM provider sections moved here
+     verbatim from the old single-screen activity_settings.xml. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/provider_control_section"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
+
+        <!-- STT Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/stt_section"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
+
+        <AutoCompleteTextView
+            android:id="@+id/stt_provider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/provider"
+            android:inputType="none"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:layout_marginBottom="8dp" />
+
+        <!-- #195: these fields hold endpoints, credentials and app tuning, never
+             personal data — autofill stays out of them (as it already does on
+             the two model pickers below). -->
+        <EditText
+            android:id="@+id/stt_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/api_url"
+            android:inputType="textUri"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <EditText
+                android:id="@+id/stt_token"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/api_token"
+                android:inputType="textPassword"
+                android:importantForAutofill="no"
+                android:imeOptions="actionDone" />
+            <ImageButton
+                android:id="@+id/stt_token_toggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_eye"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/show_password"
+                android:scaleType="center" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/validate_stt"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/validate_fetch"
+            style="@android:style/Widget.DeviceDefault.Button.Borderless"
+            android:layout_marginBottom="8dp" />
+
+        <AutoCompleteTextView
+            android:id="@+id/stt_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/model"
+            android:inputType="text|textNoSuggestions"
+            android:importantForAutofill="no"
+            android:completionThreshold="1"
+            android:layout_marginBottom="16dp" />
+
+        <!-- LLM Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/llm_section"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="8dp" />
+
+        <AutoCompleteTextView
+            android:id="@+id/llm_provider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/provider"
+            android:inputType="none"
+            android:focusable="false"
+            android:cursorVisible="false"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/llm_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/api_url"
+            android:inputType="textUri"
+            android:importantForAutofill="no"
+            android:imeOptions="actionDone"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <EditText
+                android:id="@+id/llm_token"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/api_token"
+                android:inputType="textPassword"
+                android:importantForAutofill="no"
+                android:imeOptions="actionDone" />
+            <ImageButton
+                android:id="@+id/llm_token_toggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_eye"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/show_password"
+                android:scaleType="center" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/fetch_llm_models"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fetch_models"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/test_llm_token"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/test_token"
+                style="@android:style/Widget.DeviceDefault.Button.Borderless" />
+        </LinearLayout>
+
+        <AutoCompleteTextView
+            android:id="@+id/llm_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/model"
+            android:inputType="text|textNoSuggestions"
+            android:importantForAutofill="no"
+            android:completionThreshold="1"
+            android:layout_marginBottom="16dp" />
+
+    </LinearLayout>
+</ScrollView>

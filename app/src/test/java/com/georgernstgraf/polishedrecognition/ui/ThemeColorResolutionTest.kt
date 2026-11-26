@@ -16,7 +16,8 @@ import org.robolectric.RuntimeEnvironment
 
 /**
  * #160: the "Advanced" fragment-geometry fields were INVISIBLE in the owner's system
- * dark mode.
+ * dark mode. (They lived in `SettingsActivity` then; #212 moved them — and this
+ * test — to `AdvancedActivity`.)
  *
  * Root cause: `SettingsActivity` took a theme attribute as an `Int`
  * (`TypedValue.data`) and passed it to `setTextColor(int)`. That is only an ARGB
@@ -38,19 +39,21 @@ class ThemeColorResolutionTest {
     @Before
     fun setUp() {
         prefs().edit().clear().commit()
+        SettingsDraft.clear()
     }
 
     @After
     fun tearDown() {
         prefs().edit().clear().commit()
+        SettingsDraft.clear()
     }
 
     private fun prefs() = RuntimeEnvironment.getApplication()
         .getSharedPreferences("polished_recognition_settings", 0)
 
     /** Launches the real screen under [themeStyle], i.e. with selector-based text colours. */
-    private fun launch(themeStyle: Int): SettingsActivity {
-        val controller = Robolectric.buildActivity(SettingsActivity::class.java)
+    private fun launch(themeStyle: Int): AdvancedActivity {
+        val controller = Robolectric.buildActivity(AdvancedActivity::class.java)
         controller.get().setTheme(themeStyle)
         return controller.setup().get()
     }

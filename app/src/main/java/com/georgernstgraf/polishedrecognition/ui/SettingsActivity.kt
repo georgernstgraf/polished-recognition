@@ -3,6 +3,7 @@ package com.georgernstgraf.polishedrecognition.ui
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
@@ -10,97 +11,56 @@ import android.text.Editable
 import android.text.Html
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
-import android.text.method.PasswordTransformationMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.window.OnBackInvokedDispatcher
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.BaseAdapter
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.Filter
 import android.widget.Filterable
 import android.widget.ImageButton
-import android.widget.SeekBar
 import android.widget.TextView
-import com.google.gson.Gson
 import com.georgernstgraf.polishedrecognition.BuildConfig
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.config.CustomLanguages
-import com.georgernstgraf.polishedrecognition.config.EvidenceRetention
-import com.georgernstgraf.polishedrecognition.config.LlmProviderConfig
-import com.georgernstgraf.polishedrecognition.config.SttFragmentSizer
-import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
-import com.georgernstgraf.polishedrecognition.config.SttProviderConfig
-import com.georgernstgraf.polishedrecognition.dictation.DictationStore
-import com.georgernstgraf.polishedrecognition.api.dto.ChatMessage
-import com.georgernstgraf.polishedrecognition.api.dto.ChatRequest
-import com.georgernstgraf.polishedrecognition.pipeline.PromptStore
-import java.util.Locale
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
+/**
+ * #212: the Settings OVERVIEW. The one long screen became this hub plus four
+ * category sub-screens (`ProvidersActivity`, `PromptsActivity`,
+ * `OutputControlActivity`, `AdvancedActivity`). What stays here:
+ *
+ *  - the target-language section (write-through as always — the IME writes
+ *    the same field, so language commits are never deferred),
+ *  - the four category buttons,
+ *  - `set_recognition_service` + the About section.
+ *
+ * There is NO Save button any more. Leaving Settings = back on THIS screen:
+ * the back-exit validates the draft's effective values (`SettingsValidation`)
+ * and applies it — success → "Settings saved", failure → the check name is
+ * toasted and only the failing entries keep their persisted value.
+ */
 class SettingsActivity : Activity() {
 
-    private val scope = CoroutineScope(Dispatchers.Main)
     private lateinit var settings: com.georgernstgraf.polishedrecognition.config.SettingsStore
     private lateinit var promptStore: com.georgernstgraf.polishedrecognition.pipeline.PromptStore
-    private lateinit var presets: com.georgernstgraf.polishedrecognition.config.ProviderPresetLoader
     private lateinit var app: PolishedRecognitionApp
 
-    private val sttProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_provider) }
-    private val sttUrlField: EditText by lazy { findViewById(R.id.stt_url) }
-    private val sttTokenField: EditText by lazy { findViewById(R.id.stt_token) }
-    private val sttTokenToggle: ImageButton by lazy { findViewById(R.id.stt_token_toggle) }
-    private val sttModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.stt_model) }
-    private val validateSttButton: Button by lazy { findViewById(R.id.validate_stt) }
-
-    private val llmProviderDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_provider) }
-    private val llmUrlField: EditText by lazy { findViewById(R.id.llm_url) }
-    private val llmTokenField: EditText by lazy { findViewById(R.id.llm_token) }
-    private val llmTokenToggle: ImageButton by lazy { findViewById(R.id.llm_token_toggle) }
-    private val llmModelDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.llm_model) }
-    private val fetchLlmModelsButton: Button by lazy { findViewById(R.id.fetch_llm_models) }
-    private val testLlmTokenButton: Button by lazy { findViewById(R.id.test_llm_token) }
-
-    private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
-    /** #205: the live-preview kill switch (read at session start). */
-    private val livePreviewCheckbox: CheckBox by lazy { findViewById(R.id.ime_live_preview) }
-    /** #142: the 0→50-years log slider (0 = no retention, complete off). */
-    private val evidenceRetentionSlider: SeekBar by lazy { findViewById(R.id.evidence_retention_slider) }
-    private val evidenceRetentionLabel: TextView by lazy { findViewById(R.id.evidence_retention_label) }
     private val targetLanguageDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.target_language) }
     private var languageEditPrevious: String = ""
-    private val wrapWidthField: EditText by lazy { findViewById(R.id.wrap_width) }
-    private val sliceAutoCheckbox: CheckBox by lazy { findViewById(R.id.slice_auto) }
-    private val sliceSecondsField: EditText by lazy { findViewById(R.id.slice_seconds) }
-    private val searchAutoCheckbox: CheckBox by lazy { findViewById(R.id.search_auto) }
-    private val searchPercentField: EditText by lazy { findViewById(R.id.search_percent) }
-    /** #172: Workbench FIFO depth (epic #166 D2). */
-    private val workbenchFifoSizeField: EditText by lazy { findViewById(R.id.workbench_fifo_size) }
-    private val appWrapDropdown: AutoCompleteTextView by lazy { findViewById<AutoCompleteTextView>(R.id.app_wrap_app) }
-    private val appWrapWidthField: EditText by lazy { findViewById(R.id.app_wrap_width) }
-    private val appWrapForgetButton: Button by lazy { findViewById(R.id.app_wrap_forget) }
-    private val appWrapEmptyHint: TextView by lazy { findViewById(R.id.app_wrap_empty_hint) }
-    /** Learned apps (#100), ordered most-recently-used first. */
-    private val appWrapOrder = mutableListOf<String>()
-    private val appWrapLabels = mutableMapOf<String, String>()
-    private val appWrapWidths = mutableMapOf<String, Int?>()
-    private var selectedAppPackage: String? = null
-    private var silenceAppWrapListener = false
-
-    private val systemPromptField: EditText by lazy { findViewById(R.id.system_prompt) }
-    private val targetLanguageClauseField: EditText by lazy { findViewById(R.id.target_language_clause) }
 
     private val aboutVersionText: TextView by lazy { findViewById(R.id.about_version) }
     private val aboutCommitText: TextView by lazy { findViewById(R.id.about_commit) }
     private val aboutInfoText: TextView by lazy { findViewById(R.id.about_info) }
     private val aboutHelpText: TextView by lazy { findViewById(R.id.about_help) }
+
+    /** True once a back-exit ran — guards the (impossible-in-practice) double delivery. */
+    @Volatile
+    private var backExitHandled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,408 +69,103 @@ class SettingsActivity : Activity() {
         app = application as PolishedRecognitionApp
         settings = app.settingsStore
         promptStore = app.promptStore
-        presets = app.providerPresetLoader
 
-        setupListeners()
-        loadSettings()
-        setupDropdowns()
+        setupLanguageSection()
+        setupCategoryButtons()
+        findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openVoiceKeyboardSettings() }
         setupAboutSection()
+        registerBackExit()
     }
 
-    private fun setupListeners() {
-        validateSttButton.setOnClickListener { validateSttProvider() }
-        fetchLlmModelsButton.setOnClickListener { fetchLlmModels() }
-        testLlmTokenButton.setOnClickListener { testLlmToken() }
+    /**
+     * Back-exit interception, both platform paths (the manifest does not
+     * enable `enableOnBackInvokedCallback`, so the classic `onBackPressed`
+     * route stays legal; the dispatcher callback covers API ≥ 33 when the
+     * attribute is ever switched on). NO androidx involved.
+     */
+    private fun registerBackExit() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT
+            ) { handleBackExit() }
+        }
+    }
 
-        sttTokenToggle.setOnClickListener { togglePassword(sttTokenField, sttTokenToggle) }
-        llmTokenToggle.setOnClickListener { togglePassword(llmTokenField, llmTokenToggle) }
+    // `GestureBackNavigation`: lint assumes predictive back is enabled and would
+    // send every back gesture straight to the dispatcher callback. This app does
+    // NOT set `android:enableOnBackInvokedCallback` in the manifest (API ≤ 32
+    // devices have no dispatcher at all, minSdk 30), so the classic
+    // `onBackPressed` route is the LIVE path here; the dispatcher callback
+    // (registered for API ≥ 33) routes into the same handler. Both paths are
+    // needed; the guard in `handleBackExit` makes a double delivery a no-op.
+    @Deprecated("Overrides in both back paths route into the same handler (#212)")
+    @Suppress("GestureBackNavigation")
+    override fun onBackPressed() {
+        handleBackExit()
+    }
 
-        sttTokenField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                sttTokenField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
+    /** The leaving-Settings moment: validate + apply the draft, then finish. */
+    internal fun handleBackExit() {
+        if (backExitHandled) return
+        backExitHandled = true
+        val draft = SettingsDraft
+        val failed = if (draft.isEmpty) emptyList() else SettingsValidation.failedChecks(draft, settings)
 
-        llmTokenField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                llmTokenField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        sttModelDropdown.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                sttModelDropdown.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        llmModelDropdown.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                llmModelDropdown.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        findViewById<Button>(R.id.restore_defaults).setOnClickListener {
-            promptStore.restoreAllDefaults()
-            loadPromptDefaults()
+        if (failed.isNotEmpty()) {
+            // A save attempt that stops at a validation check must never look
+            // like "nothing happened" (#150): name the failed check in a
+            // toast, in logcat and in the adb-readable rotating log. The
+            // screen closes anyway — only the failing entries keep their
+            // previous persisted value.
+            failed.forEach { logAbortedCheck(it) }
+            Toasts.show(this, getString(R.string.settings_save_blocked, failed.first()))
+        } else {
             Toasts.short(this, getString(R.string.saved))
         }
-
-        findViewById<Button>(R.id.reset_system_prompt).setOnClickListener {
-            promptStore.restoreDefault(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM)
-            systemPromptField.setText(promptStore.systemPrompt)
-        }
-
-        findViewById<Button>(R.id.reset_target_language_clause).setOnClickListener {
-            promptStore.restoreDefault(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE)
-            targetLanguageClauseField.setText(promptStore.targetLanguageClauseTemplate)
-        }
-
-        findViewById<Button>(R.id.set_recognition_service).setOnClickListener { openVoiceKeyboardSettings() }
-        findViewById<Button>(R.id.save_button_top).setOnClickListener { saveAndClose() }
-        findViewById<Button>(R.id.save_button).setOnClickListener { saveAndClose() }
-
-        findViewById<TextView>(R.id.manage_custom_languages).setOnClickListener { showManageLanguagesDialog() }
-
-        wrapWidthField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                wrapWidthField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        sliceSecondsField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                sliceSecondsField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        searchPercentField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                searchPercentField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        // #172: clear the red error as soon as the user corrects the value.
-        workbenchFifoSizeField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                workbenchFifoSizeField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        // #124: the auto checkboxes own the fields — checked = locked, showing
-        // the RESOLVED value in grey; unchecking keeps that value as the start.
-        sliceAutoCheckbox.setOnCheckedChangeListener { _, checked ->
-            setFieldLocked(sliceSecondsField, checked)
-        }
-        searchAutoCheckbox.setOnCheckedChangeListener { _, checked ->
-            setFieldLocked(searchPercentField, checked)
-        }
-        // The resolved values depend on provider + model + FORMAT — the format
-        // is switched on this very screen, so re-resolve when it flips.
-        compressAudioCheckbox.setOnCheckedChangeListener { _, _ -> refreshAutoValues() }
-
-        findViewById<Button>(R.id.wrap_80).setOnClickListener {
-            wrapWidthField.setText(getString(R.string.wrap_width_preset_80))
-        }
-        findViewById<Button>(R.id.wrap_120).setOnClickListener {
-            wrapWidthField.setText(getString(R.string.wrap_width_preset_120))
-        }
-        findViewById<Button>(R.id.wrap_200).setOnClickListener {
-            wrapWidthField.setText(getString(R.string.wrap_width_preset_200))
-        }
-        findViewById<Button>(R.id.wrap_off).setOnClickListener { wrapWidthField.setText("0") }
-
-        setupAppWrapSection()
+        SettingsValidation.apply(this, draft, settings, promptStore, failed.toSet())
+        draft.clear()
+        finish()
     }
 
     /**
-     * Per-app line-wrap section (#100): dropdown of learned apps, a value
-     * field (empty = global) and a forget button. The dropdown uses the same
-     * tap-to-open pattern as the other Settings dropdowns.
+     * Same log contract as the old saveAborted (#150): one JSON line per
+     * failed check into the rotating `settings` log, plus logcat.
      */
-    /**
-     * #124: loads the fragment geometry. Auto (the default) shows the
-     * RESOLVED value in grey — the same value the next session will use, from
-     * the auto-sizer or the adaptive percentage rule. Unchecking auto keeps
-     * that value as the editable starting point.
-     */
-    private fun loadFragmentGeometry() {
-        sliceAutoCheckbox.isChecked = settings.sliceSecondsOverride == null
-        searchAutoCheckbox.isChecked = settings.searchPercentOverride == null
-        settings.sliceSecondsOverride?.let { sliceSecondsField.setText(formatNumber(it)) }
-        settings.searchPercentOverride?.let { searchPercentField.setText(formatNumber(it)) }
-        refreshAutoValues()
+    private fun logAbortedCheck(check: String) {
+        runCatching {
+            val line = """{"ts":${System.currentTimeMillis()},"pid":${Process.myPid()},"event":"settings-save-aborted","check":"$check"}"""
+            app.jsonLogger.log("settings", line)
+        }.onFailure { android.util.Log.w(TAG, "settings-save log failed for $check", it) }
+        android.util.Log.w(TAG, "settings-save-aborted check=$check")
     }
 
-    /** Re-resolves the grey auto values (provider/model/format dependent). */
-    private fun refreshAutoValues() {
-        val sizer = SttFragmentSizer(settings)
-        if (sliceAutoCheckbox.isChecked) {
-            val slice = sizer.sliceSeconds() ?: SttLatencyProfile.BOOTSTRAP_SLICE_SECONDS
-            sliceSecondsField.setText(formatNumber(slice.toFloat()))
+    // ---------------------------------------------------------------- categories
+
+    private fun setupCategoryButtons() {
+        findViewById<Button>(R.id.category_providers).setOnClickListener {
+            startActivity(Intent(this, ProvidersActivity::class.java))
         }
-        if (searchAutoCheckbox.isChecked) {
-            val percent = sizer.searchPercent() ?: SttLatencyProfile.BOOTSTRAP_SEARCH_PERCENT
-            searchPercentField.setText(formatNumber(percent.toFloat()))
+        findViewById<Button>(R.id.category_prompts).setOnClickListener {
+            startActivity(Intent(this, PromptsActivity::class.java))
         }
-        setFieldLocked(sliceSecondsField, sliceAutoCheckbox.isChecked)
-        setFieldLocked(searchPercentField, searchAutoCheckbox.isChecked)
-    }
-
-    private fun setFieldLocked(field: EditText, locked: Boolean) {
-        field.isEnabled = !locked
-        // #160: never take the theme colour as an Int — an OEM night skin resolves these
-        // attributes to a ColorStateList, whose resource id would be read as ARGB (alpha
-        // 0x01) and made the field invisible.
-        val colors = themeColorStateList(
-            if (locked) android.R.attr.textColorTertiary else android.R.attr.textColorPrimary
-        )
-        // Locked = read-only display of the resolved value. `isEnabled = false` makes the
-        // selector apply its DISABLED entry on top, which stacks a second dimming on the
-        // already-secondary tertiary colour (measured 2.12:1 on the OnePlus in dark mode).
-        // Take the enabled variant so the greyed value stays readable.
-        val state = if (locked) intArrayOf(android.R.attr.state_enabled) else field.drawableState
-        field.setTextColor(colors.getColorForState(state, colors.defaultColor))
-    }
-
-    private fun formatNumber(value: Float): String =
-        if (value % 1f == 0f) value.toInt().toString() else value.toString()
-
-    private fun setupAppWrapSection() {
-        appWrapDropdown.threshold = Int.MAX_VALUE
-        appWrapDropdown.setOnClickListener { if (appWrapOrder.isNotEmpty()) appWrapDropdown.showDropDown() }
-        appWrapDropdown.setOnItemClickListener { _, _, position, _ -> selectAppForWrap(position) }
-        appWrapWidthField.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                appWrapWidthField.error = null
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-        appWrapForgetButton.setOnClickListener { forgetSelectedApp() }
-    }
-
-    private fun loadAppWrapSection() {
-        val entries = settings.knownAppsByRecency()
-        appWrapOrder.clear()
-        appWrapLabels.clear()
-        appWrapWidths.clear()
-        entries.forEach { (pkg, app) ->
-            appWrapOrder.add(pkg)
-            appWrapLabels[pkg] = app.label
-            appWrapWidths[pkg] = app.wrapWidth
+        findViewById<Button>(R.id.category_output).setOnClickListener {
+            startActivity(Intent(this, OutputControlActivity::class.java))
         }
-        selectedAppPackage = null
-        refreshAppWrapUi(appWrapOrder.firstOrNull())
-    }
-
-    private fun refreshAppWrapUi(selectPackage: String?) {
-        val labels = appWrapOrder.map { appWrapLabels[it] ?: it }
-        silenceAppWrapListener = true
-        appWrapDropdown.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, labels)
-        )
-        val hasApps = appWrapOrder.isNotEmpty()
-        appWrapEmptyHint.visibility = if (hasApps) View.GONE else View.VISIBLE
-        appWrapDropdown.isEnabled = hasApps
-        appWrapWidthField.isEnabled = hasApps
-        appWrapForgetButton.isEnabled = hasApps
-        if (selectPackage != null) {
-            showAppWrapRow(selectPackage)
-        } else {
-            selectedAppPackage = null
-            appWrapDropdown.setText("", false)
-            appWrapWidthField.setText("")
+        findViewById<Button>(R.id.category_advanced).setOnClickListener {
+            startActivity(Intent(this, AdvancedActivity::class.java))
         }
-        silenceAppWrapListener = false
     }
 
-    private fun showAppWrapRow(packageName: String) {
-        selectedAppPackage = packageName
-        appWrapDropdown.setText(appWrapLabels[packageName] ?: packageName, false)
-        appWrapWidthField.hint = getString(R.string.app_wrap_global_hint, settings.wrapWidth)
-        appWrapWidthField.setText(appWrapWidths[packageName]?.toString() ?: "")
-        appWrapWidthField.error = null
-    }
+    // ---------------------------------------------------------------- target language
 
-    private fun selectAppForWrap(position: Int) {
-        if (silenceAppWrapListener) return
-        val pkg = appWrapOrder.getOrNull(position) ?: return
-        appWrapDropdown.dismissDropDown()
-        if (pkg == selectedAppPackage) return
-        if (!commitAppWrapField()) return
-        showAppWrapRow(pkg)
-    }
-
-    /**
-     * Stores the currently displayed value into the working map (#100).
-     * Returns false (and shows an error) when the value is invalid, so the
-     * caller can block a selection change.
-     */
-    private fun commitAppWrapField(): Boolean {
-        val pkg = selectedAppPackage ?: return true
-        val raw = appWrapWidthField.text.toString().trim()
-        if (raw.isEmpty()) {
-            appWrapWidths[pkg] = null
-            return true
-        }
-        val value = raw.toIntOrNull()
-        if (value == null || (value != 0 && value < com.georgernstgraf.polishedrecognition.config.SettingsStore.MIN_WRAP_WIDTH)) {
-            appWrapWidthField.error = getString(R.string.wrap_width_error)
-            return false
-        }
-        appWrapWidths[pkg] = value
-        return true
-    }
-
-    private fun forgetSelectedApp() {
-        val pkg = selectedAppPackage ?: return
-        appWrapOrder.remove(pkg)
-        appWrapLabels.remove(pkg)
-        appWrapWidths.remove(pkg)
-        settings.forgetKnownApp(pkg)
-        selectedAppPackage = null
-        refreshAppWrapUi(appWrapOrder.firstOrNull())
-    }
-
-    private fun togglePassword(field: EditText, toggle: ImageButton) {
-        val isMasked = field.transformationMethod is PasswordTransformationMethod
-        if (isMasked) {
-            field.transformationMethod = null
-            toggle.setImageResource(R.drawable.ic_eye_off)
-        } else {
-            field.transformationMethod = PasswordTransformationMethod.getInstance()
-            toggle.setImageResource(R.drawable.ic_eye)
-        }
-        field.setSelection(field.text?.length ?: 0)
-    }
-
-    private fun loadSettings() {
-        settings.sttProvider?.let {
-            sttProviderDropdown.setText(it.displayName, false)
-            sttUrlField.setText(it.baseUrl)
-            sttTokenField.setText(it.apiToken)
-            sttModelDropdown.setText(it.model, false)
-            updateModelDropdown(sttModelDropdown, settings.getSttModels(it.baseUrl))
-        }
-
-        settings.llmProvider?.let {
-            llmProviderDropdown.setText(it.displayName, false)
-            llmUrlField.setText(it.baseUrl)
-            llmTokenField.setText(it.apiToken)
-            llmModelDropdown.setText(it.model, false)
-            updateModelDropdown(llmModelDropdown, settings.getLlmModels(it.baseUrl))
-        }
-
-        compressAudioCheckbox.isChecked = settings.compressAudio
-        livePreviewCheckbox.isChecked = settings.imeLivePreview
-        // #142: the retention slider — the label tracks the position
-        evidenceRetentionSlider.max = EvidenceRetention.MAX_POSITION
-        val retentionPosition = EvidenceRetention.positionFor(settings.evidenceRetentionSeconds)
-        evidenceRetentionSlider.progress = retentionPosition
-        evidenceRetentionLabel.text = EvidenceRetention.labelFor(retentionPosition)
-        evidenceRetentionSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
-                evidenceRetentionLabel.text = EvidenceRetention.labelFor(progress)
-            }
-
-            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
-
-            override fun onStopTrackingTouch(bar: SeekBar?) = Unit
-        })
-        wrapWidthField.setText(String.format(Locale.ROOT, "%d", settings.wrapWidth))
-        // #172: Workbench FIFO depth (epic #166 D2)
-        workbenchFifoSizeField.setText(String.format(Locale.ROOT, "%d", settings.workbenchFifoSize))
-        loadFragmentGeometry()
-        loadAppWrapSection()
-        targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
-        settings.targetLanguage?.let { tl ->
-            if (tl.isNotBlank() && tl != CustomLanguages.NONE_TARGET_LANGUAGE && tl != CustomLanguages.BUILTIN_LANGUAGE && tl !in settings.customLanguages) {
-                settings.customLanguages = settings.customLanguages + tl
-            }
-        }
-
-        systemPromptField.setText(promptStore.systemPrompt)
-        targetLanguageClauseField.setText(promptStore.targetLanguageClauseTemplate)
-    }
-
-    private fun loadPromptDefaults() {
-        systemPromptField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM))
-        targetLanguageClauseField.setText(promptStore.get(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE))
-    }
-
-    private fun setupDropdowns() {
-        val sttNames = presets.sttPresetNames() + getString(R.string.custom_provider)
-        val llmNames = presets.llmPresetNames() + getString(R.string.custom_provider)
-
-        sttProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, sttNames.sorted()))
-        llmProviderDropdown.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, llmNames.sorted()))
-
+    private fun setupLanguageSection() {
         val langAdapter = LanguageDropdownAdapter()
         targetLanguageDropdown.setAdapter(langAdapter)
 
-        sttProviderDropdown.setOnItemClickListener { _, _, position, _ ->
-            val name = sttProviderDropdown.adapter.getItem(position) as String
-            val changed = name != settings.sttProvider?.displayName
-            val preset = presets.findSttPreset(name)
-            if (preset != null) {
-                sttUrlField.setText(preset.base_url)
-            }
-            if (changed) {
-                sttModelDropdown.text.clear()
-                sttModelDropdown.error = null
-                reloadModelDropdown(sttModelDropdown)
-            }
-            // This dropdown isn't focusable (inputType=none), so selecting an item never moves
-            // focus away from the model fields — re-run model validation explicitly (#50).
-            validateModelField(sttModelDropdown)
-        }
-
-        llmProviderDropdown.setOnItemClickListener { _, _, position, _ ->
-            val name = llmProviderDropdown.adapter.getItem(position) as String
-            val changed = name != settings.llmProvider?.displayName
-            val preset = presets.findLlmPreset(name)
-            if (preset != null) {
-                llmUrlField.setText(preset.base_url)
-            }
-            if (changed) {
-                llmModelDropdown.text.clear()
-                llmModelDropdown.error = null
-                reloadModelDropdown(llmModelDropdown)
-            }
-            validateModelField(llmModelDropdown)
-        }
-
-        // Provider dropdowns use inputType=none; the Material exposed-dropdown arrow is gone,
-        // so we wire tap -> showDropDown() and raise the threshold to Int.MAX_VALUE so typing
-        // (which can't happen, inputType=none) never filters the list away. Same hook applied to
-        // the target-language dropdown for tap-to-open parity. See PITFALLS #37.
-        listOf(sttProviderDropdown, llmProviderDropdown, targetLanguageDropdown).forEach { dropdown ->
-            dropdown.threshold = Int.MAX_VALUE
-            dropdown.setOnClickListener { dropdown.showDropDown() }
-        }
-
-        // The target-language dropdown isn't focusable (inputType=none) either — re-run model
-        // validation explicitly when the user switches language (#50).
-        targetLanguageDropdown.setOnItemClickListener { _, _, _, _ ->
-            validateModelField(sttModelDropdown)
-            validateModelField(llmModelDropdown)
-        }
+        // Provider/target-language dropdowns use inputType=none; tap → showDropDown()
+        // with threshold = Int.MAX_VALUE (PITFALLS #37 tap-to-open selector).
+        targetLanguageDropdown.threshold = Int.MAX_VALUE
+        targetLanguageDropdown.setOnClickListener { targetLanguageDropdown.showDropDown() }
 
         // Long-press the selected language to edit it inline (old Material behavior, #48):
         // the edit commits directly to the list — existing names are selected, new names are
@@ -520,391 +175,17 @@ class SettingsActivity : Activity() {
             true
         }
 
-        sttModelDropdown.threshold = 1
-        llmModelDropdown.threshold = 1
+        findViewById<TextView>(R.id.manage_custom_languages).setOnClickListener { showManageLanguagesDialog() }
 
-        listOf(sttModelDropdown, llmModelDropdown).forEach { dropdown ->
-            dropdown.setOnClickListener {
-                val adapter = dropdown.adapter as? ModelFilterAdapter
-                if (adapter == null) {
-                    Toasts.show(this, getString(R.string.no_models_yet))
-                    return@setOnClickListener
-                }
-                adapter.showAll()
-                dropdown.showDropDown()
-            }
-            dropdown.setOnFocusChangeListener { _, hasFocus ->
-                if (!hasFocus) validateModelField(dropdown)
-            }
-        }
-
-        // When the endpoint URL changes (manual edit or provider switch), the cached model
-        // list belongs to a different endpoint — reload the dropdown from the store.
-        listOf(sttUrlField, llmUrlField).forEach { urlField ->
-            urlField.setOnFocusChangeListener { _, hasFocus ->
-                if (!hasFocus) {
-                    reloadModelDropdown(if (urlField === sttUrlField) sttModelDropdown else llmModelDropdown)
-                }
-            }
-        }
+        loadTargetLanguage()
     }
 
-    private fun reloadModelDropdown(dropdown: AutoCompleteTextView) {
-        val baseUrl = if (dropdown === sttModelDropdown) sttUrlField.text.toString() else llmUrlField.text.toString()
-        val models = if (dropdown === sttModelDropdown) settings.getSttModels(baseUrl) else settings.getLlmModels(baseUrl)
-        updateModelDropdown(dropdown, models)
-    }
-
-    private fun validateModelField(dropdown: AutoCompleteTextView) {
-        val adapter = dropdown.adapter as? ModelFilterAdapter
-        val text = dropdown.text.toString().trim()
-        if (text.isEmpty()) {
-            dropdown.error = getString(R.string.select_or_enter_model)
-            return
-        }
-        if (adapter != null && text !in adapter.allItems) {
-            dropdown.error = getString(R.string.select_model_from_list)
-        } else {
-            dropdown.error = null
-        }
-    }
-
-    private fun validateSttProvider() {
-        val token = sttTokenField.text.toString()
-        val baseUrl = sttUrlField.text.toString()
-
-        if (token.isBlank()) {
-            Toasts.show(this, "Enter an API token first")
-            return
-        }
-
-        if (baseUrl.isBlank()) {
-            Toasts.show(this, "Enter an API URL first")
-            return
-        }
-
-        validateSttButton.isEnabled = false
-        scope.launch {
-            try {
-                val result = fetchSttModels(baseUrl, token)
-                if (result.isSuccess) {
-                    val models = result.getOrThrow()
-                    settings.setSttModels(baseUrl, models)
-                    updateModelDropdown(sttModelDropdown, models)
-                    if (sttModelDropdown.text.toString() !in models) {
-                        val currentPresetName = sttProviderDropdown.text.toString()
-                        val defaultModel = presets.findSttPreset(currentPresetName)?.default_model
-                        if (defaultModel != null && defaultModel in models) {
-                            sttModelDropdown.setText(defaultModel, false)
-                        } else {
-                            sttModelDropdown.text.clear()
-                        }
-                    }
-                    sttTokenField.error = null
-                    Toasts.short(this@SettingsActivity, getString(R.string.token_valid))
-                    Toasts.show(
-                        this@SettingsActivity,
-                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size)
-                    )
-                } else {
-                    sttTokenField.error = result.exceptionOrNull()?.message
-                        ?: getString(R.string.token_invalid)
-                }
-            } catch (e: Exception) {
-                sttTokenField.error = e.message ?: getString(R.string.token_invalid)
-            } finally {
-                validateSttButton.isEnabled = true
+    private fun loadTargetLanguage() {
+        targetLanguageDropdown.setText(settings.targetLanguage ?: CustomLanguages.NONE_TARGET_LANGUAGE, false)
+        settings.targetLanguage?.let { tl ->
+            if (tl.isNotBlank() && tl != CustomLanguages.NONE_TARGET_LANGUAGE && tl != CustomLanguages.BUILTIN_LANGUAGE && tl !in settings.customLanguages) {
+                settings.customLanguages = settings.customLanguages + tl
             }
-        }
-    }
-
-    private fun fetchLlmModels() {
-        val token = llmTokenField.text.toString()
-        val baseUrl = llmUrlField.text.toString()
-
-        if (token.isBlank()) {
-            Toasts.show(this, "Enter an API token first")
-            return
-        }
-
-        if (baseUrl.isBlank()) {
-            Toasts.show(this, "Enter an API URL first")
-            return
-        }
-
-        fetchLlmModelsButton.isEnabled = false
-        scope.launch {
-            try {
-                val result = fetchLlmModels(baseUrl, token)
-                if (result.isSuccess) {
-                    val models = result.getOrThrow()
-                    settings.setLlmModels(baseUrl, models)
-                    updateModelDropdown(llmModelDropdown, models)
-                    if (llmModelDropdown.text.toString() !in models) {
-                        val currentPresetName = llmProviderDropdown.text.toString()
-                        val defaultModel = presets.findLlmPreset(currentPresetName)?.default_model
-                        if (defaultModel != null && defaultModel in models) {
-                            llmModelDropdown.setText(defaultModel, false)
-                        } else {
-                            llmModelDropdown.text.clear()
-                        }
-                    }
-                    llmTokenField.error = null
-                    Toasts.show(
-                        this@SettingsActivity,
-                        getResources().getQuantityString(R.plurals.models_fetched, models.size, models.size)
-                    )
-                } else {
-                    llmTokenField.error = result.exceptionOrNull()?.message
-                        ?: getString(R.string.token_invalid)
-                }
-            } catch (e: Exception) {
-                llmTokenField.error = e.message ?: getString(R.string.token_invalid)
-            } finally {
-                fetchLlmModelsButton.isEnabled = true
-            }
-        }
-    }
-
-    private fun testLlmToken() {
-        val token = llmTokenField.text.toString()
-        val baseUrl = llmUrlField.text.toString()
-        val model = llmModelDropdown.text.toString()
-
-        if (token.isBlank()) {
-            Toasts.show(this, "Enter an API token first")
-            return
-        }
-
-        if (model.isBlank()) {
-            Toasts.show(this, "Select a model first")
-            return
-        }
-
-        if (baseUrl.isBlank()) {
-            Toasts.show(this, "Enter an API URL first")
-            return
-        }
-
-        testLlmTokenButton.isEnabled = false
-        scope.launch {
-            try {
-                val result = testLlmTokenCall(baseUrl, token, model)
-                if (result.isSuccess) {
-                    llmTokenField.error = null
-                    Toasts.short(this@SettingsActivity, getString(R.string.token_valid))
-                } else {
-                    llmTokenField.error = result.exceptionOrNull()?.message
-                        ?: getString(R.string.token_invalid)
-                }
-            } catch (e: Exception) {
-                llmTokenField.error = e.message ?: getString(R.string.token_invalid)
-            } finally {
-                testLlmTokenButton.isEnabled = true
-            }
-        }
-    }
-
-    private suspend fun fetchLlmModels(baseUrl: String, token: String): Result<List<String>> =
-        withContext(Dispatchers.IO) {
-            try {
-                val api = app.getChatApi(baseUrl)
-                val response = api.listModelsSync("Bearer $token").execute()
-                if (response.isSuccessful && response.body() != null) {
-                    val models = response.body()!!.data.map { it.id }
-                    Result.success(models)
-                } else {
-                    val detail = extractErrorDetail(response.errorBody())
-                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
-                    Result.failure(Exception(msg))
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    private suspend fun testLlmTokenCall(baseUrl: String, token: String, model: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                val api = app.getChatApi(baseUrl)
-                val request = ChatRequest(
-                    model = model,
-                    messages = listOf(ChatMessage(role = "user", content = "ping")),
-                    maxTokens = 1
-                )
-                val response = api.chatSync("Bearer $token", request).execute()
-                if (response.isSuccessful) {
-                    Result.success(Unit)
-                } else {
-                    val detail = extractErrorDetail(response.errorBody())
-                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
-                    Result.failure(Exception(msg))
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    private suspend fun fetchSttModels(baseUrl: String, token: String): Result<List<String>> =
-        withContext(Dispatchers.IO) {
-            try {
-                val api = app.getSttApi(baseUrl)
-                val response = api.listModelsSync("Bearer $token").execute()
-                if (response.isSuccessful && response.body() != null) {
-                    val audioModels = response.body()!!.data
-                        .filter { it.id.contains("whisper", ignoreCase = true) || it.id.contains("asr", ignoreCase = true) }
-                        .map { it.id }
-                    val allModels = response.body()!!.data.map { it.id }
-                    Result.success(if (audioModels.isNotEmpty()) audioModels else allModels)
-                } else {
-                    val detail = extractErrorDetail(response.errorBody())
-                    val msg = if (detail.isNotEmpty()) "HTTP ${response.code()}: $detail" else "HTTP ${response.code()}"
-                    Result.failure(Exception(msg))
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    private fun extractErrorDetail(errorBody: okhttp3.ResponseBody?): String {
-        if (errorBody == null) return ""
-        return try {
-            val json = Gson().fromJson(errorBody.string(), Map::class.java)
-            val error = json["error"] as? Map<*, *>
-            error?.get("message") as? String ?: ""
-        } catch (_: Exception) { "" }
-    }
-
-    private fun updateModelDropdown(dropdown: AutoCompleteTextView, models: List<String>) {
-        if (models.isNotEmpty()) {
-            val adapter = ModelFilterAdapter(models.sorted())
-            dropdown.setAdapter(adapter)
-        } else {
-            dropdown.setAdapter(null)
-        }
-    }
-
-    private inner class ModelFilterAdapter(items: List<String>) : BaseAdapter(), Filterable {
-        val allItems: List<String> = items.toList()
-        private var displayItems: List<String> = items.toList()
-        private val filter = object : Filter() {
-            override fun performFiltering(constraint: CharSequence?): FilterResults {
-                val results = FilterResults()
-                val query = constraint?.toString()?.trim()?.lowercase()
-                // The view's internal focus-triggered filter runs async and lands after the
-                // click handler's showAll() — with the field holding the selected model, it
-                // would shrink the list to that single entry. Returning the full list for an
-                // exact match keeps every trigger path (focus, click, full-ID typing) at "all".
-                val filtered = if (query.isNullOrBlank() || allItems.any { it.equals(query, ignoreCase = true) }) {
-                    allItems
-                } else {
-                    allItems.filter { it.lowercase().contains(query) }
-                }
-                results.values = filtered
-                results.count = filtered.size
-                return results
-            }
-
-            @Suppress("UNCHECKED_CAST")
-            override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
-                val filtered = results?.values as? List<String> ?: return
-                displayItems = filtered.toList()
-                notifyDataSetChanged()
-            }
-        }
-
-        fun showAll() {
-            displayItems = allItems.toList()
-            notifyDataSetChanged()
-        }
-
-        override fun getCount(): Int = displayItems.size
-        override fun getItem(position: Int): Any = displayItems[position]
-        override fun getItemId(position: Int): Long = position.toLong()
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view = convertView as? TextView ?: LayoutInflater.from(parent.context)
-                .inflate(android.R.layout.simple_dropdown_item_1line, parent, false) as TextView
-            view.text = displayItems[position]
-            return view
-        }
-
-        override fun getFilter(): Filter = filter
-    }
-
-    private inner class LanguageDropdownAdapter : BaseAdapter(), Filterable {
-        private var displayItems: List<String> = CustomLanguages.displayList(settings.customLanguages)
-
-        fun rebuild() {
-            displayItems = CustomLanguages.displayList(settings.customLanguages)
-            notifyDataSetChanged()
-        }
-
-        override fun getCount(): Int = displayItems.size
-        override fun getItem(position: Int): Any = displayItems[position]
-        override fun getItemId(position: Int): Long = position.toLong()
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val item = displayItems[position]
-            val view = convertView as? ViewGroup ?: LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_language_dropdown, parent, false) as ViewGroup
-            val label = view.findViewById<TextView>(R.id.language_name)
-            val delete = view.findViewById<ImageButton>(R.id.delete_button)
-            label.text = item
-            // Pitfall #36: rows must not contain focusable children (AbsListView skips onItemClick
-            // for rows whose hasFocusable() is true) — the trash ImageButton is clickable but
-            // focusable=false. On-device verification (#59) showed the popup ListView still
-            // swallows row-clicks for custom rows, so the label commits selection explicitly
-            // instead of relying on the internal onItemClick path.
-            label.setOnClickListener {
-                settings.targetLanguage = if (item == CustomLanguages.NONE_TARGET_LANGUAGE) null else item
-                targetLanguageDropdown.setText(item, false)
-                targetLanguageDropdown.dismissDropDown()
-            }
-            // Built-ins get no icon.
-            if (CustomLanguages.isBuiltIn(item)) {
-                delete.visibility = View.GONE
-            } else {
-                delete.visibility = View.VISIBLE
-                delete.imageTintList = label.textColors
-                delete.setOnClickListener {
-                    deleteCustomLanguage(item)
-                    targetLanguageDropdown.dismissDropDown()
-                }
-            }
-            return view
-        }
-
-        override fun getFilter(): Filter {
-            return object : Filter() {
-                override fun performFiltering(constraint: CharSequence?): FilterResults {
-                    val results = FilterResults()
-                    val all = CustomLanguages.displayList(settings.customLanguages)
-                    val filtered = if (constraint.isNullOrBlank()) {
-                        all
-                    } else {
-                        val query = constraint.toString().lowercase()
-                        listOf(CustomLanguages.NONE_TARGET_LANGUAGE) + all.drop(1).filter { it.lowercase().contains(query) }
-                    }
-                    results.values = ArrayList(filtered)
-                    results.count = filtered.size
-                    return results
-                }
-
-                @Suppress("UNCHECKED_CAST")
-                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
-                    displayItems = (results?.values as? List<*>)?.filterIsInstance<String>() ?: return
-                    notifyDataSetChanged()
-                }
-            }
-        }
-    }
-
-    private fun openVoiceKeyboardSettings() {
-        Toasts.show(this, getString(R.string.voice_keyboard_hint))
-        try {
-            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-        } catch (_: Exception) {
         }
     }
 
@@ -923,6 +204,7 @@ class SettingsActivity : Activity() {
                 view.findViewById<TextView>(R.id.language_name).also {
                     it.text = lang
                     it.setOnClickListener {
+                        settings.targetLanguage = lang
                         targetLanguageDropdown.setText(lang, false)
                         dialog?.dismiss()
                     }
@@ -1001,8 +283,6 @@ class SettingsActivity : Activity() {
             CustomLanguages.CommitResult.Reverted ->
                 targetLanguageDropdown.setText(languageEditPrevious, false)
         }
-        validateModelField(sttModelDropdown)
-        validateModelField(llmModelDropdown)
     }
 
     private fun exitLanguageEditMode() {
@@ -1076,6 +356,82 @@ class SettingsActivity : Activity() {
         dialog.show()
     }
 
+    private inner class LanguageDropdownAdapter : BaseAdapter(), Filterable {
+        private var displayItems: List<String> = CustomLanguages.displayList(settings.customLanguages)
+
+        fun rebuild() {
+            displayItems = CustomLanguages.displayList(settings.customLanguages)
+            notifyDataSetChanged()
+        }
+
+        override fun getCount(): Int = displayItems.size
+        override fun getItem(position: Int): Any = displayItems[position]
+        override fun getItemId(position: Int): Long = position.toLong()
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val item = displayItems[position]
+            val view = convertView as? ViewGroup ?: LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_language_dropdown, parent, false) as ViewGroup
+            val label = view.findViewById<TextView>(R.id.language_name)
+            val delete = view.findViewById<ImageButton>(R.id.delete_button)
+            label.text = item
+            // Pitfall #36: rows must not contain focusable children (AbsListView skips onItemClick
+            // for rows whose hasFocusable() is true) — the trash ImageButton is clickable but
+            // focusable=false. On-device verification (#59) showed the popup ListView still
+            // swallows row-clicks for custom rows, so the label commits selection explicitly
+            // instead of relying on the internal onItemClick path.
+            label.setOnClickListener {
+                settings.targetLanguage = if (item == CustomLanguages.NONE_TARGET_LANGUAGE) null else item
+                targetLanguageDropdown.setText(item, false)
+                targetLanguageDropdown.dismissDropDown()
+            }
+            // Built-ins get no icon.
+            if (CustomLanguages.isBuiltIn(item)) {
+                delete.visibility = View.GONE
+            } else {
+                delete.visibility = View.VISIBLE
+                delete.imageTintList = label.textColors
+                delete.setOnClickListener {
+                    deleteCustomLanguage(item)
+                    targetLanguageDropdown.dismissDropDown()
+                }
+            }
+            return view
+        }
+
+        override fun getFilter(): Filter {
+            return object : Filter() {
+                override fun performFiltering(constraint: CharSequence?): FilterResults {
+                    val results = FilterResults()
+                    val all = CustomLanguages.displayList(settings.customLanguages)
+                    val filtered = if (constraint.isNullOrBlank()) {
+                        all
+                    } else {
+                        val query = constraint.toString().lowercase()
+                        listOf(CustomLanguages.NONE_TARGET_LANGUAGE) + all.drop(1).filter { it.lowercase().contains(query) }
+                    }
+                    results.values = ArrayList(filtered)
+                    results.count = filtered.size
+                    return results
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                    displayItems = (results?.values as? List<*>)?.filterIsInstance<String>() ?: return
+                    notifyDataSetChanged()
+                }
+            }
+        }
+    }
+
+    private fun openVoiceKeyboardSettings() {
+        Toasts.show(this, getString(R.string.voice_keyboard_hint))
+        try {
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        } catch (_: Exception) {
+        }
+    }
+
     private fun setupAboutSection() {
         aboutVersionText.text = getString(R.string.about_version, BuildConfig.VERSION_DISPLAY)
         aboutCommitText.text = getString(R.string.about_commit, BuildConfig.GIT_HASH)
@@ -1085,143 +441,6 @@ class SettingsActivity : Activity() {
         aboutHelpText.setOnClickListener {
             startActivity(Intent(this, HelpActivity::class.java))
         }
-    }
-
-    /**
-     * Parses the wrap-width field (#81): 0 disables wrapping, values >= 10 are
-     * valid widths. Anything else (blank, non-numeric, negative, 1-9) is null.
-     */
-    private fun parseWrapWidth(): Int? {
-        val value = wrapWidthField.text.toString().trim().toIntOrNull() ?: return null
-        return if (value == 0 || value >= com.georgernstgraf.polishedrecognition.config.SettingsStore.MIN_WRAP_WIDTH) value else null
-    }
-
-    private fun saveAndClose() {
-        // Validate the per-app field before any settings are mutated (#100).
-        if (!commitAppWrapField()) return saveAborted("app-wrap-width")
-        val sttName = sttProviderDropdown.text.toString()
-        val llmName = llmProviderDropdown.text.toString()
-        val sttBaseUrl = sttUrlField.text.toString()
-        val llmBaseUrl = llmUrlField.text.toString()
-        val sttModel = sttModelDropdown.text.toString().trim()
-        val llmModel = llmModelDropdown.text.toString().trim()
-
-        if (sttModel.isEmpty()) {
-            sttModelDropdown.error = getString(R.string.select_or_enter_model)
-            return saveAborted("stt-model-empty")
-        }
-        val sttModels = settings.getSttModels(sttBaseUrl)
-        if (sttModels.isNotEmpty() && sttModel !in sttModels) {
-            sttModelDropdown.error = getString(R.string.select_model_from_list)
-            return saveAborted("stt-model-not-in-list")
-        }
-
-        if (llmModel.isEmpty()) {
-            llmModelDropdown.error = getString(R.string.select_or_enter_model)
-            return saveAborted("llm-model-empty")
-        }
-        val llmModels = settings.getLlmModels(llmBaseUrl)
-        if (llmModels.isNotEmpty() && llmModel !in llmModels) {
-            llmModelDropdown.error = getString(R.string.select_model_from_list)
-            return saveAborted("llm-model-not-in-list")
-        }
-
-        settings.sttProvider = SttProviderConfig(
-            displayName = sttName,
-            baseUrl = sttBaseUrl,
-            apiToken = sttTokenField.text.toString(),
-            model = sttModel
-        )
-
-        settings.llmProvider = LlmProviderConfig(
-            displayName = llmName,
-            baseUrl = llmBaseUrl,
-            apiToken = llmTokenField.text.toString(),
-            model = llmModel
-        )
-
-        settings.compressAudio = compressAudioCheckbox.isChecked
-        settings.imeLivePreview = livePreviewCheckbox.isChecked
-        // #142: the retention horizon (0 = no retention)
-        settings.evidenceRetentionSeconds = EvidenceRetention.secondsFor(evidenceRetentionSlider.progress)
-        val wrapWidth = parseWrapWidth()
-        if (wrapWidth == null) {
-            wrapWidthField.error = getString(R.string.wrap_width_error)
-            return saveAborted("wrap-width")
-        }
-        settings.wrapWidth = wrapWidth
-        // #124 fragment geometry: auto = null, manual = the field's value.
-        if (!sliceAutoCheckbox.isChecked) {
-            val text = sliceSecondsField.text.toString().trim()
-            val value = text.toFloatOrNull()
-            if (value == null ||
-                value < SttLatencyProfile.MIN_SLICE_SECONDS ||
-                value > SttLatencyProfile.MAX_SLICE_SECONDS
-            ) {
-                sliceSecondsField.error = getString(R.string.slice_seconds_error)
-                return saveAborted("slice-seconds")
-            }
-            settings.sliceSecondsOverride = value
-        } else {
-            settings.sliceSecondsOverride = null
-        }
-        if (!searchAutoCheckbox.isChecked) {
-            val text = searchPercentField.text.toString().trim()
-            val value = text.toFloatOrNull()
-            if (value == null ||
-                value < SttLatencyProfile.MIN_SEARCH_PERCENT ||
-                value > SttLatencyProfile.MAX_SEARCH_PERCENT
-            ) {
-                searchPercentField.error = getString(R.string.search_percent_error)
-                return saveAborted("search-percent")
-            }
-            settings.searchPercentOverride = value
-        } else {
-            settings.searchPercentOverride = null
-        }
-        // #172 (epic #166 D2): the Workbench FIFO depth. Persist, then prune
-        // at once — a shrunk cap must not leave orphan dictation files.
-        val fifoText = workbenchFifoSizeField.text.toString().trim()
-        val fifoSize = fifoText.toIntOrNull()
-        if (fifoSize == null ||
-            fifoSize < DictationStore.MIN_FIFO_SIZE ||
-            fifoSize > DictationStore.MAX_FIFO_SIZE
-        ) {
-            workbenchFifoSizeField.error = getString(R.string.workbench_fifo_size_error)
-            return saveAborted("workbench-fifo-size")
-        }
-        settings.workbenchFifoSize = fifoSize
-        DictationStore(this, fifoSize = { settings.workbenchFifoSize }).pruneToSize()
-        settings.saveKnownAppWidths(appWrapWidths.toMap())
-        val tl = targetLanguageDropdown.text.toString()
-        val tlToSave = if (tl.isBlank() || tl == CustomLanguages.NONE_TARGET_LANGUAGE) null else tl
-        settings.targetLanguage = tlToSave
-        if (tlToSave != null && tlToSave != CustomLanguages.BUILTIN_LANGUAGE && tlToSave !in settings.customLanguages) {
-            settings.customLanguages = settings.customLanguages + tlToSave
-        }
-
-        promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_SYSTEM, systemPromptField.text.toString())
-        promptStore.set(com.georgernstgraf.polishedrecognition.pipeline.PromptStore.KEY_TRANSLATE, targetLanguageClauseField.text.toString())
-
-        Toasts.short(this, getString(R.string.saved))
-        finish()
-    }
-
-    /**
-     * A save attempt that stops at a validation check must never look like
-     * "nothing happened" (#150): the offending field can sit off-screen (the
-     * per-app wrap width at the bottom of the list), so the red field error
-     * alone is missable and a user report degenerates into "Save and Back does
-     * nothing". Name the failed check in a toast, in logcat and in the
-     * adb-readable rotating log, then leave the screen open.
-     */
-    private fun saveAborted(check: String): Unit {
-        Toasts.show(this, getString(R.string.settings_save_blocked, check))
-        runCatching {
-            val line = """{"ts":${System.currentTimeMillis()},"pid":${Process.myPid()},"event":"settings-save-aborted","check":"$check"}"""
-            app.jsonLogger.log("settings", line)
-        }.onFailure { android.util.Log.w(TAG, "settings-save log failed for $check", it) }
-        android.util.Log.w(TAG, "settings-save-aborted check=$check")
     }
 
     companion object {

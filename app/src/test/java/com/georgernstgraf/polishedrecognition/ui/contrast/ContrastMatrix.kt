@@ -5,8 +5,12 @@ import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.ui.AdvancedActivity
 import com.georgernstgraf.polishedrecognition.ui.CrashDialogActivity
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
+import com.georgernstgraf.polishedrecognition.ui.OutputControlActivity
+import com.georgernstgraf.polishedrecognition.ui.ProvidersActivity
+import com.georgernstgraf.polishedrecognition.ui.PromptsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
 import com.georgernstgraf.polishedrecognition.ui.WorkbenchActivity
@@ -34,6 +38,10 @@ object ContrastMatrix {
     const val THEME_OEM = "oem"
 
     const val SCREEN_SETTINGS = "SettingsActivity"
+    const val SCREEN_PROVIDERS = "ProvidersActivity"
+    const val SCREEN_PROMPTS = "PromptsActivity"
+    const val SCREEN_OUTPUT = "OutputControlActivity"
+    const val SCREEN_ADVANCED = "AdvancedActivity"
     const val SCREEN_WORKBENCH = "WorkbenchActivity"
     const val SCREEN_CRASH = "CrashDialogActivity"
     const val SCREEN_HINT = "SettingsHintActivity"
@@ -95,6 +103,10 @@ object ContrastMatrix {
     fun screens(themeRes: Int, names: Set<String>? = null): List<Screen> {
         val builders: List<Pair<String, () -> Screen>> = listOf(
             SCREEN_SETTINGS to { settings(themeRes) },
+            SCREEN_PROVIDERS to { providers(themeRes) },
+            SCREEN_PROMPTS to { prompts(themeRes) },
+            SCREEN_OUTPUT to { outputControl(themeRes) },
+            SCREEN_ADVANCED to { advanced(themeRes) },
             SCREEN_WORKBENCH to { workbench(themeRes) },
             SCREEN_CRASH to { crashDialog(themeRes) },
             SCREEN_HINT to { settingsHint(themeRes) },
@@ -109,6 +121,27 @@ object ContrastMatrix {
     private fun settings(themeRes: Int): Screen {
         val activity = launch(SettingsActivity::class.java, themeRes)
         return Screen(SCREEN_SETTINGS, activity.findViewById(android.R.id.content))
+    }
+
+    /** #212: the four Settings category sub-screens sit in the matrix too. */
+    private fun providers(themeRes: Int): Screen {
+        val activity = launch(ProvidersActivity::class.java, themeRes)
+        return Screen(SCREEN_PROVIDERS, activity.findViewById(android.R.id.content))
+    }
+
+    private fun prompts(themeRes: Int): Screen {
+        val activity = launch(PromptsActivity::class.java, themeRes)
+        return Screen(SCREEN_PROMPTS, activity.findViewById(android.R.id.content))
+    }
+
+    private fun outputControl(themeRes: Int): Screen {
+        val activity = launch(OutputControlActivity::class.java, themeRes)
+        return Screen(SCREEN_OUTPUT, activity.findViewById(android.R.id.content))
+    }
+
+    private fun advanced(themeRes: Int): Screen {
+        val activity = launch(AdvancedActivity::class.java, themeRes)
+        return Screen(SCREEN_ADVANCED, activity.findViewById(android.R.id.content))
     }
 
     /** #169: the launcher screen — Raw/Polished fields, copy buttons, the LLM row. */
