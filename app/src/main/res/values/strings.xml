@@ -3,7 +3,8 @@
     <string name="app_name" translatable="false">Polished Recognition</string>
     <string name="stt_section">STT (Speech-to-Text)</string>
     <string name="llm_section">LLM Post-Processing</string>
-    <string name="processing_section">Output Control</string>
+    <string name="settings_title">Polished Recognition Settings</string>
+    <string name="settings_section_llm_control">LLM Control</string>
     <string name="provider_control_section">Provider Control</string>
     <string name="prompts_section">Prompts</string>
     <string name="provider">Provider</string>

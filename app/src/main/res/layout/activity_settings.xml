@@ -14,11 +14,21 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Processing / target-language section (write-through, unchanged ids) -->
+        <!-- Screen title (#212): shows that this is the settings overview -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/processing_section"
+            android:text="@string/settings_title"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="12dp" />
+
+        <!-- LLM Control / target-language section (write-through, unchanged ids) -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_section_llm_control"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
