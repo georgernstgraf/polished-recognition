@@ -163,8 +163,8 @@ class WorkbenchLayoutPolicyTest {
     /**
      * #178/#189/#213: the zones. Zone A sits above Raw, zone B between Raw and
      * Polished — its actions moved INTO the Polished summary row (#213), so
-     * promote/trash still precede the field — and zone C below Polished holds
-     * only the copy icon.
+     * promote/trash still precede the field — and zone C below Polished
+     * mirrors the summary row's three actions (#213 revised).
      */
     @Test
     fun `the three action zones exist above, below and beneath the polished field`() {
@@ -177,6 +177,8 @@ class WorkbenchLayoutPolicyTest {
             "workbench_promote_b",
             "workbench_clear_polished_b",
             "workbench_polished",
+            "workbench_clear_polished_c",
+            "workbench_promote_c",
             "workbench_copy_polished_bottom",
         )
         fun at(id: String) = order.getValue(id)
@@ -202,15 +204,15 @@ class WorkbenchLayoutPolicyTest {
                 violations += "$id must precede workbench_polished (zone B)"
             }
         }
-        // Zone C — below Polished: only the copy icon (#213).
-        if (at("workbench_copy_polished_bottom") < at("workbench_polished")) {
-            violations += "workbench_copy_polished_bottom must follow workbench_polished (zone C)"
-        }
-        val declared = parse(layout).mapNotNull { it.attributes["android:id"] }.toSet()
-        val removed = listOf("workbench_promote_c", "workbench_clear_polished_c")
-        val stillThere = removed.filter { "@+id/$it" in declared }
-        if (stillThere.isNotEmpty()) {
-            violations += "the zone-C promote/trash pair must stay gone (#213): $stillThere"
+        // Zone C — below Polished: the summary row's three actions, in order.
+        for (id in listOf(
+            "workbench_clear_polished_c",
+            "workbench_promote_c",
+            "workbench_copy_polished_bottom",
+        )) {
+            if (at(id) < at("workbench_polished")) {
+                violations += "$id must follow workbench_polished (zone C)"
+            }
         }
 
         assertWithMessage("the #178/#213 action zones are out of order:\n" + violations.joinToString("\n"))
@@ -231,7 +233,7 @@ class WorkbenchLayoutPolicyTest {
      * #213: the Polished summary row carries the actions — chevron · label ·
      * trash · promote · copy (exactly that order, the owner's enumeration).
      * The former separate zone-B actions row is gone; the bottom bar under the
-     * field holds only the copy icon.
+     * field mirrors the three actions (#213 revised, same order, right end).
      */
     @Test
     fun `the polished summary row carries trash, promote and copy in that order`() {
@@ -251,9 +253,16 @@ class WorkbenchLayoutPolicyTest {
             .inOrder()
 
         val bottom = childrenOf("workbench_actions_c")
-        assertWithMessage("the bottom bar must hold only the copy icon (#213):\n$bottom")
+        assertWithMessage(
+            "the bottom bar must mirror the summary row's actions — trash · promote · copy (#213 revised):\n$bottom"
+        )
             .that(bottom)
-            .containsExactly("workbench_copy_polished_bottom")
+            .containsExactly(
+                "workbench_clear_polished_c",
+                "workbench_promote_c",
+                "workbench_copy_polished_bottom",
+            )
+            .inOrder()
 
         val row = elementById("workbench_actions_c")
         assertWithMessage("line ${row.line} workbench_actions_c: the bottom bar must stay horizontal")

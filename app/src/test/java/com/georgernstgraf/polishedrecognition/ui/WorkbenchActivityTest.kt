@@ -511,21 +511,33 @@ class WorkbenchActivityTest {
     }
 
     @Test
-    fun `the bottom bar under the polished field holds only the copy icon`() {
-        // #213: promote and trash live in the summary row above the field; the
-        // bottom bar is only the copy affordance, so the removed ids must be gone.
+    fun `the bottom bar under the polished field mirrors the summary row's three actions`() {
+        // #213 (revised): the bottom row wears trash · promote · copy again —
+        // same handlers and enable states as the summary row above the field.
         val store = seed("filler", "raw text")
-        store.updatePolished(store.loadAll().last().id, "polished text")
+        val id = store.loadAll().last().id
+        store.updatePolished(id, "polished text")
         val activity = launch()
         activity.showNewest()
 
         assertThat(activity.enabled(R.id.workbench_copy_polished_bottom)).isTrue()
-        // The removed ids are gone from the resources themselves.
-        val pkg = activity.packageName
-        assertThat(activity.resources.getIdentifier("workbench_promote_c", "id", pkg))
-            .isEqualTo(0)
-        assertThat(activity.resources.getIdentifier("workbench_clear_polished_c", "id", pkg))
-            .isEqualTo(0)
+        assertThat(activity.enabled(R.id.workbench_promote_c)).isTrue()
+        assertThat(activity.enabled(R.id.workbench_clear_polished_c)).isTrue()
+
+        // The bottom promote does exactly what the summary row's does: the
+        // polished text becomes the new raw, the polished slot is cleared.
+        activity.click(R.id.workbench_promote_c)
+
+        val saved = DictationStore(context).loadAll().last()
+        assertThat(saved.id).isEqualTo(id)
+        assertThat(saved.raw).isEqualTo("polished text")
+        assertThat(saved.polished).isNull()
+        assertThat(activity.raw().text()).isEqualTo("polished text")
+        assertThat(activity.polished().text.toString()).isEmpty()
+        // A promoted page has nothing left to promote, clear or copy.
+        assertThat(activity.enabled(R.id.workbench_promote_c)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_clear_polished_c)).isFalse()
+        assertThat(activity.enabled(R.id.workbench_copy_polished_bottom)).isFalse()
     }
 
     @Test

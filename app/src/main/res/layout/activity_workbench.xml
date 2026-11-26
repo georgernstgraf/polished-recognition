@@ -430,9 +430,10 @@
             android:textSize="16sp" />
 
         <!--
-          #213: under the read-only Polished field only the copy icon remains —
-          promote and trash live in the summary row above the field (the owner:
-          "ganz unten ... nur der Copy-to-Clipboard-Icon").
+          #213 (revised): the row under the read-only Polished field mirrors the
+          summary row's three actions — trash · promote · copy, same icons,
+          same 48dp style, right-aligned. The owner asked for the full set back
+          ("ganz unten ... wie in der mittleren Zeile").
         -->
         <LinearLayout
             android:id="@+id/workbench_actions_c"
@@ -440,6 +441,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical|end"
             android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/workbench_clear_polished_c"
+                style="@style/WorkbenchIconButton"
+                android:contentDescription="@string/workbench_clear_polished"
+                android:src="@drawable/ic_delete_outline"
+                android:tooltipText="@string/workbench_clear_polished"
+                android:tint="?android:attr/textColorSecondary" />
+
+            <ImageButton
+                android:id="@+id/workbench_promote_c"
+                style="@style/WorkbenchIconButton"
+                android:contentDescription="@string/workbench_promote"
+                android:src="@drawable/ic_promote"
+                android:tooltipText="@string/workbench_promote"
+                android:tint="?android:attr/textColorSecondary" />
 
             <ImageButton
                 android:id="@+id/workbench_copy_polished_bottom"

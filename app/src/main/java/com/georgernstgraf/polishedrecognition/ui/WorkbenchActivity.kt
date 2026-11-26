@@ -137,6 +137,10 @@ class WorkbenchActivity : Activity() {
     private lateinit var copyPolishedBottomButton: ImageButton
     private lateinit var promoteBButton: ImageButton
     private lateinit var clearPolishedBButton: ImageButton
+    // #213 (revised): the bottom row under the Polished field mirrors the
+    // summary row's trash and promote — same handlers, same enable states.
+    private lateinit var promoteCButton: ImageButton
+    private lateinit var clearPolishedCButton: ImageButton
     private lateinit var languageA: AutoCompleteTextView
     private lateinit var languageB: AutoCompleteTextView
     // #213 icon wave: Polish is an icon-only ImageButton now — the in-flight
@@ -298,6 +302,8 @@ class WorkbenchActivity : Activity() {
         copyPolishedBottomButton = findViewById(R.id.workbench_copy_polished_bottom)
         promoteBButton = findViewById(R.id.workbench_promote_b)
         clearPolishedBButton = findViewById(R.id.workbench_clear_polished_b)
+        promoteCButton = findViewById(R.id.workbench_promote_c)
+        clearPolishedCButton = findViewById(R.id.workbench_clear_polished_c)
         languageA = findViewById(R.id.workbench_language_a)
         languageB = findViewById(R.id.workbench_language_b)
         polishA = findViewById(R.id.workbench_polish_a)
@@ -638,6 +644,8 @@ class WorkbenchActivity : Activity() {
         polishB.setOnClickListener { polishCurrent() }
         promoteBButton.setOnClickListener { promotePolished() }
         clearPolishedBButton.setOnClickListener { emptyPolished() }
+        promoteCButton.setOnClickListener { promotePolished() }
+        clearPolishedCButton.setOnClickListener { emptyPolished() }
         // #189: the label row is a summary — a tap collapses or expands its
         // field; both sections start open on every visit.
         rawToggle.setOnClickListener { toggleSection(isRaw = true) }
@@ -959,6 +967,8 @@ class WorkbenchActivity : Activity() {
         copyPolishedBottomButton.isEnabled = actions.copyPolished
         promoteBButton.isEnabled = actions.promote
         clearPolishedBButton.isEnabled = actions.clearPolished
+        promoteCButton.isEnabled = actions.promote
+        clearPolishedCButton.isEnabled = actions.clearPolished
         polishA.isEnabled = actions.polish
         polishB.isEnabled = actions.polish
         languageA.isEnabled = actions.polish
