@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- #213: recording red, night twin — one shade deeper than the light
-         variant, the white foreground stays readable on both. -->
-    <color name="recording_overlay">#B71C1C</color>
+    <!-- #213 correction: the IME background stays black in night mode (the
+         owner's red applies to the FONT only). -->
+    <color name="recording_overlay">#E6000000</color>
     <color name="recording_text_primary">#FFFFFF</color>
     <color name="recording_divider">#4DFFFFFF</color>
     <color name="recording_icon_tint">#FFFFFF</color>
+
+    <!-- #213 correction: the foreground pulse red, night twin — a lighter red
+         that stays readable on the dark bar. -->
     <color name="recording_pulse_red">#FF8A80</color>
 
     <!-- #212: the quiet control tint (colorControlNormal) — night twin. -->

@@ -36,8 +36,17 @@
     <!-- #213: the app-wide text-button style — every text button in the app
          wears the same visible look (app_button_bg: quiet 1dp border, subtle
          rounded corners, ripple). Text colour stays the theme's
-         textColorPrimary selector, so disabled dimming keeps working. -->
+         textColorPrimary selector, so disabled dimming keeps working.
+         Padding is EXPLICIT and uniform (4dp all around, owner request after
+         the first device look: the platform default gave much vertical,
+         zero horizontal padding), and includeFontPadding steps aside so the
+         border-to-content distance really reads equal on all four sides. -->
     <style name="AppButton">
         <item name="android:background">@drawable/app_button_bg</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingEnd">4dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">4dp</item>
+        <item name="android:includeFontPadding">false</item>
     </style>
 </resources>

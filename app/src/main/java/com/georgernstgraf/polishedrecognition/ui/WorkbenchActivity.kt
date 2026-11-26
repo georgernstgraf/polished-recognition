@@ -717,10 +717,23 @@ class WorkbenchActivity : Activity() {
 
     // ------------------------------------------------------------------ state
 
-    /** Writes a field without counting as a user edit (`rendering`). */
+    /**
+     * Writes a field without counting as a user edit (`rendering`).
+     * #213: an UNCHANGED text is not re-set — the IME's delivery left the
+     * cursor at the end of the inserted text, and a redundant `setText`
+     * would throw it back to position 0 (the owner: "der Cursor soll am
+     * Ende unseres eingefügten Textes stehen bleiben"). A CHANGED text
+     * places the cursor at the end of the (re)written text.
+     */
+    private fun writeRaw(text: String) {
+        if (rawField.text.toString() == text) return
+        rawField.setText(text)
+        rawField.setSelection(rawField.text.length)
+    }
+
     private fun showRaw(text: String) {
         rendering = true
-        rawField.setText(text)
+        writeRaw(text)
         rendering = false
         shownRaw = text
     }
@@ -840,7 +853,7 @@ class WorkbenchActivity : Activity() {
                 is WorkbenchPage.Leftover -> ""
                 null -> composePolished
             }
-            rawField.setText(raw)
+            writeRaw(raw)
             polishedField.text = polished
             shownRaw = raw
         }

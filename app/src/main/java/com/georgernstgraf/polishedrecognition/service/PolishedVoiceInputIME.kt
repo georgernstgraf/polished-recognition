@@ -2089,16 +2089,14 @@ open class PolishedVoiceInputIME : InputMethodService() {
         val a = PulseAlphaPolicy.target(controller.state, breathAlpha)
         rowTop?.alpha = a
         rowButtons?.alpha = a
-        // #213: the colour twin of the alpha pulse — the foreground (white on
-        // the recording red) tilts toward the warm pulse red at the wave floor,
-        // both driven by the same breathAlpha so the wave stays coherent. The
-        // background itself never pulses; outside RECORDING the base colour
-        // pins, so a pause cannot freeze the IME tinted.
+        // #213 correction: the red belongs to the FONT, never to the background —
+        // the background stays neutral in every state. The font is solidly red
+        // for the whole recording (only the alpha pulses) and pins back to the
+        // neutral base outside RECORDING; applyAlpha runs on every state change
+        // via setFlashing, so no pause can freeze the red.
         val base = resources.getColor(R.color.recording_text_primary, theme)
         val pulse = resources.getColor(R.color.recording_pulse_red, theme)
-        val color = PulseColorPolicy.target(
-            controller.state, base, pulse, breathAlpha, BREATH_FLOOR, BREATH_CEIL
-        )
+        val color = PulseColorPolicy.target(controller.state, base, pulse)
         val tint = android.content.res.ColorStateList.valueOf(color)
         sendButton?.imageTintList = tint
         pauseResumeButton?.imageTintList = tint

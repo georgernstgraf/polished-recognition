@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- #213: the IME wears a recording red during dictation — a constant
-         background (the owner: "the background does not pulse"), white text
-         and icons on it in BOTH modes. The pulse tilts the foreground toward
-         recording_pulse_red at the wave floor (see PulseColorPolicy). -->
-    <color name="recording_overlay">#D32F2F</color>
-    <color name="recording_text_primary">#FFFFFF</color>
-    <color name="recording_divider">#4DFFFFFF</color>
-    <color name="recording_icon_tint">#FFFFFF</color>
-    <color name="recording_pulse_red">#FFB4A9</color>
+    <!-- #213 correction: the IME BACKGROUND is NEVER tinted — the owner's red
+         applies to the FONT only. These stay the neutral palette from before
+         the recording-red attempt (white bar in light, black bar in night). -->
+    <color name="recording_overlay">#E6FFFFFF</color>
+    <color name="recording_text_primary">#000000</color>
+    <color name="recording_divider">#4D000000</color>
+    <color name="recording_icon_tint">#000000</color>
+
+    <!-- #213 correction: the foreground pulse red — the font is solidly red
+         for the WHOLE recording (only the alpha pulses) and pins back to the
+         neutral base outside RECORDING. Tuned for red-on-neutral contrast:
+         dark red on the light bar, light red on the dark bar. -->
+    <color name="recording_pulse_red">#C62828</color>
 
     <!-- #212: the quiet control tint (colorControlNormal) — EditText/spinner
          underlines step back while the settings dividers lead (see themes.xml).

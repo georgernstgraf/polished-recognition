@@ -217,6 +217,39 @@ class WorkbenchActivityTest {
     }
 
     @Test
+    fun `after a transcript arrives the cursor stays at the end of the raw text`() {
+        // #213: the IME leaves the cursor at the end of the inserted text; the
+        // Workbench's own re-render must not throw it back to position 0.
+        seed("filler", "first")
+        val activity = launch()
+        activity.showNewest()
+        val raw = activity.raw()
+        raw.setText("first")
+
+        activity.onRecordingStarted()
+        raw.setText("first second")
+        raw.setSelection("first second".length) // where the IME left it
+        activity.onTranscriptArrived("second")
+
+        assertThat(raw.selectionStart).isEqualTo("first second".length)
+        assertThat(raw.selectionEnd).isEqualTo("first second".length)
+    }
+
+    @Test
+    fun `a rewritten raw field places the cursor at the end of the new text`() {
+        val activity = launch()
+        val raw = activity.raw()
+
+        activity.onRecordingStarted()
+        raw.setText("")
+        activity.onTranscriptArrived("dictated text")
+
+        assertThat(raw.text.toString()).isEqualTo("dictated text")
+        assertThat(raw.selectionStart).isEqualTo("dictated text".length)
+        assertThat(raw.selectionEnd).isEqualTo("dictated text".length)
+    }
+
+    @Test
     fun `dictating into a stored dictation edits it instead of adding an entry`() {
         seed("filler", "first")
         val activity = launch()
