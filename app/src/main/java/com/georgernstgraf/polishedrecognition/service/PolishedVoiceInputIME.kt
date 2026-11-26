@@ -881,11 +881,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
             silenceLangListener = false
         }
         // #168 (epic #166 D7): dictating into our own Workbench always runs
-        // raw. The toggle keeps showing the GLOBAL state but is disabled — an
-        // unchecked-but-enabled box would claim a setting that is still on.
+        // raw. #211: the disabled toggle shows the EFFECTIVE state of this
+        // context — unchecked inside our own app, where no polish is ever
+        // delivered — never the global preference, which a checked-but-
+        // disabled box would claim for a take that stays raw.
         llmForcedOff = LlmTargetPolicy.forcesRaw(callerPackage, packageName)
         silenceLangListener = true
-        llmCheckbox?.isChecked = !settings.rawMode
+        llmCheckbox?.isChecked = !llmForcedOff && !settings.rawMode
         llmCheckbox?.isEnabled = !llmForcedOff
         llmCheckbox?.alpha = if (llmForcedOff) 0.4f else 1.0f
         silenceLangListener = false

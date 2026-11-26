@@ -20,8 +20,9 @@ import org.robolectric.Shadows.shadowOf
 
 /**
  * #168 (epic #166 D7): inside our own app the IME renders the LLM toggle
- * **disabled** while showing the global state, and the global preference is
- * never written.
+ * **disabled**, and the global preference is never written. #211: the
+ * disabled toggle shows the **effective** state (unchecked = raw inside
+ * our own app); a foreign bind restores the global state.
  */
 @RunWith(RobolectricTestRunner::class)
 class ImeLlmTargetTest {
@@ -59,14 +60,26 @@ class ImeLlmTargetTest {
     }
 
     @Test
-    fun `our own app renders the llm toggle disabled but shows the global state`() {
+    fun `our own app renders the llm toggle disabled and unchecked`() {
         val toggle = bind(app.packageName)
 
         assertThat(toggle.isEnabled).isFalse()
-        // unchecked = raw, i.e. the LLM would be ON globally — the disabled
-        // toggle must not claim "off".
-        assertThat(toggle.isChecked).isTrue()
+        // #211: the LLM is globally ON here — the disabled toggle must still
+        // not claim a polish the Workbench take never delivers.
+        assertThat(toggle.isChecked).isFalse()
         assertThat(toggle.alpha).isLessThan(1f)
+    }
+
+    @Test
+    fun `rebinding a foreign app restores the global state on the toggle`() {
+        bind(app.packageName)
+
+        val toggle = bind("org.markor")
+
+        assertThat(toggle.isEnabled).isTrue()
+        // Global preference untouched by the own-app bind: checked = LLM on.
+        assertThat(toggle.isChecked).isTrue()
+        assertThat(toggle.alpha).isEqualTo(1f)
     }
 
     @Test
