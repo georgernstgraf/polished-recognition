@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-26 (#213 — Icon-Welle: rahmenlose größere Workbench-Icons, Tooltips, Header space-around)
+
+* **Update**: [state/workbench.md](state/workbench.md) — neuer #213-Icon-Welle-Abschnitt: `WorkbenchIconButton` (borderless, 48dp, 1.5×) für alle Workbench-Icon-Buttons, Polish icon-only + Icon-Dim statt „Polishing…", native Tooltips, Header-Gewichts-Slots; Test-Umbau dokumentiert.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — AppButton-Regel um die WorkbenchIconButton-Regel ergänzt (borderless + Tooltip + 48dp/1,5×, In-flight auf Alpha); Inset-Absatz differenziert: `selectableItemBackgroundBorderless` ist erlaubt, plain `selectableItemBackground` bleibt verboten (#173).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #213-Block um die Icon-Welle erweitert (Punkt 5 + zusätzliche Owner-Checks).
+* **Update**: [STATE.md](STATE.md) — Statuszeile um die Icon-Welle (`b5cefbd`) erweitert.
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [state/index.md](state/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#213 — Korrektur-Welle: rote SCHRIFT statt Hintergrund, Cursor-Fix, Button-Padding)
 
 * **Update**: [state/ime-field.md](state/ime-field.md) — #213-Abschnitt neu geschrieben: Hintergrund nie rot (statischer roter Balken war das Artefakt), Schrift durchgehend rot nur im RECORDING, PulseColorPolicy als reine Zustands-Schaltentscheidung.

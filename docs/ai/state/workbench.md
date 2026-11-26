@@ -3,13 +3,59 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T15:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
 status: stable
 ---
 
 # Project State — Workbench
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+### #213-Icon-Welle (2026-11-26, `b5cefbd`): rahmenlose, größere Icons, Tooltips, Header space-around
+
+- **Was:** Owner-Wünsche zur gleichen #213-Optik-Welle: (1) der Polish-Button
+  soll icon-only werden — Text und Rahmen weg, (2) Mistkübel/Promote/Copy
+  sollen ohne den eigenen Kasten größer dargestellt werden, wie die
+  IME-Buttons, (3) alle Workbench-Buttons sollen Long Press mit Hilfetext
+  unterstützen, (4) da Rahmen/Hintergrund wegfallen, größer gezeichnet
+  werden.
+- **Ursache des „Kastens":** die Workbench-`ImageButton`s deklarierten nie
+  ein `android:background` — der sichtbare Rahmen kam vom **Default**-
+  Background des ImageButton-Stils unter `Theme.DeviceDefault`. Auch die
+  AppButton-Polish-Buttons trugen den 1dp-Border.
+- **Fix:** der neue gemeinsame Stil `WorkbenchIconButton` in `themes.xml` —
+  `?android:attr/selectableItemBackgroundBorderless` (das IME-Muster,
+  transparent bis zum Touch, daher night-mode-sauber), **48dp** Touch-Fläche,
+  Icon per `scaleX/scaleY 1.5` gezeichnet (exakt das IME-Pattern). Gilt für
+  ALLE Workbench-Icon-Buttons: Header (◀ ⚙ ＋ ▶), Polish ×2, Mistkübel,
+  Promote, 3× Copy, Copy-Raw.
+- **Polish icon-only:** `Button` + AppButton + Text + `drawableEnd` →
+  textloses `ImageButton` mit `ic_polish`, `workbench_polish` ist jetzt
+  contentDescription **und** Tooltip. Der In-Flight-Zustand („Polishing…")
+  steht nicht mehr im Text, sondern dimmt das Icon (`alpha 0.4`, Konstante
+  `POLISHING_ALPHA`); `workbench_polishing`-String entfernt. Der
+  Zusatz-Tooltip kommt nativ: `android:tooltipText` auf jedem Icon-Button
+  (API 26+, Min-SDK 30 — der Tooltip zeigt die Sprechblase beim Long Press
+  und löst die Aktion NICHT aus), Text = die jeweilige
+  contentDescription-Resource.
+- **Header space-around:** die fünf Header-Kinder sitzen in gleichen
+  Gewichts-Slots (`0dp` + `weight 1`, Inhalt zentriert) — gleichmäßiger
+  Zwischenraum um jedes Element, das Positionslabel mittig im Slot.
+- **Tests:** `WorkbenchLayoutPolicyTest` — die alte Regel „ImageButton ohne
+  `android:background`" wurde zur Pin-Regel „jeder ImageButton trägt den
+  WorkbenchIconButton-Stil + Tooltip"; der Collector liest jetzt auch
+  Element-Texte, damit der Stil selbst in `themes.xml` gepinnt wird
+  (borderless, 48dp, 1.5×, centerInside). Neu: Header-Space-Around-Pin.
+  `WorkbenchActivityTest` — die zwei „Polishing…"-/„Polish"-Text-Assertionen
+  wurden zu Alpha-Pins (0.4 in flight, 1.0 danach). `:app`-Suite + lint
+  grün, Release auf BEIDEN Geräten installiert (OnePlus `f6de166c` 11:15,
+  Samsung `R7SRB06XF5K` 11:16, In-place).
+- **Owner-Check (diese Welle):** (1) kein Kasten um Mistkübel/Promote/
+  Copy/Polish in beiden Modi, (2) die Icons lesen sich größer, (3) Long
+  Press auf jedem Icon zeigt die Sprechblase ohne die Aktion auszulösen,
+  (4) der Header verteilt gleichmäßig, (5) laufender Polish dimmt das
+  Sternchen.
 
 ## #213 — Polished-Zone: Aktionen in der Summary-Zeile, unten nur Copy (2026-11-26, implementiert — offen bis Owner-Gerätecheck; KORREKTUR-Welle `63e2a52`)
 
