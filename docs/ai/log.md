@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-26 (#214-Nachtrag — Token-Tresor pro Provider-URL)
+
+* **Update**: [state/settings.md](state/settings.md) — neuer Abschnitt: der geteilte Token-Tresor (`canonicalUrl → token`) im Secrets-File, `canonicalProviderUrl` (Slash/Groß-klein), Auflöseordnung (aktiv schlägt Tresor), Owner-Regel (unvalidiertes Fummelei ist wertlos, URL-Wechsel füllt IMMER aus dem Tresor), Tests.
+* **Update**: [decisions/stt-providers.md](decisions/stt-providers.md) — Entscheidung 2026-11-26: drei Regeln des Tresors (pro URL, aktiv schlägt Tresor, Validierungszustand statt Berührung).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #214-Nachtrag als neuer Top-Eintrag (offen bis zum Owner-Check; #214 wurde wieder geöffnet).
+* **Update**: [STATE.md](STATE.md) — Statuszeile um den #214-Nachtrag ergänzt.
+* **No change**: [state/stt-providers.md](state/stt-providers.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [state/index.md](state/index.md), [decisions/index.md](decisions/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#214 — Feldfehler löschen sich beim Editieren selbst, #5-Vertrag restauriert)
 
 * **Update**: [state/settings.md](state/settings.md) — neuer #214-Abschnitt: Gerätestfund (rote Kugel trotz korrektem Token), Ursache (die `75fd935`-Fehlerlösche-Hälfte starb im #212-Umbau — KDoc behauptete sie weiter), Fix (`draftWatcher(field, write)` räumt bei nicht-stummen Textwechseln den Fehler weg), Tests, Close.

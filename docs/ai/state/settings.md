@@ -3,7 +3,7 @@ type: State
 title: Project State — Settings
 description: The settings overview, its four category screens and the draft/apply save model.
 tags: [knowledge, state, settings]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T20:15:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T21:05:00Z }
 sources: ["#212", "#153", "#214"]
 status: stable
 ---
@@ -12,6 +12,34 @@ status: stable
 
 The settings surface as its own theme since #212 (the overview + the four category
 screens). Sections are verbatim, newest first.
+
+## #214 addendum — token vault per provider URL (2026-11-26, implemented — OPEN until the owner's device check)
+
+- **Owner's practice problem:** he switches provider URLs constantly (presets, experiments); the
+  #101 model keeps ONE token per provider TYPE (`stt_token`/`llm_token`), so every URL change
+  applied the PREVIOUS provider's token under the new URL — retyping each time.
+- **Vault (`59ee546`):** one shared JSON map `canonicalUrl → token` inside
+  `polished_recognition_secrets.xml` (STT + LLM types together — same endpoint = same credential).
+  The #101 backup exclusions already cover that FILE, so no vault entry can reach the Google cloud
+  backup or device transfer; `BackupRulesTest` needed no change.
+- **Canonical key:** `SettingsStore.canonicalProviderUrl` — trim, scheme+host lowercased, trailing
+  slashes stripped; the PATH stays verbatim (self-hosted endpoints can be case-sensitive).
+  `…/v1` ≡ `…/v1/`.
+- **Resolution order:** the per-type active token (last applied) still wins at request time — an
+  older vault entry never overrides what was actually applied; the vault is the switch memory.
+  Every apply files its token under its URL (cap 20, oldest dropped). Deliberately clearing a
+  token drops the vault entry unless the OTHER type still points at the same endpoint. Pre-#214
+  installs seed the vault from the token in effect on the first read.
+- **UI rule (owner's explicit correction — the "untouched field" guard was übervorsichtig):** an
+  UNVALIDATED token fiddled into the field is worthless. A URL change (focus loss or preset
+  selection) ALWAYS refills the token field from the vault for the new endpoint — or empties it;
+  the emptied case drafts `""` so the apply cannot fall back to the previous provider's token (the
+  original leak). No validated-flag bookkeeping in the draft — the vault-write rides the normal
+  apply path.
+- **Tests:** +11 (`SettingsStoreSecretsTest` +6: canonicalization, per-URL round trip, vault in the
+  secrets file only, legacy seeding, shared-endpoint clear; `ProvidersActivityTest` +2: refill on
+  focus loss incl. trailing-slash return, preset refill). 843 `:app` tests forced green, lint 0,
+  release on BOTH devices. Owner check: preset away and back — the token returns without retyping.
 
 ## #214 — editing a field clears its own stale error (2026-11-26, shipped)
 

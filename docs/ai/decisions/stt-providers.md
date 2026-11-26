@@ -3,13 +3,35 @@ type: Decisions
 title: Decisions — STT, LLM and Providers
 description: Endpoint configuration, model listing, prompts, failure classification, retries, uploads, language handling and latency.
 tags: [knowledge, decisions, stt-providers]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T21:05:00Z }
 status: stable
 ---
 
 # Decisions — STT, LLM and Providers
 
 Moved out of `DECISIONS.md` in #206; entries are verbatim. New decisions in this area are appended here.
+
+## 2026-11-26: #214 — Tokens gehören zur URL: geteilter Tresor, aktiv schlägt Tresor, Unvalidiertes ist wertlos
+
+Drei Regeln, Owner-entschieden (Nachtrag zum geschlossenen #214, wieder geöffnet):
+
+- **Der Token wird pro Provider-URL gemerkt** (`canonicalUrl → token`, ein gemeinsamer Tresor für
+  STT und LLM im Secrets-File — gleicher Endpoint = gleiche Credential). `canonicalProviderUrl`
+  trimmt, lowercased Scheme+Host und entfernt Slashes am Ende: `…/v1` ≡ `…/v1/`; der Pfad bleibt
+  wörtlich (self-hosted Endpoints können case-sensitive sein).
+- **Aktiv schlägt Tresor.** Der pro Typ zuletzt angewandte Token gewinnt zur Request-Zeit — ein
+  älterer Tresoreintrag überschreibt nie das faktisch Angewandte; der Tresor ist nur das
+  Erinnerungsnetz für Providerwechsel. Jeder Apply legt seinen Token unter seiner URL ab; wer einen
+  Token bewusst leert, wirft den Eintrag weg — außer der ANDERE Typ zeigt noch auf denselben Endpoint.
+- **Unvalidiertes Fummelei ist wertlos.** Bei einem URL-Wechsel (Fokusverlust oder Presetwahl) wird
+  das Token-Feld IMMER aus dem Tresor gefüllt — oder geleert, wenn der Tresor nichts hat. Die
+  „Feld unberührt“-Prüfung war owner-seitig übervorsichtig und falsch; der Validierungszustand
+  entscheidet, nicht die Berührung. Die geleerte Variante draftet `""`, damit der Apply nie den
+  Token des VORHERIGEN Providers unter die neue URL schreibt (das ursprüngliche Leck).
+
+Backup bleibt unangetastet: der Tresor liegt in `polished_recognition_secrets.xml`, das beide
+Regeldateien exkludieren — kein Tresoreintrag erreicht die Google-Cloud-Sicherung oder den
+Gerätetransfer.
 
 ## 2026-11-22: #75 — die Refusal-BODY entscheidet; ein Budget-Wall wird genau EINMAL gefragt
 

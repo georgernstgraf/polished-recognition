@@ -3,11 +3,25 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T21:05:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#214 addendum (2026-11-26, IMPLEMENTED — reopened, OPEN until the owner's device check): API tokens are remembered per provider URL.**
+`59ee546`: a shared token vault (`canonicalUrl → token`, STT + LLM together) inside
+`polished_recognition_secrets.xml` — the #101 backup exclusions already cover that file, so no
+vault entry reaches the Google cloud backup or device transfer. `canonicalProviderUrl` collapses
+trailing slashes + scheme/host case (`…/v1` ≡ `…/v1/`, path verbatim). Resolution: the per-type
+active token wins at request time; the vault is the switch memory (every apply files its token
+under its URL, cap 20; clearing drops the entry unless the other type still uses the endpoint;
+pre-#214 installs seed it on first read). **UI (owner rule): an unvalidated fiddled token is
+worthless — a URL change (focus loss or preset selection) ALWAYS refills the token field from the
+vault, or empties it (draft `""`, never a fallback to the previous provider's token).** +11 tests,
+843 `:app` forced green + lint 0, release on BOTH devices. **Owner check:** preset away to a new
+provider and back — the token returns without retyping; nothing token-shaped in the Google backup.
+See `state/settings.md` + `decisions/stt-providers.md`.
 
 **#153 (2026-11-26, IMPLEMENTED — OPEN until the owner's device check): the reasoning efforts of the LLM model become a setting.**
 The opencode-go endpoint's `/v1/models` response carries `capabilities.reasoning.effort` per model
