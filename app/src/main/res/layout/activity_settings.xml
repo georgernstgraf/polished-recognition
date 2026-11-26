@@ -69,6 +69,8 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="16dp" />
 
+        <View style="@style/SettingsDivider" />
+
         <!-- The four category sub-screens (owner-approved order) -->
         <Button
             android:id="@+id/category_providers"
@@ -130,6 +132,8 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="16dp" />
 
+        <View style="@style/SettingsDivider" />
+
         <!-- Voice Keyboard (IME) Setup -->
         <Button
             android:id="@+id/set_recognition_service"
@@ -138,6 +142,8 @@
             android:text="@string/enable_voice_keyboard"
             style="@android:style/Widget.DeviceDefault.Button.Borderless"
             android:layout_marginBottom="16dp" />
+
+        <View style="@style/SettingsDivider" />
 
         <!-- About Section -->
         <LinearLayout

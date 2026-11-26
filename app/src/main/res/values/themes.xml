@@ -17,4 +17,16 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:backgroundDimEnabled">true</item>
     </style>
+
+    <!-- #212: the settings screens' item separator — a 1dp line in the theme's
+         listDivider (no hardcoded colour, night mode follows the theme) with
+         breathing room on both sides, so consecutive configuration items read
+         as separate blocks against the fields' thick underlines. -->
+    <style name="SettingsDivider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">?android:attr/listDivider</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:layout_marginBottom">16dp</item>
+    </style>
 </resources>

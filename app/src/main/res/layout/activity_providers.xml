@@ -97,6 +97,8 @@
             android:completionThreshold="1"
             android:layout_marginBottom="16dp" />
 
+        <View style="@style/SettingsDivider" />
+
         <!-- LLM Section -->
         <TextView
             android:layout_width="match_parent"

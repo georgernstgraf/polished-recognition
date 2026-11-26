@@ -48,6 +48,8 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="8dp" />
 
+        <View style="@style/SettingsDivider" />
+
         <CheckBox
             android:id="@+id/search_auto"
             android:layout_width="match_parent"
@@ -74,6 +76,8 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="8dp" />
 
+        <View style="@style/SettingsDivider" />
+
         <!-- #172: Workbench FIFO depth (epic #166 D2) -->
         <EditText
             android:id="@+id/workbench_fifo_size"
@@ -94,12 +98,16 @@
             android:textColor="?android:attr/textColorTertiary"
             android:textSize="12sp" />
 
+        <View style="@style/SettingsDivider" />
+
         <CheckBox
             android:id="@+id/compress_audio"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/compress_audio"
             android:layout_marginBottom="8dp" />
+
+        <View style="@style/SettingsDivider" />
 
         <!-- #205: the live preview kill switch (owner D1, default ON) -->
         <CheckBox
@@ -117,6 +125,8 @@
             android:textColor="?android:attr/textColorTertiary"
             android:layout_marginStart="4dp"
             android:layout_marginBottom="8dp" />
+
+        <View style="@style/SettingsDivider" />
 
         <!-- #142: audio-evidence retention — the 0→50-years log slider
              (0 = "Keine Retention", complete off) -->
