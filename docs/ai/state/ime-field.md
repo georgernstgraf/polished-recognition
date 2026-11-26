@@ -3,13 +3,38 @@ type: State
 title: Project State — IME and the Target Field
 description: The keyboard surface, its output control, the palette and the live preview.
 tags: [knowledge, state, ime-field]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T23:55:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T10:30:00Z }
 status: stable
 ---
 
 # Project State — IME and the Target Field
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #211 — die LLM-Checkbox zeigt den effektiven Zustand (2026-11-26, implementiert — offen bis Owner-Blick)
+
+- **Was:** Owner-Befund: im Workbench-Kontext ist die LLM-Checkbox korrekt
+  deaktiviert (#168), zeigte aber weiterhin den **globalen** Zustand — bei
+  global aktivem LLM blieb sie **angehakt**, obwohl das Diktat roh liefert.
+  Irreführend: die Box behauptet eine Politur, die nie passiert. Die alte
+  #168-Begründung („unchecked-but-enabled würde eine weiterhin anstehende
+  Einstellung behaupten") greift nicht mehr, weil die Box im eigenen Kontext
+  gerade DEAKTIVIERT ist — sie darf ehrlich den effektiven Zustand zeigen.
+- **Fix (`46761a3`):** `refreshQuickSettings()` setzt
+  `llmCheckbox?.isChecked = !llmForcedOff && !settings.rawMode` — im eigenen
+  Kontext effektiv ausgehakt, in fremden Apps der globale Zustand. Der
+  Schreibschutz bleibt unberührt: Listener-Guard (`llmForcedOff`) +
+  `silenceLangListener` verhindern weiterhin jeden Schreibzugriff auf
+  `raw_mode`; `updateLanguageEnabled()` ändert ihr Verhalten nicht
+  (`llmForcedOff` deaktiviert den Spinner ohnehin).
+- **Tests:** `ImeLlmTargetTest` — der „shows the global state"-Pin ist
+  gedreht (eigene App: `isChecked == false`, disabled, gedimmt); neu: ein
+  Rebind in eine fremde App stellt den globalen Zustand wieder her
+  (angehakt, enabled, volles Alpha). Suite erzwungen grün + `lintDebug` 0.
+- **Owner-Check:** (1) Workbench mit global AN → Checkbox grau + AUS,
+  Diktat roh; (2) fremde App (Markor) → Checkbox aktiv + AN, LLM poliert;
+  (3) nach Workbench-Diktat zurück in fremde App → globale Einstellung
+  wieder sichtbar.
 
 ## #210 — Landscape geht nie fullscreen (2026-11-25, implementiert — offen bis Owner-Gerätecheck)
 

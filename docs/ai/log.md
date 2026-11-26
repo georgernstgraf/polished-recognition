@@ -1,5 +1,14 @@
 # Persistence Log
 
+## 2026-11-26 (#211 — LLM-Checkbox zeigt den effektiven Zustand)
+
+* **Update**: [state/ime-field.md](state/ime-field.md) — neuer #211-Abschnitt: Owner-Befund (angehakte, deaktivierte Box behauptet eine Politur, die nie passiert), Fix (`46761a3`: `!llmForcedOff && !settings.rawMode`), gedrehter Test-Pin + Rebind-Test, Owner-Check.
+* **Update**: [decisions/workbench.md](decisions/workbench.md) — der #168-Display-Satz („shows the still-global state, 'off' would be a lie") als durch #211 superseded markiert; die Regel „nie `raw_mode` schreiben" bleibt unverändert.
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — der Conventions-Satz zur Toggle-Darstellung auf den effektiven Zustand umgeschrieben (#211).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #211-Block oben, offen bis Owner-Blick; Vermerk: kein Gerät angeschlossen, Release noch nicht installiert.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #211 implementiert/offen, Release-Install ausstehend.
+* **No change**: [pitfalls/](pitfalls/) (kein neuer Fallstrick — die alte #168-Begründung war ein Design-Irrtum, kein Werkzeug-Fehlverhalten), [index.md](index.md), [HISTORY.md](HISTORY.md) (die Supersession lebt als Anmerkung im decisions-Eintrag, der Eintrag selbst bleibt gültig).
+
 ## 2026-11-25 (#210 — Rotation erhält die Seite; Landscape nie fullscreen)
 
 * **Update**: [state/workbench.md](state/workbench.md) — neuer #210-Abschnitt: Ursache (Instanzfelder ohne `onSaveInstanceState`, Compose-Fallback, `pendingTarget = NEW`), Fix (Restore + `pendingReloadSelection` + Attach-Self-Heal nach `reload()`), Tests, Owner-Check.

@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions — Workbench
 description: The Workbench pages, the entry model, the polish sites, the unfinished-dictation ring and its actions.
 tags: [knowledge, decisions, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T22:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T10:30:00Z }
 status: stable
 ---
 
@@ -298,7 +298,7 @@ The full decision set D1–D15 lives in issue #166's "Grilling complete" comment
 
 - **The FIFO is a directory, not a preference.** One JSON file per dictation under `filesDir/dictations/`, temp file + rename (#167). SharedPreferences rewrites the whole file on every `apply()` and would lose exactly the edits the persistence exists for; the directory is excluded from cloud backup and device transfer in ALL three rule containers, pinned by `BackupRulesTest` exactly like #101 does for the secrets file.
 - **A dictation is created by a transcript, and the target is decided when the recording STARTS.** The IME inserts into the focused field (D10), so after the insertion a user edit and a keyboard insertion are indistinguishable. `WorkbenchActivity` therefore snapshots the target on `StateChanged(RECORDING)`: Polished focused ⇒ edit the polished text; a manually changed Raw field ⇒ continue that edit; otherwise ⇒ a new FIFO entry (D4). Opening the screen never creates or evicts anything. (**SUPERSEDED by #173** — the target rule is now page-decided, the entry page is the transient compose slot; see the top entry.)
-- **LLM is forced off inside our own app, session-scoped, never persisted.** `LlmTargetPolicy` + `TranscriptionPipeline.forceRawMode` set by the controller for exactly one run (#168). The bar toggle shows the still-global state but renders disabled — "off" would be a lie. The global `raw_mode` is never written by the rule.
+- **LLM is forced off inside our own app, session-scoped, never persisted.** `LlmTargetPolicy` + `TranscriptionPipeline.forceRawMode` set by the controller for exactly one run (#168). The bar toggle renders disabled. (**Display rule superseded by #211:** it shows the **effective** state — unchecked inside our own app — not the global one; the old "shows the still-global state, 'off' would be a lie" reasoning held only while the toggle was enabled.) The global `raw_mode` is never written by the rule.
 - **The Workbench has no automatic polish.** The pipeline's `polish(raw, language)` is the deliberate polish path; #176 removed Auto LLM entirely (no setting, no field-leave trigger, no post-delivery trigger), and #178 split its one trigger into two buttons sharing one per-visit language (see both entries). A raw edit discards the polished slot with no confirmation and no silent re-polish (#171).
 - **Delivery is unconditional and sensitive.** Send ⇒ transcript, changed field on focus loss ⇒ its text, copy button ⇒ the visible field; unchanged field left ⇒ nothing. `ClipboardDelivery` sets `EXTRA_IS_SENSITIVE` on API 33+ — an automatic delivery is not the deliberate IME-salvage copy (#170, #138's asymmetry is intended).
 - **The Workbench is the launcher entry; Settings becomes an unexported screen** reached from the Workbench and the IME gear (#169). Exactly one MAIN/LAUNCHER activity, pinned by `LauncherEntryTest`.
