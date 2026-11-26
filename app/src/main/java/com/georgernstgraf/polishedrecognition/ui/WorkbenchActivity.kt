@@ -139,8 +139,10 @@ class WorkbenchActivity : Activity() {
     private lateinit var clearPolishedBButton: ImageButton
     private lateinit var languageA: AutoCompleteTextView
     private lateinit var languageB: AutoCompleteTextView
-    private lateinit var polishA: Button
-    private lateinit var polishB: Button
+    // #213 icon wave: Polish is an icon-only ImageButton now — the in-flight
+    // state reads from the icon's alpha (see the bind), not from a text swap.
+    private lateinit var polishA: ImageButton
+    private lateinit var polishB: ImageButton
 
     /**
      * #189: the two summary rows — a tap collapses or expands the section
@@ -961,11 +963,13 @@ class WorkbenchActivity : Activity() {
         polishB.isEnabled = actions.polish
         languageA.isEnabled = actions.polish
         languageB.isEnabled = actions.polish
-        val polishLabel = getString(
-            if (polishing) R.string.workbench_polishing else R.string.workbench_polish
-        )
-        polishA.text = polishLabel
-        polishB.text = polishLabel
+        // #213 icon wave: the polish button lost its text with its border, so
+        // the in-flight state shows on the icon — dimmed while a polish is
+        // running, full alpha once it settles. The enabled/disabled pair
+        // above is unchanged.
+        val polishAlpha = if (polishing) POLISHING_ALPHA else 1f
+        polishA.alpha = polishAlpha
+        polishB.alpha = polishAlpha
         // #189: chevron and collapsed preview follow the CONTENT, never the
         // open/closed state — a polish result or a freshly loaded page shows up
         // in the preview line while the user keeps the section collapsed.
@@ -1479,6 +1483,12 @@ class WorkbenchActivity : Activity() {
          * — short enough to feel saved, long enough not to write per keystroke.
          */
         const val RAW_DRAFT_SAVE_MS = 500L
+
+        /**
+         * #213 icon wave: the polish icon's alpha while a polish is in flight —
+         * the text swap ("Polishing…") is gone with the button's text.
+         */
+        const val POLISHING_ALPHA = 0.4f
 
         /**
          * #189: the summary chevrons were text glyphs; the #209 follow-up

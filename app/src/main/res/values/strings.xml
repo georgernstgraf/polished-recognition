@@ -164,8 +164,11 @@
     <!--
       #169/#170/#171: Workbench (epic #166) — the app's own editor window.
       #178: icon-only header, two Polish sites, promote/empty actions; every icon
-      button carries its own contentDescription, the action labels are the
-      contentDescriptions here (the visible buttons carry `workbench_polish`).
+      button carries its own contentDescription, and the action labels are the
+      contentDescriptions here.
+      #213 icon wave: Polish is icon-only too — `workbench_polish` now labels
+      the sparkle ImageButton (its text is gone) and doubles as its tooltip,
+      and every icon button's contentDescription doubles as its tooltipText.
       #189: the two label rows are summary toggles again — their content
       descriptions say what a tap does, since the chevron carries no text.
     -->
@@ -185,7 +188,6 @@
     <string name="workbench_promote">Make Polished the new RAW</string>
     <string name="workbench_clear_polished">Empty the Polished field</string>
     <string name="workbench_language">Target language</string>
-    <string name="workbench_polishing">Polishing…</string>
     <string name="workbench_polish_failed">Polish failed</string>
     <string name="workbench_delivered">Copied to clipboard</string>
     <string name="workbench_fifo_size">Keep last N dictations</string>

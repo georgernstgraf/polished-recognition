@@ -26,10 +26,19 @@
                           the summary row above the field.
 
   Polished is a READ-ONLY TextView: it is produced by the pipeline and can only
-  be promoted or emptied, never edited. No row and no icon button carries an
-  `android:background` (#173: `?android:attr/selectableItemBackground` paints an
-  opaque sheet in night mode); icons are tinted with theme attributes only.
-  Text buttons wear the #213 app-wide AppButton style.
+  be promoted or emptied, never edited. Text buttons wear the #213 app-wide
+  AppButton style.
+
+  #213 icon wave (owner, continuing the same ticket): every icon button in the
+  Workbench — header and action rows alike — wears `WorkbenchIconButton`:
+  borderless ripple instead of the ImageButton default (which painted a
+  bordered sheet the owner read as a box), 48dp touch target, the icon drawn
+  1.5x like the IME buttons — with the frames gone, the bigger icons carry the
+  affordance alone. Polish is an icon-only button now (text and border gone),
+  and every icon button answers a long press with a native tooltip (the help
+  text; the tooltip never triggers the action). The header spreads its five
+  children with equal space around each one (owner: "space-around" — weight
+  slots, the position label still centred in its slot).
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/workbench_root"
@@ -43,56 +52,61 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Header: icons only, the position label in the middle. -->
+        <!-- Header: icons only, the position label in the middle. Five equal
+             weight slots give the space-around spread; each slot centres its
+             content. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
             android:orientation="horizontal">
 
             <ImageButton
                 android:id="@+id/workbench_prev"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                style="@style/WorkbenchIconButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:contentDescription="@string/workbench_older"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_arrow_left"
+                android:tooltipText="@string/workbench_older"
                 android:tint="?android:attr/textColorSecondary" />
 
             <TextView
                 android:id="@+id/workbench_position"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
                 android:gravity="center"
-                android:minWidth="64dp"
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="16sp" />
 
             <ImageButton
                 android:id="@+id/workbench_settings"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                style="@style/WorkbenchIconButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:contentDescription="@string/workbench_settings"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_settings"
+                android:tooltipText="@string/workbench_settings"
                 android:tint="?android:attr/textColorSecondary" />
 
             <ImageButton
                 android:id="@+id/workbench_new"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                style="@style/WorkbenchIconButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:contentDescription="@string/workbench_new"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_add"
+                android:tooltipText="@string/workbench_new"
                 android:tint="?android:attr/textColorPrimary" />
 
             <ImageButton
                 android:id="@+id/workbench_next"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                style="@style/WorkbenchIconButton"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:contentDescription="@string/workbench_newer"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_arrow_right"
+                android:tooltipText="@string/workbench_newer"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
 
@@ -218,17 +232,17 @@
                 android:hint="@string/workbench_language"
                 android:inputType="text" />
 
-            <Button
+            <!-- #213 icon wave: Polish is an icon-only button — text and the
+                 AppButton border are gone, the sparkle icon carries it, and
+                 the long-press tooltip says "Polish". -->
+            <ImageButton
                 android:id="@+id/workbench_polish_a"
-                style="@style/AppButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:drawableEnd="@drawable/ic_polish"
-                android:drawablePadding="4dp"
-                android:drawableTint="?android:attr/textColorPrimary"
-                android:text="@string/workbench_polish"
-                android:textColor="?android:attr/textColorPrimary" />
+                style="@style/WorkbenchIconButton"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/workbench_polish"
+                android:src="@drawable/ic_polish"
+                android:tooltipText="@string/workbench_polish"
+                android:tint="?android:attr/textColorPrimary" />
         </LinearLayout>
 
         <!--
@@ -270,11 +284,10 @@
 
             <ImageButton
                 android:id="@+id/workbench_copy_raw"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                style="@style/WorkbenchIconButton"
                 android:contentDescription="@string/workbench_copy_raw_desc"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_copy"
+                android:tooltipText="@string/workbench_copy_raw_desc"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
 
@@ -320,17 +333,14 @@
                 android:hint="@string/workbench_language"
                 android:inputType="text" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/workbench_polish_b"
-                style="@style/AppButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:drawableEnd="@drawable/ic_polish"
-                android:drawablePadding="4dp"
-                android:drawableTint="?android:attr/textColorPrimary"
-                android:text="@string/workbench_polish"
-                android:textColor="?android:attr/textColorPrimary" />
+                style="@style/WorkbenchIconButton"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/workbench_polish"
+                android:src="@drawable/ic_polish"
+                android:tooltipText="@string/workbench_polish"
+                android:tint="?android:attr/textColorPrimary" />
         </LinearLayout>
 
         <!--
@@ -370,31 +380,31 @@
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
+            <!-- #213 icon wave: the action icons wear WorkbenchIconButton —
+                 borderless, 48dp, the icon drawn 1.5x — and each answers a
+                 long press with its tooltip. -->
             <ImageButton
                 android:id="@+id/workbench_clear_polished_b"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                style="@style/WorkbenchIconButton"
                 android:contentDescription="@string/workbench_clear_polished"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_delete_outline"
+                android:tooltipText="@string/workbench_clear_polished"
                 android:tint="?android:attr/textColorSecondary" />
 
             <ImageButton
                 android:id="@+id/workbench_promote_b"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                style="@style/WorkbenchIconButton"
                 android:contentDescription="@string/workbench_promote"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_promote"
+                android:tooltipText="@string/workbench_promote"
                 android:tint="?android:attr/textColorSecondary" />
 
             <ImageButton
                 android:id="@+id/workbench_copy_polished"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                style="@style/WorkbenchIconButton"
                 android:contentDescription="@string/workbench_copy_polished_desc"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_copy"
+                android:tooltipText="@string/workbench_copy_polished_desc"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
 
@@ -433,11 +443,10 @@
 
             <ImageButton
                 android:id="@+id/workbench_copy_polished_bottom"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                style="@style/WorkbenchIconButton"
                 android:contentDescription="@string/workbench_copy_polished_desc"
-                android:scaleType="centerInside"
                 android:src="@drawable/ic_copy"
+                android:tooltipText="@string/workbench_copy_polished_desc"
                 android:tint="?android:attr/textColorSecondary" />
         </LinearLayout>
     </LinearLayout>

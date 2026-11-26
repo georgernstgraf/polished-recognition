@@ -3,8 +3,8 @@ package com.georgernstgraf.polishedrecognition.ui
 import android.os.Bundle
 import android.view.View
 import android.widget.AutoCompleteTextView
-import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
@@ -44,6 +44,9 @@ class WorkbenchActivityTest {
     private val journal get() = context.fragmentJournal
 
     private val leftoverSession = "20260101-1200-aaaaaaaa"
+
+    /** #213 icon wave: the polish icon dims while a polish is in flight. */
+    private val polishInFlightAlpha = 0.4f
 
     @Before
     fun setUp() {
@@ -734,15 +737,18 @@ class WorkbenchActivityTest {
 
         assertThat(activity.enabled(R.id.workbench_polish_a)).isFalse()
         assertThat(activity.enabled(R.id.workbench_polish_b)).isFalse()
-        assertThat(activity.findViewById<Button>(R.id.workbench_polish_b).text.toString())
-            .isEqualTo("Polishing…")
+        // #213 icon wave: the in-flight state reads on the icon — dimmed while
+        // the polish runs, full alpha once it settles (the text swap is gone
+        // with the button's text).
+        assertThat(activity.findViewById<ImageButton>(R.id.workbench_polish_b).alpha)
+            .isEqualTo(polishInFlightAlpha)
 
         gate.complete(Result.success("done"))
         idle()
 
         assertThat(activity.enabled(R.id.workbench_polish_a)).isTrue()
-        assertThat(activity.findViewById<Button>(R.id.workbench_polish_a).text.toString())
-            .isEqualTo("Polish")
+        assertThat(activity.findViewById<ImageButton>(R.id.workbench_polish_a).alpha)
+            .isEqualTo(1f)
     }
 
     @Test

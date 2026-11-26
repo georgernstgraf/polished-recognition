@@ -49,4 +49,22 @@
         <item name="android:paddingBottom">4dp</item>
         <item name="android:includeFontPadding">false</item>
     </style>
+
+    <!-- #213: the Workbench icon-button style — every icon button in the
+         Workbench wears it (owner request, continuing the same wave). No own
+         background of its own: the borderless ripple stands in for the
+         platform ImageButton default, which painted a bordered sheet the
+         owner read as a box around each icon. 48dp keeps the touch target at
+         the accessibility minimum, and the icon is drawn 1.5x
+         (scaleX/scaleY, the IME buttons' pattern) — with the frames gone the
+         icons must carry the affordance alone. The ripple is transparent
+         until touched, so night mode stays clean (#173). -->
+    <style name="WorkbenchIconButton">
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:scaleX">1.5</item>
+        <item name="android:scaleY">1.5</item>
+        <item name="android:scaleType">centerInside</item>
+    </style>
 </resources>

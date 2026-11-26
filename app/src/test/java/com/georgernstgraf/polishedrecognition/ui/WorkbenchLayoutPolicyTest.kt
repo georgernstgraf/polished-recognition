@@ -26,6 +26,11 @@ import javax.xml.parsers.SAXParserFactory
  * #189 brings the `<summary>` accordion back for BOTH sections and makes the
  * zone-B and zone-C action rows identical (promote + trash), so the old
  * "the accordion is gone" rule is inverted here.
+ *
+ * #213 icon wave: the "no own background" rule became "the borderless
+ * WorkbenchIconButton style" (the ImageButton default still painted a box),
+ * the icons draw 1.5x on a 48dp target, every icon button carries a tooltip,
+ * and the header spreads its slots evenly.
  */
 class WorkbenchLayoutPolicyTest {
 
@@ -34,9 +39,14 @@ class WorkbenchLayoutPolicyTest {
         val name: String,
         val attributes: Map<String, String>,
         val parent: Int,
+        /** The characters directly inside this element (trimmed). */
+        var text: String = "",
     )
 
     private val layout: File = File(moduleDir(), "src/main/res/layout/activity_workbench.xml")
+
+    /** #213 icon wave: the WorkbenchIconButton style lives next to AppButton. */
+    private val themes: File = File(moduleDir(), "src/main/res/values/themes.xml")
 
     private fun moduleDir(): File {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
@@ -64,6 +74,7 @@ class WorkbenchLayoutPolicyTest {
         val elements = mutableListOf<Element>()
         private var locator: Locator? = null
         private val open = ArrayDeque<Int>()
+        private val texts = HashMap<Int, StringBuilder>()
 
         override fun setDocumentLocator(locator: Locator) {
             this.locator = locator
@@ -74,10 +85,16 @@ class WorkbenchLayoutPolicyTest {
             for (i in 0 until atts.length) attributes[atts.getQName(i)] = atts.getValue(i)
             elements += Element(locator?.lineNumber ?: -1, qName, attributes, open.lastOrNull() ?: -1)
             open.addLast(elements.lastIndex)
+            texts[elements.lastIndex] = StringBuilder()
         }
 
         override fun endElement(uri: String?, localName: String?, qName: String?) {
-            open.removeLast()
+            val index = open.removeLast()
+            elements[index].text = texts.remove(index)?.toString()?.trim().orEmpty()
+        }
+
+        override fun characters(ch: CharArray, start: Int, length: Int) {
+            open.lastOrNull()?.let { texts.getValue(it).append(ch, start, length) }
         }
     }
 
@@ -431,29 +448,99 @@ class WorkbenchLayoutPolicyTest {
     }
 
     /**
-     * #178: every icon button is tappable without a visible label, so it needs
-     * a content description; and no icon button carries a background — the
-     * night-mode `?android:attr/selectableItemBackground` sheet is the #173
-     * contrast defect.
+     * #213 icon wave: every icon button wears `WorkbenchIconButton` — the
+     * borderless ripple stands in for the platform ImageButton default (which
+     * painted the bordered sheet the owner read as a box), the touch target is
+     * 48dp, the icon draws 1.5x, and each button answers a long press with a
+     * native tooltip. The layout only references the style, so the style's
+     * own definition in themes.xml is pinned too.
      */
     @Test
-    fun `every icon button has a content description and no background`() {
+    fun `every icon button wears the borderless icon-button style with a tooltip`() {
         val iconButtons = parse(layout).filter { it.name == "ImageButton" }
         assertWithMessage("the layout declares no ImageButton at all — the scan is vacuous")
             .that(iconButtons).isNotEmpty()
 
         val violations = mutableListOf<String>()
         for (button in iconButtons) {
+            val id = button.attributes["android:id"] ?: "<no id>"
             if (button.attributes["android:contentDescription"].isNullOrBlank()) {
-                violations += "line ${button.line} <ImageButton>: no contentDescription"
+                violations += "line ${button.line} $id: no contentDescription"
             }
-            if (button.attributes.containsKey("android:background")) {
-                violations += "line ${button.line} <ImageButton>: declares android:background"
+            if (button.attributes["android:tooltipText"].isNullOrBlank()) {
+                violations += "line ${button.line} $id: no tooltipText (the long-press help)"
+            }
+            if (button.attributes["style"] != "@style/WorkbenchIconButton") {
+                violations += "line ${button.line} $id: not the WorkbenchIconButton style"
             }
         }
+
+        val parsed = parse(themes)
+        val styleIndex = parsed.indexOfFirst {
+            it.name == "style" && it.attributes["name"] == "WorkbenchIconButton"
+        }
+        if (styleIndex < 0) {
+            violations += "themes.xml declares no WorkbenchIconButton style"
+        } else {
+            val items = parsed
+                .filter { it.name == "item" && it.parent == styleIndex }
+                .associate { it.attributes["name"] to it.text }
+            val expected = mapOf(
+                "android:background" to "?android:attr/selectableItemBackgroundBorderless",
+                "android:layout_width" to "48dp",
+                "android:layout_height" to "48dp",
+                "android:scaleX" to "1.5",
+                "android:scaleY" to "1.5",
+                "android:scaleType" to "centerInside",
+            )
+            for ((name, value) in expected) {
+                if (items[name] != value) {
+                    violations += "themes.xml WorkbenchIconButton: $name = ${items[name]} " +
+                        "(expected $value)"
+                }
+            }
+        }
+
         assertWithMessage(
-            "icon buttons need a label for TalkBack and no background (#173/#178):\n" +
-                violations.joinToString("\n")
+            "icon buttons need a label, the borderless style and the long-press " +
+                "tooltip (#213):\n" + violations.joinToString("\n")
         ).that(violations).isEmpty()
+    }
+
+    /**
+     * #213 icon wave: the header spreads its five children with equal space
+     * around each one (owner: "space-around") — every slot divides the row by
+     * weight, so no child bunches up at the centre.
+     */
+    @Test
+    fun `the header spreads its five slots evenly`() {
+        val headerIds = listOf(
+            "workbench_prev",
+            "workbench_position",
+            "workbench_settings",
+            "workbench_new",
+            "workbench_next",
+        )
+        val slots = parse(layout).filter {
+            it.attributes["android:id"] in headerIds.map { id -> "@+id/$id" }
+        }
+        assertWithMessage("the header declares fewer than its five slots — the scan is vacuous")
+            .that(slots.map { it.attributes["android:id"] }).hasSize(5)
+
+        val violations = mutableListOf<String>()
+        for (slot in slots) {
+            val id = slot.attributes["android:id"] ?: "<no id>"
+            if (slot.attributes["android:layout_width"] != "0dp" ||
+                slot.attributes["android:layout_weight"] != "1"
+            ) {
+                violations += "line ${slot.line} $id: layout_width=" +
+                    "${slot.attributes["android:layout_width"]} weight=" +
+                    "${slot.attributes["android:layout_weight"]} — every header slot " +
+                    "must divide the row equally (space-around)"
+            }
+        }
+
+        assertWithMessage("the #213 header is not spread evenly:\n" +
+            violations.joinToString("\n")).that(violations).isEmpty()
     }
 }
