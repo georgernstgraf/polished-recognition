@@ -78,14 +78,20 @@ class ProvidersActivity : Activity() {
         llmTokenToggle.setOnClickListener { togglePassword(llmTokenField, llmTokenToggle) }
 
         // Every user edit lands in the draft (displayable raw) and clears the
-        // red error as the user corrects (the #45 contract).
-        sttTokenField.addTextChangedListener(draftWatcher { draft.sttToken = it })
-        sttUrlField.addTextChangedListener(draftWatcher { draft.sttUrl = it })
-        sttModelDropdown.addTextChangedListener(draftWatcher { draft.sttModel = it })
+        // red error as the user corrects (the #45 contract, restored #214).
+        sttTokenField.addTextChangedListener(draftWatcher(sttTokenField) { draft.sttToken = it })
+        sttUrlField.addTextChangedListener(draftWatcher(sttUrlField) { draft.sttUrl = it })
+        sttModelDropdown.addTextChangedListener(draftWatcher(sttModelDropdown) {
+            draft.sttModel = it
+            // #153: the model decides the capability vocabulary — every model
+            // edit re-evaluates whether the reasoning row exists and what it
+            // offers.
+            updateReasoningRow()
+        })
 
-        llmTokenField.addTextChangedListener(draftWatcher { draft.llmToken = it })
-        llmUrlField.addTextChangedListener(draftWatcher { draft.llmUrl = it })
-        llmModelDropdown.addTextChangedListener(draftWatcher {
+        llmTokenField.addTextChangedListener(draftWatcher(llmTokenField) { draft.llmToken = it })
+        llmUrlField.addTextChangedListener(draftWatcher(llmUrlField) { draft.llmUrl = it })
+        llmModelDropdown.addTextChangedListener(draftWatcher(llmModelDropdown) {
             draft.llmModel = it
             // #153: the model decides the capability vocabulary — every model
             // edit re-evaluates whether the reasoning row exists and what it
@@ -96,11 +102,18 @@ class ProvidersActivity : Activity() {
 
     private val draft: SettingsDraft get() = SettingsDraft
 
-    /** TextWatcher that clears the field error and writes the raw text into the draft. */
-    private fun draftWatcher(write: (String) -> Unit): TextWatcher = object : TextWatcher {
+    /**
+     * TextWatcher that clears the field's error and writes the raw text into
+     * the draft — the #45 contract (restored by #214): editing a field must
+     * dismiss its own stale error immediately, Android never auto-clears
+     * `setError`. The silenced loads (programmatic `setText` in
+     * [loadFields]/fetch) never write the draft nor touch the error.
+     */
+    private fun draftWatcher(field: EditText, write: (String) -> Unit): TextWatcher = object : TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
             if (silenceDraftWatchers) return
+            field.error = null
             write(s?.toString() ?: "")
         }
         override fun afterTextChanged(s: Editable?) {}

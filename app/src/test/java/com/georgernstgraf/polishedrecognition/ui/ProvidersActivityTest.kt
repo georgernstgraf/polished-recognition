@@ -186,6 +186,45 @@ class ProvidersActivityTest {
         assertThat(SettingsDraft.llmReasoningEffort).isNull()
     }
 
+    // ---- #214: editing a field clears its own stale error ---------------------
+
+    @Test
+    fun `editing the token clears its stale error (#214)`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        val activity = launch()
+        activity.field(R.id.llm_token).error = "HTTP 400: stale failure"
+
+        activity.field(R.id.llm_token).setText("correct-token")
+
+        assertThat(activity.field(R.id.llm_token).error).isNull()
+    }
+
+    @Test
+    fun `editing one field leaves other fields' errors untouched (#214)`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        val activity = launch()
+        activity.field(R.id.llm_token).error = "stale"
+        activity.field(R.id.llm_url).error = "stale-url"
+
+        activity.field(R.id.llm_token).setText("correct-token")
+
+        assertThat(activity.field(R.id.llm_token).error).isNull()
+        assertThat(activity.field(R.id.llm_url).error).isEqualTo("stale-url")
+    }
+
+    @Test
+    fun `the silenced programmatic load clears neither draft nor error (#214)`() {
+        prefs().edit().putString("llm_provider", LLM_SEED).commit()
+        SettingsDraft.llmToken = "pending-draft"
+        val activity = launch()
+
+        // loadFields ran silenced: the draft value is re-displayed, no draft
+        // churn, and (nothing had set an error) none appears.
+        assertThat(activity.field(R.id.llm_token).text.toString()).isEqualTo("pending-draft")
+        assertThat(SettingsDraft.llmToken).isEqualTo("pending-draft")
+        assertThat(activity.field(R.id.llm_token).error).isNull()
+    }
+
     private companion object {
         const val STT_SEED =
             """{"displayName":"seed","baseUrl":"https://seed.example/v1","apiToken":"t","model":"seed-model"}"""
