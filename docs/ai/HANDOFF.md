@@ -9,14 +9,23 @@ status: stable
 
 # Hand Off
 
-**#213 (2026-11-26, IMPLEMENTED + correction wave `63e2a52` + icon wave `b5cefbd` — OPEN until the owner's device checks): recording-red FONT, polished-zone summary actions, app-wide rounded button style, borderless bigger workbench icons.**
-Release installed on BOTH devices (OnePlus `f6de166c`, Samsung `R7SRB06XF5K`). The first wave tinted the IME background — the owner's verdict: the red belongs to the FONT, never the background; the pause state must carry no red at all. Corrected:
-1. Background: `recording_overlay`/text/icon/divider reverted to the neutral palette (white bar in light, black in night) — never tinted.
-2. Font: solidly red for the whole recording (only the alpha pulses); every other state pins the neutral base — `PulseColorPolicy` is now a pure state switch. Pulse red tuned for neutral ground: light `#C62828`, night `#FF8A80` — the owner tunes on device.
-3. Cursor: dictating into the Workbench raw field no longer resets the cursor to position 0 — an unchanged text is not re-set, a changed rewrite places the cursor at the end (two new pins in `WorkbenchActivityTest`).
-4. Buttons: uniform 4dp padding all around + `includeFontPadding=false`; `ic_polish` 16dp — border-to-content equal on all four sides.
-5. **Icon wave (`b5cefbd`):** every Workbench icon button — header (◀ ⚙ ＋ ▶) and action rows alike — wears the new `WorkbenchIconButton` style (themes.xml): borderless ripple (`selectableItemBackgroundBorderless`, the IME pattern) instead of the ImageButton default, which painted the box the owner saw; 48dp touch target; icon drawn 1.5×. Polish is an icon-only ImageButton (text + AppButton border gone), a running polish dims the icon (alpha 0.4) instead of the "Polishing…" text; every icon button answers a long press with a native tooltip (`android:tooltipText` = its contentDescription string); the header spreads its five children over equal weight slots (owner: "space-around").
-**Owner checks:** summary row order + one row fewer; bottom only copy; red pulsing FONT on neutral bar, no red when paused; cursor at the end after a delivery; uniform button padding; **icon wave: no box around trash/promote/copy/polish in either mode, icons read bigger, long-press shows the help bubble without firing the action, header spreads evenly, a running polish dims the sparkle.**
+**#153 (2026-11-26, IMPLEMENTED — OPEN until the owner's device check): the reasoning efforts of the LLM model become a setting.**
+The opencode-go endpoint's `/v1/models` response carries `capabilities.reasoning.effort` per model
+(probe `/tmp/opencode/go-models.json`) — the level vocabulary is PER MODEL. The app: `ModelEntry.capabilities`
+parsed additively; `CachedModels.reasoningEfforts` (nullable map, pre-#153 caches read empty);
+`ChatRequest.reasoning_effort` — null serializes to NO member, so providers without the field get a
+byte-identical request (`finishTranscription`, `polish`, token test all pass it through);
+`LlmProviderConfig.reasoningEffort` persists. **UI (owner's explicit shape): a spinner in the LLM
+section ONLY when the selected model advertises effort levels — no provider vocabulary, no synthetic
+"default" entry, unselected = nothing sent; no capabilities → the row does not exist and the surface
+looks exactly as before.** `SettingsValidation.apply` normalizes a stale effort to null against the
+cached list. Tests: full suite + lint green (forced, `:core` new `ChatRequestJsonTest`, +5/+3/+4/+3
+in the four app suites). Release installed on BOTH devices. **Owner check:** opencode-go LLM setup →
+Fetch Models → a reasoning model shows the spinner with exactly its levels, STT section unchanged.
+See `state/settings.md` + `state/stt-providers.md`.
+
+**#213 (2026-11-26, CLOSED — owner verdict passed on the device, final wave `49f78b1`): recording-red FONT, polished-zone summary actions, app-wide rounded button style, borderless bigger workbench icons.**
+Closed 2026-11-26 after the owner's verdict; the wave history lives in `state/workbench.md` + `state/ime-field.md`.
 
 **#212 (2026-11-26, CLOSED — owner verdict passed on the device): settings becomes an overview with four category screens.**
 Seven commits (`313d1c1` overview + screens + draft/apply, `3c24afc` H1 title + LLM Control heading, `5f63b29` 13 dividers, `81992d2` About swap, `96cc343` contrast exchange — dividers lead in `text_secondary`, `colorControlNormal` → `control_quiet` ~20 %). 805 `:app` tests + lint 0 throughout. Owner: „passst". Known+accepted side effect: the quiet control tint is app-wide (Workbench underlines too). The final state is installed on the OnePlus; the Samsung A032F gets it at the next `installRelease`. See `state/settings.md`. **#156 impact: the whole settings surface needs recapture.**

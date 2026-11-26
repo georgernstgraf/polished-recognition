@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-26 (#153 — Reasoning-Efforts des LLM-Modells als Einstellung)
+
+* **Creation**: [state/settings.md](state/settings.md) — neuer #153-Abschnitt: konditioneller Reasoning-Spinner in der LLM-Sektion (nur bei kommunizierten `capabilities.reasoning.effort`-Levels), keine synthetische „Default"-Option (Owner-Wunsch), Spinner unselektiert = nichts senden, Invarianten über `updateReasoningRow()`, Draft/Apply-Fäden + Normalisierung im Apply.
+* **Update**: [state/stt-providers.md](state/stt-providers.md) — neuer #153-Abschnitt auf der Wire-Seite: `reasoning_effort`-Member nur bei gesetztem Wert, `ModelEntry.capabilities` additiv, Capability-Cache, Scope-Guard (nur LLM-Pfad), offene End-to-End-Verifikation dokumentiert.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #153-Block oben (implementiert, offen bis Owner-Gerätecheck); der abgeschlossene #213-Block auf seinen Close verdichtet.
+* **Update**: [STATE.md](STATE.md) — Statuszeile führt #153, #213 auf Close verdichtet.
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [state/index.md](state/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#213 — Icon-Welle: rahmenlose größere Workbench-Icons, Tooltips, Header space-around)
 
 * **Update**: [state/workbench.md](state/workbench.md) — neuer #213-Icon-Welle-Abschnitt: `WorkbenchIconButton` (borderless, 48dp, 1.5×) für alle Workbench-Icon-Buttons, Polish icon-only + Icon-Dim statt „Polishing…", native Tooltips, Header-Gewichts-Slots; Test-Umbau dokumentiert.

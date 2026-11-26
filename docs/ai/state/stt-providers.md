@@ -3,13 +3,38 @@ type: State
 title: Project State — STT, LLM and Providers
 description: Failure classification, uploads, provider behaviour.
 tags: [knowledge, state, stt-providers]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T18:30:00Z }
+sources: ["#206", "#153"]
 status: stable
 ---
 
 # Project State — STT, LLM and Providers
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #153 — reasoning_effort on the LLM chat wire (2026-11-26, shipped)
+
+- **What the provider says:** the opencode-go endpoint's `/v1/models` response carries per-model
+  capability extensions — verbatim `capabilities.reasoning { "supported": true, "effort": ["low",
+  "high", "max"] }` (probe: `/tmp/opencode/go-models.json`, 2026-11-26). The level vocabulary is
+  PER MODEL: `none, minimal, low, medium, high, xhigh, max` all occur in one catalog. The standard
+  OpenAI body (and the LiteLLM gateway's Whisper-only setup) carries none of it — the app treats
+  the extension as optional everywhere. **Scope guard: the ticket touches ONLY the LLM polish path;
+  the STT multipart upload is byte-identical to before.**
+- **Request:** `ChatRequest.reasoningEffort` (`@SerializedName("reasoning_effort")`, nullable) —
+  Gson omits the member when null, so a provider that never heard of the field receives a
+  byte-identical request. `ModelEntry.capabilities` parses the extension additively.
+- **Config:** `LlmProviderConfig.reasoningEffort: String?` rides the provider JSON round-trip
+  (`readProvider`/`writeProvider` untouched — the null member is simply never serialized).
+- **Cache:** `CachedModels.reasoningEfforts: Map<String, List<String>>?` — nullable on purpose;
+  the Gson-bypasses-Kotlin-defaults pitfall (#101 comment) applies, readers normalize `orEmpty()`.
+  TTL/prune shared with the id list.
+- **Normalization:** `SettingsValidation.apply` writes the effort only when the configured model's
+  cached list advertises it — a stale value decays to `null` (nothing sent) instead of going on
+  the wire against the provider's vocabulary.
+- **Not verified:** whether a real chat completion with a picked effort is accepted end-to-end —
+  the opencode-go chat endpoint needs an API key (401 in the probe); `reasoning_effort` itself is
+  documented OpenAI standard and LiteLLM-normalized. The owner's device check covers the UI path.
 
 ## #75 — provider refusals: the body decides, a budget wall is asked ONCE (2026-11-22, shipped)
 

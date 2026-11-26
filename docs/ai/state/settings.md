@@ -3,8 +3,8 @@ type: State
 title: Project State — Settings
 description: The settings overview, its four category screens and the draft/apply save model.
 tags: [knowledge, state, settings]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T13:20:00Z }
-sources: ["#212"]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T18:30:00Z }
+sources: ["#212", "#153"]
 status: stable
 ---
 
@@ -12,6 +12,45 @@ status: stable
 
 The settings surface as its own theme since #212 (the overview + the four category
 screens). Sections are verbatim, newest first.
+
+## #153 — reasoning-effort spinner, only when the provider speaks (2026-11-26, implemented — OPEN until the owner's device check)
+
+- **Shape:** the LLM section of `ProvidersActivity` gains ONE conditional row behind the model dropdown
+  (`llm_reasoning_effort`, `AutoCompleteTextView`, `inputType=none` + tap-to-open like the provider
+  dropdowns, GONE by default). It exists **only** when the selected model's fetched capability list
+  advertises effort levels (`capabilities.reasoning.effort` — observed verbatim on the opencode-go
+  endpoint); a provider without the extension leaves the surface exactly as it was. No synthetic
+  "default" entry, no app-side vocabulary: the spinner starts UNSELECTED and nothing is sent until
+  the user picks — the provider's own default stays intact. Owner's explicit wish ("Default (nichts
+  senden)" was rejected).
+- **Wire:** `ModelEntry.capabilities.reasoning { supported, effort }` (nullable, additive, Gson
+  tolerates the standard `/models` body); `ChatRequest.reasoningEffort`
+  (`@SerializedName("reasoning_effort")`) — `null` serializes to NO member. All three LLM build
+  sites pass the config's value through (`finishTranscription`, `polish`, the Providers token test).
+  `LlmProviderConfig.reasoningEffort: String? = null` persists in the provider JSON.
+- **Cache:** `CachedModels` gains `reasoningEfforts: Map<String, List<String>>?` (nullable — a
+  pre-#153 cache JSON has no member and Gson bypasses Kotlin defaults, readers normalize via
+  `orEmpty()`); `SettingsStore.setLlmModels(baseUrl, models, reasoningEfforts = emptyMap())` +
+  `getLlmReasoningEfforts(baseUrl)` with the SAME TTL/prune behavior as `getLlmModels`.
+- **Draft/apply:** `SettingsDraft.llmReasoningEffort` (in `isEmpty` + `clear()`); a pending level
+  ALONE makes the draft non-empty (the provider entry is rewritten). `SettingsValidation.apply`
+  normalizes defensively: the effort survives only when the configured model's cached list still
+  advertises it — a stale value becomes `null` (nothing sent). No new check name.
+- **Invariants (UI-enforced, `updateReasoningRow()`):** no levels → row GONE + pending choice
+  dropped; model edit re-evaluates (`draftWatcher` on `llm_model`); URL/provider change reloads
+  (`reloadModelDropdown` for the LLM dropdown); fetch success always re-evaluates (the model text
+  may be unchanged while the capability cache is not); a stored choice survives a re-render only
+  while the current model lists it.
+- **Tests:** `ChatRequestJsonTest` (:core, new — effort member sent/omitted, capability parse +
+  capability-less body), `SettingsStoreTest` +5 (roundtrip, default null, per-URL/model map, empty
+  map on capability-less cache, TTL expiry), `TranscriptionPipelineTest` +3 (request carries /
+  omits the effort, polish carries it), `ProvidersActivityTest` +4 (row hidden, exact levels +
+  unselected, draft-only write, model switch clears), `SettingsValidationTest` +3 (isEmpty, persist,
+  stale normalize). Full suite + `lintDebug` green (forced). Release installed on BOTH devices.
+- **Owner check:** open a Provider setup whose LLM endpoint is opencode-go → Fetch Models → pick a
+  reasoning model (e.g. `glm-5.3`): the spinner must appear with exactly `low / high / max`, stay
+  empty until touched, and the polish must still work; the STT section must be unchanged.
+
 
 ## #212 — Settings becomes an overview with four category screens (2026-11-26, CLOSED — owner verdict passed on the device)
 
