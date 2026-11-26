@@ -145,13 +145,26 @@
 
         <View style="@style/SettingsDivider" />
 
-        <!-- About Section -->
+        <!-- About Section (#212: title left, Help chip right — space-between) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/about_title"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/about_help"
@@ -166,18 +179,9 @@
                 android:paddingEnd="14dp"
                 android:paddingTop="5dp"
                 android:paddingBottom="5dp"
-                android:layout_marginEnd="14dp"
                 android:clickable="true"
                 android:focusable="true"
                 android:contentDescription="@string/about_help" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/about_title"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="?android:attr/textColorPrimary" />
         </LinearLayout>
 
         <TextView
