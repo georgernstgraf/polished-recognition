@@ -1,5 +1,12 @@
 # Persistence Log
 
+## 2026-11-26 (#211 — geschlossen: Owner-Urteil auf dem Gerät)
+
+* **Update**: [HANDOFF.md](HANDOFF.md) — #211-Block auf „CLOSED (Owner-Urteil)" umgeschrieben; #210 bleibt der oberste offene Block.
+* **Update**: [STATE.md](STATE.md) — Statuszeile: #211 geschlossen; der Release-Install-Vermerk ist erledigt (beide Geräte).
+* **Update**: [state/ime-field.md](state/ime-field.md) — #211-Abschnitt auf CLOSED gesetzt, Owner-Check als erledigt vermerkt.
+* **No change**: [decisions/](decisions/), [CONVENTIONS.md](CONVENTIONS.md) (tragen die #211-Regel bereits vollständig), [pitfalls/](pitfalls/), [index.md](index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#211 — LLM-Checkbox zeigt den effektiven Zustand)
 
 * **Update**: [state/ime-field.md](state/ime-field.md) — neuer #211-Abschnitt: Owner-Befund (angehakte, deaktivierte Box behauptet eine Politur, die nie passiert), Fix (`46761a3`: `!llmForcedOff && !settings.rawMode`), gedrehter Test-Pin + Rebind-Test, Owner-Check.

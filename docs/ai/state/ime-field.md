@@ -3,7 +3,7 @@ type: State
 title: Project State — IME and the Target Field
 description: The keyboard surface, its output control, the palette and the live preview.
 tags: [knowledge, state, ime-field]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T10:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:15:00Z }
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
 
-## #211 — die LLM-Checkbox zeigt den effektiven Zustand (2026-11-26, implementiert — offen bis Owner-Blick)
+## #211 — die LLM-Checkbox zeigt den effektiven Zustand (2026-11-26, CLOSED — Owner-Urteil)
 
 - **Was:** Owner-Befund: im Workbench-Kontext ist die LLM-Checkbox korrekt
   deaktiviert (#168), zeigte aber weiterhin den **globalen** Zustand — bei
@@ -31,10 +31,10 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
   gedreht (eigene App: `isChecked == false`, disabled, gedimmt); neu: ein
   Rebind in eine fremde App stellt den globalen Zustand wieder her
   (angehakt, enabled, volles Alpha). Suite erzwungen grün + `lintDebug` 0.
-- **Owner-Check:** (1) Workbench mit global AN → Checkbox grau + AUS,
-  Diktat roh; (2) fremde App (Markor) → Checkbox aktiv + AN, LLM poliert;
-  (3) nach Workbench-Diktat zurück in fremde App → globale Einstellung
-  wieder sichtbar.
+- **Owner-Check (ERLEDIGT 2026-11-26):** (1) Workbench mit global AN → Checkbox grau + AUS,
+  Diktat roh; (2) fremde App (Markor) → Checkbox aktiv + AN, LLM poliert; (3) nach
+  Workbench-Diktat zurück in fremde App → globale Einstellung wieder sichtbar. Release war
+  auf beiden Geräten installiert (OnePlus `f6de166c`, Samsung A032F); Owner schloss das Issue.
 
 ## #210 — Landscape geht nie fullscreen (2026-11-25, implementiert — offen bis Owner-Gerätecheck)
 

@@ -3,14 +3,14 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T10:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T11:15:00Z }
 status: stable
 ---
 
 # Hand Off
 
-**#211 (2026-11-26, implemented — OPEN until the owner's glance): the disabled LLM checkbox shows the effective state — unchecked in the Workbench context.**
-Owner finding: the #168-disabled toggle still rendered the GLOBAL preference — checked with the LLM globally on, while the Workbench take delivers raw only. `46761a3` flips `refreshQuickSettings()` to `isChecked = !llmForcedOff && !settings.rawMode`: inside our own app the grayed box reads OFF, a foreign bind restores the global state. The `raw_mode` write-guards are untouched (`ImeLlmTargetTest` re-pins both directions). Tests forced green + lint 0; NOT yet installed (no device attached at push time). Owner: (1) Workbench with LLM globally ON → box gray + unchecked, raw dictation; (2) Markor → box enabled + checked, polish runs; (3) back to a foreign app → the global state shows again.
+**#211 (2026-11-26, CLOSED — owner verdict): the disabled LLM checkbox shows the effective state — unchecked in the Workbench context.**
+Owner finding: the #168-disabled toggle still rendered the GLOBAL preference — checked with the LLM globally on, while the Workbench take delivers raw only. `46761a3` flips `refreshQuickSettings()` to `isChecked = !llmForcedOff && !settings.rawMode`: inside our own app the grayed box reads OFF, a foreign bind restores the global state. The `raw_mode` write-guards are untouched (`ImeLlmTargetTest` re-pins both directions). Tests forced green + lint 0; release installed on BOTH devices (OnePlus `f6de166c`, Samsung A032F) and the owner passed the check.
 
 **#210 (2026-11-25, implemented — OPEN until the owner's device checks): rotation keeps the edited dictation; landscape never goes fullscreen.**
 Two OnePlus findings from the same flow, fixed in `246a22b`, 771 `:app` tests forced green + lint 0, release installed on the OnePlus:
