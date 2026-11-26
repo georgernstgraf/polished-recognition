@@ -5,6 +5,9 @@
     <color name="recording_divider">#4DFFFFFF</color>
     <color name="recording_icon_tint">#FFFFFF</color>
 
+    <!-- #212: the quiet control tint (colorControlNormal) — night twin. -->
+    <color name="control_quiet">#33FFFFFF</color>
+
     <!-- #161: theme text palette (night). Ratios against the app background #191C1E:
          primary 17.1:1, secondary 9.4:1, tertiary 6.5:1, disabled 5.0:1. -->
     <color name="text_primary_enabled">#FFFFFF</color>

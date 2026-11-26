@@ -5,6 +5,11 @@
     <color name="recording_divider">#4D000000</color>
     <color name="recording_icon_tint">#000000</color>
 
+    <!-- #212: the quiet control tint (colorControlNormal) — EditText/spinner
+         underlines step back while the settings dividers lead (see themes.xml).
+         ~20 % opacity, the look the old listDivider hairline had. -->
+    <color name="control_quiet">#33000000</color>
+
     <!-- #161: theme text palette (light). Ratios against the app background #F0F0F3:
          primary 14.3:1, secondary 7.8:1, tertiary 5.05:1, disabled 3.47:1.
          The *_enabled colours are wired into the @color/text_* selectors, never used

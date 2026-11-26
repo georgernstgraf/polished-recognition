@@ -9,6 +9,10 @@
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="android:textColorTertiary">@color/text_tertiary</item>
+        <!-- #212: unselected control lines (EditText + spinner underlines) step
+             back to a quiet tint; the focused line keeps colorControlActivated.
+             The settings dividers take over the leading role (SettingsDivider). -->
+        <item name="android:colorControlNormal">@color/control_quiet</item>
     </style>
 
     <style name="Theme.PolishedRecognition.Plain.Transparent" parent="Theme.PolishedRecognition.Plain">
@@ -18,14 +22,13 @@
         <item name="android:backgroundDimEnabled">true</item>
     </style>
 
-    <!-- #212: the settings screens' item separator — a 1dp line in the theme's
-         listDivider (no hardcoded colour, night mode follows the theme) with
-         breathing room on both sides, so consecutive configuration items read
-         as separate blocks against the fields' thick underlines. -->
+    <!-- #212: the settings screens' item separator — a 1dp line in the measured
+         text_secondary palette (light 7.8:1 / night 9.4:1 on the app background),
+         so the divider leads while the control underlines stay quiet. -->
     <style name="SettingsDivider">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">1dp</item>
-        <item name="android:background">?android:attr/listDivider</item>
+        <item name="android:background">@color/text_secondary</item>
         <item name="android:layout_marginTop">16dp</item>
         <item name="android:layout_marginBottom">16dp</item>
     </style>
