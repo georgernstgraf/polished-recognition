@@ -14,6 +14,7 @@ import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.FileProvider
@@ -150,10 +151,10 @@ class WorkbenchActivity : Activity() {
      * accordion before #178 dropped it.
      */
     private lateinit var rawToggle: LinearLayout
-    private lateinit var rawChevron: TextView
+    private lateinit var rawChevron: ImageView
     private lateinit var rawPreview: TextView
     private lateinit var polishedToggle: LinearLayout
-    private lateinit var polishedChevron: TextView
+    private lateinit var polishedChevron: ImageView
     private lateinit var polishedPreview: TextView
 
     /**
@@ -700,7 +701,10 @@ class WorkbenchActivity : Activity() {
         val chevron = if (isRaw) rawChevron else polishedChevron
         val preview = if (isRaw) rawPreview else polishedPreview
         field.visibility = if (expanded) View.VISIBLE else View.GONE
-        chevron.text = if (expanded) CHEVRON_OPEN else CHEVRON_CLOSED
+        // #209 follow-up: a real 24dp drawable now — the glyph was still too
+        // small at 22sp. The drawable points DOWN; collapsed rotates it toward
+        // the leading edge (right), expanded keeps it as-is.
+        chevron.rotation = if (expanded) 0f else -90f
         bindPreview(preview, if (expanded) "" else field.text.toString())
     }
 
@@ -1462,9 +1466,11 @@ class WorkbenchActivity : Activity() {
          */
         const val RAW_DRAFT_SAVE_MS = 500L
 
-        /** #189: the summary chevrons (text, so no extra drawables are needed). */
-        const val CHEVRON_OPEN = "▾"
-        const val CHEVRON_CLOSED = "▸"
+        /**
+         * #189: the summary chevrons were text glyphs; the #209 follow-up
+         * replaced them with the `ic_chevron_down` drawable (rotated in
+         * `setSectionExpanded`), so no glyph constants remain.
+         */
 
         /** #210: the page state that survives a rotation (instance recreation). */
         const val STATE_INDEX = "workbench.index"
