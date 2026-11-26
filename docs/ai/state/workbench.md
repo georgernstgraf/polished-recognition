@@ -3,7 +3,7 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T15:00:00Z }
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
 
-## #213 — Polished-Zone: Aktionen in der Summary-Zeile, unten nur Copy (2026-11-26, implementiert — offen bis Owner-Gerätecheck)
+## #213 — Polished-Zone: Aktionen in der Summary-Zeile, unten nur Copy (2026-11-26, implementiert — offen bis Owner-Gerätecheck; KORREKTUR-Welle `63e2a52`)
 
 - **Was:** Owner-Wunsch: eine Zeile weniger im Workbench-UI. Die
   Polished-Summary-Zeile trägt jetzt **chevron · „Polished" · Mistkübel ·
@@ -41,6 +41,27 @@ Moved out of `STATE.md` in #206; sections are verbatim, newest first. The curren
   als vorher; unter dem Polished-Feld nur noch ⧉ mit demselben Effekt; die
   Polish-Buttons sind sichtbar gerahmt mit leicht gerundeten Ecken, Icon
   NACH dem Text. (Das rote IME ist Teil 2, siehe state/ime-field.md.)
+
+### #213-Korrektur (2026-11-26, `63e2a52`): Cursor + Button-Padding
+
+- **Cursor-Befund:** Diktat in das Rohfeld — nach dem Einfügen stand der
+  Cursor am ANFANG des Feldes. Ursache NICHT das IME (dessen Terminal-Pfad
+  lässt den Cursor korrekt am Ende des Eingefügten), sondern die Workbench:
+  `onTranscriptArrived` schrieb den (identischen) Text per `setText` neu,
+  was die Selektion auf 0 setzt.
+- **Fix:** `writeRaw(text)` — ein UNVERÄNDERTER Text wird nicht mehr gesetzt
+  (Selektion bleibt, wo das IME sie gelassen hat), ein VERÄNDERTER Rewrite
+  platziert die Selektion ans Ende des neuen Textes. Genutzt in `showRaw`
+  und im `rewriteFields`-Block von `reload()`. Zwei neue Pins in
+  `WorkbenchActivityTest` (Cursor bleibt am Ende; Rewrite → Ende).
+- **Button-Padding-Befund:** die Polish-Buttons hatten viel vertikalen,
+  null horizontalen Innenabstand — das 24dp-Icon überragte die 14sp-Schrift
+  (zentriert → Luft oben/unten), horizontal klebte der Text an der Border
+  (das Shape-Drawable hat kein Padding, der AppButton-Stil setzt keins).
+- **Fix:** `AppButton` setzt explizit 4dp Padding an ALLEN vier Seiten +
+  `includeFontPadding=false`; `ic_polish` schrumpft auf 16dp intrinsisch
+  (nur in den beiden Polish-Buttons genutzt). Border-zu-Inhalt liest sich
+  jetzt rundherum gleich.
 
 ## #210 — Rotation erhält die gezeigte Seite; kein neues Diktat (2026-11-25, implementiert — offen bis Owner-Gerätecheck)
 

@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-26 (#213 — Korrektur-Welle: rote SCHRIFT statt Hintergrund, Cursor-Fix, Button-Padding)
+
+* **Update**: [state/ime-field.md](state/ime-field.md) — #213-Abschnitt neu geschrieben: Hintergrund nie rot (statischer roter Balken war das Artefakt), Schrift durchgehend rot nur im RECORDING, PulseColorPolicy als reine Zustands-Schaltentscheidung.
+* **Update**: [state/workbench.md](state/workbench.md) — #213-Korrekturabschnitt: Cursor-Fix (`writeRaw`, kein redundantes setText) und Button-Padding-Fix (4dp uniform + includeFontPadding=false + ic_polish 16dp).
+* **Update**: [HANDOFF.md](HANDOFF.md) — #213-Block auf Korrekturstand (beide Geräte installiert).
+* **Update**: [STATE.md](STATE.md) — Statuszeile auf Korrekturstand.
+* **No change**: [decisions/](decisions/index.md), [pitfalls/](pitfalls/index.md), [CONVENTIONS.md](CONVENTIONS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [index.md](index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#213 — rotes IME + Workbench-Polished-Zone + AppButton implementiert)
 
 * **Update**: [state/workbench.md](state/workbench.md) — neuer #213-Abschnitt: Summary-Zeile trägt trash · promote · copy (eine Zeile weniger), unten nur Copy, AppButton-Regel, Test-Pins.

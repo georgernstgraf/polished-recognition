@@ -3,7 +3,7 @@ type: State
 title: Project State — IME and the Target Field
 description: The keyboard surface, its output control, the palette and the live preview.
 tags: [knowledge, state, ime-field]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T15:00:00Z }
 status: stable
 ---
 
@@ -11,36 +11,32 @@ status: stable
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
 
-## #213 — Recording-Rot: konstanter roter Grund, Alpha+Rot-Puls des Vordergrunds (2026-11-26, implementiert — offen bis Owner-Gerätecheck)
+## #213 — Recording-Rot KORRIGIERT: rote SCHRIFT nur im Diktat, Hintergrund nie (2026-11-26, `63e2a52` — offen bis Owner-Gerätecheck)
 
-- **Was:** Owner-Wunsch: das IME bekommt während des Diktats eine Farbe —
-  „ein angenehmes Rot", „genauso blinkend wie zuvor". Präzisierung im
-  Plan-Gespräch: **der Hintergrund pulsiert nicht** (so wie jetzt) — nur die
-  Vordergrundfarbe pulsiert; bisher nur Alpha, geplant **Alpha + Rot**.
-- **Umsetzung (`f508f8f`):** `recording_overlay` ist jetzt Recording-Rot in
-  beiden Modi (hell `#D32F2F`, nacht `#B71C1C`), Text/Icons/Divider darauf
-  weiß in BEIDEN Modi (`recording_text_primary`/`recording_icon_tint` →
-  `#FFFFFF`, Divider `#4DFFFFFF`), neu `recording_pulse_red`
-  (hell `#FFB4A9`, nacht `#FF8A80` — am Gerät feinjustieren). Die
-  Alpha-Puls-Mechanik ist UNANGETASTET (Sinus 0,3↔1,0 über die Reihen,
-  `breathAnimator`/`PulseAlphaPolicy`). Neu: `service/PulseColorPolicy.kt`
-  (reine Policy neben `PulseAlphaPolicy`) mischt die Vordergrundfarbe
-  **invers** zur Welle — am Scheitel (Alpha 1) Neutralweiß, im Tal
-  (Alpha 0,3) voll Richtung Pulse-Rot; ein einziger Treiber (`breathAlpha`)
-  hält Alpha und Farbe kohärent. `applyAlpha()` setzt zusätzlich
-  `imageTintList` (alle 6 ImageButtons), `setTextColor` (Timer, Stage-Text,
-  Checkbox) und `buttonTintList` (Checkbox); außerhalb RECORDING pinnt die
-  Grundfarbe (#77-Regel, farblich). Das Zahnrad-Icon hat jetzt einen
-  statischen `recording_icon_tint`-Tint im XML.
-- **Tests:** `PulseColorPolicyTest` — Mix-lerp inkl. Truncation (218/212 bei
-  t=0,5), Clamping, inverse Wellen-Abbildung, Pin außerhalb RECORDING. Ein
-  During-der-Entwicklung gefundener Inversionsfehler (erst
-  `(breathAlpha-floor)`, damit wäre der Scheitel rot gewesen) ist durch den
-  Test aufgezeigt und im Policy-Code korrigiert. Suite + lint grün; Release
-  auf dem OnePlus installiert; Samsung nicht angeschlossen.
-- **Owner-Check (Teil 2 von #213):** während des Diktats ist die Leiste rot
-  und pulsiert — Helligkeit UND leichter Rotstich der Schrift/Icons bewegen
-  sich gemeinsam; pausiert steht sie still in voller Deckung, weiß auf Rot.
+- **Owner-Befund zur ersten Welle:** der statisch rote `recording_overlay`
+  auf dem Layout-Root blieb in JEDDEM Zustand an — auch pausiert („sehr
+  unerwünschtes Artefakt"), und zusammen mit dem Reihen-Puls las er sich
+  wie ein pulsierender roter Hintergrund. Missverständnis im Plan-Gespräch:
+  das Rot gehört zur SCHRIFT, nie zum Hintergrund; „der Hintergrund wird in
+  Ruhe gelassen".
+- **Fix (`63e2a52`):** `recording_overlay`/`recording_text_primary`/
+  `recording_icon_tint`/`recording_divider` sind auf die Neutralwerte vor
+  dem Rot-Versuch zurückgesetzt (weißer Balken in Hell, schwarzer in Nacht).
+  Die SCHRIFT ist während des GESAMTEN Diktats durchgehend rot (nur das
+  Alpha pulsiert weiter 0,3↔1,0) — Owner-Entscheidung gegen die
+  Wellen-Mischung (Scheitel neutral, Tal rot), die Lerp-Mixung ist entfallen.
+  `PulseColorPolicy.target(state, base, pulse)` ist jetzt eine reine
+  Zustands-Schaltentscheidung: RECORDING → rot, ALLE anderen Zustände →
+  neutrale Basis (Owner forderte explizit: „wenn das Pulsieren zu Ende ist,
+  ist auch die Schrift nicht mehr rot"). Der Pin-Lauf über
+  `setFlashing(false)` → `applyAlpha()` setzt das um — kein Einfrieren mehr.
+- **Pulse-Rot neu abgestimmt für rote Schrift auf neutralem Grund:**
+  Hell `#C62828` (kräftig auf Weiß), nacht `#FF8A80` (hell auf Schwarz) —
+  am Gerät feinjustieren. `PulseColorPolicyTest` pinnt: RECORDING → rot,
+  jeder andere Zustand → Basis.
+- **Owner-Check (Teil 2 von #213, korrigiert):** im Diktat schwarze/weiße
+  Leiste mit ROT pulsierender Schrift; pausiert keine Rotreste irgendwo —
+  Hintergrund neutral, Schrift normal.
 
 ## #211 — die LLM-Checkbox zeigt den effektiven Zustand (2026-11-26, CLOSED — Owner-Urteil)
 

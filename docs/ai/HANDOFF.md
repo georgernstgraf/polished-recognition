@@ -3,18 +3,19 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T14:20:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-26T15:00:00Z }
 status: stable
 ---
 
 # Hand Off
 
-**#213 (2026-11-26, IMPLEMENTED — OPEN until the owner's device checks): recording-red IME, polished-zone summary actions, app-wide rounded button style.**
-Commit `f508f8f`, suite + lint green, release installed on the OnePlus (`f6de166c`; the Samsung was not attached). Four owner checks:
-1. Workbench: the Polished summary row reads chevron · Polished · trash · promote · copy in exactly that order, ONE row fewer than before (the former promote+trash row above it is gone).
-2. Under the read-only Polished field only the copy icon remains, delivering the same text as the summary-row copy.
-3. The IME voice bar is recording red (light `#D32F2F` / night `#B71C1C`, white foreground) and pulses ALPHA + a red tint of the foreground together; paused it stands still, full opacity. The red shades and the pulse-red are provisional — the owner tunes them on the device.
-4. All text buttons app-wide (Workbench, Settings screens, Providers, Prompts, Output control, crash dialog) wear the visible `AppButton` style with slightly rounded corners; the Polish buttons show text then icon.
+**#213 (2026-11-26, IMPLEMENTED + correction wave `63e2a52` — OPEN until the owner's device checks): recording-red FONT, polished-zone summary actions, app-wide rounded button style.**
+Release installed on BOTH devices (OnePlus `f6de166c`, Samsung `R7SRB06XF5K`). The first wave tinted the IME background — the owner's verdict: the red belongs to the FONT, never the background; the pause state must carry no red at all. Corrected:
+1. Background: `recording_overlay`/text/icon/divider reverted to the neutral palette (white bar in light, black in night) — never tinted.
+2. Font: solidly red for the whole recording (only the alpha pulses); every other state pins the neutral base — `PulseColorPolicy` is now a pure state switch. Pulse red tuned for neutral ground: light `#C62828`, night `#FF8A80` — the owner tunes on device.
+3. Cursor: dictating into the Workbench raw field no longer resets the cursor to position 0 — an unchanged text is not re-set, a changed rewrite places the cursor at the end (two new pins in `WorkbenchActivityTest`).
+4. Buttons: uniform 4dp padding all around + `includeFontPadding=false`; `ic_polish` 16dp — border-to-content equal on all four sides.
+**Owner checks:** summary row order + one row fewer; bottom only copy; red pulsing FONT on neutral bar, no red when paused; cursor at the end after a delivery; uniform button padding.
 
 **#212 (2026-11-26, CLOSED — owner verdict passed on the device): settings becomes an overview with four category screens.**
 Seven commits (`313d1c1` overview + screens + draft/apply, `3c24afc` H1 title + LLM Control heading, `5f63b29` 13 dividers, `81992d2` About swap, `96cc343` contrast exchange — dividers lead in `text_secondary`, `colorControlNormal` → `control_quiet` ~20 %). 805 `:app` tests + lint 0 throughout. Owner: „passst". Known+accepted side effect: the quiet control tint is app-wide (Workbench underlines too). The final state is installed on the OnePlus; the Samsung A032F gets it at the next `installRelease`. See `state/settings.md`. **#156 impact: the whole settings surface needs recapture.**
