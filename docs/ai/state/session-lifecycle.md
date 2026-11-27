@@ -3,13 +3,43 @@ type: State
 title: Project State — Session Lifecycle
 description: Pause/resume/cancel, auto-start, rotation resilience, the journal and recovery.
 tags: [knowledge, state, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T21:30:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-27T21:45:00Z }
 status: stable
 ---
 
 # Project State — Session Lifecycle
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #217 — der Cross-App-Einstieg released einen uncommitteten Take an die Werkstatt (2026-11-27, shipped `1edb349`)
+
+- **Der Befund (Owner-Report + Device-Logs):** in Markor kam das IME im
+  Pause-Look hoch und blieb dort (länger als 1 s, nicht reproduzierbar). Die
+  `ime-lifecycle.log`-Episode (f6de166c, 2026-11-26) bewies den Pfad: der
+  #152-Kept-Zweig hielt einen fremden PAUSED-Take (11,976-s-Keyboard-Switch-Rest
+  aus der eigenen Workbench) fest und unterdrückte den Auto-Start — dreimal
+  hintereinander über ~1 min. Nichts war kaputt; die Regel stallte nur.
+- **Die Regel (Owner, 2026-11-26):** in die Workbench wird gesichert, was der
+  Take hergibt — immer der rohe Text, beziehungsweise das Audio, wenn noch
+  ein untranskribiertes Fragment in der Kette ist. Umgesetzt als reines
+  `ImeLeftoverPolicy`-Matrix + `VoiceSessionController.releaseToRecovery()`
+  (Tail-Flush + Backlog-Journaling + Journal-Überleben; `cancel()` unangetastet).
+  Details: [decisions/session-lifecycle.md](../decisions/session-lifecycle.md)
+  (2026-11-27).
+- **Der Toast** („Leftover take (%s) saved — the Workbench will transcribe
+  it", `Toasts.show`, 5,5 s) erscheint, während das neue Diktat schon
+  recordet; die Out-of-band-Transkription läuft über
+  `RecoveryCoordinator.startManual` und weicht dem Live-Diktat an
+  Fragmentgrenzen aus. Der Workbench-Eintrag kommt als EIN voller Rohtext aus
+  der Recovery (inkl. des provisorisch gestreamten Texts).
+- **Der zweite Befund im selben Zug:** der Owner las das Switch-X als
+  „alles verwerfen" — der Button trägt wieder das #65-Tastatur-Icon
+  (`ic_close` entfernt, #195-Regel; statischer XML-Guard `ImeSwitchGlyphTest`).
+- **Tests:** +3 (`ImeLeftoverPolicyTest`), +2 (`VoiceSessionControllerTest`:
+  Release hält Journal, kein Downgrade), `ImePauseEntryTest` umgeschrieben
+  (Release + frischer Start + Kick + Trace), +2 (`ImeSwitchGlyphTest`).
+  Suite + `lintDebug` grün; Release auf der A03 installiert (OnePlus beim
+  nächsten Anstecken). **Offen:** Owner-Gerätecheck (HANDOFF.md).
 
 ## #207 — an UNREADABLE delivery is HELD, never silently dropped (2026-11-25, shipped `7e0b244`)
 

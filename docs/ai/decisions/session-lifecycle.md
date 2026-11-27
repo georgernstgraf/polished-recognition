@@ -3,13 +3,72 @@ type: Decisions
 title: Decisions — Session Lifecycle
 description: Recording state: pause, resume, cancel, auto-start, rotation, the post-send park, the journal and the recovery path.
 tags: [knowledge, decisions, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-27T21:45:00Z }
 status: stable
 ---
 
 # Decisions — Session Lifecycle
 
 Moved out of `DECISIONS.md` in #206; entries are verbatim. New decisions in this area are appended here.
+
+## 2026-11-27: #217 — der Cross-App-Einstieg sichert den Take, statt zu stallen (Release statt Kept)
+
+Owner-Report (Markor): die Tastatur kam im Pause-Look hoch und blieb dort —
+nicht reproduzierbar, länger als 1 s. Die Device-Logs (f6de166c, Episode
+2026-11-26) bewiesen den Pfad: der #152-Kept-Zweig
+(`kept=audio-without-transcripts`) hielt einen fremden PAUSED-Take fest und
+unterdrückte den Auto-Start (eine Episode >1 min, dreimal hintereinander;
+das Audio war der 11,976-s-Keyboard-Switch-Rest aus der eigenen Workbench).
+Der Owner-Satz als Regel: **„Was wir in die Workbench sichern wollen, ist
+immer der rohe Text — beziehungsweise das Audio, wenn noch ein
+untranskribiertes Fragment in der Kette vorhanden ist."** Er revidiert
+bewusst #113s „in-flight fragments are not counted" für diesen Pfad.
+
+- **`ImeLeftoverPolicy`** (rein, neben `AutoStartPolicy`): Transkripte UND
+  kein untranskribiertes Audio → `SAVE_TEXT_AND_CANCEL` (roher Text per
+  `DictationStore.append` in die Werkstatt, dann der unveränderte #113-Cancel:
+  Clipboard + Toast, Journal geht — nichts Untranskribiertes bleibt).
+  Untranskribiertes Audio (Queued-Backlog, PENDING im Journal oder
+  ungeschnittener Tail) → `RELEASE_TO_RECOVERY`. Kein Audio → `CANCEL_ONLY`
+  (verlustfrei wie vor dem Guard).
+- **`VoiceSessionController.releaseToRecovery()`**: beendet den Take OHNE
+  Zerstörung — `ensureFragmentPreparer` (Restored-Fall, Manifest-Präfix),
+  `prepareTailSync` (der Spool-Rest nach dem letzten Schnitt wird letztes
+  Fragment), dann JEDES committed Fragment ohne Journal-Record synchron
+  PENDING (der Queued-Backlog erreicht die Write-ahead-Schchrift des Workers
+  nie; der `readRecord`-Guard verhindert das Downgrade eines DONE). Danach:
+  `transcriber?.cancel()`, Session vergessen, Snapshot cleared, IDLE — die
+  Journal-Session überlebt als Recovery-Vertrag. `null` (der Take bleibt,
+  alter Kept-Zustand), wenn NICHTS journales wurde — das Release wird nie
+  zum stillen Verlust.
+- **IME-Seite**: Frisch-Start SOFORT in jedem Zweig (die Tastatur kommt nie
+  mehr im Stillstand hoch); Toast (#207, 5,5 s, „Leftover take (0:12) saved —
+  the Workbench will transcribe it") WÄHREND das neue Diktat schon recordet;
+  `kickRecovery` → `RecoveryCoordinator.startManual(releasedSid)` — die
+  Out-of-band-Transkription startet im Cross-Moment und weicht an
+  Fragmentgrenzen dem Live-Diktat aus (#185-Verdrahtung); `onFinished` bleibt
+  im Besitz des sichtbaren Screens, der IME setzt es nie.
+- **Duplikat-frei konstruktiv**: der Text-Zweig löscht das Journal (nichts zu
+  recovern), der Release-Zweig appendiert NICHT — die Recovery erzeugt EINEN
+  vollen Rohtext-Eintrag, inklusive des provisorisch in die Ursprungs-App
+  gestreamten Texts (das ist derselbe Transkript-Pool, kein eigener Vorrat).
+  Die Commit-Grenze („sofern nicht in die Ursprungs-App committed") ist die
+  Existenzbedingung des Pfads: ein committed Take existiert nie als
+  PAUSED-Leiche.
+- **Unverändert**: der Mistkübel (`flush` + #113-Clipboard-Salvage), das X
+  (pausiert + wechselt, #155 — es verwarf nie; der Owner las es als Verwerfen
+  — genau diese Fehllesbarkeit war der zweite Befund), `ImeStartDecision`,
+  die #185-Recovery-Semantik. Glyphen-Tausch: der Switch-Button trägt wieder
+  das #65-Tastatur-Icon; `ic_close` war nach dem Tausch tot und ist entfernt
+  (#195-Regel).
+- **Tests**: `ImeLeftoverPolicyTest` (3), `VoiceSessionControllerTest` +2
+  (Release hält Journal; kein Downgrade eines AUTH-PENDING), `ImePauseEntryTest`
+  (Release + frischer Start + Kick + Trace; kein-Audio-Cancel),
+  `ImeSwitchGlyphTest` (2, statischer XML-Guard). Suite + `lintDebug` grün,
+  Release auf der A03 installiert; der OnePlus bekommt es beim nächsten
+  Anstecken. Known probe bias: `untranscribedAudioPending()` einem
+  restored-ohne-Preparer-Take gegenüber über-approximiert (ganzer Spool) —
+  die sichere Richtung.
 
 ## 2026-11-24: #201/#204 — die Leiste ohne Aufnahme ist ein ganz normaler Pausezustand bei 0:00
 

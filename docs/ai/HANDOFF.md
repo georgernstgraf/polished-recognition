@@ -3,11 +3,40 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T21:05:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-27T21:45:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#217 (2026-11-27, IMPLEMENTED — OPEN until the owner's device check): cross-app entry releases an uncommitted paused take to the Workbench instead of stalling the auto-start.**
+`1edb349`: the device logs proved the #152 kept-guard stuck the keyboard in the
+pause look for >1 min (three consecutive `kept=audio-without-transcripts`
+episodes in Markor; the take was an 11,976-s keyboard-switch leftover from the
+own Workbench). New rule (owner): secure what the take holds — always the raw
+text, or the audio while an untranscribed fragment is in the chain. Pure
+`ImeLeftoverPolicy` maps it; `VoiceSessionController.releaseToRecovery()` ends
+the take WITHOUT destruction (tail flushed via `prepareTailSync`, queued
+backlog journaled PENDING race-free with the `readRecord` guard, the journal
+session SURVIVES, snapshot cleared, IDLE, returns the session id or `null` —
+`null` keeps the old kept-guard as the fallback). The IME starts the fresh
+recording in every branch, shows the 5.5 s `Toasts.show` leftover toast while
+it records, and kicks `RecoveryCoordinator.startManual(releasedSid)` out of
+band (yields to the live take at fragment boundaries; `onFinished` stays the
+visible screen's). Duplication-free by construction: the text branch deletes
+the journal, the release branch never appends (the recovery produces ONE full
+raw-text entry, including the provisionally streamed part). The trash, the X
+semantics (#155), `ImeStartDecision` and #185 are untouched. Glyph fix: the
+switch button carries the #65 keyboard icon again (`ic_close` dropped,
+#195 rule; `ImeSwitchGlyphTest`). Tests: `ImeLeftoverPolicyTest` 3,
+`VoiceSessionControllerTest` +2, `ImePauseEntryTest` rewritten,
+`ImeSwitchGlyphTest` 2; full suite + `lintDebug` green; release installed on
+the A03 (`R7SRB06XF5K`), the OnePlus gets it at the next attach. **Owner
+check:** (a) dictate in app A → X/nav-close → open Markor and focus a field →
+the keyboard RECORDS immediately + the leftover toast shows → the Workbench
+later shows ONE recovered entry (banner); (b) the switch button reads as a
+keyboard, not an X; (c) the trash still discards with the clipboard salvage.
+See `decisions/session-lifecycle.md` + `state/session-lifecycle.md`.
 
 **#214 addendum (2026-11-26, IMPLEMENTED — reopened, OPEN until the owner's device check): API tokens are remembered per provider URL.**
 `59ee546`: a shared token vault (`canonicalUrl → token`, STT + LLM together) inside

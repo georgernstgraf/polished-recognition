@@ -1,5 +1,15 @@
 # Persistence Log
 
+## 2026-11-27 (#217 — Cross-App-Release an die Werkstatt + Tastatur-Glyph)
+
+* **Update**: [decisions/session-lifecycle.md](decisions/session-lifecycle.md) — Entscheidung 2026-11-27: der Cross-App-Einstieg sichert den Take statt zu stallen (`ImeLeftoverPolicy`-Matrix, `releaseToRecovery` mit Tail-Flush + Backlog-Journaling, Out-of-band-Kick, Duplikat-frei-Konstruktion, Glyphen-Tausch); revidiert #113s „in-flight not counted" für diesen Pfad.
+* **Update**: [pitfalls/session-lifecycle.md](pitfalls/session-lifecycle.md) — neuer Bullet: der Kept-Guard ist jetzt der Fallback (Journal-Schreibfehler), das Release der Normalpfad; Glyph-Fehllesbarkeit (Close neben Mistkübel) als echtes Pitfall dokumentiert.
+* **Update**: [state/session-lifecycle.md](state/session-lifecycle.md) — neuer #217-Abschnitt (Befund, Regel, Toast/Kick, Tests, offener Owner-Check).
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `AutoStartPolicy`-Zeile aktualisiert (FRESH_START → ImeLeftoverPolicy) + neue `ImeLeftoverPolicy`-Zeile.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #217 als neuer Top-Eintrag (offen bis zum Owner-Gerätecheck; Checkliste a/b/c).
+* **Update**: [STATE.md](STATE.md) — Statuszeile um #217 ergänzt.
+* **No change**: [state/ime-field.md](state/ime-field.md), [state/workbench.md](state/workbench.md), [decisions/](decisions/index.md), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [index.md](index.md), [state/index.md](state/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-26 (#214-Nachtrag — Token-Tresor pro Provider-URL)
 
 * **Update**: [state/settings.md](state/settings.md) — neuer Abschnitt: der geteilte Token-Tresor (`canonicalUrl → token`) im Secrets-File, `canonicalProviderUrl` (Slash/Groß-klein), Auflöseordnung (aktiv schlägt Tresor), Owner-Regel (unvalidiertes Fummelei ist wertlos, URL-Wechsel füllt IMMER aus dem Tresor), Tests.
