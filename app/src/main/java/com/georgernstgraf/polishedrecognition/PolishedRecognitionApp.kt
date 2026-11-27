@@ -304,13 +304,23 @@ class PolishedRecognitionApp : Application() {
         )
     }
 
+    /**
+     * #217: the ONE Workbench store — the recovery coordinator and the IME's
+     * cross-app raw-text salvage (#217) share it. The store is stateless
+     * beyond its `filesDir` FIFO (every call re-reads), but one instance keeps
+     * the `@Synchronized` discipline single.
+     */
+    val dictationStore by lazy {
+        DictationStore(this, fifoSize = { settingsStore.workbenchFifoSize })
+    }
+
     /** #185: owns the automatic and manual re-runs of leftover sessions. */
     val recoveryCoordinator by lazy {
         RecoveryCoordinator(
             journal = fragmentJournal,
             replay = journalReplay,
             pipeline = transcriptionPipeline,
-            dictationStore = DictationStore(this, fifoSize = { settingsStore.workbenchFifoSize }),
+            dictationStore = dictationStore,
             controller = { voiceSessionController },
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         )

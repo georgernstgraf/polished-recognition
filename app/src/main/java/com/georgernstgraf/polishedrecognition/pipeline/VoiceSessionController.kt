@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.georgernstgraf.polishedrecognition.audio.AudioDuration
 import com.georgernstgraf.polishedrecognition.audio.AudioRecorder
 import com.georgernstgraf.polishedrecognition.audio.AudioTranscoder
 import com.georgernstgraf.polishedrecognition.audio.FragmentPreparer
@@ -840,6 +841,29 @@ class VoiceSessionController(
      */
     fun salvageableText(): String? = transcriber?.peek()?.text?.takeIf { it.isNotBlank() }
 
+    /**
+     * #217: `true` when untranscribed audio exists anywhere in the take — a
+     * queued backlog the worker has not journaled yet, a PENDING/failed
+     * fragment in the journal, or an un-committed tail after the last cut.
+     * The cross-app entry decision reads it (#217): with untranscribed audio
+     * the take must be RELEASED (the journal is the recovery contract and the
+     * recovery produces the FULL raw text later), never cancelled — a cancel
+     * would destroy exactly the half that has no transcript yet.
+     */
+    fun untranscribedAudioPending(): Boolean {
+        if (state == State.IDLE) return false
+        if (transcriber?.hasUnprocessed() == true) return true
+        val prep = preparer
+            // A restored-but-never-prepared take has no cut boundary — its
+            // whole spool is untranscribed audio by definition (the probe
+            // errs toward RELEASE, the direction that never loses audio).
+            ?: return recorder.pcmSize() > 0L
+        if (prep.tailBytes() > 0L) return true
+        val sid = sessionId ?: return false
+        val j = journal ?: return false
+        return j.recoverableSessions().any { it.sessionId == sid && it.unfinishedCount > 0 }
+    }
+
     fun cancel() {
         transcribeJob?.cancel()
         transcribeJob = null
@@ -889,6 +913,91 @@ class VoiceSessionController(
         state = State.IDLE
         emit(Event.StateChanged(state))
         callback = null
+    }
+
+    /**
+     * #217: ends a PAUSED take WITHOUT destroying anything — the hand-over to
+     * the Workbench's recovery (#185). The cross-app entry calls it when the
+     * take holds untranscribed audio ([untranscribedAudioPending]): the take
+     * is released, its durable journal session SURVIVES as the recovery
+     * contract, and the caller starts the fresh recording immediately while a
+     * background run transcribes the chain.
+     *
+     * The flush makes the whole take recoverable:
+     *
+     * 1. a restored-but-never-resumed take builds its preparer first
+     *    ([ensureFragmentPreparer] — the manifest prefix is recovered);
+     * 2. `prepareTailSync()` cuts the spool remainder after the last committed
+     *    fragment as the final fragment — the recovery can only ever see
+     *    journaled fragments, so an un-flushed tail would be lost;
+     * 3. every committed fragment WITHOUT a journal record (a queued backlog —
+     *    its write-ahead write happens in the worker, which may never run) is
+     *    journaled PENDING here, synchronously and race-free: [FragmentJournal]
+     *    serializes the file ops, and the `readRecord` guard keeps an existing
+     *    DONE record from ever being downgraded.
+     *
+     * Then the live machinery detaches WITHOUT the journal delete (the #186
+     * `keepJournal` pattern — `cancel()` itself is untouched and stays the
+     * trash button's destructive path): the controller forgets the session id
+     * (the journal belongs to the recovery now; the next session must not
+     * reuse or prune it), the snapshot is cleared so the take cannot
+     * resurrect, and the state lands in IDLE.
+     *
+     * Returns the released session id — `null` when nothing was handed over
+     * (not PAUSED, or the journal write failed so the audio is NOT secured and
+     * the caller keeps the old kept-paused behaviour instead of losing it).
+     */
+    fun releaseToRecovery(): String? {
+        if (state != State.PAUSED) return null
+        val journal = journal ?: return null
+        val sid = ensureSessionId()
+        try {
+            ensureFragmentPreparer()
+            preparer?.prepareTailSync()
+        } catch (t: Throwable) {
+            Log.w(TAG, "release: tail flush failed for $sid", t)
+        }
+        val prep = preparer
+        if (prep != null) {
+            prep.committedFragments().forEach { c ->
+                if (journal.readRecord(sid, c.index) == null) {
+                    val record = FragmentJournal.FragmentRecord(
+                        index = c.index,
+                        createdAtMs = System.currentTimeMillis(),
+                        durationMs = AudioDuration.estimateMs(c.file),
+                        preRollMs = c.preRoll?.takeIf { it.isFile }?.let { AudioDuration.estimateMs(it) },
+                        stitched = c.stitched,
+                        seamForced = c.seamForced
+                    )
+                    if (!journal.writePending(sid, record, c.file)) {
+                        Log.w(TAG, "release: journal write failed (fragment ${c.index} of $sid)")
+                    }
+                }
+            }
+        }
+        // Nothing secured — the recovery contract does not exist, so releasing
+        // would be the silent loss #152 forbids. The caller keeps the take.
+        if (journal.readRecords(sid).isEmpty()) {
+            Log.w(TAG, "release: no journal record survived for $sid — keeping the take")
+            return null
+        }
+        transcriber?.cancel()
+        transcriber = null
+        preparer = null
+        // #142: the evidence bundle belongs to the released take — nothing may
+        // write into it late (same rule as cancel's deliberate discard).
+        sessionBundle = null
+        sessionId = null
+        runCatching { recorder.cancel() }
+        File(appContext.cacheDir, AudioRecorder.SESSION_WAV_NAME).delete()
+        clearSnapshot()
+        accumulatedMs = 0L
+        segStartMs = 0L
+        pendingResult = null
+        clearPauseTarget()
+        state = State.IDLE
+        emit(Event.StateChanged(state))
+        return sid
     }
 
     /**

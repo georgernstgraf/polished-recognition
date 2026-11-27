@@ -94,7 +94,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="72dp"
-            android:src="@drawable/ic_close"
+            android:src="@drawable/ic_keyboard"
             android:tint="@color/recording_icon_tint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/ime_switch_keyboard_desc"

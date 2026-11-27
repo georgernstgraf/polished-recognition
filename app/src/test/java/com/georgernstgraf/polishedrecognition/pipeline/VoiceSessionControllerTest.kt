@@ -407,6 +407,93 @@ class VoiceSessionControllerTest {
         clearSessionFiles()
     }
 
+    /**
+     * #217: the cross-app RELEASE hands the take's audio to the journal — the
+     * recovery contract — instead of deleting it. A restored PAUSED take with
+     * a 40 kB spool and no committed fragment: the whole spool is the tail, so
+     * the flush journals it as fragment 0 PENDING; the take ends in IDLE, the
+     * snapshot is cleared (no resurrection), and the controller forgets the
+     * session (the journal belongs to the recovery now).
+     */
+    @Test
+    fun `a released paused take hands its audio to the journal`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val ctx = RuntimeEnvironment.getApplication()
+        val sid = "20260101-1200-cccccccc"
+        File(ctx.cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(ctx.cacheDir, "session.meta").writeText(
+            """{"durationMs":11976,"sessionId":"$sid","pausePackage":"net.gsantner.markor"}"""
+        )
+        val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
+        journal.sessionDir(sid).deleteRecursively()
+
+        val controller = newController(journal = journal)
+        controller.restore()
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
+        assertThat(controller.untranscribedAudioPending()).isTrue()
+
+        val released = controller.releaseToRecovery()
+
+        assertThat(released).isEqualTo(sid)
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        assertThat(controller.activeSessionId()).isNull()
+        assertThat(controller.pausedPackage()).isNull()
+        assertThat(controller.recordedDurationMs()).isEqualTo(0L)
+        assertThat(controller.untranscribedAudioPending()).isFalse()
+        // the recovery contract: one PENDING record, audio on disk.
+        val record = journal.readRecord(sid, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(File(journal.sessionDir(sid), record.uploadFile!!).length())
+            .isGreaterThan(0L)
+        journal.sessionDir(sid).deleteRecursively()
+        clearSessionFiles()
+    }
+
+    /**
+     * #217: the release NEVER downgrades a journaled fragment — a fragment the
+     * worker already journaled (here: an AUTH-failed PENDING one) keeps its
+     * record and its failure evidence; the flush only fills the gaps (the
+     * `readRecord` guard).
+     */
+    @Test
+    fun `a release never downgrades an existing journal record`() {
+        clearSessionFiles()
+        settings.compressAudio = false
+        val ctx = RuntimeEnvironment.getApplication()
+        val sid = "20260101-1200-dddddddd"
+        File(ctx.cacheDir, "session.pcm").writeBytes(ByteArray(40_000))
+        File(ctx.cacheDir, "session.meta").writeText(
+            """{"durationMs":1250,"sessionId":"$sid","pausePackage":"net.gsantner.markor"}"""
+        )
+        val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
+        journal.sessionDir(sid).deleteRecursively()
+
+        val http401 =
+            @Suppress("DEPRECATION")
+            Response.error<SttResponse>(401, ResponseBody.create(null, "unauthorized"))
+        every { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) } returns
+            mockSttCall(http401)
+
+        // the worker journals fragment 0 as AUTH-PENDING on the failed run…
+        val controller = newController(journal = journal)
+        controller.restore()
+        controller.attach { }
+        controller.stopAndTranscribe()
+        controller.awaitState(VoiceSessionController.State.PAUSED)
+        assertThat(journal.readRecord(sid, 0)!!.failureClass).isEqualTo(SttFailure.AUTH.name)
+
+        // …and the release must leave that record untouched.
+        assertThat(controller.releaseToRecovery()).isEqualTo(sid)
+        val record = journal.readRecord(sid, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(record.failureClass).isEqualTo(SttFailure.AUTH.name)
+        assertThat(File(journal.sessionDir(sid), record.uploadFile!!).length())
+            .isGreaterThan(0L)
+        journal.sessionDir(sid).deleteRecursively()
+        clearSessionFiles()
+    }
+
     // ---- #127: per-session audio-evidence retention --------------------------
 
     /**

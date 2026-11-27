@@ -354,6 +354,14 @@ class FragmentTranscriber(
     fun pendingAudioSeconds(): Int = ((pendingAudioMs.get() + 999) / 1000).toInt()
 
     /**
+     * #217: `true` when committed fragments are offered but not yet processed
+     * by the worker — their write-ahead journal record does not exist yet, so
+     * a teardown that only relies on the journal would lose them. The release
+     * path journals such fragments itself instead of racing the worker.
+     */
+    fun hasUnprocessed(): Boolean = queued.isNotEmpty()
+
+    /**
      * Re-queues the finally-failed fragments for a fresh attempt (retry
      * after a parked failure, #116): they are still committed on disk, and a
      * transient outage may have recovered since. Cached successes are never

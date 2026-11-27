@@ -765,34 +765,84 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 scheduleMicGuard()
             }
             AutoStartPolicy.EntryAction.FRESH_START -> {
-                // #134/#192: a PAUSED leftover entered in a DIFFERENT app is
-                // not auto-resumed — discard it through the normal cancel path
-                // (#113 salvage keeps already-transcribed fragments in the
-                // clipboard) and start a fresh empty recording. Nothing is
-                // persisted, no Workbench entry is created. IDLE needs no
-                // cancel (the buffer is already empty).
+                // #134/#192: a PAUSED leftover entered in a DIFFERENT app is not
+                // auto-resumed. #217: it is SECURED, not stalled — what the take
+                // holds decides how ([ImeLeftoverPolicy]): the raw text when it
+                // is the only value, the audio via the journal + the #185
+                // recovery while untranscribed fragments are in the chain. The
+                // fresh recording starts in every case, so the keyboard never
+                // comes up stuck in the pause look (`kept=…`, >1 min on device).
                 if (controller.state == VoiceSessionController.State.PAUSED) {
-                    // #192/#152: a cancel that salvages NOTHING destroys the
-                    // audio (the journal session goes with it) and says nothing
-                    // — that is the one thing this app must never do. So the
-                    // take is only ended when there is text to hand over;
-                    // otherwise it stays paused in this app, with its buffered
-                    // time visible and the trash button as the explicit discard.
-                    val salvage = controller.salvageableText()
-                    if (salvage == null && controller.recordedDurationMs() > 0L) {
-                        ImeLifecycleTrace.log(
-                            this, "pause",
-                            "cause=foreign-app kept=audio-without-transcripts " +
-                                "pausedMs=${controller.recordedDurationMs()}"
+                    val pausedMs = controller.recordedDurationMs()
+                    when (
+                        ImeLeftoverPolicy.decide(
+                            hasTranscripts = controller.salvageableText() != null,
+                            untranscribedAudio = controller.untranscribedAudioPending(),
+                            hasBufferedAudio = pausedMs > 0L
                         )
-                        return
+                    ) {
+                        ImeLeftoverPolicy.Action.SAVE_TEXT_AND_CANCEL -> {
+                            // The raw text is the only value: into the Workbench
+                            // it goes, then the #113 cancel (clipboard + toast
+                            // for the same text) deletes the fully-transcribed
+                            // journal — nothing untranscribed is left to lose.
+                            val salvage = controller.salvageableText()!!
+                            (application as PolishedRecognitionApp).dictationStore.append(salvage)
+                            controller.cancel()
+                        }
+                        ImeLeftoverPolicy.Action.RELEASE_TO_RECOVERY -> {
+                            val released = controller.releaseToRecovery()
+                            if (released == null) {
+                                // #152: the journal could NOT secure the audio —
+                                // releasing would be the silent loss the app
+                                // must never commit. The old kept-guard applies:
+                                // the take stays paused, trash = explicit discard.
+                                ImeLifecycleTrace.log(
+                                    this, "pause",
+                                    "cause=foreign-app kept=audio-without-transcripts " +
+                                        "pausedMs=$pausedMs"
+                                )
+                                return
+                            }
+                            ImeLifecycleTrace.log(
+                                this, "pause",
+                                "cause=foreign-app released-to-recovery " +
+                                    "pausedMs=$pausedMs session=$released"
+                            )
+                            startIfPermitted()
+                            // The #207 surface, readable while the new take records.
+                            Toasts.show(
+                                this,
+                                getString(
+                                    R.string.ime_leftover_saved,
+                                    RecTimeFormatter.recording(pausedMs)
+                                )
+                            )
+                            kickRecovery(released)
+                            return
+                        }
+                        ImeLeftoverPolicy.Action.CANCEL_ONLY -> controller.cancel()
                     }
-                    controller.cancel()
                 }
                 startIfPermitted()
             }
             AutoStartPolicy.EntryAction.NONE -> Unit
         }
+    }
+
+    /**
+     * #217: the out-of-band transcription kick for a released take. A manual
+     * run ([RecoveryCoordinator.startManual]) is always allowed and yields to
+     * a live dictation at every fragment boundary (#185), so the recovery of
+     * the released journal starts at the cross-app moment and completes as
+     * soon as the fresh take's own uploads are done. The `onFinished` slot is
+     * deliberately NOT touched — it belongs to the visible screen (the
+     * Workbench); a failed kick stays a recoverable leftover behind the
+     * Workbench banner. `open` for the tests: the app singleton's coordinator
+     * would attempt REAL requests from a unit-test JVM.
+     */
+    protected open fun kickRecovery(sessionId: String) {
+        (application as PolishedRecognitionApp).recoveryCoordinator.startManual(sessionId)
     }
 
     /**

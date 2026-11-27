@@ -9,6 +9,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
 import com.georgernstgraf.polishedrecognition.R
+import com.georgernstgraf.polishedrecognition.pipeline.FragmentJournal
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.service.AutoStartPolicy.EntryAction
 import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
@@ -66,12 +67,19 @@ class ImePauseEntryTest {
         var startCalls = 0
         val inserted = mutableListOf<String>()
 
+        /** #217: the released session ids the out-of-band kick received. */
+        val kickedRecovery = mutableListOf<String>()
+
         override fun insertResultText(text: String) {
             inserted += text
         }
 
         override fun startIfPermitted() {
             startCalls++
+        }
+
+        override fun kickRecovery(sessionId: String) {
+            kickedRecovery += sessionId
         }
     }
 
@@ -194,15 +202,15 @@ class ImePauseEntryTest {
     // --- another app: salvage, then a fresh take ----------------------------
 
     /**
-     * #192/#152: a foreign app ends the take — but ONLY when it can hand the
-     * audio over. A take restored from disk has buffered audio and nothing
-     * transcribed yet; the #113 cancel would delete the journal session with no
-     * clipboard and no Toast — a silent loss against #152. So it stays PAUSED
-     * in the app it belongs to (buffered time visible, trash = explicit
-     * discard), no fresh take starts, and the trace says why.
+     * #217: a foreign app RELEASES the take instead of stalling — the #152
+     * kept-guard left the keyboard stuck in the pause look (>1 min, measured).
+     * A take restored from disk has buffered audio and nothing transcribed;
+     * the release hands the audio to the journal (the recovery contract), a
+     * fresh take starts IMMEDIATELY, the out-of-band transcription is kicked
+     * for the released session, and the trace says why.
      */
     @Test
-    fun `a take paused in one app keeps its audio when another app opens`() {
+    fun `a take paused in one app is released to the recovery when another app opens`() {
         traceFile().delete()
         service.onCreateInputView()
         service.onStartInputView(field(), false)
@@ -212,16 +220,24 @@ class ImePauseEntryTest {
         assertThat(service.lastEntryAction).isEqualTo(EntryAction.FRESH_START)
         service.onInputViewDrawn()
 
-        assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
-        assertThat(controller.pausedPackage()).isEqualTo("com.example.chat")
-        assertThat(controller.recordedDurationMs()).isEqualTo(4200)
-        assertThat(service.startCalls).isEqualTo(0)
+        // the take is over — and the fresh recording started by itself.
+        assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+        assertThat(service.startCalls).isEqualTo(1)
 
-        val kept = traceFile().readLines().filter { it.contains("kept=audio-without-transcripts") }
-        assertThat(kept).hasSize(1)
-        assertThat(kept.single()).contains(
-            "pause cause=foreign-app kept=audio-without-transcripts pausedMs=4200"
-        )
+        // the audio survived in the journal session (the recovery contract).
+        val sid = service.kickedRecovery.single()
+        val journal = app.fragmentJournal
+        val record = journal.readRecord(sid, 0)!!
+        assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
+        assertThat(File(journal.sessionDir(sid), record.uploadFile!!).length())
+            .isGreaterThan(0L)
+
+        val released = traceFile().readLines()
+            .filter { it.contains("released-to-recovery") }
+        assertThat(released).hasSize(1)
+        assertThat(released.single()).contains("pausedMs=4200 session=$sid")
+
+        journal.sessionDir(sid).deleteRecursively()
     }
 
     /**
@@ -231,9 +247,9 @@ class ImePauseEntryTest {
      *
      * (The third case — buffered audio WITH transcripts, so the cancel really
      * salvages — cannot be built at IME level: the app's controller uses the
-     * real STT endpoint and the transcriber has no test seam. It is pinned at
-     * the controller level in `VoiceSessionControllerTest`
-     * `salvageableText reports the cancel salvage without consuming it`.)
+     * real STT endpoint and the transcriber has no test seam. The decision
+     * matrix is pinned by `ImeLeftoverPolicyTest`; the release mechanics are
+     * pinned at the controller level in `VoiceSessionControllerTest`.)
      */
     @Test
     fun `a paused take with no audio is ended when another app opens`() {
@@ -247,6 +263,7 @@ class ImePauseEntryTest {
         assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
         assertThat(controller.pausedPackage()).isNull()
         assertThat(service.startCalls).isEqualTo(1)
+        assertThat(service.kickedRecovery).isEmpty()
     }
 
     /**

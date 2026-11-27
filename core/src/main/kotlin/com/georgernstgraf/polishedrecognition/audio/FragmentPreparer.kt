@@ -522,6 +522,19 @@ class FragmentPreparer(
     }
 
     /**
+     * PCM bytes after the last committed cut — the un-committed remainder the
+     * stop path takes whole (`prepareTailSync`). #217: the release path probes
+     * it to tell "audio still un-fragmented" from "the chain is fully cut";
+     * the recovery can only ever see journaled fragments, so a non-zero tail
+     * means untranscribed audio exists that no recovery run can reach yet.
+     */
+    fun tailBytes(): Long {
+        val start = nextFragmentStart()
+        val total = pcm.pcmSize()
+        return if (total > start) total - start else 0L
+    }
+
+    /**
      * Synchronously encodes everything not yet committed: first any full
      * fragments that became available, then the trailing partial fragment
      * (which is the LAST fragment — no seam follows it, so the remainder is
