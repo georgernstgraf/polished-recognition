@@ -42,4 +42,4 @@ The authoritative shot list lives in the issue (`docs/img/ime-recording.png`, `s
 **#118 churn-line check (owner; the issue is CLOSED but the check was never run):**
 rotate while dictating and read ONE `churn=` line in `ime-lifecycle.log` — the repeated rebind cycle must read all zeros (`churn=render:0 fgs:0 notify:0 breath:0`).
 
-**Automation retarget (agent task, deferred):** retarget the weekly automation `aut_2217eaf83001NvG7A5lCemiQSY` to the `issue-janitor` agent. Needs ONE `opencode service restart` first (the server's agent watcher does not follow the symlinked agents dir; restarting kills running sessions, so it was deferred), then verify `issue-janitor` loads (`opencode api get /api/agent`) and recreate/retarget the automation with `to: { subagent: "issue-janitor" }`.
+**Automation retarget — DONE (2026-11-28):** the `opencode service restart` ran, `issue-janitor` is loaded, and the weekly sweep is retargeted to it: `aut_221bdf7d4001EEWULfEuXhWhKP` (cron Mon 09:00 Europe/Vienna, `to: { subagent: "issue-janitor" }`, model pinned in `opencode-helpers/agents/issue-janitor.md`). Nothing pending here.
