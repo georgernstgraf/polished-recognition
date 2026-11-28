@@ -1032,6 +1032,16 @@ open class PolishedVoiceInputIME : InputMethodService() {
                     VoiceSessionController.State.RECORDING -> startMicForeground()
                     VoiceSessionController.State.PROCESSING ->
                         updateNotification(getString(R.string.processing_notification))
+                    VoiceSessionController.State.PAUSED ->
+                        // #218: a parked take holds the mic FGS up (#83 — Oplus
+                        // reaps the process without it), but the mic is OFF.
+                        // The notification must say so: paused text + pause
+                        // icon; the text change also yields a fresh timestamp
+                        // under #118 churn suppression.
+                        updateNotification(
+                            getString(R.string.paused_notification),
+                            R.drawable.ic_notification_pause
+                        )
                     VoiceSessionController.State.IDLE -> {
                         // #205 I1: every path that ends the take without a
                         // delivery (a cancel, an external teardown) clears the
@@ -2237,10 +2247,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private fun buildNotification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(
+        text: String,
+        icon: Int = R.drawable.ic_notification_mic
+    ) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setContentTitle(getString(R.string.app_name))
         .setContentText(text)
-        .setSmallIcon(R.drawable.ic_notification_mic)
+        .setSmallIcon(icon)
         .setOngoing(true)
         .setContentIntent(
             PendingIntent.getActivity(
@@ -2276,16 +2289,19 @@ open class PolishedVoiceInputIME : InputMethodService() {
         }
     }
 
-    private fun updateNotification(text: String) {
-        postNotification(text)
+    private fun updateNotification(text: String, icon: Int = R.drawable.ic_notification_mic) {
+        postNotification(text, icon)
     }
 
     /** Posts [text] unless the identical text is already on screen (#118 Phase C). */
-    private fun postNotification(text: String) {
+    private fun postNotification(
+        text: String,
+        icon: Int = R.drawable.ic_notification_mic
+    ) {
         if (!RebindChurn.notify(lastNotificationText, text)) return
         try {
             getSystemService(NotificationManager::class.java)
-                .notify(NOTIFICATION_ID, buildNotification(text))
+                .notify(NOTIFICATION_ID, buildNotification(text, icon))
             lastNotificationText = text
             notificationPosts++
         } catch (_: Exception) {

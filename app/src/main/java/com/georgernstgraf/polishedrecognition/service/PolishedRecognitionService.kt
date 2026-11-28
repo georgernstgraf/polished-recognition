@@ -170,6 +170,13 @@ class PolishedRecognitionService : RecognitionService() {
                 is VoiceSessionController.Event.StateChanged -> when (event.state) {
                     VoiceSessionController.State.PROCESSING ->
                         updateNotification(getString(R.string.processing_notification))
+                    VoiceSessionController.State.PAUSED ->
+                        // #218: the mic is off while the take is parked (the
+                        // FGS stays up, #83) — the notification must say so.
+                        updateNotification(
+                            getString(R.string.paused_notification),
+                            R.drawable.ic_notification_pause
+                        )
                     VoiceSessionController.State.IDLE ->
                         if (awaitingResult) {
                             // Session died without a result (foreign cancel).
@@ -295,10 +302,13 @@ class PolishedRecognitionService : RecognitionService() {
      * same shape as the IME's, own channel + id so the two never clobber
      * each other.
      */
-    private fun buildNotification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(
+        text: String,
+        icon: Int = R.drawable.ic_notification_mic
+    ) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setContentTitle(getString(R.string.app_name))
         .setContentText(text)
-        .setSmallIcon(R.drawable.ic_notification_mic)
+        .setSmallIcon(icon)
         .setOngoing(true)
         .setContentIntent(
             PendingIntent.getActivity(
@@ -322,10 +332,10 @@ class PolishedRecognitionService : RecognitionService() {
         }
     }
 
-    private fun updateNotification(text: String) {
+    private fun updateNotification(text: String, icon: Int = R.drawable.ic_notification_mic) {
         try {
             getSystemService(NotificationManager::class.java)
-                .notify(NOTIFICATION_ID, buildNotification(text))
+                .notify(NOTIFICATION_ID, buildNotification(text, icon))
         } catch (_: Exception) {
         }
     }

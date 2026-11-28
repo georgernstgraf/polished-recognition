@@ -90,6 +90,7 @@
     <string name="custom_provider">Custom provider…</string>
     <string name="listening_notification">Listening…</string>
     <string name="processing_notification">Processing voice input…</string>
+    <string name="paused_notification">Paused…</string>
     <string name="reset_prompt">Reset</string>
     <string name="prompt_variables" translatable="false">Variables:</string>
     <string name="enable_voice_keyboard">Enable Voice Keyboard (IME)</string>

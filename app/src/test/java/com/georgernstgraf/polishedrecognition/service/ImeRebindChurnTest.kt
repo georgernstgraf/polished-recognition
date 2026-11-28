@@ -2,8 +2,10 @@ package com.georgernstgraf.polishedrecognition.service
 
 import android.Manifest
 import android.app.Application
+import android.app.NotificationManager
 import android.view.inputmethod.EditorInfo
 import com.georgernstgraf.polishedrecognition.PolishedRecognitionApp
+import com.georgernstgraf.polishedrecognition.R
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.testing.CaptureThreadGuard
 import com.google.common.truth.Truth.assertThat
@@ -126,6 +128,54 @@ class ImeRebindChurnTest {
         assertThat(service.notificationPosts).isEqualTo(2)
         service.handleEvent(processing)
         assertThat(service.notificationPosts).isEqualTo(2)
+    }
+
+    /**
+     * #218: a parked take keeps the mic FGS up (#83 — Oplus reaps the process
+     * without it), but the microphone is OFF. The notification must switch to
+     * the paused text with the pause icon, and the switch must be a REAL
+     * change under #118 churn suppression (fresh timestamp); a repeated PAUSED
+     * event stays suppressed, the resume back to RECORDING goes through.
+     */
+    @Test
+    fun `a paused take swaps the notification to paused text and pause icon, a repeat is suppressed`() {
+        val nm = RuntimeEnvironment.getApplication()
+            .getSystemService(NotificationManager::class.java)
+        val recording = VoiceSessionController.Event.StateChanged(
+            VoiceSessionController.State.RECORDING
+        )
+        val paused = VoiceSessionController.Event.StateChanged(
+            VoiceSessionController.State.PAUSED
+        )
+
+        service.handleEvent(recording)
+        // The first "Listening…" notification rides on the FGS assert — it
+        // counts as `fgs`, never as `notify` (#118 Phase C).
+        assertThat(service.notificationPosts).isEqualTo(0)
+        assertThat(service.foregroundAssertions).isEqualTo(1)
+
+        service.handleEvent(paused)
+        assertThat(service.notificationPosts).isEqualTo(1)
+        val pausedNotification = shadowOf(nm).allNotifications.last()
+        assertThat(shadowOf(pausedNotification).getContentText())
+            .isEqualTo(app.getString(R.string.paused_notification))
+        assertThat(shadowOf(pausedNotification.smallIcon).resId)
+            .isEqualTo(R.drawable.ic_notification_pause)
+
+        // The identical paused state is pure churn — no re-post (#118).
+        service.handleEvent(paused)
+        assertThat(service.notificationPosts).isEqualTo(1)
+
+        // Resuming is a real change again: the FGS is already asserted, only
+        // the notification text/icon is repaired back to the mic look.
+        service.handleEvent(recording)
+        assertThat(service.notificationPosts).isEqualTo(2)
+        assertThat(service.foregroundAssertions).isEqualTo(1)
+        val resumedNotification = shadowOf(nm).allNotifications.last()
+        assertThat(shadowOf(resumedNotification).getContentText())
+            .isEqualTo(app.getString(R.string.listening_notification))
+        assertThat(shadowOf(resumedNotification.smallIcon).resId)
+            .isEqualTo(R.drawable.ic_notification_mic)
     }
 
     /**
