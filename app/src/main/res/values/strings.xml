@@ -127,7 +127,10 @@
     <!-- #217/#219: the cross-app leftover — securing is confirmed with a toast naming the app the take was dictated into. -->
     <string name="ime_leftover_saved">Dictation from %1$s saved to the Workbench</string>
     <!-- #219: the keep is OFF — the pre-#217 discard, said once with the app name. -->
-    <string name="ime_leftover_discarded">Dictation into %1$s was discarded — enable \u201eKeep discarded dictations\u201c in Settings \u2192 Advanced to save them in the future.</string>
+    <!-- #219: the quoted words must let the user FIND the checkbox — they are
+         a short reference to cross_app_keep ("Keep dictations discarded by an
+         app switch in the Workbench"). -->
+    <string name="ime_leftover_discarded">Dictation into %1$s was discarded — enable \u201eKeep dictations discarded by an app switch\u201c in Settings \u2192 Advanced to save them in the future.</string>
     <string name="ime_leftover_unknown_app">unknown app</string>
     <string name="ime_pause_resume_hint">Pause / resume — recorded audio is kept</string>
     <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>

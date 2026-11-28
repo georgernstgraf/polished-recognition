@@ -293,8 +293,13 @@ class ImePauseEntryTest {
             assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
             assertThat(service.startCalls).isEqualTo(1)
             assertThat(service.kickedRecovery).isEmpty()
-            // #222: the discard toast renders through the owned strip.
+            // #222: the discard toast renders through the owned strip. #219:
+            // its words must let the user FIND the checkbox — pin the label
+            // reference (the real checkbox reads "Keep dictations discarded
+            // by an app switch in the Workbench").
             assertThat(service.toastStripText().toString()).contains("was discarded")
+            assertThat(service.toastStripText().toString())
+                .contains("Keep dictations discarded by an app switch")
         } finally {
             app.settingsStore.crossAppKeep = true
         }

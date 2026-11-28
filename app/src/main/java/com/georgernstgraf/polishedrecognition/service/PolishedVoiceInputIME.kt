@@ -601,6 +601,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
 
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // #219: the input view is (about to be) visible — the toast host's
+        // attach window opens here again. Idempotent after a fresh
+        // [onCreateInputView] attach; a no-op attach never double-docks the
+        // strip. detachHost already concealed a visible strip.
+        toastStrip?.attach()
         // Rotation (#83 v3): same field, views rebuilt — freeze the session
         // in its state instead of tearing it down. `restarting` alone is
         // unreliable (Oplus rebinds with restarting=false on client-app
@@ -934,10 +939,15 @@ open class PolishedVoiceInputIME : InputMethodService() {
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
         // #222: a strip must not outlive the keyboard hide — the input view
-        // (and the strip docked inside it) leaves the screen; cancel instead
-        // of letting a stale text reappear on the next show. The host stays
-        // attached: the input view is reused, not destroyed, on a re-show.
-        toastStrip?.cancelStrip()
+        // (and the strip docked inside it) leaves the screen. #219: the host
+        // DETACHES (not merely cancels): it must be registered exactly while
+        // the input view is visible. Staying registered rendered a toast fired
+        // while hidden (the #207 held-delivery/rescue toast can fire long
+        // after the hide) into the strip inside the invisible input view —
+        // the user saw nothing and the promised platform fallback never ran.
+        // A detached host falls back to the platform toast; the re-show
+        // re-attaches in [onStartInputView].
+        toastStrip?.detach()
         // Rotation (#83): the AudioRecord thread is view-independent and keeps
         // capturing — pausing here would punch a hole into the recording.
         // The app-scoped gate covers service recreation (#83 follow-up).

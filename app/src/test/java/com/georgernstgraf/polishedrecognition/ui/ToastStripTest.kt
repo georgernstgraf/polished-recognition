@@ -2,6 +2,7 @@ package com.georgernstgraf.polishedrecognition.ui
 
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import com.georgernstgraf.polishedrecognition.R
@@ -111,5 +112,49 @@ class ToastStripTest {
         assertThat(service.toastStrip!!.strip.visibility).isEqualTo(View.GONE)
 
         service.onDestroy()
+    }
+
+    /**
+     * #219: the host is attached EXACTLY while the input view is visible. A
+     * toast fired while the keyboard is hidden (the #207 held-delivery /
+     * rescue toast can fire long after `kickRecovery`) must go to the
+     * platform fallback — rendering into the strip inside the invisible
+     * input view showed the user nothing. The re-show re-attaches.
+     */
+    @Test
+    fun `a toast while the input view is hidden falls back to the platform and re-docks on re-show`() {
+        val service = Robolectric.buildService(PolishedVoiceInputIME::class.java).create().get()
+        val root = service.onCreateInputView().findViewById<LinearLayout>(R.id.ime_root)
+        val host = service.toastStrip!!
+        val field = EditorInfo().apply {
+            packageName = "com.example.chat"
+            fieldId = 1
+        }
+        try {
+            service.onStartInputView(field, false)
+
+            // Visible: the toast renders through the docked strip.
+            Toasts.show(service, "visible message")
+            assertThat(service.toastStripText()).isEqualTo("visible message")
+            assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
+
+            // Hidden: the host is detached — a toast fired now is a platform
+            // toast, the invisible strip shows nothing.
+            service.onFinishInputView(false)
+            assertThat(host.strip.parent).isNull()
+            Toasts.show(service, "hidden message")
+            assertThat(service.toastStripText()).isNull()
+            assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("hidden message")
+
+            // Re-shown: the strip is docked again (no double-add) and owns
+            // the surface once more.
+            service.onStartInputView(field, false)
+            assertThat(host.strip.parent).isSameInstanceAs(root)
+            assertThat(root.getChildAt(0)).isSameInstanceAs(host.strip)
+            Toasts.show(service, "visible again")
+            assertThat(service.toastStripText()).isEqualTo("visible again")
+        } finally {
+            service.onDestroy()
+        }
     }
 }

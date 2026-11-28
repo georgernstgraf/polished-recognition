@@ -477,8 +477,11 @@ class WorkbenchActivity : Activity() {
                 // the page (the journal's best-effort contract).
                 if (summary.completed && RecoveryRestore.textOf(records).isBlank()) {
                     if (journal.deleteSession(summary.sessionId)) {
+                        // #219: the activity's OWN tag — this log line comes
+                        // from the activity's prune, not from the journal;
+                        // triage greps the file the log was written from.
                         Log.i(
-                            "FragmentJournal",
+                            TAG,
                             "prune: zombie session ${summary.sessionId} — " +
                                 "completed with no stored text"
                         )
@@ -1544,6 +1547,9 @@ class WorkbenchActivity : Activity() {
     }
 
     private companion object {
+        /** #219: the activity's log tag — its own lines, not the journal's. */
+        private const val TAG = "WorkbenchActivity"
+
         /**
          * #202/#203: how long the typing pause must last before the draft write
          * — short enough to feel saved, long enough not to write per keystroke.

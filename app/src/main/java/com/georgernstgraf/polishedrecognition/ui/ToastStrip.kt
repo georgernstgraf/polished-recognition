@@ -77,18 +77,29 @@ abstract class ToastStripHost(
     val strip: ToastStrip,
 ) : Toasts.StripHost {
 
-    /** Called once, after the strip is in its host hierarchy. */
+    // #219: the attach window is re-entered per visibility cycle now (the IME
+    // attaches in onCreateInputView AND onStartInputView, detaches in
+    // onFinishInputView) — the flag makes both directions idempotent, so a
+    // re-show never double-adds the strip and a double hide is a no-op.
+    private var attached = false
+
+    /** Registers the host; a no-op while already attached. */
     fun attach() {
+        if (attached) return
         attachStrip()
         Toasts.attachHost(owner, this)
+        attached = true
     }
 
     /**
      * Lifecycle teardown: unregister FIRST — [Toasts.detachHost] hides a
      * visible strip immediately, and later [Toasts.show] calls for this
-     * owner fall back to the platform toast (correct for a dying window).
+     * owner fall back to the platform toast (correct for a hidden or dying
+     * window). Idempotent: a second detach changes nothing.
      */
     fun detach() {
+        if (!attached) return
+        attached = false
         Toasts.detachHost(owner)
         detachStrip()
     }
