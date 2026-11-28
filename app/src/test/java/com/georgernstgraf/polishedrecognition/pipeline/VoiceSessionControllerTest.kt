@@ -414,6 +414,20 @@ class VoiceSessionControllerTest {
      * the flush journals it as fragment 0 PENDING; the take ends in IDLE, the
      * snapshot is cleared (no resurrection), and the controller forgets the
      * session (the journal belongs to the recovery now).
+     *
+     * #219 determinism (house pattern of the #199 note in
+     * pitfalls/testing.md): the release itself starts the transcriber worker
+     * (`ensureFragmentPreparer` → `attachTranscriber` → `start()`) BEFORE the
+     * tail is flushed, and cancels it only after the flush — a worker that
+     * wins that window uploads fragment 0 and flips the record DONE before
+     * this test reads it (verified 3/3 under an isolated `--rerun-tasks`).
+     * That flip is the intended contract, not a leak: `JournalReplay`
+     * consumes stored DONE transcripts and re-uploads only non-DONE
+     * fragments, so a concurrently finished upload is harmless. To make the
+     * pinned facts stable anyway, the #186 offline gate is shut
+     * (`online = { false }` — the same seam the raw-mode-rescue test uses):
+     * zero requests go out, the worker's write-ahead + OFFLINE outcome both
+     * journal PENDING, so the record is PENDING under EVERY interleaving.
      */
     @Test
     fun `a released paused take hands its audio to the journal`() {
@@ -428,7 +442,7 @@ class VoiceSessionControllerTest {
         val journal = FragmentJournal(File(ctx.filesDir, FragmentJournal.DIR_NAME))
         journal.sessionDir(sid).deleteRecursively()
 
-        val controller = newController(journal = journal)
+        val controller = newController(journal = journal, online = { false })
         controller.restore()
         assertThat(controller.state).isEqualTo(VoiceSessionController.State.PAUSED)
         assertThat(controller.untranscribedAudioPending()).isTrue()
@@ -441,7 +455,13 @@ class VoiceSessionControllerTest {
         assertThat(controller.pausedPackage()).isNull()
         assertThat(controller.recordedDurationMs()).isEqualTo(0L)
         assertThat(controller.untranscribedAudioPending()).isFalse()
-        // the recovery contract: one PENDING record, audio on disk.
+        // the recovery contract: one PENDING record, audio on disk. #219: the
+        // offline gate proves the record can never be raced to DONE — nothing
+        // went out at all. (The failure CLASS is deliberately not asserted:
+        // a cancel that lands before the worker's outcome write leaves the
+        // release's own writePending record without one — both shapes are
+        // PENDING, and only the state is the contract.)
+        verify(exactly = 0) { sttApi.transcribeAudioSync(any(), any(), any(), any(), any(), any()) }
         val record = journal.readRecord(sid, 0)!!
         assertThat(record.state).isEqualTo(FragmentJournal.State.PENDING.name)
         assertThat(File(journal.sessionDir(sid), record.uploadFile!!).length())
