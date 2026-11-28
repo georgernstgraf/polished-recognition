@@ -20,4 +20,11 @@
     <color name="text_secondary_enabled">#C0C0C0</color>
     <color name="text_tertiary_enabled">#A0A0A0</color>
     <color name="text_disabled">#8A8A8A</color>
+
+    <!-- #222: the owned toast strip — IDENTICAL in both modes: it is the
+         platform-toast look (dark pill, light text), not theme surface. The
+         declaration exists because every colour must exist in both palettes
+         (XmlColorPolicyTest); the values match values/. -->
+    <color name="toast_strip_background">#E6212121</color>
+    <color name="toast_strip_text">#F0F0F3</color>
 </resources>

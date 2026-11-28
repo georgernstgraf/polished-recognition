@@ -26,7 +26,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.shadows.ShadowAlertDialog
-import org.robolectric.shadows.ShadowToast
 import java.io.File
 
 /**
@@ -53,7 +52,6 @@ class WorkbenchActivityTest {
         context.getSharedPreferences("polished_recognition_settings", 0).edit().clear().commit()
         File(context.filesDir, DictationStore.DIR_NAME).deleteRecursively()
         File(context.filesDir, FragmentJournal.DIR_NAME).deleteRecursively()
-        ShadowToast.reset()
     }
 
     private fun seed(vararg texts: String): DictationStore {
@@ -1053,7 +1051,7 @@ class WorkbenchActivityTest {
 
         activity.click(R.id.workbench_retry_stt)
 
-        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("A recovery is already running")
+        assertThat(activity.toastStripText()).isEqualTo("A recovery is already running")
     }
 
     /**
@@ -1081,7 +1079,7 @@ class WorkbenchActivityTest {
         assertThat(DictationStore(context).loadAll().map { it.raw }).containsExactly("fertiger Text")
         assertThat(activity.raw().text()).isEqualTo("fertiger Text")
         assertThat(journal.recoverableSessions()).isEmpty()
-        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Text restored to the Workbench")
+        assertThat(activity.toastStripText()).isEqualTo("Text restored to the Workbench")
     }
 
     /**
@@ -1172,7 +1170,7 @@ class WorkbenchActivityTest {
         )
         idle()
 
-        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Re-run failed: HTTP 500")
+        assertThat(activity.toastStripText()).isEqualTo("Re-run failed: HTTP 500")
     }
 
     // ------------------------------------------- #186: offline dictations

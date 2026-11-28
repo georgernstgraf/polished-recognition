@@ -25,11 +25,33 @@ import android.widget.Toast
  * when the long-pressing finger lifts. At most one toast is ever alive:
  * any new [show]/[short] cancels BOTH the previous message chain and a
  * live hint, so two surfaces never overlap.
+ *
+ * Owned strip surfaces (#222): the platform pins text toasts to the bottom
+ * edge and `Toast.setGravity`/`setMargin` are no-ops for apps targeting
+ * SDK 30+, so a host window may render its toasts itself. [attachHost]
+ * registers a [StripHost] under the CALLING context — [show]/[short] then
+ * render through the host of the context they are called with (IME → the
+ * strip docked above the voice bar, Workbench → the overlay anchored at
+ * [ToastStripPolicy.ANCHOR_FRACTION]); no host for that context → the
+ * platform `Toast` exactly as before (the fallback contract — the Settings
+ * screens are unchanged). The chain policy is a platform-toast repair and
+ * applies to the fallback ONLY: a strip host owns its display duration
+ * ([DEFAULT_TARGET_MS] for [show], [SHORT_TARGET_MS] for [short]). The
+ * one-alive invariant spans both surfaces — a strip show cancels the
+ * platform chain and a live hint, a platform show (or [cancelAll]) cancels
+ * a visible strip.
  */
 object Toasts {
 
     /** The readable default duration every informative toast aims for. */
     const val DEFAULT_TARGET_MS = 5_500L
+
+    /**
+     * #222: the nominal visibility of the [short] variant on a strip host —
+     * the platform's `LENGTH_SHORT` is ~2 s; a strip host replaces it with
+     * its own hide timer of the same length.
+     */
+    const val SHORT_TARGET_MS = 2_000L
 
     /** The nominal visibility of one `Toast.LENGTH_LONG` segment. */
     const val SEGMENT_MS = 3_500L
@@ -51,12 +73,64 @@ object Toasts {
     private var hint: Toast? = null
 
     /**
+     * A host surface that renders [Toasts] messages inside its OWN window
+     * hierarchy (#222) — the IME strip docked above the voice bar, the
+     * Workbench overlay at the policy fraction. The host owns its display
+     * duration and its placement; [Toasts] only guarantees the one-alive
+     * invariant and the cancel-safe replacement across surfaces.
+     */
+    interface StripHost {
+        fun showStrip(text: CharSequence, durationMs: Long)
+
+        /** Hides a visible strip immediately — idempotent when idle. */
+        fun cancelStrip()
+    }
+
+    // #222: the host registry, keyed by the CALLING context — the only
+    // identity the show()/short() call sites carry. Main-thread only (every
+    // toast call site is main-thread), so a plain map is safe.
+    private val hosts = mutableMapOf<Context, StripHost>()
+
+    /** The host currently owning the message surface (one toast alive). */
+    private var strip: StripHost? = null
+
+    /**
+     * Registers the strip host of a window (the IME at input-view creation,
+     * the Workbench at `onCreate`). Replaces any host registered for the
+     * same context — the caller detaches first when it rebuilds its UI.
+     */
+    fun attachHost(context: Context, host: StripHost) {
+        hosts[context] = host
+    }
+
+    /**
+     * Removes a host (lifecycle teardown). A VISIBLE strip is hidden
+     * immediately — the owner window is going away, so its strip must not
+     * survive it. Later [show]/[short] calls for that context fall back to
+     * the platform toast.
+     */
+    fun detachHost(context: Context) {
+        val removed = hosts.remove(context) ?: return
+        if (strip === removed) {
+            removed.cancelStrip()
+            strip = null
+        }
+    }
+
+    /**
      * The informative default: a LENGTH_LONG toast kept readable by
-     * re-showing it until [DEFAULT_TARGET_MS] elapsed.
+     * re-showing it until [DEFAULT_TARGET_MS] elapsed. On a hosted context
+     * (#222) the message renders once through the strip — the host owns the
+     * duration, no chain is scheduled.
      */
     fun show(context: Context, text: CharSequence) {
         cancelMessage()
         cancelHint()
+        hosts[context]?.let { host ->
+            strip = host
+            host.showStrip(text, DEFAULT_TARGET_MS)
+            return
+        }
         val toast = Toast.makeText(context, text, Toast.LENGTH_LONG)
         message = toast
         toast.show()
@@ -66,10 +140,16 @@ object Toasts {
     /**
      * The trivial-confirmation variant: a plain single LENGTH_SHORT show,
      * deliberately NOT chained — one-word acknowledgements need no 5.5 s.
+     * On a hosted context the strip displays for [SHORT_TARGET_MS].
      */
     fun short(context: Context, text: CharSequence) {
         cancelMessage()
         cancelHint()
+        hosts[context]?.let { host ->
+            strip = host
+            host.showStrip(text, SHORT_TARGET_MS)
+            return
+        }
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     }
 
@@ -156,6 +236,10 @@ object Toasts {
         messageChain = null
         message?.cancel()
         message = null
+        // #222: one toast alive across surfaces — a new message (strip OR
+        // platform) hides a visible strip; [cancelAll] reaches it too.
+        strip?.cancelStrip()
+        strip = null
     }
 
     /** A live hint never outlives a newer message surface. */

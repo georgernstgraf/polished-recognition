@@ -111,6 +111,13 @@ class WorkbenchActivity : Activity() {
     private lateinit var root: View
     private lateinit var rawField: EditText
 
+    /**
+     * #222: the owned toast strip host — attached in onCreate, detached in
+     * onDestroy. Internal: the test window into the owned toasts (the
+     * ShadowToast shadow never sees a strip message).
+     */
+    internal var toastStripHost: WorkbenchToastStripHost? = null
+
     /** #178: Polished is read-only — the pipeline owns it, the user promotes it. */
     private lateinit var polishedField: TextView
     private lateinit var positionLabel: TextView
@@ -317,6 +324,12 @@ class WorkbenchActivity : Activity() {
         polishedPreview = findViewById(R.id.workbench_polished_preview)
 
         applyEdgeToEdgeInsets()
+        // #222: the owned toast strip — an overlay on the activity's content
+        // root, anchored by ToastStripPolicy at ~60 % of the usable height.
+        // Attached here (the overlay must exist before any recovery toast),
+        // detached in onDestroy so a recreated instance never inherits a
+        // stale host entry and a visible strip dies with the window.
+        toastStripHost = WorkbenchToastStripHost(this).also { it.attach() }
         wireActions()
     }
 
@@ -420,11 +433,21 @@ class WorkbenchActivity : Activity() {
     }
 
     override fun onDestroy() {
+        // #222: the strip overlay dies with the window (detach hides a
+        // visible strip immediately and unregisters the host).
+        toastStripHost?.detach()
+        toastStripHost = null
         draftHandler.removeCallbacks(draftSave)
         polishJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
+
+    /**
+     * #222: the current strip text — the test window into the owned toasts
+     * (the ShadowToast shadow never sees a strip message).
+     */
+    internal fun toastStripText(): CharSequence? = toastStripHost?.currentText
 
     // --- #185/#188: leftover recovery -----------------------------------------
 

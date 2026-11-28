@@ -22,7 +22,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.shadows.ShadowToast
 import java.io.File
 
 /**
@@ -240,7 +239,9 @@ class ImePauseEntryTest {
 
         // #219: the confirmation toast names the app the take was dictated
         // into — the raw package name here (the shadow PM knows no label).
-        assertThat(ShadowToast.getTextOfLatestToast()).contains("com.example.chat")
+        // #222: the IME hosts the strip (input view created above), so the
+        // toast renders there, not on the platform shadow.
+        assertThat(service.toastStripText().toString()).contains("com.example.chat")
 
         journal.sessionDir(sid).deleteRecursively()
     }
@@ -292,7 +293,8 @@ class ImePauseEntryTest {
             assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
             assertThat(service.startCalls).isEqualTo(1)
             assertThat(service.kickedRecovery).isEmpty()
-            assertThat(ShadowToast.getTextOfLatestToast()).contains("was discarded")
+            // #222: the discard toast renders through the owned strip.
+            assertThat(service.toastStripText().toString()).contains("was discarded")
         } finally {
             app.settingsStore.crossAppKeep = true
         }

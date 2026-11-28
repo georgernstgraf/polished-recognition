@@ -30,6 +30,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -45,6 +46,7 @@ import com.georgernstgraf.polishedrecognition.pipeline.SttRequestRunner
 import com.georgernstgraf.polishedrecognition.pipeline.TranscriptionPipeline
 import com.georgernstgraf.polishedrecognition.pipeline.VoiceSessionController
 import com.georgernstgraf.polishedrecognition.ui.HelpActivity
+import com.georgernstgraf.polishedrecognition.ui.ImeToastStripHost
 import com.georgernstgraf.polishedrecognition.ui.MicrophonePermissionActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsActivity
 import com.georgernstgraf.polishedrecognition.ui.SettingsHintActivity
@@ -62,6 +64,13 @@ open class PolishedVoiceInputIME : InputMethodService() {
 
     private var rootView: View? = null
     private var lastInsets: ImeWindowInsets.Paddings? = null
+
+    /**
+     * #222: the owned toast strip inside the input view — created with the
+     * input view, cancelled when the keyboard hides, detached on destroy.
+     * Test window: [toastStripText].
+     */
+    internal var toastStrip: ImeToastStripHost? = null
     private var rowTop: View? = null
     private var rowButtons: View? = null
     private var sendButton: ImageButton? = null
@@ -267,6 +276,17 @@ open class PolishedVoiceInputIME : InputMethodService() {
         val view = layoutInflater.inflate(R.layout.ime_voice_input, null)
         rootView = view.findViewById(R.id.ime_root)
         applyImeWindowInsets(rootView!!)
+        // #222: the owned toast strip — DOCKED as the first child of the bar
+        // root, so the IME window's position anchors it above the voice bar
+        // (no screen math; see ToastStripPolicy). A re-created input view
+        // orphans the previous strip tree, so the old host is detached first:
+        // that hides a visible strip and unregisters it, and the fresh host
+        // takes over the one-alive slot.
+        toastStrip?.detach()
+        toastStrip = ImeToastStripHost(
+            this,
+            view.findViewById<LinearLayout>(R.id.ime_root),
+        ).also { it.attach() }
         // #165: the first DRAW of the input view is the only reliable "window
         // is on screen" signal — onWindowShown runs before mWindow.show() and
         // isInputViewShown() is mDecorViewVisible, set even earlier. The
@@ -913,6 +933,11 @@ open class PolishedVoiceInputIME : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        // #222: a strip must not outlive the keyboard hide — the input view
+        // (and the strip docked inside it) leaves the screen; cancel instead
+        // of letting a stale text reappear on the next show. The host stays
+        // attached: the input view is reused, not destroyed, on a re-show.
+        toastStrip?.cancelStrip()
         // Rotation (#83): the AudioRecord thread is view-independent and keeps
         // capturing — pausing here would punch a hole into the recording.
         // The app-scoped gate covers service recreation (#83 follow-up).
@@ -1792,6 +1817,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
     }
 
     /**
+     * #222: the current strip text — the test window into the owned toasts
+     * (the ShadowToast shadow never sees a strip message).
+     */
+    internal fun toastStripText(): CharSequence? = toastStrip?.currentText
+
+    /**
      * #186: the ONE Toast a rescued delivery shows — the actionable hint for
      * the failure class (when it has one), the technical reason, and where the
      * recording waits. Never a second, generic failure Toast: the text WAS
@@ -2346,6 +2377,12 @@ open class PolishedVoiceInputIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        // #222: detach FIRST — the teardown salvages below (the #113
+        // clipboard toast, the held-delivery salvage) must go to the
+        // PLATFORM toast, because the IME window with the strip inside it
+        // is going away and a strip there would never be seen.
+        toastStrip?.detach()
+        toastStrip = null
         breathAnimator?.cancel()
         breathAnimator = null
         Toasts.cancelAll()

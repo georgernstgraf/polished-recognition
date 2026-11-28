@@ -1,5 +1,6 @@
 package com.georgernstgraf.polishedrecognition.ui
 
+import android.view.ContextThemeWrapper
 import android.widget.Toast
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
@@ -165,5 +166,157 @@ class ToastsTest {
 
         // hint() must NOT churn the reused #88 instance away.
         assertThat(hintSlot()).isNotNull()
+    }
+
+    // ---- the owned strip hosts (#222) --------------------------------------
+
+    /** Records what a host surface was told — the strip is not a ShadowToast. */
+    private class RecordingStripHost : Toasts.StripHost {
+        val shown = mutableListOf<Pair<CharSequence, Long>>()
+        var cancels = 0
+
+        override fun showStrip(text: CharSequence, durationMs: Long) {
+            shown += text to durationMs
+        }
+
+        override fun cancelStrip() {
+            cancels++
+        }
+    }
+
+    @Test
+    fun `a show on a hosted context renders through the strip - never the platform`() {
+        val context = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+
+        Toasts.show(context, "one strip message")
+        runToEnd()
+
+        assertThat(host.shown).containsExactly("one strip message" to Toasts.DEFAULT_TARGET_MS)
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
+    }
+
+    @Test
+    fun `the short variant renders through the strip with the short duration`() {
+        val context = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+
+        Toasts.short(context, "Saved")
+
+        assertThat(host.shown).containsExactly("Saved" to Toasts.SHORT_TARGET_MS)
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
+    }
+
+    @Test
+    fun `a context without a host stays on the platform fallback`() {
+        val app = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        // Two DISTINCT context instances: only the first one has a host.
+        Toasts.attachHost(ContextThemeWrapper(app, android.R.style.Theme_Material_Light), host)
+
+        Toasts.show(ContextThemeWrapper(app, android.R.style.Theme_Material), "platform message")
+        runToEnd()
+
+        assertThat(host.shown).isEmpty()
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(2)
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("platform message")
+    }
+
+    @Test
+    fun `a fresh strip show is cancel-safe - the old text never resurrects`() {
+        val context = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+
+        Toasts.show(context, "the first message")
+        Toasts.show(context, "the second message")
+
+        // The replacement cancelled the previous strip surface exactly once…
+        assertThat(host.cancels).isEqualTo(1)
+        // …and the host was told the SECOND message only.
+        assertThat(host.shown).containsExactly(
+            "the first message" to Toasts.DEFAULT_TARGET_MS,
+            "the second message" to Toasts.DEFAULT_TARGET_MS,
+        ).inOrder()
+    }
+
+    @Test
+    fun `a strip show cancels a live hint too`() {
+        val context = RuntimeEnvironment.getApplication()
+        Toasts.hint(context, "long-press hint", 120)
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+
+        Toasts.show(context, "the strip message")
+
+        assertThat(hintSlot()).isNull()
+        assertThat(host.shown.single().first).isEqualTo("the strip message")
+        // Only the hint's own initial show ever happened on the platform.
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(1)
+    }
+
+    @Test
+    fun `a strip show cancels the running platform chain`() {
+        val context = RuntimeEnvironment.getApplication()
+        Toasts.show(context, "the chained platform message")
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+
+        Toasts.show(context, "the strip message")
+        runToEnd()
+
+        // The platform chain contributed its initial show and NOTHING else.
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(1)
+        assertThat(host.shown.single().first).isEqualTo("the strip message")
+    }
+
+    @Test
+    fun `a platform show cancels a visible strip`() {
+        val app = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        val hosted = ContextThemeWrapper(app, android.R.style.Theme_Material_Light)
+        Toasts.attachHost(hosted, host)
+        Toasts.show(hosted, "the strip message")
+
+        // A platform show (a context WITHOUT a host) hides the strip: one
+        // toast alive across surfaces.
+        Toasts.show(ContextThemeWrapper(app, android.R.style.Theme_Material), "the platform message")
+
+        assertThat(host.cancels).isEqualTo(1)
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("the platform message")
+    }
+
+    @Test
+    fun `cancelAll covers the strip`() {
+        val context = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+        Toasts.show(context, "the strip message")
+
+        Toasts.cancelAll()
+
+        assertThat(host.cancels).isEqualTo(1)
+    }
+
+    @Test
+    fun `detachHost hides a visible strip immediately and falls back to the platform`() {
+        val context = RuntimeEnvironment.getApplication()
+        val host = RecordingStripHost()
+        Toasts.attachHost(context, host)
+        Toasts.show(context, "the strip message")
+
+        Toasts.detachHost(context)
+
+        assertThat(host.cancels).isEqualTo(1)
+
+        // The registry no longer holds the host: the next show is a plain
+        // platform toast, exactly like the pre-#222 fallback contract.
+        Toasts.show(context, "the platform message")
+        runToEnd()
+        assertThat(host.shown).hasSize(1)
+        assertThat(ShadowToast.shownToastCount()).isEqualTo(2)
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("the platform message")
     }
 }

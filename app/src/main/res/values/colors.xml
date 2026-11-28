@@ -27,4 +27,13 @@
     <color name="text_secondary_enabled">#4A4A4A</color>
     <color name="text_tertiary_enabled">#666666</color>
     <color name="text_disabled">#808080</color>
+
+    <!-- #222: the owned toast strip — the platform-toast look (dark pill,
+         light text) in BOTH modes, because it must read as the same message
+         channel on every host. The IME service context has no theme
+         guarantee (PITFALLS: never theme-derived colours in the IME), so the
+         pair is explicit. Light text #F0F0F3 on the pill composites to
+         ≥ 9:1 over a light background and ≥ 14:1 over a dark one. -->
+    <color name="toast_strip_background">#E6212121</color>
+    <color name="toast_strip_text">#F0F0F3</color>
 </resources>
