@@ -3,7 +3,7 @@ type: Decisions
 title: Decisions
 description: Index of the architectural and technical decisions still in force, grouped into theme concepts.
 tags: [knowledge, decisions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
 status: stable
 ---
 
@@ -34,13 +34,13 @@ body.
 
 ## Newest decisions
 
+* 2026-11-28: #219 — Cross-App-Leftovers werden automatisch zu Workbench-Diktaten (Keep-Checkbox) → [session-lifecycle](decisions/session-lifecycle.md)
+* 2026-11-28: #218 — Pause korrigiert nur die Notification, nie das FGS → [session-lifecycle](decisions/session-lifecycle.md)
+* 2026-11-27: #217 — der Cross-App-Einstieg sichert den Take, statt zu stallen (Release statt Kept) → [session-lifecycle](decisions/session-lifecycle.md)
+* 2026-11-26: #214 — Tokens gehören zur URL: geteilter Tresor, aktiv schlägt Tresor, Unvalidiertes ist wertlos → [stt-providers](decisions/stt-providers.md)
+* 2026-11-25: #208 — Promote ist ein Zug, kein Kopieren; der MRU-Ring bleibt; nur ＋ erzeugt ein Diktat → [workbench](decisions/workbench.md)
 * 2026-11-25: #205 — die Live-Vorschau ist implementiert (eine Abweichung von der Entscheidungstabelle) → [ime-field](decisions/ime-field.md)
 * 2026-11-25: #205 — die Live-Vorschau ist entschieden (ersetzt #190) → [ime-field](decisions/ime-field.md)
+* 2026-11-25: #205 — GIT_HASH/VERSION_DISPLAY statisch, CI übergibt die echten Werte → [build-release](decisions/build-release.md)
 * 2026-11-24: #189 — Sektionen klappen wieder zu, Promote zeigt nach oben, die Zonen B und C sind identisch → [workbench](decisions/workbench.md)
 * 2026-11-24: #202/#203 — ein RAW-Edit wird beim Tippen gespeichert, und Polish committet zuerst → [workbench](decisions/workbench.md)
-* 2026-11-24: #201/#204 — die Leiste ohne Aufnahme ist ein ganz normaler Pausezustand bei 0:00 → [session-lifecycle](decisions/session-lifecycle.md)
-* 2026-11-24: #200 — der Retention-Default wird nicht mehr beim Lesen persistiert → [foundations](decisions/foundations.md)
-* 2026-11-24: #193 — der Lint-Backlog ist bei null: keine Baseline mehr, `warningsAsErrors`, sechs dokumentierte Ausnahmen → [build-release](decisions/build-release.md)
-* 2026-11-24: #198 — ein Throwable im Capture-/Worker-Thread parkt PAUSED, es killt den Prozess nicht → [session-lifecycle](decisions/session-lifecycle.md)
-* 2026-11-23: #192 (Nachtrag) — EINE Leiste ohne Aufnahme (geparkt bei 0:00), und ein Cancel zerstört nur, was er hergeben kann → [session-lifecycle](decisions/session-lifecycle.md)
-* 2026-11-23: #192 — Eine Pause gehört zu EINER App: dieselbe setzt immer fort, eine fremde rettet und ersetzt → [session-lifecycle](decisions/session-lifecycle.md)

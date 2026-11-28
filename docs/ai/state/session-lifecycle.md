@@ -3,13 +3,47 @@ type: State
 title: Project State — Session Lifecycle
 description: Pause/resume/cancel, auto-start, rotation resilience, the journal and recovery.
 tags: [knowledge, state, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-28T08:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+sources: ["#219", "#218", "#217"]
 status: stable
 ---
 
 # Project State — Session Lifecycle
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #219 — Cross-App-Leftovers automatisch + Keep-Checkbox (2026-11-28, implemented `40ddfdc`/`5c766a4`/`9bb3cb9` — OPEN bis Owner-Gerätecheck, `owner-verdict`)
+
+- **`ImeLeftoverPolicy.decide` trägt `keepInWorkbench: Boolean = true`**; `false` →
+  `CANCEL_ONLY` in jedem Fall (pure, getestet). Die Einstellung: `cross_app_keep`
+  („Keep dictations discarded by an app switch in the Workbench", Standard AN,
+  AdvancedActivity).
+- **IME `FRESH_START`-Zweig:** die Einstellung wird VOR dem Cancel gelesen (der
+  Cancel löscht `pausedPackage()`); OFF → ein `ime_leftover_discarded`-Toast, der die
+  echte Checkbox-Benennung zitiert; ON → `ime_leftover_saved` mit App-Label NACH
+  `controller.cancel()` (gewinnt die #113-Salvage-Toast-Fläche, „one toast alive").
+  Das Label: `SettingsStore.appDisplayName(pausedPackage(), ime_leftover_unknown_app)`.
+- **Zombie-Pruning in `WorkbenchActivity.scanLeftovers()`:** `completed` +
+  `RecoveryRestore.textOf(records).isBlank()` → `deleteSession` + Log-Zeile
+  `prune: zombie session …` (eigenes Tag `WorkbenchActivity`); der Live-Take-Filter
+  läuft VOR dem Prune; COMPLETED-mit-Text und Interrupted bleiben; ein fehlgeschlagener
+  Delete behält die Page (best-effort-Vertrag des Journals).
+- **Reason-aware Hint:** `workbench_leftover_hint_completed` („Transcribed — restore
+  the text, share the audio, or dismiss."); die Failure-Arten behalten den alten Hint.
+- **Toast-Dauer 5,5 s bleibt** (#207); die Recovery-Toasts laufen über den owned
+  Toast-Strip (siehe [state/ime-field.md](ime-field.md) + [state/workbench.md](workbench.md)).
+- **Review/Tests:** `ImeLeftoverPolicyTest` +1 Matrixfall, `ImePauseEntryTest` +2,
+  876 `:app` grün, lint 0, Release auf BEIDEN Geräten (2026-11-28). Zwei-Achsen-Review
+  (Standards + Spec): keine harten Verstöße; Befunde gefixt oder entschieden
+  (review-fix `9bb3cb9`: IME-Host-Attach-Fenster, Toast-Copy, Log-Tag).
+- **Owner-Check:** (a) Checkbox OFF → Diktat in App A, App wechseln → kein
+  Workbench-Eintrag, aber der Discard-Toast mit dem App-Namen bei jedem frischen
+  Diktat; (b) ON → EIN Eintrag in der Workbench, SAVED-Toast, kein Banner/keine
+  Leftover-Page für diesen Pfad; (c) die Toasts erscheinen über der unteren
+  Bildschirmhälfte (~60 %), nicht am unteren Rand.
+- **Deferred decisions:** siehe Issue-Kommentar zu #219 vom 2026-11-28 (u. a. der
+  Preparer-Worker im Idle-Poll nach `releaseToRecovery` — dokumentiert, nicht gefixt).
 
 ## #218 — der PAUSED-Take zeigt „Pausiert…" statt „Listening…" (2026-11-28, shipped `a23f9d4`)
 

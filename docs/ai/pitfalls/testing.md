@@ -3,13 +3,30 @@ type: Pitfalls
 title: Pitfalls — Testing and the Harness
 description: Robolectric, MockK, Truth, the Gradle test tasks, heap and flake behaviour — facts that only exist because of the harness.
 tags: [knowledge, pitfalls, testing]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-25T12:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+sources: ["#219"]
 status: stable
 ---
 
 # Pitfalls — Testing and the Harness
 
 Moved out of `PITFALLS.md` in #206; entries are verbatim. New pitfalls in this area are appended here.
+
+- **Ein Flake, der isoliert 3/3 rot ist, ist KEIN Flake (2026-11-28, #219).**
+  `VoiceSessionControllerTest > a released paused take hands its audio to the journal`
+  (Kandidat `expected PENDING but was DONE`): das Rennen liegt INNERHALB des
+  synchronen Releases — `ensureFragmentPreparer()` → `attachTranscriber()` startet
+  den Transcriber-Worker (~Zeile 452), BEVOR `prepareTailSync()` Fragment 0 anbietet,
+  und `transcriber?.cancel()` läuft erst ~30 Zeilen später (Zeile 984). Unter
+  `Dispatchers.Unconfined` + instant-gemocktem STT gewinnt der Worker das Fenster und
+  journaled DONE. Im vollen Suite-Verbund meist grün, isoliert (`--tests …
+  --rerun-tasks`) deterministisch rot (3/3 gemessen). Zwei Lehren: (1) Der
+  deterministische Hebel ist die #186-Gate-Seam `online = { false }` (null Requests →
+  DONE unerreichbar → PENDING unter JEDER Interleaving) + `verify(exactly = 0)`, nicht
+  Thread-Joining (kein Seam auf den privaten Job). (2) Ein Sub-Agenten-Bericht, der
+  einen einmal rot gesehenen Test als „bekannten Flake" abtut, ist ein
+  Verifikations-Gate-Verstoß: erst isoliert 3× laufen lassen, DANN abhaken. Der
+  Fix-Wave-Agent hat das korrekt gemacht; der Wave-3-Bericht nicht.
 
 - **`exit value 2` im Test-Fork ist der Crash-Handler der App, nicht der Heap (2026-11-24, #198).** `PolishedRecognitionApp.onCreate` installiert einen JVM-globalen `setDefaultUncaughtExceptionHandler`, der mit `Process.killProcess` + `System.exit(2)` endet; Robolectric instanziiert die Application im Test-JVM. Also tötet **ein** unbehandeltes Throwable auf irgendeinem Hintergrund-Thread den ganzen Fork: partielle Ergebnis-XMLs, kein `<failure>`, kein `hs_err`, kein OOM-Text — und genau das war über Wochen als „Heap zu klein" (#86/#131) fehldiagnostiziert (der Kommentar in `build.gradle.kts` ist seit #198 korrigiert). Wer das Symptom sieht: **erst den Throwable sichtbar machen** (`CaptureThreadGuard`, `Log.e` im Handler), dann die Ursache im Thread fixen. Wer in einem Robolectric-Test einen Live-Take startet, stellt den Handler um (`@Before`/`@After`) — sonst reißt ein Test die ganze Suite mit.
 - **Ein Robolectric-Test darf nicht darauf bauen, dass der Shadow-`AudioRecord` schon Bytes geschrieben hat (2026-11-24, #199).** Ob eine Session den Live-Pfad (`finishTranscription`) oder den Batch-Pfad (`transcribe`) nimmt, entscheidet `FragmentTranscriber.drain().chunkCount > 0` — also ob tatsächlich Audio da war. Unter Last ist der Spool bei `stopAndTranscribe()` noch leer und der Test kippt (in `VoiceSessionControllerTest` genau einmal passiert, 3/3 alleine grün, im CI-förmigen `test + lintDebug` rot). Deterministisch wird es nur über einen **restaurierten Snapshot** (dessen `prepareTailSync()` synchron kodiert), nicht über einen laufenden Take.

@@ -3,8 +3,9 @@ type: State
 title: Project State — Settings
 description: The settings overview, its four category screens and the draft/apply save model.
 tags: [knowledge, state, settings]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T21:05:00Z }
-sources: ["#212", "#153", "#214"]
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+sources: ["#219", "#212", "#153", "#214"]
+verified: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
 status: stable
 ---
 
@@ -12,6 +13,18 @@ status: stable
 
 The settings surface as its own theme since #212 (the overview + the four category
 screens). Sections are verbatim, newest first.
+
+## #219 — `cross_app_keep` (2026-11-28, implemented)
+
+- **Die Checkbox:** Boolean „Keep dictations discarded by an app switch in the
+  Workbench", Key `cross_app_keep`, Standard AN, in `AdvancedActivity` (die Advanced-/
+  Debugging-Sektion), Draft/Apply wie `imeLivePreview`.
+- **Der App-Label-Resolver:** `SettingsStore.appDisplayName(pkg, fallback)` —
+  known-apps-Label (#100) → PackageManager-Label → Paketname; ein `null`-Paket
+  (unlesbarer Pre-#192-Snapshot) liefert den Fallback `ime_leftover_unknown_app`.
+  Pure Read (#200): der In-Memory-Cache antwortet, nichts wird persistiert.
+- Details zum Verhalten: [decisions/session-lifecycle.md](../decisions/session-lifecycle.md)
+  + [state/session-lifecycle.md](session-lifecycle.md) (#219).
 
 ## #214 addendum — token vault per provider URL (2026-11-26, implemented — OPEN until the owner's device check)
 

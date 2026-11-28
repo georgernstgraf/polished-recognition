@@ -3,7 +3,7 @@ type: History Archive
 title: History
 description: Append-only archive of superseded decisions and pruned entries.
 tags: [knowledge, history, audit]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-20T11:14:58Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
 status: stable
 ---
 
@@ -191,3 +191,74 @@ Origin file: docs/ai/PITFALLS.md. Reason superseded: debug-keystore era long ove
 
 - **Origin**: decisions/build-release.md (entry "2026-06-09: Remove signingConfigs.release for F-Droid [SUPERSEDED]")
 - **Reason**: #30 replaced the removal with a file-existence-guarded signingConfig, restoring local installRelease without disturbing F-Droid/CI
+
+## 2026-11-26 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #213 CLOSED — owner verdict passed on the device; the wave history lives in state/workbench.md + state/ime-field.md): #213 — recording-red FONT, polished-zone summary actions, app-wide AppButton, borderless bigger Workbench icons
+
+- Original entry (condensed): closed 2026-11-26 after the owner's verdict; final wave `49f78b1`. Red belongs to the FONT, never the background (IME), the Polished summary row carries chevron · Polished · trash · promote · copy with only a bottom copy under the read-only field, every text button wears `@style/AppButton`, and Workbench icon buttons are borderless, 48dp, 1.5× with tooltips.
+
+## 2026-11-26 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #212 CLOSED — owner verdict passed on the device; full detail in state/settings.md): #212 — Settings becomes an overview with four category screens
+
+- Original entry (condensed): seven commits (`313d1c1` overview + screens + draft/apply, `3c24afc` H1 title + LLM Control heading, `5f63b29` 13 dividers, `81992d2` About swap, `96cc343` contrast exchange — dividers lead in `text_secondary`, `colorControlNormal` → `control_quiet` ~20 %). 805 `:app` tests + lint 0 throughout. Owner: „passst". Known+accepted: the quiet control tint is app-wide. **#156 impact: the whole settings surface needed recapture.**
+
+## 2026-11-26 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #211 CLOSED — owner verdict passed on the device; detail in state/ime-field.md): #211 — the disabled LLM checkbox shows the effective state
+
+- Original entry (condensed): owner finding — the #168-disabled toggle still rendered the GLOBAL preference. `46761a3` flips `refreshQuickSettings()` to `isChecked = !llmForcedOff && !settings.rawMode`: inside our own app the grayed box reads OFF, a foreign bind restores the global state. The `raw_mode` write-guards are untouched. Release on BOTH devices; the owner passed the check.
+
+## 2026-11-25 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #209 CLOSED — owner verdict on the device; detail in state/workbench.md): #209 — the collapse chevrons are real drawables at 32dp
+
+- Original entry (condensed): arc over three fixes: 14sp glyphs (#189) → 22sp (`4bd3f19`) → real drawables (`f2847f5`: `ic_chevron_down` ImageViews, `?android:attr/textColorSecondary` tint, collapsed rotates −90°) → 32dp per owner (`1d9b1b4`; `WorkbenchLayoutPolicyTest` pins ImageView + `ic_chevron_down` + `>= 32dp`). Installed on both devices; owner passed the check. Fallback if it ever reads small again: a pure size bump (40dp+), never a return to glyphs.
+
+## 2026-11-25 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #208 CLOSED — owner verdict „the functionality is good now"; detail in state/workbench.md + decisions/workbench.md): #208 — promote clears the polished slot; the MRU ring stays; only ＋ instantiates a dictation
+
+- Original entry (condensed): final shape over `a7c7d89` (promote is a move — `replaceRawWithPolished` empties the polished slot, the stored path shows it immediately) + `11e5b56` (the same-day creation-order excursion retracted per owner: `updatedAtMs` restored as the MRU key). The invariant **only ＋ / the compose materialisation instantiates a dictation** is pinned by a store test. 766 `:app` tests green, release on the OnePlus.
+
+## 2026-11-24 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #189 shipped and owner-passed; the chevron follow-up lives in the #209 entry; detail in state/workbench.md): #189 — the Workbench sections collapse again
+
+- Original entry (condensed): both label rows are `<summary>`-style toggles (chevron · label · copy) with a one-line ellipsised preview while hidden; the state lives for one visit; a take always opens Raw (a collapsed field has no input connection). The promote icon is an UP arrow, the two action rows are identical, the trash can sits in the bottom bar. `WorkbenchLayoutPolicyTest` pins the accordion; `WorkbenchActivityTest` covers both toggles.
+
+## 2026-11-24 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: both pairs shipped and closed; detail in state/workbench.md + decisions/session-lifecycle.md): #201/#204 and #202/#203 — the parked bar lost its sentence; a RAW edit is saved while typed
+
+- Original entry (condensed): #201 = #204 (duplicates) — a bar with nothing buffered is a plain pause at `0:00`, no explaining sentence. #202 = #203 — a RAW edit is saved while it is typed (500 ms debounce via `DictationStore.updateRaw`) and `commitEdits()` runs at the top of `polishCurrent()`, so the result attaches to the edited text and survives the reload. The owner's Disk-button idea was not built — the implicit-save policy stays.
+
+## 2026-11-24 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #193 CLOSED with all four children; detail in state/ime-field.md + decisions/build-release.md): #193 — the lint baseline is gone
+
+- Original entry (condensed): 77 baseline entries worked off — 71 real fixes and 6 documented exceptions (four inline `@Suppress`, two commented `lint.xml` ignores: the permissive cleartext and the IME overdraw, 90 % opaque by design). `warningsAsErrors = true`, `lintDebug` at zero findings, and `XmlColorPolicyTest` rule 6 fails the suite if `app/lint-baseline.xml` ever reappears. Children #194–#197 all closed.
+
+## 2026-11-24 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #198/#199/#200 all closed; detail in state/session-lifecycle.md + pitfalls/testing.md): #198/#199 — exit 2 was never a heap wall; #200 — the flake had a thread
+
+- Original entry (condensed): #198 — the app's JVM-global crash handler ends in `System.exit(2)`; a genuine throwable (`PCM range […] beyond buffer (0B)` while `flush()` truncated the spool under the worker) reached it. Now: worker stopped+joined before truncation, no throwable escapes worker/capture thread, a capture failure parks PAUSED, the handler logs, `CaptureThreadGuard` in the live-take classes. #199 — the `flush in PROCESSING is a no-op` flake made deterministic over a restored snapshot. #200 — the hypothesis (a deferred `apply()`) was wrong: the startup maintenance thread's `evidenceRetentionSeconds` getter WROTE the debug default `2592000` while reading; the getter is now a pure read, the thread is named `app-startup-maintenance` and joined by `SettingsStoreTest`.
+
+## 2026-11-23 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #192 closed — the owner's device check passed 2026-11-24; detail in decisions/session-lifecycle.md + state/workbench.md): #192 — a pause belongs to ONE app, shipped + amended
+
+- Original entry (condensed): the same app always continues a pause („always continue, no exceptions"), another app ends it through the #113 cancel and starts fresh; nothing is written for a paused take; the parked post-send bar ends with the keyboard. Owner follow-ups shipped in the same issue: ONE no-take bar (a fresh idle is parked at `0:00`, ↺ really starts a take) and an automatic cancel may only destroy audio it can hand over (`salvageableText()`, trace `kept=audio-without-transcripts`). Device check on `f6de166c` PASSED 2026-11-24; one acceptance item was REPLACED, not implemented — the post-send bar need not be distinguishable because the owner never wanted that state (answer "A").
+
+## 2026-11-23 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #191 closed — shipped and owner-passed; detail in state/workbench.md): #191 — leftover actions directly under the when-line, an unmissable banner
+
+- Original entry (condensed): after #186's device check paged 1/3 · 2/3 · 3/3 to find Retry STT, the four leftover actions sit directly under the when-line and the banner is an accent bar under the header (`<n> incomplete dictation(s) · <newest stamp> — tap to open`, GONE at zero, tap jumps to the newest leftover).
+
+## 2026-11-23 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: #118 CLOSED 2026-11-23; only the churn-line owner check remains active — it stays in HANDOFF.md): #118 Phase C shipped, Phase B superseded
+
+- Original entry (condensed): Phase C shipped (`service/RebindChurn` skips identical per-cycle render/FGS/notification/breath work; the trace line ends in `churn=render:<r> fgs:<f> notify:<n> breath:<b>`). **Phase B was NOT built — superseded by #190** (`MISMATCH` + before-window guard; the raw-rescue half shipped in #186). #186 closed and device-verified 2026-11-23 — epic #152 complete, 6/6 children (the Samsung airplane-mode flight logged `rawRescue` + zero requests, the retry sent exactly three fragments after reconnect; two defects found and fixed en route: the raw-mode empty-rescue "success" and the `onDestroy` journal delete).
+
+## 2026-11-20 (SUPERSEDED 2026-11-28, origin: HANDOFF.md, reason: epic #152 complete — all six children closed, #186 device-verified 2026-11-23): the #152 completion checklist
+
+1. **#182 — durable fragment journal** (closed 2026-11-20): `filesDir/journal/<sessionId>/`, composed upload, 256-MB cap, no age rule.
+2. **#184 — idempotent uploads** (closed 2026-11-20): `session_id` + `fragment_index` + `attempt` via one `@PartMap`; empty map = pre-#184 wire.
+3. **#183 — STT failure classification** (closed 2026-11-20): `SttFailureClassifier`, `Retry-After` budget, the per-session AUTH latch, `NEEDS_MANUAL` in the journal.
+4. **#185 — recovery UI** (closed 2026-11-21): session state in `session.json`, `recoverableSessions()` as the single source, Workbench scan + auto-retry of `TRANSIENT`/interrupted, `JournalReplay`, Restore/Share/Dismiss.
+5. **#188 — incomplete dictations in the Workbench** (closed 2026-11-22): `WorkbenchPage` + merge order, the tiered when-line, the leftover page, the four actions, the banner.
+6. **#186 — offline sessions** (closed 2026-11-23, device-verified): the `NetworkGate`, `SttFailure.OFFLINE`, the OFFLINE latch, foreground-only reconnect. No journal age rule — the 256-MB cap keeps everything.
+
+## 2026-10-14 … 2026-10-24 (SUPERSEDED 2026-11-28, origin: HANDOFF.md + STATE.md, reason: the referenced device checks happened or the issues closed — verified via `gh issue view` on 2026-11-28: #182/#75/#185/#188/#186/#177/#178/#181/#201/#202/#203/#189/#191/#192/#118/#142/#138/#120/#123/#110/#101/#99/#74/#109 all CLOSED; #156/#129 remain OPEN and stay in HANDOFF/STATE): the old owner device-check checklist and the October pending items
+
+- Owner checklist items whose issues are closed (original text kept in condensed form; the full wording lives in the git history of this file):
+  - [x] parked IME bar check (issues #177/#201/#204) — passed with the #192 device check.
+  - [x] icon-only actions check (#178/#181) — owner verdict passed; chevron follow-up in #209.
+  - [x] #182 force-stop device check — closed 2026-11-20.
+  - [x] #75 budget-wall device check — closed 2026-11-22.
+  - [x] #185/#188 recovery-path device checks — closed 2026-11-21/22.
+  - [x] #188 merged-ring device check — closed 2026-11-22.
+  - [x] #186 offline dictation device check — closed 2026-11-23 (the flight was run and exposed two defects, both fixed before closure).
+  - [x] #202/#203 edit-survives-polish check — closed 2026-11-24.
+  - [x] #189 summary-row device check — closed 2026-11-26.
+- STATE.md pending items pruned the same way: the #142 on-device spot check (issue closed 2026-11-14), the #138 send-check (closed), the #120 re-check (closed on code evidence), the #123 loop guard (closed), the residue line for #112/#113/#116/#110/#101/#99/#74/#109 (all closed), and the F-Droid 1.5.0 pickup watch (f-droid.org lists v1.5.0 added 2026-10-16 and v1.5.1 added 2026-10-25 — verified 2026-11-28). The stale "Current Focus" block about epic #141/#142/#144 (already self-marked history on 2026-11-14) left STATE.md with its replacement.

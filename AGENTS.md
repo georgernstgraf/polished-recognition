@@ -99,6 +99,13 @@ After significant progress or at session end, persist context into
 Run knowledge persistence after every `commit` or `finish` mode in
 the issue workflow.
 
+## Owner Workflow
+
+- The owner reports observations (screenshots + what bothers him); the agent resolves them into issues (duplicate check included) and talks about FEATURES in chats, never ticket numbers — numbers appear only in the final report as the audit trail.
+- The owner gets tester checklists: a short, user-visible checklist WITH the expectation at every checkpoint ("Pause → expect 'Paused…' + pause icon"). Testing yes, documenting no.
+- `docs/FEATURES.md` ("what works") grows automatically: the agent adds one user-visible sentence at every issue close; the owner never writes it.
+- Implemented issues waiting on the owner's device check carry the `owner-verdict` label; a weekly automation (`issue-janitor`, cron Mon 09:00 Europe/Vienna) auto-closes them after 30 days of silence (reopenable). Details in `docs/ai/CONVENTIONS.md` ("Owner Workflow").
+
 ## Key Contacts
 
 - Owner: Georg Ernstgraf

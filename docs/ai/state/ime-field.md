@@ -3,13 +3,38 @@ type: State
 title: Project State — IME and the Target Field
 description: The keyboard surface, its output control, the palette and the live preview.
 tags: [knowledge, state, ime-field]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T15:00:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+sources: ["#219", "#222"]
 status: stable
 ---
 
 # Project State — IME and the Target Field
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #219/#222 — Owned Toast-Strip im IME-Fenster (2026-11-28, `7bcbcca` + `9bb3cb9`)
+
+- **Der Strip ist GEDOCKT:** `ToastStrip` ist das erste Kind von `ime_root` — das
+  IME-Fenster macht das Anchoring, KEINE Screen-Math im IME (sonst driftet der Strip
+  mit Tastaturhöhe/Insets/Orientation). Er ist `GONE`, wenn idle — das Layout bleibt
+  byte-identisch zu pre-#222, solange kein Toast läuft.
+- **`Toasts`-Registry keyed by Calling-Context:** `show`/`short` rendern über den Host
+  des Kontexts (IME-Strip oder Workbench-Overlay), sonst Plattform-Fallback
+  byte-identisch (die Settings-Screens sind unverändert). Die Ein-Toast-Alive-Invariante
+  überspannt Strip und Plattform — `cancelMessage` cancelt auch den Strip.
+- **Attach-Fenster (review-fix `9bb3cb9`): der Host ist registriert GENAU solange die
+  Input-View sichtbar ist** — attach in `onCreateInputView` + je `onStartInputView`,
+  detach in `onFinishInputView` und (zuerst) in `onDestroy`; ein Toast ohne sichtbare
+  Input-View geht an den Plattform-Fallback (der #207-Held-Delivery-Toast kam sonst im
+  unsichtbaren Strip abhanden). Eine neu erzeugte Input-View orphaned den alten
+  Strip-Baum — der alte Host wird zuerst detached.
+- **Farben:** Strip `#E6212121`/`#F0F0F3` in BEIDEN Paletten (Platform-Toast-Look,
+  dunkle Pille + heller Text in Hell und Nacht; XmlColorPolicy-Regel), Kontrast ≥ 9:1.
+- **Owner-Check (Teil von #219/#222):** Toasts erscheinen über der unteren
+  Bildschirmhälfte (~60 %), über der Tastatur und in der Workbench, nicht am unteren
+  Rand; ohne sichtbare Tastatur (z. B. Toast nach dem Feldwechsel) kommt der
+  Plattform-Toast am gewohnten Ort.
 
 ## #213 — Recording-Rot KORRIGIERT: rote SCHRIFT nur im Diktat, Hintergrund nie (2026-11-26, `63e2a52` — offen bis Owner-Gerätecheck)
 

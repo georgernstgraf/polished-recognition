@@ -3,7 +3,7 @@ type: Conventions
 title: Conventions
 description: Coding patterns, naming rules, and file-layout rules for this project.
 tags: [knowledge, conventions]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
 verified: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
 status: stable
 ---
@@ -282,3 +282,19 @@ The transcription pipeline resolves the following template variables at runtime.
 - **Headless hosts (`claw` VPS)** — no USB devices: CI release downloads are the ONLY install path there; hand the adb command to the owner for his USB host.
 - **Always label every command/path with its target host** when handing instructions to the owner (`think:` / `claw:`): an unlabeled ADB command or file path is meaningless across hosts.
 - Cross-host resources the agent may use via SSH: `think` (corpus WAVs under `/tmp/opencode/seam-corpus`, sshfs murl mounts) and `gregor` (whisper container config, `sudo docker inspect`).
+
+## Owner Workflow (bindend, 2026-11-28)
+
+- **Der Owner meldet Beobachtungen** (Screenshots + was stört); der Agent löst sie zu
+  Issues auf (Duplicate Check inklusive) und spricht in Chats über FEATURES, nie über
+  Ticket-Nummern — Nummern erscheinen nur im Abschlussbericht als Audit-Trail.
+- **Der Owner bekommt Tester-Checklisten:** bei jedem Checkpoint eine kurze,
+  nutzersichtbare Prüfliste MIT Erwartung („Pause → erwarte ‚Paused…' + Pause-Icon").
+  Testen ja, Dokumentieren nein.
+- **`docs/FEATURES.md` („Was funktioniert") wächst automatisch:** bei jedem Issue-Abschluss
+  ergänzt der Agent einen nutzersichtbaren Satz; der Owner schreibt sie nie selbst.
+- **`owner-verdict`-Label + Auto-Close:** jedes implementierte Issue, das auf den
+  Geräte-Check des Owners wartet, bekommt das Label. Eine wöchentliche OpenCode-Automation
+  (cron Mo 09:00 Europe/Vienna, Agent `issue-janitor` in opencode-helpers, Model gepinnt)
+  schließt `owner-verdict`-Issues nach 30 Tagen ohne Owner-Beschwerde als „tested / no
+  longer a problem"; Reopen ist jederzeit möglich. Kein Telegram-Intake (Owner: nein).

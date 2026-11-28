@@ -1,5 +1,23 @@
 # Persistence Log
 
+## 2026-11-28 (#219 — Cross-App-Leftovers automatisch: Keep-Checkbox, Zombie-Pruning, owned Toast-Strip)
+
+* **Update**: [decisions/session-lifecycle.md](decisions/session-lifecycle.md) — Entscheidung 2026-11-28: die `cross_app_keep`-Checkbox entscheidet über die Sicherung fremd-app-Leftovers (EIN Toast mit App-Namen vs. pre-#217-Discard mit Benennungs-Toast), Zombie-Löschung Owner-gesegnet, Hint bleibt zweiwegig, Toast-Dauer 5,5 s bleibt; Preparer-Idle-Poll dokumentiert, nicht gefixt.
+* **Update**: [state/session-lifecycle.md](state/session-lifecycle.md) — neuer #219-Abschnitt (`keepInWorkbench`-Parameter, Einstellung VOR dem Cancel, Zombie-Pruning in `scanLeftovers`, reason-aware Hint, Review-/Test-Stand, die drei Owner-Checks).
+* **Update**: [state/settings.md](state/settings.md) — neuer #219-Abschnitt: `cross_app_keep` (AdvancedActivity, Draft/Apply) + `SettingsStore.appDisplayName` als App-Label-Resolver; `sources` um #219 ergänzt.
+* **Update**: [state/workbench.md](state/workbench.md) — neuer #219-Welle-Abschnitt: Zombie-Pruning im Scan, reason-aware Hint, der `WorkbenchToastStripHost`-Overlay (ANCHOR_FRACTION 0.6).
+* **Update**: [state/ime-field.md](state/ime-field.md) — neuer #219/#222-Abschnitt: `ToastStrip` als gedocktes erstes Kind von `ime_root`, `Toasts`-Registry keyed by Context, Attach-Fenster (sichtbare Input-View) aus dem review-fix `9bb3cb9`, Strip-Farben in beiden Paletten.
+* **Update**: [pitfalls/testing.md](pitfalls/testing.md) — neuer Bullet: ein isoliert 3/3 roter Test ist KEIN Flake (Rennen innerhalb des synchronen Releases; Hebel = #186-Gate-Seam; Sub-Agenten-„bekannter Flake"-Abtut-Bericht ist ein Verifikations-Gate-Verstoß).
+* **Update**: [CONVENTIONS.md](CONVENTIONS.md) — neue bindende Sektion „Owner Workflow" (Beobachtungen → Issues ohne Ticket-Nummern im Chat, Tester-Checklisten mit Erwartung, `docs/FEATURES.md` wächst automatisch, `owner-verdict`-Label + wöchentliche Auto-Close-Automation).
+* **Update**: [HANDOFF.md](HANDOFF.md) — überschrieben: #219 als neuer Top-Eintrag (+ #222), #218/#217/#214/#153 verdichtet mit Owner-Checks erhalten, #207/#210/#205 verdichtet (alle owner-verdict OPEN), offen bleiben #156, der #118-Churn-Check und der neue Automation-Retarget-Task; geschlossene Blöcke (#213/#212/#211/#209/#208/#189/#201/#204/#193/#198–#200/#192/#191/#118/#152, Checklisten-Items) nach HISTORY verlagert.
+* **Update**: [STATE.md](STATE.md) — überschrieben: Statuszeile führt #219, Shipped-Links mit neuen Counts, Pending gesäubert (#142/#138/#120/#123/Residuenzeile/F-Droid-Watch geprüft und entfernt), Device Notes auf den 2026-11-28-Doppel-Install aktualisiert.
+* **Update**: [ARCHITECTURE.md](ARCHITECTURE.md) — `ImeLeftoverPolicy`-Zeile um `keepInWorkbench`/`cross_app_keep` ergänzt, neue `Toasts`/`ToastStrip`/`ToastStripPolicy`-Zeile.
+* **Update**: [DECISIONS.md](DECISIONS.md) — die „ten newest" auf #219/#218/#217/#214/… aufgefrischt (die Liste war seit #205 stehen geblieben).
+* **Update**: [AGENTS.md](../../AGENTS.md) — neuer Owner-Workflow-Block (Englisch, Kurzfassung, Details in CONVENTIONS.md).
+* **Creation**: [docs/FEATURES.md](../../docs/FEATURES.md) — „Was funktioniert" (Intro + vier nutzersichtbare Sätze, neueste zuerst).
+* **Deprecation → HISTORY.md**: die abgeschlossenen HANDOFF-Blöcke und die geprüften STATE-Pending-Items (siehe oben).
+* **Update**: [index.md](index.md), [decisions/index.md](decisions/index.md), [state/index.md](state/index.md), [pitfalls/index.md](pitfalls/index.md) — Counts neu gezählt.
+
 ## 2026-11-28 (#218 — PAUSED-Notification mit Pause-Icon)
 
 * **Update**: [state/session-lifecycle.md](state/session-lifecycle.md) — neuer #218-Abschnitt (Screenshot-Befund, PAUSED fiel in `else -> Unit`, #118-Zeitstempel-Quirk, Icon-Parameter in beiden Services, offener Owner-Check).

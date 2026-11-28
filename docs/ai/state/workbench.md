@@ -3,14 +3,34 @@ type: State
 title: Project State — Workbench
 description: The Workbench pages, the entry model, the polish sites and the recovery surface.
 tags: [knowledge, state, workbench]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
-verified: { by: opencode/knowledge-persistence, at: 2026-11-26T16:10:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+sources: ["#219"]
 status: stable
 ---
 
 # Project State — Workbench
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #219-Welle (2026-11-28): Zombie-Pruning im Scan, reason-aware Hint, der Toast-Strip-Overlay
+
+- **Zombie-Pruning im Scan:** `scanLeftovers()` löscht eine COMPLETED Journal-Session
+  ohne gespeicherten Text (`RecoveryRestore.textOf(records).isBlank()`) statt sie nur
+  zu verstecken — sie kann nicht wiederhergestellt und nicht neu gelaufen werden
+  (der COMPLETED-Pfad ist Restore) und würde Banner/Page-Navigation weiter belasten.
+  Log-Zeile `prune: zombie session …` unter dem Tag `WorkbenchActivity`; der
+  Live-Take-Filter läuft VOR dem Prune, COMPLETED-mit-Text und Interrupted bleiben,
+  ein fehlgeschlagener Delete behält die Page.
+- **Reason-aware Hint:** die When-Line nennt den konkreten Grund; der Hint ist
+  Handlungs-Guidance — COMPLETED liest `workbench_leftover_hint_completed`
+  („Transcribed — restore the text, share the audio, or dismiss."), die Failure-Arten
+  behalten den alten Hint.
+- **Der Toast-Strip-Overlay:** `WorkbenchToastStripHost` rendert die Recovery-Toasts
+  (Recovery-Beginn, Reconnect, ...) als owned Strip statt des Plattform-Toasts,
+  anchored via `ToastStripPolicy.overlayTop` — **ANCHOR_FRACTION 0.6**: die Unterkante
+  des Strips liegt auf 60 % der Content-Höhe, also über der unteren Bildschirmhälfte.
+  Details zur Strip-Mechanik: [state/ime-field.md](ime-field.md) (#219/#222).
 
 ### #213-Icon-Welle (2026-11-26, `b5cefbd`): rahmenlose, größere Icons, Tooltips, Header space-around
 

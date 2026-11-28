@@ -3,13 +3,48 @@ type: Decisions
 title: Decisions — Session Lifecycle
 description: Recording state: pause, resume, cancel, auto-start, rotation, the post-send park, the journal and the recovery path.
 tags: [knowledge, decisions, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-28T08:40:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+verified: { by: opencode/knowledge-persistence, at: 2026-11-28T10:15:00Z }
+sources: ["#219", "#218", "#217"]
 status: stable
 ---
 
 # Decisions — Session Lifecycle
 
 Moved out of `DECISIONS.md` in #206; entries are verbatim. New decisions in this area are appended here.
+
+## 2026-11-28: #219 — Cross-App-Leftovers werden automatisch zu Workbench-Diktaten (Keep-Checkbox)
+
+Owner-Neuinterpretation von #217: ein App-Wechsel-Leftover ist KEIN Failure — die
+incomplete-dictation-UI (Banner, Leftover-Page, Restore/Share/Dismiss) war für ihn
+eine ungewollte Last. Neue Regel: eine Advanced-Checkbox `cross_app_keep`
+(„Keep dictations discarded by an app switch in the Workbench", Standard AN) entscheidet,
+ob ein fremd-app-Leftover überhaupt gesichert wird.
+
+- **ON:** beide Sicherungs-Zweige bestätigen mit EINEM Toast mit App-Namen
+  („Dictation from <app> saved to the Workbench"); das App-Label kommt über
+  `SettingsStore.appDisplayName` (known-apps-Label → PackageManager-Label → Paketname,
+  `ime_leftover_unknown_app` als Fallback) und ersetzt die #217-Dauerangabe.
+- **OFF:** gar keine Sicherung (pre-#217-Discard) und beim JEDEM frischen Diktat-Zustand
+  ein Toast, der die echte Checkbox-Benennung zitiert — der erste Wortlaut nannte eine
+  nicht existierende Einstellung (review-fix `9bb3cb9`).
+- **Zombie-Löschung ist Owner-gesegnet (Orchestrator-Entscheidung):** eine COMPLETED
+  Journal-Session ohne gespeicherten Text wird GELÖSCHT (nicht nur ausgeblendet) —
+  der Text war längst zugestellt, das Audio hat keinen wiedererlangbaren Wert; eine
+  nur versteckte Zombie-Session würde Banner/Page-Navigation weiter belasten. Log-Zeile
+  `prune: zombie session …` unter dem Tag `WorkbenchActivity`.
+- **Der Hint bleibt zweiwegig** (COMPLETED vs. Failure-Arten): die When-Line über dem
+  Hint nennt den konkreten Grund; der Hint ist Handlungs-Guidance.
+- **Toast-Dauer 5,5 s bleibt** (#207-Lesbarkeitsentscheidung; „one brief toast" meint
+  die Ein-Toast-Regel, nicht die Dauer).
+- Dokumentiert, nicht gefixt: `releaseToRecovery()` lässt bei einem fortgesetzten Take
+  den Preparer-Worker-Thread im Idle-Poll (50 ms) bis zum nächsten frischen Take leben —
+  er kann nichts journaled (Transcriber gecancelt, Kanal zu) und heilt sich beim nächsten
+  `startFragmentPreparation`.
+- Wellen: `40ddfdc` (Keep-Checkbox + App-Namen-Toasts), `5c766a4` (Zombie-Pruning +
+  reason-aware Hint), `7bcbcca` (owned Toast-Strip, #222), `a4d4890` (racy-Test-Fix),
+  `9bb3cb9` (review-fix). Tests: `ImeLeftoverPolicyTest` +1 Matrixfall, `ImePauseEntryTest`
+  +2; 876 `:app` grün, lint 0, Release auf BEIDEN Geräten (2026-11-28).
 
 ## 2026-11-28: #218 — Pause korrigiert nur die Notification, nie das FGS
 
