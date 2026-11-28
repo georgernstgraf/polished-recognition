@@ -3,13 +3,27 @@ type: Decisions
 title: Decisions — Session Lifecycle
 description: Recording state: pause, resume, cancel, auto-start, rotation, the post-send park, the journal and the recovery path.
 tags: [knowledge, decisions, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-27T21:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T08:40:00Z }
 status: stable
 ---
 
 # Decisions — Session Lifecycle
 
 Moved out of `DECISIONS.md` in #206; entries are verbatim. New decisions in this area are appended here.
+
+## 2026-11-28: #218 — Pause korrigiert nur die Notification, nie das FGS
+
+Owner-Screenshot-Befund: pausierter Take (0:05), aber „Listening… · 2m"
+und das Mikro-Icon in der Statusleiste. Die Ursache war ein reines
+Anzeige-Loch (PAUSED fiel in beiden `StateChanged`-Handlern in
+`else -> Unit`), die Verlockung „Notification weg in der Pause" wäre
+falsch: **der #83-Pitfall bleibt die harte Randbedingung — das Mic-FGS
+wird nur bei IDLE released**, weil Oplus den Prozess ohne es reaped, während
+die pausierte Session nur im RAM lebt. Die Entscheidung: die Anzeige wird
+umgeschaltet (Text `paused_notification` + `ic_notification_pause`), das
+FGS bleibt. Nebeneffekt, der den Fix trägt: Pause/Resume ist jetzt ein
+echter Textwechsel, also ein ehrlicher #118-Churn-Zeitstempel — der
+„2m"-Quirk im Pausefall ist mitgelöst.
 
 ## 2026-11-27: #217 — der Cross-App-Einstieg sichert den Take, statt zu stallen (Release statt Kept)
 

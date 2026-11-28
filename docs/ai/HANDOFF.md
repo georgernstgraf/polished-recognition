@@ -3,11 +3,14 @@ type: Handoff
 title: Handoff
 description: Open tasks for the next agent session.
 tags: [knowledge, handoff]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-27T21:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T08:40:00Z }
 status: stable
 ---
 
 # Hand Off
+
+**#218 (2026-11-28, IMPLEMENTED — OPEN until the owner's device check): a paused take shows the paused notification + pause icon instead of „Listening…" and the mic icon.**
+`a23f9d4`: the owner screenshot caught the parked keyboard (take at 0:05) with the FGS notification still reading „Listening… · 2m" and the mic icon in the status bar. Root cause: both `StateChanged` handlers (IME + `PolishedRecognitionService`) mapped only RECORDING/PROCESSING/IDLE — `State.PAUSED` fell into `else -> Unit`; the „2m" age was #118 churn suppression never re-posting identical text. Fix (owner decision: text + icon): the PAUSED branch posts `paused_notification` („Paused…") with the new `ic_notification_pause` small icon; `buildNotification`/`updateNotification`/`postNotification` gained an icon parameter (default `ic_notification_mic`) in both services. **The FGS itself STAYS UP — #83 (Oplus reaps the process without the mic FGS mid-rotation) is untouched;** only the display changes. Side benefit: pause/resume is now a real text change, so churn suppression yields honest, fresh timestamps. Tests: new `ImeRebindChurnTest` case (PAUSED posts paused text + `ShadowIcon.resId` = pause icon, a repeat is suppressed, resume repairs back to the mic look; the first „Listening…" post rides the FGS assert and counts as `fgs`, never `notify`); full suite + `lintDebug` green (forced); release installed on BOTH devices (OnePlus `f6de166c`, A03 `R7SRB06XF5K`). **Owner check:** pause a take → „Paused…" with the pause icon, no mic symbol in the status bar; resume → „Listening…" with a fresh timestamp; field change/rotation during PAUSED still keeps the FGS. See `decisions/session-lifecycle.md` + `state/session-lifecycle.md`.
 
 **#217 (2026-11-27, IMPLEMENTED — OPEN until the owner's device check): cross-app entry releases an uncommitted paused take to the Workbench instead of stalling the auto-start.**
 `1edb349`: the device logs proved the #152 kept-guard stuck the keyboard in the

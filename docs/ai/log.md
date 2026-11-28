@@ -1,5 +1,13 @@
 # Persistence Log
 
+## 2026-11-28 (#218 — PAUSED-Notification mit Pause-Icon)
+
+* **Update**: [state/session-lifecycle.md](state/session-lifecycle.md) — neuer #218-Abschnitt (Screenshot-Befund, PAUSED fiel in `else -> Unit`, #118-Zeitstempel-Quirk, Icon-Parameter in beiden Services, offener Owner-Check).
+* **Update**: [decisions/session-lifecycle.md](decisions/session-lifecycle.md) — Entscheidung 2026-11-28: Pause korrigiert nur die Anzeige, das FGS bleibt (harte #83-Randbedingung); Pause/Resume als echter Textwechsel liefert ehrliche Churn-Zeitstempel.
+* **Update**: [HANDOFF.md](HANDOFF.md) — #218 als neuer Top-Eintrag (offen bis zum Owner-Gerätecheck).
+* **Update**: [STATE.md](STATE.md) — Statuszeile um #218 ergänzt.
+* **No change**: [pitfalls/](pitfalls/index.md) (die #83-Randbedingung war schon korrekt dokumentiert und wurde nicht angetastet), [CONVENTIONS.md](CONVENTIONS.md), [DOMAIN.md](DOMAIN.md), [ARCHITECTURE.md](ARCHITECTURE.md), [state/ime-field.md](state/ime-field.md), [state/workbench.md](state/workbench.md), [index.md](index.md), [state/index.md](state/index.md), [decisions/index.md](decisions/index.md), [HISTORY.md](HISTORY.md).
+
 ## 2026-11-27 (#217 — Cross-App-Release an die Werkstatt + Tastatur-Glyph)
 
 * **Update**: [decisions/session-lifecycle.md](decisions/session-lifecycle.md) — Entscheidung 2026-11-27: der Cross-App-Einstieg sichert den Take statt zu stallen (`ImeLeftoverPolicy`-Matrix, `releaseToRecovery` mit Tail-Flush + Backlog-Journaling, Out-of-band-Kick, Duplikat-frei-Konstruktion, Glyphen-Tausch); revidiert #113s „in-flight not counted" für diesen Pfad.

@@ -3,13 +3,42 @@ type: State
 title: Project State — Session Lifecycle
 description: Pause/resume/cancel, auto-start, rotation resilience, the journal and recovery.
 tags: [knowledge, state, session-lifecycle]
-generated: { by: opencode/knowledge-persistence, at: 2026-11-27T21:45:00Z }
+generated: { by: opencode/knowledge-persistence, at: 2026-11-28T08:40:00Z }
 status: stable
 ---
 
 # Project State — Session Lifecycle
 
 Moved out of `STATE.md` in #206; sections are verbatim, newest first. The current status line, focus and pending items stay in `STATE.md`.
+
+## #218 — der PAUSED-Take zeigt „Pausiert…" statt „Listening…" (2026-11-28, shipped `a23f9d4`)
+
+- **Der Befund (Owner-Screenshot):** die Tastatur stand im Pausezustand
+  (Take bei 0:05), aber die FGS-Notification las sich weiter „Listening… ·
+  2m" und das Statusleisten-Icon blieb das Mikro. Wurzel: beide
+  `StateChanged`-Handler (IME + `PolishedRecognitionService`) mappten nur
+  RECORDING/PROCESSING/IDLE — `State.PAUSED` fiel in `else -> Unit`; der
+  „2m"-Zeitstempel war die #118-Churn-Suppression, die identischen Text nie
+  neu postet.
+- **Die Regel (Owner-Entscheidung, Text + Icon):** im PAUSED-Zustand
+  zeigt die Notification den Text `paused_notification` („Paused…") mit
+  dem neuen Small-Icon `ic_notification_pause`. Das FGS selbst BLEIBT UP —
+  der #83-Pitfall (Oplus reaped den Prozess ohne Mic-FGS mitten in der
+  Rotation) ist unangetastet; korrigiert wird nur die Anzeige. Der
+  Pause/Resume-Wechsel ist jetzt ein echter Textwechsel und bekommt damit
+  ehrliche, frische Zeitstempel unter der Churn-Suppression.
+- **Umsetzung:** `buildNotification`/`updateNotification`/`postNotification`
+  tragen einen Icon-Parameter (Default `ic_notification_mic`) in beiden
+  Services; der `PAUSED`-Zweig postet den Paused-Look. `onDestroy`
+  unverändert (FGS-Release nur bei IDLE).
+- **Tests:** neuer Fall in `ImeRebindChurnTest` — PAUSED postet
+  „Paused…" + Pause-Icon (über `ShadowIcon.resId`), Wiederholung ist
+  suppressed, Resume repariert den Text zurück zum Mikro-Look; der erste
+  „Listening…"-Post reitet auf dem FGS-Assert und zählt als `fgs`, nie als
+  `notify`. Suite + `lintDebug` grün (forced), Release auf beiden Geräten
+  (OnePlus `f6de166c`, A03 `R7SRB06XF5K`). **Owner-Check offen:** Take
+  pausieren → „Paused…" mit Pause-Icon, kein Mikro-Symbol in der
+  Statusleiste; Resume → „Listening…" mit frischem Zeitstempel.
 
 ## #217 — der Cross-App-Einstieg released einen uncommitteten Take an die Werkstatt (2026-11-27, shipped `1edb349`)
 
