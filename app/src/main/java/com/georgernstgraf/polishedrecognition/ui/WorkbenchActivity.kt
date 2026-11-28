@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.AutoCompleteTextView
@@ -440,9 +441,29 @@ class WorkbenchActivity : Activity() {
         val active = controller.activeSessionId()
         journal.recoverableSessions()
             .filter { it.sessionId != active }
-            .map { summary ->
+            .mapNotNull { summary ->
+                val records = journal.readRecords(summary.sessionId)
+                // #219: a completed session whose fragments hold no transcript
+                // can never be restored (nothing to store) and is never offered
+                // a re-run (the completed path is restore) — a partial delete
+                // on the live success path left its marker behind, and the
+                // recovery deletes it only on success. The text was delivered
+                // long ago, so the zombie is DELETED, not hidden: it cannot
+                // haunt the ring or the banner. A completed session WITH text
+                // is untouched (restore keeps working), a failed delete keeps
+                // the page (the journal's best-effort contract).
+                if (summary.completed && RecoveryRestore.textOf(records).isBlank()) {
+                    if (journal.deleteSession(summary.sessionId)) {
+                        Log.i(
+                            "FragmentJournal",
+                            "prune: zombie session ${summary.sessionId} — " +
+                                "completed with no stored text"
+                        )
+                        return@mapNotNull null
+                    }
+                }
                 val dir = journal.sessionDir(summary.sessionId)
-                val hasAudio = journal.readRecords(summary.sessionId).any { record ->
+                val hasAudio = records.any { record ->
                     record.uploadFile?.let { name -> File(dir, name).isFile } == true
                 }
                 WorkbenchPage.Leftover(summary, hasAudio)
@@ -950,13 +971,25 @@ class WorkbenchActivity : Activity() {
         )
         // The hint speaks for the page: a leftover explains why it is empty and
         // what to do; the compose slot only explains the very first dictation.
+        // #219: the hint is REASON-aware — a COMPLETED leftover must not claim
+        // "not transcribed yet" under a when-line that says "transcribed — text
+        // available"; every failure kind keeps the existing wording. The kind
+        // comes from [RecoveryReason.of] so this screen invents no rule.
         emptyHint.visibility = when {
             leftover != null -> View.VISIBLE
             index == FifoNavigation.COMPOSE_INDEX && pages.isEmpty() -> View.VISIBLE
             else -> View.GONE
         }
         emptyHint.text = getString(
-            if (leftover != null) R.string.workbench_leftover_hint else R.string.workbench_empty
+            when {
+                leftover == null -> R.string.workbench_empty
+                RecoveryReason.of(
+                    leftover.summary.completed,
+                    leftover.summary.failureClass
+                ) == RecoveryReason.Kind.COMPLETED ->
+                    R.string.workbench_leftover_hint_completed
+                else -> R.string.workbench_leftover_hint
+            }
         )
         positionLabel.text = FifoNavigation.positionLabel(index, pages.size)
         prevButton.isEnabled = actions.prev

@@ -225,6 +225,9 @@
     <string name="workbench_share_audio">Share audio</string>
     <string name="workbench_dismiss_leftover">Dismiss</string>
     <string name="workbench_leftover_hint">Not transcribed yet — Retry STT or start a new dictation</string>
+    <!-- #219: the reason-aware hint for a COMPLETED leftover — it must not
+         contradict the when-line's "transcribed — text available". -->
+    <string name="workbench_leftover_hint_completed">Transcribed — restore the text, share the audio, or dismiss.</string>
     <string name="recovery_reason_auth">STT token rejected</string>
     <string name="recovery_reason_budget">Provider budget exhausted</string>
     <string name="recovery_reason_protocol">provider answered without a transcript</string>

@@ -87,6 +87,23 @@ class WorkbenchActivityTest {
         }
     }
 
+    /**
+     * #219: the device's zombie — the marker says completed, but the fragment
+     * records hold no transcript (a partial delete on the live success path).
+     * Restore answers "no stored text to restore" and no re-run is ever
+     * offered: only the scan's prune can retire the session.
+     */
+    private fun seedZombie(sessionId: String) {
+        val audio = File(context.cacheDir, "seed-$sessionId.wav")
+            .apply { writeBytes(ByteArray(64)) }
+        journal.writePending(
+            sessionId,
+            FragmentJournal.FragmentRecord(index = 0, durationMs = 7_000L, preRollMs = 1_000L),
+            audio
+        )
+        journal.markCompleted(sessionId)
+    }
+
     private fun configureSttProvider() {
         SettingsStore(context).sttProvider = SttProviderConfig(
             displayName = "Groq",
@@ -1053,6 +1070,10 @@ class WorkbenchActivityTest {
         assertThat(activity.enabled(R.id.workbench_restore_text)).isTrue()
         assertThat(activity.visible(R.id.workbench_retry_stt)).isFalse()
         assertThat(activity.stamp()).contains("transcribed — text available")
+        // #219: the hint must not contradict the when-line — a COMPLETED
+        // leftover announces restore/share/dismiss, never "Not transcribed yet".
+        assertThat(activity.findViewById<TextView>(R.id.workbench_empty_hint).text.toString())
+            .isEqualTo("Transcribed — restore the text, share the audio, or dismiss.")
 
         activity.click(R.id.workbench_restore_text)
         idle()
@@ -1061,6 +1082,51 @@ class WorkbenchActivityTest {
         assertThat(activity.raw().text()).isEqualTo("fertiger Text")
         assertThat(journal.recoverableSessions()).isEmpty()
         assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo("Text restored to the Workbench")
+    }
+
+    /**
+     * #219: the device's zombie — a completed session with no stored text. It
+     * can never be restored or re-run, so the scan DELETES it (owner decision,
+     * not hidden): the dir is gone and it never becomes a page.
+     */
+    @Test
+    fun `a completed leftover with no stored text is pruned from the scan`() {
+        val zombie = "20260101-1400-dddddddd"
+        seedZombie(zombie)
+        val activity = launch()
+
+        // pruned, not hidden: the journal dir is gone, ring and banner stay empty
+        assertThat(journal.sessionDir(zombie).exists()).isFalse()
+        assertThat(journal.recoverableSessions()).isEmpty()
+        assertThat(activity.position()).isEqualTo("new")
+        assertThat(activity.visible(R.id.workbench_leftover_actions)).isFalse()
+        assertThat(activity.stamp()).isEmpty()
+    }
+
+    /**
+     * #219: the prune is narrow — a completed session WITH text (Restore's
+     * contract) and an interrupted session (a re-run is possible) survive
+     * the very scan that removes the zombie.
+     */
+    @Test
+    fun `the scan prunes only completed zombies - completed-with-text and interrupted stay`() {
+        val interrupted = "20260101-1500-eeeeeeee"
+        val completed = "20260101-1600-ffffffff"
+        val zombie = "20260101-1700-99999999"
+        seedLeftover(sessionId = interrupted, failureClass = null)
+        seedLeftover(sessionId = completed, failureClass = null, completed = true)
+        seedZombie(zombie)
+        val activity = launch()
+        idle()
+
+        assertThat(journal.sessionDir(interrupted).exists()).isTrue()
+        assertThat(journal.sessionDir(completed).exists()).isTrue()
+        assertThat(journal.sessionDir(zombie).exists()).isFalse()
+        assertThat(journal.recoverableSessions().map { it.sessionId })
+            .containsExactly(interrupted, completed)
+
+        activity.showNewest()
+        assertThat(activity.position()).isEqualTo("2 / 2")
     }
 
     /**
