@@ -46,4 +46,33 @@ class ImeLeftoverPolicyTest {
         )
         assertThat(d).isEqualTo(ImeLeftoverPolicy.Action.CANCEL_ONLY)
     }
+
+    /**
+     * #219: the keep-checkbox is OFF — the pre-#217 discard. EVERY case,
+     * including the ones that would secure text or audio, collapses to the
+     * lossless cancel; the IME says so with its discard toast.
+     */
+    @Test
+    fun `keepInWorkbench false discards every take`() {
+        val cases = listOf(
+            // would SAVE_TEXT_AND_CANCEL (fully transcribed)
+            Triple(true, false, true),
+            // would RELEASE_TO_RECOVERY (transcripts + untranscribed audio)
+            Triple(true, true, true),
+            // would RELEASE_TO_RECOVERY (the measured device case)
+            Triple(false, true, true),
+            // already CANCEL_ONLY
+            Triple(false, false, false)
+        )
+        cases.forEach { (transcripts, untranscribed, buffered) ->
+            assertThat(
+                ImeLeftoverPolicy.decide(
+                    hasTranscripts = transcripts,
+                    untranscribedAudio = untranscribed,
+                    hasBufferedAudio = buffered,
+                    keepInWorkbench = false
+                )
+            ).isEqualTo(ImeLeftoverPolicy.Action.CANCEL_ONLY)
+        }
+    }
 }

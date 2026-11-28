@@ -91,6 +91,29 @@ class AdvancedActivityTest {
         assertThat(store.imeLivePreview).isTrue()
     }
 
+    /** #219: the cross-app keep checkbox follows the same draft/apply flow. */
+    @Test
+    fun `cross-app keep writes the draft without touching the store`() {
+        val activity = launch()
+        // Default ON.
+        assertThat(activity.checkbox(R.id.cross_app_keep).isChecked).isTrue()
+
+        activity.checkbox(R.id.cross_app_keep).isChecked = false
+
+        assertThat(SettingsDraft.crossAppKeep).isFalse()
+        assertThat(store.crossAppKeep).isTrue()
+
+        // And the apply persists it.
+        SettingsValidation.apply(
+            RuntimeEnvironment.getApplication(),
+            SettingsDraft,
+            store,
+            promptStore(),
+            emptySet()
+        )
+        assertThat(store.crossAppKeep).isFalse()
+    }
+
     /** #172: shrinking the cap prunes the dictation store ON APPLY. */
     @Test
     fun `fifo prune runs on apply when the cap shrinks`() {

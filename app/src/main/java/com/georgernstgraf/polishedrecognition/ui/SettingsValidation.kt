@@ -96,6 +96,9 @@ object SettingsValidation {
     fun imeLivePreview(draft: SettingsDraft, store: SettingsStore): Boolean =
         draft.imeLivePreview ?: store.imeLivePreview
 
+    fun crossAppKeep(draft: SettingsDraft, store: SettingsStore): Boolean =
+        draft.crossAppKeep ?: store.crossAppKeep
+
     fun evidenceRetentionPosition(draft: SettingsDraft, store: SettingsStore): Int =
         draft.evidenceRetentionPosition
             ?: EvidenceRetention.positionFor(store.evidenceRetentionSeconds)
@@ -247,6 +250,7 @@ object SettingsValidation {
 
         store.compressAudio = compressAudio(draft, store)
         store.imeLivePreview = imeLivePreview(draft, store)
+        store.crossAppKeep = crossAppKeep(draft, store)
         store.evidenceRetentionSeconds =
             EvidenceRetention.secondsFor(evidenceRetentionPosition(draft, store))
 

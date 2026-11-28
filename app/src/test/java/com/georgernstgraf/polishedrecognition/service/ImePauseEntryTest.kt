@@ -22,6 +22,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 import java.io.File
 
 /**
@@ -237,6 +238,10 @@ class ImePauseEntryTest {
         assertThat(released).hasSize(1)
         assertThat(released.single()).contains("pausedMs=4200 session=$sid")
 
+        // #219: the confirmation toast names the app the take was dictated
+        // into — the raw package name here (the shadow PM knows no label).
+        assertThat(ShadowToast.getTextOfLatestToast()).contains("com.example.chat")
+
         journal.sessionDir(sid).deleteRecursively()
     }
 
@@ -264,6 +269,33 @@ class ImePauseEntryTest {
         assertThat(controller.pausedPackage()).isNull()
         assertThat(service.startCalls).isEqualTo(1)
         assertThat(service.kickedRecovery).isEmpty()
+    }
+
+    /**
+     * #219: the keep-checkbox is OFF — the foreign-app entry DISCARDS the take
+     * (the pre-#217 behaviour) instead of securing it: the very setup that
+     * would release to the recovery above is cancelled, the fresh recording
+     * starts, no recovery is kicked, and the discard toast names the app the
+     * dictation was made into.
+     */
+    @Test
+    fun `with the keep off a foreign app discards the paused take`() {
+        app.settingsStore.crossAppKeep = false
+        try {
+            service.onCreateInputView()
+            service.onStartInputView(field(), false)
+            pauseViaSnapshot("com.example.chat", durationMs = 4200)
+
+            service.onStartInputView(field(pkg = "com.example.mail"), false)
+            service.onInputViewDrawn()
+
+            assertThat(controller.state).isEqualTo(VoiceSessionController.State.IDLE)
+            assertThat(service.startCalls).isEqualTo(1)
+            assertThat(service.kickedRecovery).isEmpty()
+            assertThat(ShadowToast.getTextOfLatestToast()).contains("was discarded")
+        } finally {
+            app.settingsStore.crossAppKeep = true
+        }
     }
 
     /**

@@ -128,6 +128,25 @@
 
         <View style="@style/SettingsDivider" />
 
+        <!-- #219: keep cross-app leftover takes in the Workbench (default ON) -->
+        <CheckBox
+            android:id="@+id/cross_app_keep"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cross_app_keep"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cross_app_keep_hint"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <View style="@style/SettingsDivider" />
+
         <!-- #142: audio-evidence retention — the 0→50-years log slider
              (0 = "Keine Retention", complete off) -->
         <TextView

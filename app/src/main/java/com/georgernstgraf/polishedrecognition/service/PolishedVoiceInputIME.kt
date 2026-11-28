@@ -774,11 +774,20 @@ open class PolishedVoiceInputIME : InputMethodService() {
                 // comes up stuck in the pause look (`kept=…`, >1 min on device).
                 if (controller.state == VoiceSessionController.State.PAUSED) {
                     val pausedMs = controller.recordedDurationMs()
+                    // #219: read BEFORE the cancel — it dies with the take.
+                    // One rule for both toasts: the display name of the app
+                    // the take was dictated INTO (pausedPackage()).
+                    val keepInWorkbench = settings.crossAppKeep
+                    val targetApp = settings.appDisplayName(
+                        controller.pausedPackage(),
+                        fallback = getString(R.string.ime_leftover_unknown_app)
+                    )
                     when (
                         ImeLeftoverPolicy.decide(
                             hasTranscripts = controller.salvageableText() != null,
                             untranscribedAudio = controller.untranscribedAudioPending(),
-                            hasBufferedAudio = pausedMs > 0L
+                            hasBufferedAudio = pausedMs > 0L,
+                            keepInWorkbench = keepInWorkbench
                         )
                     ) {
                         ImeLeftoverPolicy.Action.SAVE_TEXT_AND_CANCEL -> {
@@ -789,6 +798,16 @@ open class PolishedVoiceInputIME : InputMethodService() {
                             val salvage = controller.salvageableText()!!
                             (application as PolishedRecognitionApp).dictationStore.append(salvage)
                             controller.cancel()
+                            // #219: only with the keep ON — AFTER the cancel, so
+                            // this toast replaces the #113 salvage toast (a fresh
+                            // Toasts.show cancels the running chain) and owns the
+                            // single-toast surface.
+                            if (keepInWorkbench) {
+                                Toasts.show(
+                                    this,
+                                    getString(R.string.ime_leftover_saved, targetApp)
+                                )
+                            }
                         }
                         ImeLeftoverPolicy.Action.RELEASE_TO_RECOVERY -> {
                             val released = controller.releaseToRecovery()
@@ -811,17 +830,27 @@ open class PolishedVoiceInputIME : InputMethodService() {
                             )
                             startIfPermitted()
                             // The #207 surface, readable while the new take records.
+                            // #219: the app label replaces the duration.
                             Toasts.show(
                                 this,
-                                getString(
-                                    R.string.ime_leftover_saved,
-                                    RecTimeFormatter.recording(pausedMs)
-                                )
+                                getString(R.string.ime_leftover_saved, targetApp)
                             )
                             kickRecovery(released)
                             return
                         }
                         ImeLeftoverPolicy.Action.CANCEL_ONLY -> controller.cancel()
+                    }
+                    if (!keepInWorkbench) {
+                        // #219: the keep is OFF — every PAUSED branch discarded
+                        // the take. The fresh recording starts first, then ONE
+                        // toast names the app the dictation was made into and
+                        // where to re-enable the keep.
+                        startIfPermitted()
+                        Toasts.show(
+                            this,
+                            getString(R.string.ime_leftover_discarded, targetApp)
+                        )
+                        return
                     }
                 }
                 startIfPermitted()

@@ -64,6 +64,7 @@ object SettingsDraft {
     var workbenchFifoSize: String? = null
     var compressAudio: Boolean? = null
     var imeLivePreview: Boolean? = null
+    var crossAppKeep: Boolean? = null
     var evidenceRetentionPosition: Int? = null
 
     /** True while no field carries a pending edit — the overview's back-exit applies nothing. */
@@ -76,6 +77,7 @@ object SettingsDraft {
             appWrapForgotten.isEmpty() &&
             sliceAuto == null && sliceSeconds == null && searchAuto == null && searchPercent == null &&
             workbenchFifoSize == null && compressAudio == null && imeLivePreview == null &&
+            crossAppKeep == null &&
             evidenceRetentionPosition == null
 
     /** Discards every pending edit (called after the apply, and by tests between scenarios). */
@@ -102,6 +104,7 @@ object SettingsDraft {
         workbenchFifoSize = null
         compressAudio = null
         imeLivePreview = null
+        crossAppKeep = null
         evidenceRetentionPosition = null
     }
 }

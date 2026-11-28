@@ -18,6 +18,11 @@ package com.georgernstgraf.polishedrecognition.service
  *   duplicate them. Never both paths, never a silent loss.
  *
  * A take without audio is lossless to cancel, exactly as before the guard.
+ *
+ * #219: [keepInWorkbench] = false (the Advanced-settings checkbox is off)
+ * short-circuits EVERY case to [Action.CANCEL_ONLY] — the pre-#217 discard.
+ * The IME then says so with ONE toast naming the app the take was dictated
+ * into; the policy itself stays pure and UI-free.
  */
 object ImeLeftoverPolicy {
 
@@ -35,10 +40,17 @@ object ImeLeftoverPolicy {
     fun decide(
         hasTranscripts: Boolean,
         untranscribedAudio: Boolean,
-        hasBufferedAudio: Boolean
-    ): Action = when {
-        hasTranscripts && !untranscribedAudio -> Action.SAVE_TEXT_AND_CANCEL
-        hasTranscripts || hasBufferedAudio -> Action.RELEASE_TO_RECOVERY
-        else -> Action.CANCEL_ONLY
+        hasBufferedAudio: Boolean,
+        keepInWorkbench: Boolean = true
+    ): Action {
+        // #219: the keep-checkbox is OFF — no securing at all, the pre-#217
+        // discard (lossless to cancel when nothing is buffered; with audio
+        // the IME's discard toast tells the user where to re-enable it).
+        if (!keepInWorkbench) return Action.CANCEL_ONLY
+        return when {
+            hasTranscripts && !untranscribedAudio -> Action.SAVE_TEXT_AND_CANCEL
+            hasTranscripts || hasBufferedAudio -> Action.RELEASE_TO_RECOVERY
+            else -> Action.CANCEL_ONLY
+        }
     }
 }

@@ -132,6 +132,21 @@ class SettingsStoreTest {
         assertThat(settingsPrefs().getBoolean("ime_live_preview", true)).isFalse()
     }
 
+    // ---- #219: keep cross-app leftover takes in the Workbench ---------------
+
+    @Test
+    fun `crossAppKeep defaults to on`() {
+        clearPrefs()
+        assertThat(freshStore().crossAppKeep).isTrue()
+    }
+
+    @Test
+    fun `crossAppKeep saves and loads off`() {
+        store.crossAppKeep = false
+        assertThat(store.crossAppKeep).isFalse()
+        assertThat(settingsPrefs().getBoolean("cross_app_keep", true)).isFalse()
+    }
+
     // ---- #142: audio-evidence retention (0→50-years slider) -------------------
 
     @Test

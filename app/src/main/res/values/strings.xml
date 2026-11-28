@@ -19,6 +19,9 @@
     <string name="compress_audio">Slow connection: upload OGG/Opus</string>
     <string name="live_preview">Live preview in the text field</string>
     <string name="live_preview_hint">While you dictate, the transcript grows in the field you are typing into. It is display only — Send still inserts the finished text exactly once. Off: nothing is written until Send.</string>
+    <!-- #219: keep cross-app leftover takes in the Workbench (default ON). -->
+    <string name="cross_app_keep">Keep dictations discarded by an app switch in the Workbench</string>
+    <string name="cross_app_keep_hint">When you switch apps while a dictation is paused, the take is secured in the Workbench and transcribed there. Off: the take is discarded.</string>
     <!-- #212: retired with the old monolithic screen — the Advanced
          sub-screen and its overview row use `settings_category_advanced`. -->
     <string name="slice_auto">Fragment cut: auto</string>
@@ -121,8 +124,11 @@
     <string name="ime_send_desc">Send</string>
     <string name="ime_send_hint">Send — transcribe, polish and insert the text</string>
     <string name="ime_switch_hint">Keyboard — back to your text keyboard</string>
-    <!-- #217: the cross-app release — the old take is secured, the Workbench recovers it. -->
-    <string name="ime_leftover_saved">Leftover take (%s) saved — the Workbench will transcribe it</string>
+    <!-- #217/#219: the cross-app leftover — securing is confirmed with a toast naming the app the take was dictated into. -->
+    <string name="ime_leftover_saved">Dictation from %1$s saved to the Workbench</string>
+    <!-- #219: the keep is OFF — the pre-#217 discard, said once with the app name. -->
+    <string name="ime_leftover_discarded">Dictation into %1$s was discarded — enable \u201eKeep discarded dictations\u201c in Settings \u2192 Advanced to save them in the future.</string>
+    <string name="ime_leftover_unknown_app">unknown app</string>
     <string name="ime_pause_resume_hint">Pause / resume — recorded audio is kept</string>
     <string name="ime_flush_hint">Discard — clear audio and timer, stay here</string>
     <string name="ime_flush_desc">Discard recording</string>

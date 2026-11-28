@@ -167,6 +167,18 @@ class SettingsStore(
         set(value) = prefs.edit { putBoolean(IME_LIVE_PREVIEW_KEY, value) }
 
     /**
+     * #219: keep a cross-app leftover take in the Workbench at all. ON (the
+     * default): the #217 release secures the take (raw text or journal →
+     * recovery) and the fresh dictation state confirms with a toast naming
+     * the app the take was dictated into. OFF: every foreign-app leftover is
+     * discarded (the pre-#217 behaviour) and the fresh state says so with one
+     * toast naming that app. Read once per fresh-start decision.
+     */
+    var crossAppKeep: Boolean
+        get() = prefs.getBoolean(CROSS_APP_KEEP_KEY, true)
+        set(value) = prefs.edit { putBoolean(CROSS_APP_KEEP_KEY, value) }
+
+    /**
      * #166 D2: how many Workbench dictations the FIFO keeps (1..10, default 3).
      * Settable in the Advanced settings section (#172); read by
      * [com.georgernstgraf.polishedrecognition.dictation.DictationStore] on
@@ -311,6 +323,25 @@ class SettingsStore(
     fun wrapWidthFor(packageName: String?): Int =
         if (packageName == null) wrapWidth
         else loadKnownApps()[packageName]?.wrapWidth ?: wrapWidth
+
+    /**
+     * #219: display name of a dictation target for the leftover toasts — the
+     * learned label (#100) when the app is already known, the PackageManager
+     * label as fallback, the raw package name last. A `null` caller (an
+     * unreadable pre-#192 snapshot) returns [fallback]. A PURE read (#200):
+     * the in-memory cache answers, nothing is persisted.
+     */
+    fun appDisplayName(packageName: String?, fallback: String): String {
+        if (packageName == null) return fallback
+        loadKnownApps()[packageName]?.let { return it.label }
+        return try {
+            val pm = appContext.packageManager
+            @Suppress("DEPRECATION")
+            pm.getApplicationInfo(packageName, 0).loadLabel(pm).toString()
+        } catch (_: Exception) {
+            packageName
+        }
+    }
 
     /**
      * Learns that [packageName] is a dictation target (#100). Called on the
@@ -826,6 +857,7 @@ class SettingsStore(
         private const val LLM_MODEL_LISTS_KEY = "llm_model_lists"
         private const val RAW_MODE_KEY = "raw_mode"
         private const val IME_LIVE_PREVIEW_KEY = "ime_live_preview"
+        private const val CROSS_APP_KEEP_KEY = "cross_app_keep"
         private const val COMPRESS_AUDIO_KEY = "compress_audio"
         private const val WORKBENCH_FIFO_SIZE_KEY = "workbench_fifo_size"
         private const val AUDIO_EVIDENCE_KEY = "audio_evidence"

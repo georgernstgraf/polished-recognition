@@ -17,7 +17,8 @@ import com.georgernstgraf.polishedrecognition.config.SttLatencyProfile
 /**
  * #212: the Advanced / Debugging sub-screen — fragment geometry (#124), the
  * Workbench FIFO depth (#172), compression, the live-preview kill switch
- * (#205) and the audio-evidence retention slider (#142), moved verbatim from
+ * (#205), the audio-evidence retention slider (#142) and the cross-app keep
+ * checkbox (#219), moved verbatim from
  * the old single-screen SettingsActivity. Edits land in [SettingsDraft].
  */
 class AdvancedActivity : Activity() {
@@ -27,6 +28,8 @@ class AdvancedActivity : Activity() {
     private val compressAudioCheckbox: CheckBox by lazy { findViewById(R.id.compress_audio) }
     /** #205: the live-preview kill switch (read at session start). */
     private val livePreviewCheckbox: CheckBox by lazy { findViewById(R.id.ime_live_preview) }
+    /** #219: keep cross-app leftover takes in the Workbench. */
+    private val crossAppKeepCheckbox: CheckBox by lazy { findViewById(R.id.cross_app_keep) }
     /** #142: the 0→50-years log slider (0 = no retention, complete off). */
     private val evidenceRetentionSlider: SeekBar by lazy { findViewById(R.id.evidence_retention_slider) }
     private val evidenceRetentionLabel: TextView by lazy { findViewById(R.id.evidence_retention_label) }
@@ -66,6 +69,9 @@ class AdvancedActivity : Activity() {
         }
         livePreviewCheckbox.setOnCheckedChangeListener { _, checked ->
             if (!silenceDraftWatchers) draft.imeLivePreview = checked
+        }
+        crossAppKeepCheckbox.setOnCheckedChangeListener { _, checked ->
+            if (!silenceDraftWatchers) draft.crossAppKeep = checked
         }
 
         evidenceRetentionSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -117,6 +123,7 @@ class AdvancedActivity : Activity() {
     private fun loadToggles() {
         compressAudioCheckbox.isChecked = SettingsValidation.compressAudio(draft, settings)
         livePreviewCheckbox.isChecked = SettingsValidation.imeLivePreview(draft, settings)
+        crossAppKeepCheckbox.isChecked = SettingsValidation.crossAppKeep(draft, settings)
     }
 
     /** #142: the retention slider — the label tracks the position. */
